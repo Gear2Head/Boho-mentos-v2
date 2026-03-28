@@ -124,7 +124,7 @@ function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQ
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-lg mb-6 max-w-2xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h3 className="font-serif italic text-2xl text-[#C17767] dark:text-rose-400">Yeni Mezar Kaz</h3>
+          <h3 className="font-display italic text-2xl text-[#C17767] dark:text-rose-400">Yeni Mezar Kaz</h3>
           <p className="text-[10px] uppercase tracking-widest opacity-50 text-zinc-500 font-bold">Hatalı soruyu arşive gönder</p>
         </div>
         <button onClick={onCancel} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"><X size={20} className="text-[#4A443C] dark:text-zinc-200" /></button>
@@ -186,7 +186,7 @@ const markdownComponents = {
   ul: ({node, ...props}: any) => <ul className="list-disc pl-5 mb-4 space-y-2 opacity-90" {...props} />,
   ol: ({node, ...props}: any) => <ol className="list-decimal pl-5 mb-4 space-y-2 opacity-90" {...props} />,
   strong: ({node, ...props}: any) => <strong className="font-bold text-[#C17767] dark:text-rose-400" {...props} />,
-  h3: ({node, ...props}: any) => <h3 className="text-lg font-bold font-serif italic mt-6 mb-2 border-b border-[#EAE6DF] dark:border-zinc-800 pb-1" {...props} />,
+  h3: ({node, ...props}: any) => <h3 className="text-lg font-bold font-display italic mt-6 mb-2 border-b border-[#EAE6DF] dark:border-zinc-800 pb-1" {...props} />,
 };
 
 // --- Main App ---
@@ -309,9 +309,9 @@ export default function App() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-[#FDFBF7] dark:bg-zinc-950 text-[#4A443C] dark:text-zinc-200 font-sans selection:bg-[#4A443C] selection:text-[#FDFBF7]">
-      <nav className="fixed bottom-0 left-0 right-0 md:relative md:w-64 border-t md:border-t-0 md:border-r border-[#EAE6DF] dark:border-zinc-800 flex flex-row md:flex-col bg-[#F5F2EB]/90 dark:bg-zinc-900/90 backdrop-blur-md md:backdrop-blur-none z-50">
-        <div className="hidden md:block p-6 border-b border-[#EAE6DF] dark:border-zinc-800">
-          <h1 className="font-serif italic text-xl font-bold tracking-tight text-[#C17767] dark:text-rose-400">Boho Mentosluk</h1>
+      <nav className="fixed bottom-4 left-4 right-4 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border border-[#EAE6DF]/10 md:border-t-0 md:border-r border-[#EAE6DF] dark:border-zinc-800 flex flex-row md:flex-col bg-white/10 dark:bg-zinc-900/40 backdrop-blur-xl md:backdrop-blur-none z-50 rounded-2xl md:rounded-none shadow-2xl md:shadow-none transition-all duration-300">
+        <div className="hidden md:block p-4 border-b border-[#EAE6DF] dark:border-zinc-800">
+          <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767] dark:text-rose-400">Boho Mentosluk</h1>
           <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-[#4A443C] dark:text-zinc-400">YKS Mentörlük v5</p>
           {store.isPassiveMode && (
             <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
@@ -334,7 +334,7 @@ export default function App() {
           <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
         </div>
         <div 
-          className="hidden md:block p-6 border-t border-[#EAE6DF] dark:border-zinc-800 text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 cursor-pointer"
+          className="hidden md:block p-4 border-t border-[#EAE6DF] dark:border-zinc-800 text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 cursor-pointer"
           onClick={() => setIsAdminPanelOpen(true)}
           title="Admin Panelini Aç"
         >
@@ -349,17 +349,17 @@ export default function App() {
               <header className="mb-12 flex flex-col md:flex-row md:justify-between items-start md:items-end gap-6">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h2 className="font-serif italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {store.profile.name}</h2>
+                    <h2 className="font-display italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {store.profile.name}</h2>
                   </div>
                   <div className="flex gap-4 text-xs uppercase tracking-widest opacity-60 text-[#4A443C] dark:text-zinc-400">
                     <span>TYT: {store.profile.tytTarget} Net</span><span>•</span><span>AYT: {store.profile.aytTarget} Net</span>
                   </div>
                 </div>
-                <div className="w-full md:w-auto flex flex-col items-end gap-4">
+                <div className="w-full md:w-auto flex flex-col items-end gap-4 scale-90 md:scale-100 origin-right">
                   <MiniFlapClock targetDate="2026-06-20T09:00:00" />
                   <button 
                     onClick={() => store.setFocusSidePanelOpen(true)}
-                    className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group"
+                    className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group w-full md:w-auto justify-center"
                   >
                     <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
                       <Clock size={16} />
@@ -391,7 +391,7 @@ export default function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
                 <section className="md:col-span-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
-                  <h3 className="font-serif italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
+                  <h3 className="font-display italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
                   <div className="prose prose-invert prose-sm max-w-none">
                     {store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
                       <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
@@ -404,7 +404,7 @@ export default function App() {
                 </section>
 
                 <section className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm flex flex-col">
-                  <h3 className="font-serif italic text-xl mb-4 border-b border-[#2A2A2A] pb-2 uppercase tracking-tight text-[#C17767] flex items-center justify-between">
+                  <h3 className="font-display italic text-xl mb-4 border-b border-[#2A2A2A] pb-2 uppercase tracking-tight text-[#C17767] flex items-center justify-between">
                     <span>Konu Borcu</span><span className="text-[10px] bg-red-900/30 text-red-500 border border-red-500/20 px-2 py-1 rounded font-bold uppercase tracking-widest">FAİZ İŞLİYOR</span>
                   </h3>
                   <div className="flex-1 overflow-y-auto pr-2 space-y-3">
@@ -436,17 +436,17 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-serif italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={store.logs} /></div>}
+          {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-display italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={store.logs} /></div>}
 
           {activeTab === 'exams' && (
             <motion.div key="exams" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-5xl mx-auto">
               <div className="flex justify-between items-end mb-8">
-                <h2 className="font-serif italic text-4xl text-zinc-200">Deneme Analizi</h2>
+                <h2 className="font-display italic text-4xl text-zinc-200">Deneme Analizi</h2>
                 <button onClick={() => setIsExamModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#C17767] text-[#FDFBF7] text-xs uppercase tracking-widest font-bold hover:opacity-90 transition-opacity rounded-xl shadow-lg shadow-[#C17767]/20"><Plus size={16} /> Yeni Deneme Gir</button>
               </div>
               <div className="grid grid-cols-1 gap-8">
                 <div className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm">
-                  <h3 className="font-serif italic text-xl mb-6 uppercase tracking-tight text-zinc-300">Deneme Takvimi</h3>
+                  <h3 className="font-display italic text-xl mb-6 uppercase tracking-tight text-zinc-300">Deneme Takvimi</h3>
                   {store.exams.length === 0 ? <p className="text-center opacity-40 text-xs text-zinc-500 font-bold uppercase tracking-widest">Henüz deneme girilmedi.</p> : store.exams.map(e => (
                     <div 
                        key={e.id} 
@@ -458,7 +458,7 @@ export default function App() {
                          <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{new Date(e.date).toLocaleDateString('tr-TR')}</span>
                        </div>
                        <div className="text-right">
-                         <span className="font-serif italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>
+                         <span className="font-display italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>
                        </div>
                     </div>
                   ))}
@@ -471,7 +471,7 @@ export default function App() {
             <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-6xl mx-auto">
               <div className="flex justify-between items-end mb-8">
                 <div>
-                   <h2 className="font-serif italic text-4xl text-zinc-200">Müfredat Haritası</h2>
+                   <h2 className="font-display italic text-4xl text-zinc-200">Müfredat Haritası</h2>
                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Topraklarını Genişlet ve Konuları Fethet</p>
                 </div>
                 <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A]">
@@ -556,7 +556,7 @@ export default function App() {
             <div className="p-4 md:p-8 max-w-6xl mx-auto">
               <header className="mb-12 flex justify-between items-end border-b border-[#2A2A2A] pb-6">
                 <div>
-                  <h2 className="font-serif italic text-4xl text-zinc-200">Soru Bankası Mezarlığı</h2>
+                  <h2 className="font-display italic text-4xl text-zinc-200">Soru Bankası Mezarlığı</h2>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Unutulanların ve Hataların Arşivi</p>
                 </div>
                 <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-6 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center shadow-lg shadow-[#C17767]/20 transition-all active:scale-95"><Plus size={16} /> Mezar Kaz</button>
@@ -566,7 +566,7 @@ export default function App() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {store.failedQuestions.filter(q => q.status === 'active' || store.isDevMode).length === 0 ? (
-                  <div className="col-span-full py-20 text-center opacity-20 uppercase tracking-[0.5em] font-serif italic text-2xl">Burası şimdilik sessiz...</div>
+                  <div className="col-span-full py-20 text-center opacity-20 uppercase tracking-[0.5em] font-display italic text-2xl">Burası şimdilik sessiz...</div>
                 ) : store.failedQuestions.map(q => (
                   <div key={q.id} className={`group relative bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 transition-all hover:border-[#C17767]/50 ${q.status === 'solved' ? 'opacity-50 grayscale' : ''}`}>
                     <div className="absolute top-0 left-0 w-1 h-full bg-[#C17767] group-hover:bg-[#E09F3E] transition-colors"></div>
@@ -580,7 +580,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <h4 className="font-serif italic text-xl text-zinc-200 mb-2 truncate">{q.topic}</h4>
+                    <h4 className="font-display italic text-xl text-zinc-200 mb-2 truncate">{q.topic}</h4>
                     <p className="text-[10px] uppercase font-bold text-zinc-500 mb-4">{q.book} • S:{q.page}</p>
                     
                     <div className="bg-black/40 rounded-xl p-4 mb-6 border border-[#222]">
@@ -614,11 +614,11 @@ export default function App() {
           {activeTab === 'countdown' && (
             <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
               <div className="text-center mb-12">
-                <h2 className="font-serif italic text-5xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
-                <p className="text-xs md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">20 HAZİRAN 2026'YA KALAN SÜRE</p>
+                <h2 className="font-display italic text-4xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
+                <p className="text-[10px] md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">20 HAZİRAN 2026, 09:00'A KALAN SÜRE</p>
               </div>
               <FlapClock targetDate="2026-06-20T09:00:00" />
-              <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-serif">
+              <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-display">
                 "Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin. Harcadığın her saniye hedefine yaklaşmak için bir fırsattır."
               </p>
             </motion.div>
@@ -627,7 +627,7 @@ export default function App() {
           {activeTab === 'settings' && (
             <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8 max-w-3xl mx-auto space-y-12">
               <div>
-                <h2 className="font-serif italic text-4xl mb-8">Ayarlar & Profil</h2>
+                <h2 className="font-display italic text-4xl mb-8">Ayarlar & Profil</h2>
                 <div className="space-y-8">
                   <ProfileSection title="Görünüm Ayarları">
                     <div className="col-span-2 flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
@@ -702,7 +702,7 @@ export default function App() {
               </div>
               
               <div>
-                <h3 className="font-serif italic text-2xl mb-4 text-[#C17767]">Profil Yönetimi</h3>
+                <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Profil Yönetimi</h3>
                 <ProfileSettings onSubmit={(p) => store.setProfile(p)} initialData={store.profile} isEditMode={true} />
               </div>
             </motion.div>
@@ -719,8 +719,43 @@ export default function App() {
 }
 
 // ----- MOCK UI FORMS ------
-const NavItem = ({ icon, label, active, onClick }: any) => <button onClick={onClick} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 px-2 md:px-6 py-2 md:py-4 transition-all rounded-lg md:rounded-none ${active ? 'bg-[#1A1A1A] text-[#C17767] border-r-4 border-[#C17767]' : 'text-[#8C857B] hover:bg-[#1A1A1A]/80'}`}> <div className={`p-2 rounded-full md:p-0 md:rounded-none`}>{icon}</div> <span className="text-[10px] md:text-xs uppercase tracking-widest font-bold hidden md:inline">{label}</span></button>;
-const StatCard = ({ title, value, total, unit, icon }: any) => <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-6 shadow-sm"><div className="flex justify-between items-start mb-4"><span className="text-[10px] uppercase opacity-50 tracking-widest font-bold text-zinc-400">{title}</span>{icon}</div><div className="flex items-baseline gap-2"><span className="text-4xl font-serif italic text-zinc-200">{value}</span>{total && <span className="text-xl opacity-40 text-zinc-500">/ {total}</span>}{unit && <span className="text-[10px] uppercase tracking-widest opacity-60 ml-1 text-zinc-500 font-bold">{unit}</span>}</div></div>;
+const NavItem = ({ icon, label, active, onClick }: any) => (
+  <button 
+    onClick={onClick} 
+    className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 px-2 md:px-6 py-3 md:py-2.5 transition-all relative ${
+      active 
+        ? 'text-[#C17767] md:bg-[#1A1A1A] md:border-r-4 md:border-[#C17767]' 
+        : 'text-[#8C857B] hover:text-[#C17767] md:hover:bg-[#1A1A1A]/80'
+    }`}
+  > 
+    {/* Mobile Active Indicator (Glow) */}
+    {active && (
+      <motion.div 
+        layoutId="activeNav"
+        className="absolute inset-0 bg-[#C17767]/10 dark:bg-[#C17767]/20 md:hidden rounded-xl"
+        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+      />
+    )}
+    
+    <div className={`relative p-2 rounded-full transition-all duration-300 ${active ? 'scale-110 drop-shadow-[0_0_8px_rgba(193,119,103,0.4)]' : 'opacity-70'}`}>
+      {icon}
+    </div> 
+    <span className="text-[10px] md:text-xs uppercase tracking-widest font-bold hidden md:inline relative">{label}</span>
+  </button>
+);
+const StatCard = ({ title, value, total, unit, icon }: any) => (
+  <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex justify-between items-start mb-4">
+      <span className="text-[10px] uppercase opacity-50 tracking-widest font-display font-bold text-[#4A443C] dark:text-zinc-400">{title}</span>
+      <div className="opacity-50 group-hover:opacity-100 transition-opacity">{icon}</div>
+    </div>
+    <div className="flex items-baseline gap-2">
+      <span className="text-4xl font-display font-bold text-[#4A443C] dark:text-zinc-200">{value}</span>
+      {total && <span className="text-xl opacity-30 font-display text-zinc-500">/ {total}</span>}
+      {unit && <span className="text-[10px] uppercase tracking-widest opacity-60 ml-1 text-zinc-500 font-bold">{unit}</span>}
+    </div>
+  </div>
+);
 
 const SubjectList = ({ title, subjects, onStatusChange, onNotesChange }: any) => {
   const grouped = subjects.reduce((acc: any, sub: any, idx: number) => {
@@ -732,13 +767,13 @@ const SubjectList = ({ title, subjects, onStatusChange, onNotesChange }: any) =>
   return (
     <div className="border border-[#2A2A2A] rounded-2xl bg-[#1A1A1A] overflow-hidden">
       <div className="p-5 border-b border-[#2A2A2A] bg-gradient-to-r from-red-950/10 to-transparent">
-        <h3 className="font-serif italic text-xl text-[#C17767] font-bold tracking-wide">{title}</h3>
+        <h3 className="font-display italic text-xl text-[#C17767] font-bold tracking-wide">{title}</h3>
       </div>
       <div className="overflow-auto h-[600px] custom-scrollbar">
         {Object.entries(grouped).map(([groupName, groupSubjects]: [string, any]) => (
           <div key={groupName} className="mb-4">
             <div className="sticky top-0 bg-[#1A1A1A] z-10 px-5 py-2 border-b border-[#2A2A2A] border-t-4 border-t-transparent shadow-sm">
-              <h4 className="font-serif italic text-sm text-[#C17767]/70 uppercase tracking-widest">{groupName}</h4>
+              <h4 className="font-display italic text-sm text-[#C17767]/70 uppercase tracking-widest">{groupName}</h4>
             </div>
             <div className="divide-y divide-[#2A2A2A] opacity-90">
               {groupSubjects.map((sub: any) => {
@@ -795,7 +830,7 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-4 mb-6">
-        <h3 className="font-serif italic text-2xl text-[#C17767] tracking-wide">{title}</h3>
+        <h3 className="font-display italic text-2xl text-[#C17767] tracking-wide">{title}</h3>
         <div className="flex-1 h-px bg-zinc-800"></div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -809,7 +844,7 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
             <div key={province} className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 hover:border-[#C17767]/30 transition-all group shadow-sm">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                   <h4 className="font-serif italic text-xl text-zinc-200 group-hover:text-[#C17767] transition-colors">{province} Eyaleti</h4>
+                   <h4 className="font-display italic text-xl text-zinc-200 group-hover:text-[#C17767] transition-colors">{province} Eyaleti</h4>
                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-bold mt-1">Fetih Durumu: {masteredCount}/{totalCount}</p>
                 </div>
                 <div className="text-right">

@@ -11,15 +11,19 @@ export const FlapUnit: React.FC<FlapUnitProps> = ({ value, label }) => {
   
   return (
     <div className="flex flex-col items-center">
-      <div className="relative w-16 h-20 md:w-24 md:h-32 bg-[#1C1C1C] rounded-lg overflow-hidden border border-[#333] shadow-2xl">
+      <div className="relative w-16 h-20 md:w-24 md:h-32 bg-[#1A1A1A] rounded-lg overflow-hidden border border-white/5 shadow-2xl">
         {/* Top Half */}
-        <div className="absolute inset-0 flex items-center justify-center text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] bg-[#222] h-1/2 border-b border-black/50">
-          <span className="translate-y-1/2">{formattedValue}</span>
+        <div className="absolute top-0 left-0 right-0 h-1/2 bg-[#222] border-b border-black/30 flex items-end justify-center overflow-hidden">
+          <span className="text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none translate-y-1/2">
+            {formattedValue}
+          </span>
         </div>
         
         {/* Bottom Half */}
-        <div className="absolute inset-0 flex items-center justify-center text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] h-1/2 mt-[50%] overflow-hidden bg-[#1C1C1C]">
-          <span className="-translate-y-1/2">{formattedValue}</span>
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-[#1A1A1A] flex items-start justify-center overflow-hidden">
+          <span className="text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none -translate-y-1/2">
+            {formattedValue}
+          </span>
         </div>
 
         {/* Animation Layer (Flip) */}
@@ -29,16 +33,16 @@ export const FlapUnit: React.FC<FlapUnitProps> = ({ value, label }) => {
             initial={{ rotateX: 0 }}
             animate={{ rotateX: -180 }}
             transition={{ duration: 0.6, ease: "easeInOut" }}
-            className="absolute inset-0 bg-[#222] origin-bottom h-1/2 border-b border-black/50 overflow-hidden backface-hidden z-10"
+            className="absolute top-0 left-0 right-0 h-1/2 bg-[#222] origin-bottom border-b border-black/30 flex items-end justify-center overflow-hidden backface-hidden z-10"
             style={{ transformStyle: 'preserve-3d' }}
           >
-             <div className="absolute inset-0 flex items-center justify-center text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] translate-y-1/2">
+             <div className="text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none translate-y-1/2">
                 {formattedValue}
              </div>
           </motion.div>
         </AnimatePresence>
       </div>
-      <span className="mt-2 text-[10px] md:text-xs uppercase tracking-widest opacity-40 font-bold">{label}</span>
+      <span className="mt-2 text-[10px] md:text-xs uppercase tracking-widest opacity-30 font-display font-bold">{label}</span>
     </div>
   );
 };
@@ -53,12 +57,11 @@ export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
   });
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    const updateTimer = () => {
       const now = new Date().getTime();
       const distance = new Date(targetDate).getTime() - now;
 
       if (distance < 0) {
-        clearInterval(timer);
         return;
       }
 
@@ -69,17 +72,20 @@ export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
       const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
       setTimeLeft({ months, days, hours, minutes, seconds });
-    }, 1000);
+    };
 
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
     return () => clearInterval(timer);
   }, [targetDate]);
 
   return (
-    <div className="flex gap-2 md:gap-4 p-4 items-center justify-center">
+    <div className="flex gap-1.5 md:gap-4 p-4 items-center justify-center scale-[0.85] md:scale-100 origin-center">
       <FlapUnit value={timeLeft.months} label="Ay" />
       <FlapUnit value={timeLeft.days} label="Gün" />
       <FlapUnit value={timeLeft.hours} label="Saat" />
       <FlapUnit value={timeLeft.minutes} label="Dak" />
+      <FlapUnit value={timeLeft.seconds} label="San" />
     </div>
   );
 };
@@ -99,11 +105,11 @@ export const MiniFlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) 
     }, [targetDate]);
 
     return (
-        <div className="flex items-center bg-black/40 px-3 py-1.5 rounded-xl border border-white/5">
-            <span className="text-[10px] uppercase tracking-widest opacity-40 mr-3 font-bold">YKS SAYAÇ</span>
-            <div className="flex items-center gap-1">
-                <span className="font-display font-bold text-[#C17767] text-lg tabular-nums">{days}</span>
-                <span className="text-[10px] opacity-30 font-bold uppercase">GÜN KALDI</span>
+        <div className="flex items-center bg-white/5 dark:bg-black/40 px-4 py-2 rounded-2xl border border-white/10 backdrop-blur-md">
+            <span className="text-[10px] md:text-xs uppercase tracking-[0.2em] opacity-50 mr-4 font-display font-bold text-zinc-400">YKS SAYAÇ</span>
+            <div className="flex items-center gap-1.5">
+                <span className="font-display font-bold text-[#C17767] text-xl md:text-2xl tabular-nums drop-shadow-[0_0_10px_rgba(193,119,103,0.3)]">{days}</span>
+                <span className="text-[10px] md:text-xs opacity-40 font-bold uppercase tracking-widest">GÜN</span>
             </div>
         </div>
     );
