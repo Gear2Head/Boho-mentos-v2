@@ -5,6 +5,9 @@
   --color-ink: #E4E3E0;
   --color-border: #2A2A2A;
   --color-accent: #00FF00;
+  
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
 }
 
 body {

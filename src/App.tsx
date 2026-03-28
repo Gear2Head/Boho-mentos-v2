@@ -1,116 +1,39 @@
 /**
- * AMAÇ: YKS Mentörlük Sistemi v3.0 Ana Uygulama
- * MANTIK: Veri odaklı koçluk, yerel depolama ile hafıza yönetimi, Gemini entegrasyonu
+ * AMAÇ: YKS Mentörlük Sistemi v5.0 Ana Uygulama
+ * MANTIK: Merkezi state (Zustand), Gelişmiş Zamanlayıcı (FocusTimer), Elo Sistemi, Profil, Quiz ve Modüler mimari
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { 
-  LayoutDashboard, 
-  UserCircle, 
-  BookOpen, 
-  MessageSquare, 
-  TrendingUp, 
-  Settings, 
-  ChevronRight, 
-  CheckCircle2, 
-  Circle, 
-  AlertTriangle,
-  Send,
-  Loader2,
-  History,
-  Clock,
-  Target,
-  Plus,
-  X,
-  Calendar,
-  Bell,
-  Smartphone,
-  List,
-  Volume2,
-  Archive,
-  Trophy
+  LayoutDashboard, UserCircle, BookOpen, MessageSquare, 
+  Settings, CheckCircle2, AlertTriangle, Send, Loader2,
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getCoachResponse, parseVoiceLog } from './services/gemini';
-import { TYT_SUBJECTS, AYT_SUBJECTS } from './constants';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-// --- Types ---
+import { getCoachResponse } from './services/gemini';
+import { TYT_SUBJECTS, AYT_SUBJECTS } from './constants';
+import { useAppStore } from './store/appStore';
+import type { 
+  StudentProfile, DailyLog, ExamResult, FailedQuestion 
+} from './types';
 
-interface StudentProfile {
-  name: string;
-  exam: string;
-  track: 'Sayısal' | 'Eşit Ağırlık' | 'Sözel' | 'Dil';
-  targetUniversity: string;
-  targetMajor: string;
-  tytTarget: number;
-  aytTarget: number;
-  minHours: number;
-  maxHours: number;
-  dailyGoalHours: number;
-  startTime: string;
-  endTime: string;
-  aytPriorities: string;
-  weakSubjects: string;
-  strongSubjects: string;
-  resources: string;
-}
+import { FocusTimer } from './components/FocusTimer';
+import { EloRankCard } from './components/EloRankCard';
+import { ThemeToggle } from './components/ThemeToggle';
+import { MorningBlocker } from './components/MorningBlocker';
+import { ProfileShowcase } from './components/ProfileShowcase';
+import { QuizEngine } from './components/QuizEngine';
+// Kapsam Dışı: import { SpotifyWidget } from './components/SpotifyWidget'; 
 
-interface SubjectStatus {
-  subject: string;
-  name: string;
-  status: 'not-started' | 'in-progress' | 'mastered';
-  notes: string;
-}
+import { LogEntryWidget } from './components/forms/LogEntryWidget';
+import { ExamEntryModal } from './components/forms/ExamEntryModal';
+import { ProfileSettings } from './components/forms/ProfileSettings';
+import { ExamDetailModal } from './components/ExamDetailModal';
 
-interface DailyLog {
-  date: string;
-  subject: string;
-  topic: string;
-  questions: number;
-  correct: number;
-  wrong: number;
-  empty: number;
-  avgTime: number;
-  fatigue: number;
-  tags: string[];
-}
-
-interface ExamResult {
-  id: string;
-  date: string;
-  type: 'TYT' | 'AYT';
-  totalNet: number;
-  scores: Record<string, { correct: number, wrong: number, net: number }>;
-}
-
-interface FailedQuestion {
-  id: string;
-  date: string;
-  subject: string;
-  topic: string;
-  book: string;
-  page: string;
-  questionNumber: string;
-  reason: string;
-}
-
-interface AppState {
-  profile: StudentProfile | null;
-  tytSubjects: SubjectStatus[];
-  aytSubjects: SubjectStatus[];
-  logs: DailyLog[];
-  exams: ExamResult[];
-  chatHistory: { role: 'user' | 'coach'; content: string; timestamp: string }[];
-  isPassiveMode?: boolean;
-  failedQuestions?: FailedQuestion[];
-}
-
-// --- Initial State ---
-
-const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' })));
-const INITIAL_AYT = Object.entries(AYT_SUBJECTS).flatMap(([subject, topics]) => topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' })));
+// --- Helper ---
 
 const getAytSubjectsForTrack = (track: string) => {
   if (track === 'Sayısal') return ['Matematik', 'Fizik', 'Kimya', 'Biyoloji'];
@@ -120,7 +43,7 @@ const getAytSubjectsForTrack = (track: string) => {
   return Object.keys(AYT_SUBJECTS);
 };
 
-// --- Components ---
+// --- Sub Components ---
 
 function LogHistory({ logs }: { logs: DailyLog[] }) {
   const [filterSubject, setFilterSubject] = useState('');
@@ -138,34 +61,24 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
   return (
     <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6">
       <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <select 
-          value={filterSubject} 
-          onChange={e => setFilterSubject(e.target.value)}
-          className="p-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-transparent text-sm text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors"
-        >
+        <select value={filterSubject} onChange={e => setFilterSubject(e.target.value)} className="p-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-transparent text-sm text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors">
           <option value="">Tüm Dersler</option>
           {allSubjects.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        
-        <select 
-          value={filterTag} 
-          onChange={e => setFilterTag(e.target.value)}
-          className="p-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-transparent text-sm text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors"
-        >
+        <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className="p-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-transparent text-sm text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors">
           <option value="">Tüm Etiketler</option>
           {allTags.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
-
       <div className="space-y-4">
         {filteredLogs.length === 0 ? (
-          <p className="text-center py-8 opacity-40 text-xs">Kriterlere uygun log bulunamadı.</p>
+          <p className="text-center py-8 opacity-40 text-xs text-[#4A443C] dark:text-zinc-400">Kriterlere uygun log bulunamadı.</p>
         ) : (
           filteredLogs.map((log, i) => (
             <div key={i} className="p-4 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#F5F2EB] dark:bg-zinc-950">
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <span className="text-[10px] uppercase tracking-widest opacity-50 block mb-1">{new Date(log.date).toLocaleString('tr-TR')}</span>
+                  <span className="text-[10px] uppercase tracking-widest opacity-50 block mb-1 text-[#4A443C] dark:text-zinc-400">{new Date(log.date).toLocaleString('tr-TR')}</span>
                   <h4 className="font-bold text-[#4A443C] dark:text-zinc-200">{log.subject} - {log.topic}</h4>
                 </div>
                 <div className="text-right">
@@ -176,10 +89,10 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
-                <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest">
+                <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest text-[#4A443C] dark:text-zinc-300">
                   Toplam Süre: {log.avgTime}dk
                 </span>
-                <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest">
+                <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest text-[#4A443C] dark:text-zinc-300">
                   Yorgunluk: {log.fatigue}/10
                 </span>
                 {log.tags && log.tags.length > 0 && log.tags.map((tag, j) => (
@@ -196,7 +109,7 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
   );
 }
 
-function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: Omit<FailedQuestion, 'id' | 'date'>) => void, onCancel: () => void, subjects: string[] }) {
+function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQuestion) => void, onCancel: () => void, subjects: string[] }) {
   const [subject, setSubject] = useState(subjects[0] || '');
   const [topic, setTopic] = useState('');
   const [book, setBook] = useState('');
@@ -205,113 +118,76 @@ function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: Omit<Fa
   const [reason, setReason] = useState('');
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-lg mb-6"
-    >
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-lg mb-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-serif italic text-xl text-[#C17767] dark:text-rose-400">Mezarlığa Ekle</h3>
-        <button onClick={onCancel} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full"><X size={16} /></button>
+        <button onClick={onCancel} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full"><X size={16} className="text-[#4A443C] dark:text-zinc-200" /></button>
       </div>
-      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <select value={subject} onChange={e => setSubject(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767]">
+        <select value={subject} onChange={e => setSubject(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200">
           {subjects.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <input type="text" placeholder="Konu" value={topic} onChange={e => setTopic(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767]" />
-        <input type="text" placeholder="Kitap Adı" value={book} onChange={e => setBook(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767]" />
+        <input type="text" placeholder="Konu" value={topic} onChange={e => setTopic(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
+        <input type="text" placeholder="Kitap Adı" value={book} onChange={e => setBook(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
         <div className="flex gap-2">
-          <input type="text" placeholder="Sayfa" value={page} onChange={e => setPage(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767]" />
-          <input type="text" placeholder="Soru No" value={questionNumber} onChange={e => setQuestionNumber(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767]" />
+          <input type="text" placeholder="Sayfa" value={page} onChange={e => setPage(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
+          <input type="text" placeholder="Soru No" value={questionNumber} onChange={e => setQuestionNumber(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
         </div>
       </div>
-      <textarea placeholder="Neden yanlış yaptın? (Örn: Formülü unuttum, işlem hatası)" value={reason} onChange={e => setReason(e.target.value)} className="w-full bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] mb-4 h-20 resize-none" />
-      
-      <button 
-        onClick={() => {
-          if (subject && topic && book) {
-            onSubmit({ subject, topic, book, page, questionNumber, reason });
-          }
-        }}
-        className="w-full py-2 bg-[#C17767] text-[#FDFBF7] rounded-lg text-sm font-bold tracking-widest uppercase hover:bg-[#A56253] transition-colors"
-      >
+      <textarea placeholder="Neden yanlış yaptın? (Örn: Formülü unuttum, işlem hatası)" value={reason} onChange={e => setReason(e.target.value)} className="w-full bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] mb-4 h-20 resize-none text-[#4A443C] dark:text-zinc-200" />
+      <button onClick={() => { if (subject && topic && book) onSubmit({ id: Date.now().toString(), date: new Date().toLocaleDateString('tr-TR'), subject, topic, book, page, questionNumber, reason }); }} className="w-full py-2 bg-[#C17767] text-[#FDFBF7] rounded-lg text-sm font-bold tracking-widest uppercase hover:bg-[#A56253] transition-colors">
         Kaydet
       </button>
     </motion.div>
   );
 }
 
-export default function App() {
-  const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem('yks_coach_state');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (!parsed.exams) parsed.exams = [];
-      return parsed;
-    }
-    return {
-      profile: null,
-      tytSubjects: INITIAL_TYT,
-      aytSubjects: INITIAL_AYT,
-      logs: [],
-      exams: [],
-      chatHistory: []
-    };
-  });
+const markdownComponents = {
+  p: ({node, ...props}: any) => <p className="leading-relaxed mb-4 text-[#4A443C] dark:text-zinc-200 text-base" {...props} />,
+  li: ({node, ...props}: any) => <li className="mb-2 leading-relaxed" {...props} />,
+  ul: ({node, ...props}: any) => <ul className="list-disc pl-5 mb-4 space-y-2 opacity-90" {...props} />,
+  ol: ({node, ...props}: any) => <ol className="list-decimal pl-5 mb-4 space-y-2 opacity-90" {...props} />,
+  strong: ({node, ...props}: any) => <strong className="font-bold text-[#C17767] dark:text-rose-400" {...props} />,
+  h3: ({node, ...props}: any) => <h3 className="text-lg font-bold font-serif italic mt-6 mb-2 border-b border-[#EAE6DF] dark:border-zinc-800 pb-1" {...props} />,
+};
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive'>('dashboard');
+// --- Main App ---
+
+export default function App() {
+  const store = useAppStore();
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions'>('dashboard');
   const [isTyping, setIsTyping] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
   const [isLogWidgetOpen, setIsLogWidgetOpen] = useState(false);
   const [isArchiveWidgetOpen, setIsArchiveWidgetOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false); // Gizli Admin Paneli
+  const [selectedExam, setSelectedExam] = useState<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const handleLogSubmit = async (log: DailyLog) => {
     setIsLogWidgetOpen(false);
-    
     const isPassive = log.fatigue >= 8;
     
-    setState(prev => ({ 
-      ...prev, 
-      logs: [...prev.logs, log],
-      isPassiveMode: isPassive
-    }));
+    store.addLog(log);
+    if (isPassive && !store.isPassiveMode) store.setPassiveMode(true);
     
-    const logMessage = `LOG GİRİŞİ:
-Ders: ${log.subject}
-Konu: ${log.topic}
-Soru: ${log.questions} (D:${log.correct} Y:${log.wrong} B:${log.empty})
-Toplam Süre: ${log.avgTime}dk
-Yorgunluk: ${log.fatigue}/10
-Hatalar: ${log.tags.join(', ') || 'Yok'}
-${isPassive ? '\\nSİSTEM NOTU: Öğrencinin zihinsel yorgunluğu 8 veya üzerinde. Sistemi otomatik olarak PASİF MODA geçir. Sadece video izleme, formül okuma gibi yorucu olmayan görevler ver.' : ''}`;
+    // Unlock Trophy
+    if (store.logs.length >= 2 && !store.trophies.find(t=>t.id==='streak_3')?.unlockedAt) {
+      store.unlockTrophy('streak_3');
+    }
+    
+    const logMessage = `LOG GİRİŞİ:\nDers: ${log.subject}\nKonu: ${log.topic}\nSoru: ${log.questions} (D:${log.correct} Y:${log.wrong} B:${log.empty})\nToplam Süre: ${log.avgTime}dk\nYorgunluk: ${log.fatigue}/10\nHatalar: ${log.tags.join(', ') || 'Yok'}${isPassive ? '\nSİSTEM NOTU: Öğrencinin zihinsel yorgunluğu 8 veya üzerinde. Sistemi otomatik olarak PASİF MODA geçir. Sadece video izleme, formül okuma gibi yorucu olmayan görevler ver.' : ''}`;
 
-    const newHistory = [
-      ...state.chatHistory,
-      { role: 'user' as const, content: logMessage, timestamp: new Date().toISOString() }
-    ];
-    
-    setState(prev => ({ ...prev, chatHistory: newHistory }));
+    store.addChatMessage({ role: 'user', content: logMessage, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
-    const context = `
-      Öğrenci Profili: ${JSON.stringify(state.profile)}
-      Yeni Log: ${JSON.stringify(log)}
-      Lütfen bu logu analiz et ve akşam değerlendirmesi yap.
-    `;
-
-    const response = await getCoachResponse("LOG ANALİZİ YAP", context, state.chatHistory);
+    const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nYeni Log: ${JSON.stringify(log)}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
+    const response = await getCoachResponse("LOG ANALİZİ YAP", context, store.chatHistory);
     
-    setState(prev => ({
-      ...prev,
-      chatHistory: [
-        ...prev.chatHistory,
-        { role: 'coach' as const, content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() }
-      ]
-    }));
+    store.addChatMessage({ role: 'coach', content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() });
     setIsTyping(false);
   };
 
@@ -320,1565 +196,426 @@ ${isPassive ? '\\nSİSTEM NOTU: Öğrencinin zihinsel yorgunluğu 8 veya üzerin
     d.setDate(d.getDate() - (6 - i));
     const dateStr = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
     
-    const dayLogs = state.logs.filter(log => {
+    const dayLogs = store.logs.filter(log => {
       const logDate = new Date(log.date);
       return logDate.getDate() === d.getDate() && logDate.getMonth() === d.getMonth() && logDate.getFullYear() === d.getFullYear();
     }).filter(log => log.subject.includes('TYT Matematik'));
 
-    const avgTime = dayLogs.length > 0 
-      ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length)
-      : null;
-
+    const avgTime = dayLogs.length > 0 ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length) : null;
     return { day: dateStr, actual: avgTime, target: 45 };
   });
 
-  useEffect(() => {
-    localStorage.setItem('yks_coach_state', JSON.stringify(state));
-  }, [state]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [state.chatHistory]);
-
-  const handleProfileSubmit = (profile: StudentProfile) => {
-    setState(prev => ({ ...prev, profile }));
-    setIsEditingProfile(false);
-  };
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [store.chatHistory]);
 
   const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string) => {
     e?.preventDefault();
     const userMsg = messageOverride || inputMessage;
     if (!userMsg.trim() || isTyping) return;
-
     if (userMsg.trim().toUpperCase() === 'LOG') {
       setIsLogWidgetOpen(true);
       if (!messageOverride) setInputMessage('');
       return;
     }
-
-    if (!messageOverride) {
-      setInputMessage('');
-    }
+    if (!messageOverride) setInputMessage('');
     
-    const newHistory = [
-      ...state.chatHistory,
-      { role: 'user' as const, content: userMsg, timestamp: new Date().toISOString() }
-    ];
-    
-    setState(prev => ({ ...prev, chatHistory: newHistory }));
+    store.addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
-    // Prepare context for AI
-    const context = `
-      Öğrenci Profili: ${JSON.stringify(state.profile)}
-      TYT Durumu: ${state.tytSubjects.filter(s => s.status !== 'not-started').map(s => `${s.name}: ${s.status}`).join(', ')}
-      AYT Durumu: ${state.aytSubjects.filter(s => s.status !== 'not-started').map(s => `${s.name}: ${s.status}`).join(', ')}
-      Son Loglar: ${JSON.stringify(state.logs.slice(-5))}
-      Son Denemeler: ${JSON.stringify(state.exams.slice(-3))}
-    `;
-
-    const response = await getCoachResponse(userMsg, context, state.chatHistory);
+    const problemTyt = store.tytSubjects.filter(s => s.status === 'in-progress');
+    const tytCtx = problemTyt.length > 0 ? problemTyt.map(s => `${s.subject}-${s.name}: ${s.status}`).join(', ') : "Eksik TYT konusu bulunmuyor.";
     
-    setState(prev => ({
-      ...prev,
-      chatHistory: [
-        ...prev.chatHistory,
-        { role: 'coach' as const, content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() }
-      ]
-    }));
+    const problemAyt = store.aytSubjects.filter(s => s.status === 'in-progress' && store.profile?.track && getAytSubjectsForTrack(store.profile.track).includes(s.subject));
+    const aytCtx = problemAyt.length > 0 ? problemAyt.map(s => `${s.subject}-${s.name}: ${s.status}`).join(', ') : "Eksik AYT konusu bulunmuyor.";
+    
+    const logsCtx = store.logs.length > 0 ? JSON.stringify(store.logs.slice(-5)) : "Log girilmedi.";
+    const examsCtx = store.exams.length > 0 ? JSON.stringify(store.exams.slice(-3)) : "Deneme girilmedi.";
+
+    const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nTYT İlerleyişi: ${tytCtx}\nAYT İlerleyişi: ${aytCtx}\nSon Loglar: ${logsCtx}\nSon Denemeler: ${examsCtx}`;
+    
+    const response = await getCoachResponse(userMsg, context, store.chatHistory);
+    store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
     setIsTyping(false);
   };
 
-  if (!state.profile || isEditingProfile) {
-    return <ProfileSetup onSubmit={handleProfileSubmit} initialData={state.profile || undefined} />;
+  if (!store.profile) {
+    return <ProfileSettings onSubmit={(p) => store.setProfile(p)} />;
+  }
+
+  // Morning Blocker (Sabah Sorusu Kilidi)
+  if (store.isMorningBlockerEnabled && !unlockStatus) {
+    return <MorningBlocker onUnlock={() => setUnlockStatus(true)} />;
   }
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-[#FDFBF7] dark:bg-zinc-950 text-[#4A443C] dark:text-zinc-200 font-sans selection:bg-[#4A443C] selection:text-[#FDFBF7]">
-      {/* Sidebar / Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 md:relative md:w-64 border-t md:border-t-0 md:border-r border-[#EAE6DF] dark:border-zinc-800 flex flex-row md:flex-col bg-[#F5F2EB]/90 dark:bg-zinc-900/90 backdrop-blur-md md:backdrop-blur-none z-50">
         <div className="hidden md:block p-6 border-b border-[#EAE6DF] dark:border-zinc-800">
           <h1 className="font-serif italic text-xl font-bold tracking-tight text-[#C17767] dark:text-rose-400">Boho Mentosluk</h1>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1">YKS Mentörlük</p>
-          {state.isPassiveMode && (
+          <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-[#4A443C] dark:text-zinc-400">YKS Mentörlük v5</p>
+          {store.isPassiveMode && (
             <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               <span className="text-xs font-bold text-rose-600 dark:text-rose-400">PASİF MOD AKTİF</span>
             </div>
           )}
         </div>
-
         <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
-          <NavItem 
-            icon={<LayoutDashboard size={18} />} 
-            label="Dash" 
-            active={activeTab === 'dashboard'} 
-            onClick={() => setActiveTab('dashboard')} 
-          />
-          <NavItem 
-            icon={<Calendar size={18} />} 
-            label="Analiz" 
-            active={activeTab === 'exams'} 
-            onClick={() => setActiveTab('exams')} 
-          />
-          <NavItem 
-            icon={<List size={18} />} 
-            label="Loglar" 
-            active={activeTab === 'logs'} 
-            onClick={() => setActiveTab('logs')} 
-          />
-          <NavItem 
-            icon={<Archive size={18} />} 
-            label="Mezarlık" 
-            active={activeTab === 'archive'} 
-            onClick={() => setActiveTab('archive')} 
-          />
-          <NavItem 
-            icon={<BookOpen size={18} />} 
-            label="Müfredat" 
-            active={activeTab === 'subjects'} 
-            onClick={() => setActiveTab('subjects')} 
-          />
-          <NavItem 
-            icon={<MessageSquare size={18} />} 
-            label="Koç" 
-            active={activeTab === 'coach'} 
-            onClick={() => setActiveTab('coach')} 
-          />
-          <NavItem 
-            icon={<UserCircle size={18} />} 
-            label="Profil" 
-            active={activeTab === 'profile'} 
-            onClick={() => setActiveTab('profile')} 
-          />
-          <NavItem 
-            icon={<Settings size={18} />} 
-            label="Ayarlar" 
-            active={activeTab === 'settings'} 
-            onClick={() => setActiveTab('settings')} 
-          />
+          <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<BrainCircuit size={18} />} label="Sorular" active={activeTab === 'questions'} onClick={() => setActiveTab('questions')} />
+          <NavItem icon={<Calendar size={18} />} label="Analiz" active={activeTab === 'exams'} onClick={() => setActiveTab('exams')} />
+          <NavItem icon={<List size={18} />} label="Loglar" active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} />
+          <NavItem icon={<Archive size={18} />} label="Mezarlık" active={activeTab === 'archive'} onClick={() => setActiveTab('archive')} />
+          <NavItem icon={<BookOpen size={18} />} label="Müfredat" active={activeTab === 'subjects'} onClick={() => setActiveTab('subjects')} />
+          <NavItem icon={<MessageSquare size={18} />} label="Koç" active={activeTab === 'coach'} onClick={() => setActiveTab('coach')} />
+          <NavItem icon={<UserCircle size={18} />} label="Profil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
+          <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
         </div>
-
-        <div className="hidden md:block p-6 border-t border-[#EAE6DF] dark:border-zinc-800 text-[10px] opacity-50 uppercase tracking-widest">
-          © 2026 Gear_Head Architecture
+        <div 
+          className="hidden md:block p-6 border-t border-[#EAE6DF] dark:border-zinc-800 text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 cursor-pointer"
+          onClick={() => setIsAdminPanelOpen(true)}
+          title="Admin Panelini Aç"
+        >
+          © 2026 Kübra Architecture
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-auto relative bg-[#FDFBF7] dark:bg-zinc-950 pb-20 md:pb-0">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
-            <motion.div 
-              key="dashboard"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="p-8 max-w-5xl mx-auto"
-            >
-              <header className="mb-12 flex justify-between items-end">
+            <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 max-w-5xl mx-auto">
+              <header className="mb-12 flex flex-col md:flex-row md:justify-between items-start md:items-end gap-6">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h2 className="font-serif italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {state.profile.name}</h2>
-                    <div className="px-2 py-1 bg-[#C17767]/10 text-[#C17767] dark:text-rose-400 text-xs font-bold rounded-md border border-[#C17767]/20 flex items-center gap-1">
-                      <Trophy size={14} />
-                      ELO: {1200 + (state.logs.length * 5) + (state.exams.length * 20)}
-                    </div>
+                    <h2 className="font-serif italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {store.profile.name}</h2>
                   </div>
-                  <div className="flex gap-4 text-xs uppercase tracking-widest opacity-60">
-                    <span>TYT Hedef: {state.profile.tytTarget} Net</span>
-                    <span>•</span>
-                    <span>AYT Hedef: {state.profile.aytTarget} Net</span>
+                  <div className="flex gap-4 text-xs uppercase tracking-widest opacity-60 text-[#4A443C] dark:text-zinc-400">
+                    <span>TYT: {store.profile.tytTarget} Net</span><span>•</span><span>AYT: {store.profile.aytTarget} Net</span>
                   </div>
                 </div>
-                <div className="flex gap-4">
-                  <PushU />
-                  <button 
-                    onClick={() => setIsExamModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#C17767] text-[#FDFBF7] text-xs uppercase tracking-widest font-bold hover:opacity-90 transition-opacity"
-                  >
-                    <Plus size={16} />
-                    Deneme Neti Gir
-                  </button>
+                <div className="w-full md:w-auto flex flex-col items-end gap-4">
+                  <div className="flex justify-end w-full">
+                    {/* Spotify Widget buraya eklenebilir <SpotifyWidget /> */}
+                  </div>
+                  <FocusTimer />
                 </div>
               </header>
 
+              <div className="mb-12">
+                <EloRankCard />
+              </div>
+
               {(() => {
                 const todayStr = new Date().toLocaleDateString('tr-TR');
-                const todayLogs = state.logs.filter(l => l.date === todayStr);
-                const todayMinutes = todayLogs.reduce((acc, log) => acc + log.avgTime, 0);
-                const todayHours = (todayMinutes / 60).toFixed(1);
+                const todayLogs = store.logs.filter(l => l.date.includes(todayStr));
+                const todayHours = (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1);
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    <StatCard 
-                      title="Tamamlanan Konular" 
-                      value={state.tytSubjects.filter(s => s.status === 'mastered').length + state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject) && s.status === 'mastered').length} 
-                      total={state.tytSubjects.length + state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject)).length}
-                      icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />}
-                    />
-                    <StatCard 
-                      title="Günlük Çalışma" 
-                      value={todayHours} 
-                      total={state.profile.dailyGoalHours || state.profile.minHours}
-                      unit="Saat"
-                      icon={<Clock className="text-blue-400" />}
-                    />
-                    <StatCard 
-                      title="Kritik Sorunlar" 
-                      value={state.logs.filter(l => l.wrong > l.correct).length} 
-                      unit="Aktif"
-                      icon={<AlertTriangle className="text-orange-500" />}
-                    />
+                    <StatCard title="Tamamlanan" value={store.tytSubjects.filter(s => s.status === 'mastered').length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject) && s.status === 'mastered').length} total={store.tytSubjects.length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)).length} icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />} />
+                    <StatCard title="Günlük Çalışma" value={todayHours} total={store.profile.dailyGoalHours || store.profile.minHours} unit="Saat" icon={<Calendar className="text-blue-400" />} />
+                    <StatCard title="Kritik Sorunlar" value={store.logs.filter(l => l.wrong > l.correct).length} unit="Aktif" icon={<AlertTriangle className="text-orange-500" />} />
                   </div>
                 );
               })()}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                <section className="md:col-span-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-[8px_8px_0px_0px_rgba(0,255,0,0.1)]">
+                <section className="md:col-span-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
                   <h3 className="font-serif italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
                   <div className="prose prose-invert prose-sm max-w-none">
-                    {state.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
-                      <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-[#4A443C] dark:text-zinc-200">
-                        <ReactMarkdown>{state.chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
+                    {store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
+                      <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
+                        <ReactMarkdown components={markdownComponents}>{store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
                       </div>
                     ) : (
-                      <div className="text-center py-8 opacity-50">
-                        Henüz bir direktif yok. Koç ile konuşmaya başla.
-                      </div>
+                      <div className="text-center py-8 opacity-50 text-[#4A443C] dark:text-zinc-400">Henüz bir direktif yok. Koç ile konuşmaya başla.</div>
                     )}
                   </div>
                 </section>
 
-                <section className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-[8px_8px_0px_0px_rgba(0,255,0,0.1)] flex flex-col">
-                  <h3 className="font-serif italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400 flex items-center justify-between">
-                    <span>Konu Borcu</span>
-                    <span className="text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded font-bold">FAİZ İŞLİYOR</span>
+                <section className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm flex flex-col">
+                  <h3 className="font-serif italic text-xl mb-4 border-b border-[#2A2A2A] pb-2 uppercase tracking-tight text-[#C17767] flex items-center justify-between">
+                    <span>Konu Borcu</span><span className="text-[10px] bg-red-900/30 text-red-500 border border-red-500/20 px-2 py-1 rounded font-bold uppercase tracking-widest">FAİZ İŞLİYOR</span>
                   </h3>
                   <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                    {state.logs.filter(l => l.fatigue > 7).length > 0 ? (
-                      state.logs.filter(l => l.fatigue > 7).slice(-3).map((log, idx) => (
-                        <div key={idx} className="p-3 bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">{log.topic}</span>
-                            <span className="text-xs font-mono text-red-500 font-bold">+{5 * (idx + 1)} Soru</span>
-                          </div>
-                          <p className="text-[10px] uppercase tracking-widest opacity-60">Ertelenme: {new Date(log.date).toLocaleDateString('tr-TR')}</p>
+                    {store.logs.filter(l => l.fatigue > 7).length > 0 ? (
+                      store.logs.filter(l => l.fatigue > 7).slice(-3).map((log, idx) => (
+                        <div key={idx} className="p-3 bg-[#121212] border border-[#2A2A2A] rounded-lg">
+                          <div className="flex justify-between items-start mb-1"><span className="font-bold text-xs text-zinc-300">{log.topic}</span><span className="text-xs font-mono text-red-500 font-bold">+{5 * (idx + 1)} Soru</span></div>
+                          <p className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Ertelenme: {new Date(log.date).toLocaleDateString('tr-TR')}</p>
                         </div>
                       ))
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center opacity-50 text-center">
-                        <CheckCircle2 size={32} className="mb-2 text-green-500" />
-                        <p className="text-sm">Hiç konu borcun yok.<br/>Harika disiplin!</p>
-                      </div>
+                      <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-60"><CheckCircle2 size={32} className="mb-3 text-green-500/50" /><p className="text-xs uppercase tracking-widest font-bold">Borç Yok</p></div>
                     )}
                   </div>
-                  {state.logs.filter(l => l.fatigue > 7).length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-[#EAE6DF] dark:border-zinc-800 text-center">
-                      <p className="text-xs font-mono text-[#C17767] dark:text-rose-400">
-                        Toplam Faiz: <span className="font-bold text-lg">{state.logs.filter(l => l.fatigue > 7).slice(-3).reduce((acc, _, idx) => acc + (5 * (idx + 1)), 0)}</span> Soru
-                      </p>
+                  {store.logs.filter(l => l.fatigue > 7).length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[#2A2A2A] text-center">
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-[#C17767]">Toplam Faiz: <span className="font-bold text-base text-red-500">{store.logs.filter(l => l.fatigue > 7).slice(-3).reduce((acc, _, idx) => acc + (5 * (idx + 1)), 0)}</span> Soru</p>
                     </div>
                   )}
                 </section>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-                <section className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-[8px_8px_0px_0px_rgba(0,255,0,0.1)] flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-serif italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">YKS Simülatörü (Tahmin)</h3>
-                    <p className="text-sm opacity-80 mb-4 leading-relaxed">
-                      Mevcut çalışma tempon ve net artış hızın baz alındığında, Haziran ayındaki tahmini TYT netin:
-                    </p>
-                    <div className="text-5xl font-serif italic text-center text-[#4A443C] dark:text-zinc-200 mb-4">
-                      {state.exams.length > 0 ? (state.exams[state.exams.length - 1].tytNet + (state.logs.length * 0.1)).toFixed(1) : '---'}
-                    </div>
-                    <p className="text-xs text-center opacity-60 uppercase tracking-widest">
-                      Hedef: {state.profile.tytTarget} Net
-                    </p>
-                  </div>
-                  <div className="mt-6 p-4 bg-[#F5F2EB] dark:bg-zinc-950 rounded-lg border border-[#EAE6DF] dark:border-zinc-800">
-                    <p className="text-xs font-mono text-[#C17767] dark:text-rose-400">
-                      {state.exams.length > 0 && (state.exams[state.exams.length - 1].tytNet + (state.logs.length * 0.1)) < state.profile.tytTarget 
-                        ? `Hedefin olan ${state.profile.targetUniversity} için tempoyu %15 artırman gerekiyor.` 
-                        : `Harika gidiyorsun! ${state.profile.targetUniversity} hedefine ulaşmak üzeresin.`}
-                    </p>
-                  </div>
-                </section>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6">
-                  <h3 className="font-serif italic text-xl mb-4 uppercase tracking-tight text-[#4A443C] dark:text-zinc-200">Son Çalışmalar</h3>
-                  <div className="space-y-4">
-                    {state.logs.slice(-3).reverse().map((log, i) => (
-                      <div key={i} className="flex justify-between items-center border-b border-[#EAE6DF] dark:border-zinc-800 pb-2">
-                        <div>
-                          <p className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">{log.topic}</p>
-                          <p className="text-[10px] opacity-60 uppercase">{log.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-mono text-[#C17767] dark:text-rose-400">{log.correct}D / {log.wrong}Y</p>
-                          <p className="text-[10px] opacity-60 uppercase">{log.avgTime}dk</p>
-                        </div>
-                      </div>
-                    ))}
-                    {state.logs.length === 0 && <p className="text-center py-4 opacity-40 text-xs">Henüz veri girişi yapılmadı.</p>}
-                  </div>
-                </div>
-                <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6">
-                  <h3 className="font-serif italic text-xl mb-4 uppercase tracking-tight text-[#4A443C] dark:text-zinc-200">Progress Overview</h3>
-                  <div className="mb-6">
-                    <div className="flex justify-between text-xs uppercase tracking-widest opacity-60 mb-2">
-                      <span>TYT Ustalaşılan</span>
-                      <span>{state.tytSubjects.filter(s => s.status === 'mastered').length} / {state.tytSubjects.length}</span>
-                    </div>
-                    <div className="h-2 bg-[#EAE6DF] dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#C17767]" 
-                        style={{ width: `${(state.tytSubjects.filter(s => s.status === 'mastered').length / state.tytSubjects.length) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="mb-6">
-                    <div className="flex justify-between text-xs uppercase tracking-widest opacity-60 mb-2">
-                      <span>AYT Ustalaşılan</span>
-                      <span>{state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject) && s.status === 'mastered').length} / {state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject)).length}</span>
-                    </div>
-                    <div className="h-2 bg-[#EAE6DF] dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500" 
-                        style={{ width: `${(state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject) && s.status === 'mastered').length / Math.max(1, state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject)).length)) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                  
-                  <h4 className="text-[10px] uppercase tracking-widest opacity-50 mb-4 mt-8">TYT Mat Soru Süresi (sn)</h4>
-                  <div className="h-40 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={mathSpeedData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#EAE6DF" vertical={false} />
-                        <XAxis dataKey="day" stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#666" fontSize={10} tickLine={false} axisLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#EAE6DF', fontSize: '12px' }}
-                          itemStyle={{ color: '#4A443C' }}
-                        />
-                        <ReferenceLine y={45} stroke="#FF4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Hedef', fill: '#FF4444', fontSize: 10 }} />
-                        <Line type="monotone" dataKey="actual" stroke="#C17767" strokeWidth={2} dot={{ r: 4, fill: '#FFFFFF', stroke: '#C17767', strokeWidth: 2 }} name="Gerçekleşen" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
             </motion.div>
           )}
 
-          {activeTab === 'logs' && (
-            <motion.div 
-              key="logs"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-8 max-w-5xl mx-auto"
-            >
-              <div className="flex justify-between items-end mb-8">
-                <h2 className="font-serif italic text-4xl text-[#4A443C] dark:text-zinc-200">Log Geçmişi</h2>
-              </div>
-
-              <LogHistory logs={state.logs} />
+          {activeTab === 'questions' && (
+            <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 w-full min-h-full">
+               <QuizEngine />
             </motion.div>
           )}
+
+          {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-serif italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={store.logs} /></div>}
 
           {activeTab === 'exams' && (
-            <motion.div 
-              key="exams"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-8 max-w-5xl mx-auto"
-            >
+            <motion.div key="exams" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-5xl mx-auto">
               <div className="flex justify-between items-end mb-8">
-                <h2 className="font-serif italic text-4xl text-[#4A443C] dark:text-zinc-200">Deneme Analizi</h2>
-                <button 
-                  onClick={() => setIsExamModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#C17767] text-[#FDFBF7] text-xs uppercase tracking-widest font-bold hover:opacity-90 transition-opacity"
-                >
-                  <Plus size={16} />
-                  Yeni Deneme Gir
-                </button>
+                <h2 className="font-serif italic text-4xl text-zinc-200">Deneme Analizi</h2>
+                <button onClick={() => setIsExamModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#C17767] text-[#FDFBF7] text-xs uppercase tracking-widest font-bold hover:opacity-90 transition-opacity rounded-xl shadow-lg shadow-[#C17767]/20"><Plus size={16} /> Yeni Deneme Gir</button>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="flex flex-col gap-8">
-                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6">
-                    <h3 className="font-serif italic text-xl mb-6 uppercase tracking-tight text-[#4A443C] dark:text-zinc-200">Deneme Takvimi</h3>
-                    <div className="space-y-4">
-                      {state.exams.length === 0 ? (
-                        <p className="text-center py-8 opacity-40 text-xs">Henüz deneme girilmedi.</p>
-                      ) : (
-                        [...state.exams].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(exam => (
-                          <div key={exam.id} className="flex items-center justify-between p-4 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#F5F2EB] dark:bg-zinc-900 hover:border-[#C17767] transition-colors cursor-pointer group">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-[#EAE6DF] dark:bg-zinc-800 flex flex-col items-center justify-center text-[#4A443C] dark:text-zinc-200 group-hover:bg-[#C17767] group-hover:text-[#FDFBF7] transition-colors">
-                                <span className="text-[10px] uppercase font-bold">{new Date(exam.date).toLocaleDateString('tr-TR', { month: 'short' })}</span>
-                                <span className="text-lg font-mono leading-none">{new Date(exam.date).getDate()}</span>
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">{exam.type} Denemesi</h4>
-                                <p className="text-[10px] uppercase tracking-widest opacity-50">{Object.keys(exam.scores).length} Ders</p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-2xl font-mono text-[#C17767] dark:text-rose-400 font-bold">{exam.totalNet}</span>
-                              <span className="text-[10px] uppercase tracking-widest opacity-50 block">Net</span>
-                            </div>
-                          </div>
-                        ))
-                      )}
+              <div className="grid grid-cols-1 gap-8">
+                <div className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm">
+                  <h3 className="font-serif italic text-xl mb-6 uppercase tracking-tight text-zinc-300">Deneme Takvimi</h3>
+                  {store.exams.length === 0 ? <p className="text-center opacity-40 text-xs text-zinc-500 font-bold uppercase tracking-widest">Henüz deneme girilmedi.</p> : store.exams.map(e => (
+                    <div 
+                       key={e.id} 
+                       onClick={() => setSelectedExam(e)}
+                       className="p-4 mb-3 border border-[#2A2A2A] rounded-xl bg-[#121212] flex justify-between items-center group hover:border-[#C17767]/50 transition-colors cursor-pointer"
+                    >
+                       <div>
+                         <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] group-hover:text-[#E09F3E] transition-colors">{e.type} DENEMESİ</span>
+                         <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{new Date(e.date).toLocaleDateString('tr-TR')}</span>
+                       </div>
+                       <div className="text-right">
+                         <span className="font-serif italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>
+                       </div>
                     </div>
-                  </div>
-
-                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)]">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Calendar className="text-[#C17767] dark:text-rose-400" size={20} />
-                      <h3 className="font-serif italic text-xl uppercase tracking-tight text-[#4A443C] dark:text-zinc-200">Akıllı Deneme Önerisi</h3>
-                    </div>
-                    <p className="text-sm opacity-80 mb-4 leading-relaxed">
-                      Eksiklerine ve çalışma tempona göre bu hafta çözmen gereken denemeler:
-                    </p>
-                    <ul className="space-y-3">
-                      <li className="flex items-start gap-3 p-3 bg-[#F5F2EB] dark:bg-zinc-950 rounded-lg border border-[#EAE6DF] dark:border-zinc-800">
-                        <div className="w-2 h-2 mt-1.5 rounded-full bg-[#C17767]"></div>
-                        <div>
-                          <p className="text-sm font-bold text-[#4A443C] dark:text-zinc-200">TYT Genel Denemesi</p>
-                          <p className="text-xs opacity-60">Son TYT denemesinin üzerinden 7 gün geçti. Hız kontrolü için gerekli.</p>
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-3 p-3 bg-[#F5F2EB] dark:bg-zinc-950 rounded-lg border border-[#EAE6DF] dark:border-zinc-800">
-                        <div className="w-2 h-2 mt-1.5 rounded-full bg-[#E09F3E]"></div>
-                        <div>
-                          <p className="text-sm font-bold text-[#4A443C] dark:text-zinc-200">AYT Matematik Branş Denemesi</p>
-                          <p className="text-xs opacity-60">Matematik netlerin hedefin %20 altında. Odaklanmış pratik şart.</p>
-                        </div>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-8">
-                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6">
-                    <h3 className="font-serif italic text-xl mb-6 uppercase tracking-tight text-[#4A443C] dark:text-zinc-200">TYT Net Gelişimi</h3>
-                    <div className="h-64 w-full">
-                      {state.exams.filter(e => e.type === 'TYT').length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={[...state.exams.filter(e => e.type === 'TYT')].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#EAE6DF" vertical={false} />
-                            <XAxis dataKey="date" stroke="#666" fontSize={10} tickFormatter={(val) => new Date(val).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} />
-                            <YAxis stroke="#666" fontSize={10} domain={['dataMin - 5', 'dataMax + 5']} />
-                            <Tooltip 
-                              contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#EAE6DF', fontSize: '12px' }}
-                              itemStyle={{ color: '#4A443C' }}
-                              labelFormatter={(val) => new Date(val).toLocaleDateString('tr-TR')}
-                            />
-                            <Line type="monotone" dataKey="totalNet" stroke="#C17767" strokeWidth={2} dot={{ r: 4, fill: '#FFFFFF', stroke: '#C17767', strokeWidth: 2 }} name="TYT Net" />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center opacity-40 text-xs">
-                          TYT Grafiği için veri bekleniyor.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6">
-                    <h3 className="font-serif italic text-xl mb-6 uppercase tracking-tight text-[#4A443C] dark:text-zinc-200">AYT Net Gelişimi</h3>
-                    <div className="h-64 w-full">
-                      {state.exams.filter(e => e.type === 'AYT').length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={[...state.exams.filter(e => e.type === 'AYT')].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#EAE6DF" vertical={false} />
-                            <XAxis dataKey="date" stroke="#666" fontSize={10} tickFormatter={(val) => new Date(val).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} />
-                            <YAxis stroke="#666" fontSize={10} domain={['dataMin - 5', 'dataMax + 5']} />
-                            <Tooltip 
-                              contentStyle={{ backgroundColor: '#FFFFFF', borderColor: '#EAE6DF', fontSize: '12px' }}
-                              itemStyle={{ color: '#4A443C' }}
-                              labelFormatter={(val) => new Date(val).toLocaleDateString('tr-TR')}
-                            />
-                            <Line type="monotone" dataKey="totalNet" stroke="#E09F3E" strokeWidth={2} dot={{ r: 4, fill: '#FFFFFF', stroke: '#E09F3E', strokeWidth: 2 }} name="AYT Net" />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center opacity-40 text-xs">
-                          AYT Grafiği için veri bekleniyor.
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </motion.div>
           )}
 
           {activeTab === 'subjects' && (
-            <motion.div 
-              key="subjects"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-8"
-            >
-              <h2 className="font-serif italic text-4xl mb-8 text-[#4A443C] dark:text-zinc-200">Müfredat Haritası</h2>
-              
+            <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-6xl mx-auto">
+              <h2 className="font-serif italic text-4xl mb-8">Müfredat Haritası</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <SubjectList 
-                  title="TYT Müfredatı" 
-                  subjects={state.tytSubjects} 
-                  onStatusChange={(idx, status) => {
-                    const newSubs = [...state.tytSubjects];
-                    newSubs[idx].status = status;
-                    setState(prev => ({ ...prev, tytSubjects: newSubs }));
-                  }}
-                  onNotesChange={(idx, notes) => {
-                    const newSubs = [...state.tytSubjects];
-                    newSubs[idx].notes = notes;
-                    setState(prev => ({ ...prev, tytSubjects: newSubs }));
-                  }}
-                />
-                <SubjectList 
-                  title="AYT Müfredatı" 
-                  subjects={state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject))} 
-                  onStatusChange={(idx, status) => {
-                    // We need to find the original index in state.aytSubjects
-                    const filteredSubjects = state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject));
-                    const targetSubject = filteredSubjects[idx];
-                    const originalIndex = state.aytSubjects.findIndex(s => s.subject === targetSubject.subject && s.name === targetSubject.name);
-                    
-                    const newSubs = [...state.aytSubjects];
-                    newSubs[originalIndex].status = status;
-                    setState(prev => ({ ...prev, aytSubjects: newSubs }));
-                  }}
-                  onNotesChange={(idx, notes) => {
-                    const filteredSubjects = state.aytSubjects.filter(s => getAytSubjectsForTrack(state.profile?.track || 'Sayısal').includes(s.subject));
-                    const targetSubject = filteredSubjects[idx];
-                    const originalIndex = state.aytSubjects.findIndex(s => s.subject === targetSubject.subject && s.name === targetSubject.name);
-                    
-                    const newSubs = [...state.aytSubjects];
-                    newSubs[originalIndex].notes = notes;
-                    setState(prev => ({ ...prev, aytSubjects: newSubs }));
-                  }}
-                />
+                <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, {status})} onNotesChange={(idx, notes) => store.updateTytSubject(idx, {notes})} />
+                <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, {status}); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, {notes}); }} />
               </div>
             </motion.div>
           )}
 
           {activeTab === 'coach' && (
-            <motion.div 
-              key="coach"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col h-full bg-[#FDFBF7] dark:bg-zinc-950"
-            >
-              <div className="flex-1 overflow-auto p-8 space-y-6">
-                {state.chatHistory.length === 0 && (
-                  <div className="max-w-2xl mx-auto text-center py-20">
-                    <div className="w-16 h-16 bg-[#C17767] text-[#FDFBF7] rounded-full flex items-center justify-center mx-auto mb-6">
-                      <MessageSquare size={32} />
-                    </div>
-                    <h3 className="font-serif italic text-2xl mb-4 text-[#4A443C] dark:text-zinc-200">Aktif Koçluk Başlıyor</h3>
-                    <p className="text-sm opacity-60 mb-8 text-[#4A443C] dark:text-zinc-200">
-                      Sabah direktifi almak için "SABAH" yaz. Akşam verilerini girmek için "LOG" yaz. 
-                      Herhangi bir konuyu anlamadıysan "ANLA [KONU]" yaz.
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {[
-                        { cmd: 'SABAH', desc: 'Günün görevlerini al' },
-                        { cmd: 'LOG', desc: 'Çalışma verilerini gir' },
-                        { cmd: 'PLAN', desc: '7 günlük plan oluştur' },
-                        { cmd: 'ANALYZE', desc: 'Performans analizi yap' }
-                      ].map(item => (
-                        <button 
-                          key={item.cmd}
-                          onClick={() => {
-                            if (item.cmd === 'LOG') {
-                              setInputMessage("LOG\nTARİH: " + new Date().toLocaleDateString('tr-TR') + "\nÇALIŞILAN: [Ders] – [Konu] – [Soru] – [D/Y/B] – [Süre sn]\nHATALAR: #KAVRAM – [Açıklama]\nYORGUNLUK: [1-10]");
-                            } else {
-                              setInputMessage(item.cmd);
-                            }
-                          }}
-                          className="px-4 py-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 text-[10px] uppercase tracking-widest hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors group relative"
-                        >
-                          {item.cmd}
-                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#EAE6DF] dark:bg-zinc-800 text-white px-2 py-1 rounded text-[8px] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap">
-                            {item.desc}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {state.chatHistory.map((msg, i) => (
+            <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
+              <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">
+                {store.chatHistory.map((msg, i) => (
                   <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-4 ${
-                      msg.role === 'user' 
-                        ? 'bg-[#C17767] text-[#FDFBF7] font-medium' 
-                        : 'bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,255,0,0.2)]'
-                    }`}>
-                      <div className="text-[10px] uppercase tracking-widest opacity-50 mb-2 flex justify-between items-center">
-                        <span>{msg.role === 'user' ? 'Öğrenci' : 'Koç Kübra'} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        {msg.role === 'coach' && (
-                          <button 
-                            onClick={() => {
-                              const utterance = new SpeechSynthesisUtterance(msg.content);
-                              utterance.lang = 'tr-TR';
-                              window.speechSynthesis.speak(utterance);
-                            }}
-                            className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"
-                            title="Sesli Oku"
-                          >
-                            <Volume2 className="w-3 h-3" />
-                          </button>
-                        )}
+                    <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
+                      <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
+                        {msg.role === 'user' ? `Öğrenci - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : 'Koç Kübra'}
                       </div>
-                      <div className={`whitespace-pre-wrap text-sm leading-relaxed ${msg.role === 'coach' ? 'font-mono' : ''}`}>
-                        {msg.role === 'coach' ? (
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        ) : (
-                          msg.content
-                        )}
-                      </div>
+                      <div className="text-sm font-mono leading-relaxed opacity-90 tracking-wide"><ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown></div>
                     </div>
                   </div>
                 ))}
-                {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-4 flex items-center gap-2">
-                      <Loader2 size={16} className="animate-spin text-[#C17767] dark:text-rose-400" />
-                      <span className="text-[10px] uppercase tracking-widest text-[#C17767] dark:text-rose-400">Kübra analiz ediyor...</span>
-                    </div>
-                  </div>
-                )}
+                {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500"/><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Kübra analiz ediyor...</span></div>}
                 <div ref={chatEndRef} />
               </div>
-
-              <div className="p-8 border-t border-[#EAE6DF] dark:border-zinc-800 bg-[#F5F2EB] dark:bg-zinc-900 flex flex-col gap-4">
-                {isLogWidgetOpen && (
-                  <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} track={state.profile?.track || 'Sayısal'} />
-                )}
-                <form onSubmit={handleSendMessage} className="flex flex-col gap-4">
-                  <div className="flex flex-wrap gap-2 mb-2">
-                  <button 
-                    type="button"
-                    onClick={() => setIsLogWidgetOpen(true)}
-                    className="px-3 py-1 border border-[#C17767] bg-[#C17767]/10 text-[9px] uppercase tracking-widest text-[#C17767] dark:text-rose-400 hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors font-bold"
-                  >
-                    + LOG
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => handleSendMessage(undefined, 'ANALYZE')}
-                    className="px-3 py-1 border border-[#E09F3E] bg-[#E09F3E]/10 text-[9px] uppercase tracking-widest text-[#E09F3E] hover:bg-[#E09F3E] hover:text-[#FDFBF7] transition-colors font-bold"
-                  >
-                    + ANALİZ ET
-                  </button>
-                  {[
-                    { label: 'Deneme', template: 'LOG\nDENEME: \nDoğru: \nYanlış: \nBoş: \nNet: ' },
-                    { label: 'Anla', template: 'ANLA: ' }
-                  ].map(btn => (
-                    <button 
-                      key={btn.label}
-                      type="button"
-                      onClick={() => setInputMessage(btn.template)}
-                      className="px-3 py-1 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl text-[9px] uppercase tracking-widest text-[#C17767] dark:text-rose-400 hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                    >
-                      + {btn.label}
-                    </button>
-                  ))}
+              
+              <div className="p-4 md:p-8 border-t border-[#2A2A2A] bg-[#1A1A1A]">
+                {/* Hızlı Butonlar */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button onClick={() => setIsLogWidgetOpen(true)} className="px-3 py-1.5 border border-[#C17767] text-[#C17767] bg-[#C17767]/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-[#C17767] hover:text-white transition-colors">+ LOG</button>
+                  <button onClick={() => handleSendMessage(undefined, "ANALİZ ET")} className="px-3 py-1.5 border border-amber-600 text-amber-500 bg-amber-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-amber-600 hover:text-white transition-colors">+ ANALİZ ET</button>
+                  <button onClick={() => setIsExamModalOpen(true)} className="px-3 py-1.5 border border-red-600 text-red-500 bg-red-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-red-600 hover:text-white transition-colors">- DENEME</button>
+                  <button onClick={() => handleSendMessage(undefined, "ANLA")} className="px-3 py-1.5 border border-zinc-600 text-zinc-400 bg-zinc-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-zinc-600 hover:text-white transition-colors">+ ANLA</button>
                 </div>
-                <div className="flex gap-4">
-                  <textarea 
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    placeholder="Komut gir veya mesaj yaz..."
-                    rows={inputMessage.includes('\n') ? 6 : 1}
-                    className="flex-1 bg-transparent border-b border-[#EAE6DF] dark:border-zinc-800 py-2 focus:outline-none text-sm resize-none text-[#4A443C] dark:text-zinc-200"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  />
-                  <button 
-                    type="submit"
-                    disabled={isTyping}
-                    className="w-10 h-10 bg-[#C17767] text-[#FDFBF7] flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-50 self-end"
-                  >
-                    <Send size={18} />
-                  </button>
-                </div>
+                
+                {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
+                
+                <form onSubmit={handleSendMessage} className="flex gap-4 items-center">
+                  <input value={inputMessage} onChange={e => setInputMessage(e.target.value)} placeholder="Komut gir veya mesaj yaz..." className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-4 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors" />
+                  <button type="submit" disabled={isTyping} className="w-12 h-12 bg-[#2A2A2A] text-zinc-400 hover:text-[#C17767] border border-[#333] flex justify-center items-center rounded-xl transition-colors shrink-0 disabled:opacity-50"><Send size={18} className="transform -translate-y-px translate-x-px" /></button>
                 </form>
               </div>
             </motion.div>
           )}
 
           {activeTab === 'profile' && (
-            <motion.div 
-              key="profile"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="p-8 max-w-2xl mx-auto"
-            >
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="font-serif italic text-4xl text-[#4A443C] dark:text-zinc-200">Öğrenci Profili</h2>
-                <button 
-                  onClick={() => setIsEditingProfile(true)}
-                  className="px-4 py-2 bg-[#EAE6DF] dark:bg-zinc-800 text-[#4A443C] dark:text-zinc-200 text-xs uppercase tracking-widest font-bold rounded-xl hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                >
-                  Profili Düzenle
-                </button>
-              </div>
-              <div className="space-y-8">
-                <ProfileSection title="Temel Bilgiler">
-                  <ProfileField label="İsim" value={state.profile.name} />
-                  <ProfileField label="Sınav" value={state.profile.exam} />
-                  <ProfileField label="Alan" value={state.profile.track || 'Sayısal'} />
-                  <ProfileField label="Hedef Üniversite" value={state.profile.targetUniversity} />
-                  <ProfileField label="Hedef Bölüm" value={state.profile.targetMajor} />
-                  <ProfileField label="TYT Hedef" value={`${state.profile.tytTarget} Net`} />
-                  <ProfileField label="AYT Hedef" value={`${state.profile.aytTarget} Net`} />
-                </ProfileSection>
-
-                <ProfileSection title="Çalışma Düzeni">
-                  <ProfileField label="Kapasite" value={`${state.profile.minHours}-${state.profile.maxHours} Saat`} />
-                  <ProfileField label="Saatler" value={`${state.profile.startTime} → ${state.profile.endTime}`} />
-                </ProfileSection>
-
-                <ProfileSection title="Akademik Odak">
-                  <ProfileField label="Öncelikli Dersler" value={state.profile.aytPriorities} />
-                  <ProfileField label="Güçlü Dersler" value={state.profile.strongSubjects} />
-                  <ProfileField label="Zayıf Dersler" value={state.profile.weakSubjects} />
-                  <ProfileField label="Kaynaklar" value={state.profile.resources} />
-                </ProfileSection>
-
-                <ProfileSection title="Sistem Ayarları">
-                  <div className="col-span-2 flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">Mobil Bildirimler</p>
-                      <p className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">Koç direktiflerini anlık al</p>
-                    </div>
-                    <button 
-                      onClick={async () => {
-                        if ('Notification' in window) {
-                          const permission = await Notification.requestPermission();
-                          if (permission === 'granted') {
-                            new Notification('Boho Mentosluk', {
-                              body: 'Bildirimler aktifleştirildi. Koç direktifleri buraya gelecek.',
-                            });
-                          } else {
-                            alert('Bildirim izni reddedildi.');
-                          }
-                        } else {
-                          alert('Tarayıcınız bildirimleri desteklemiyor.');
-                        }
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl text-xs uppercase tracking-widest hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                    >
-                      <Bell size={16} />
-                      Bildirimleri Aç
-                    </button>
-                  </div>
-                </ProfileSection>
-
-                <button 
-                  onClick={() => setState(prev => ({ ...prev, profile: null }))}
-                  className="w-full py-4 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-colors"
-                >
-                  Profili Sıfırla
-                </button>
-              </div>
-            </motion.div>
+             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-full">
+               <ProfileShowcase />
+             </motion.div>
           )}
-
+          
           {activeTab === 'archive' && (
-            <motion.div 
-              key="archive"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-4 md:p-8 max-w-6xl mx-auto"
-            >
+            <div className="p-4 md:p-8 max-w-6xl mx-auto">
               <header className="mb-8 flex justify-between items-end">
-                <div>
-                  <h2 className="font-serif italic text-3xl text-[#4A443C] dark:text-zinc-200">Soru Bankası Mezarlığı</h2>
-                  <p className="text-sm opacity-60 mt-2">Yanlış yaptığın soruları kaydet ve unutma.</p>
-                </div>
-                <button 
-                  onClick={() => setIsArchiveWidgetOpen(true)}
-                  className="px-4 py-2 bg-[#C17767] text-[#FDFBF7] rounded-lg text-sm font-bold tracking-widest uppercase hover:bg-[#A56253] transition-colors flex items-center gap-2"
-                >
-                  <Plus size={16} /> Yeni Ekle
-                </button>
+                <div><h2 className="font-serif italic text-3xl">Soru Bankası Mezarlığı</h2></div>
+                <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-4 py-2 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center"><Plus size={16} /> Yeni Ekle</button>
               </header>
-              
-              {isArchiveWidgetOpen && (
-                <ArchiveWidget 
-                  subjects={Object.keys(TYT_SUBJECTS)}
-                  onCancel={() => setIsArchiveWidgetOpen(false)}
-                  onSubmit={(q) => {
-                    setState(prev => ({
-                      ...prev,
-                      failedQuestions: [
-                        ...(prev.failedQuestions || []),
-                        { ...q, id: Date.now().toString(), date: new Date().toLocaleDateString('tr-TR') }
-                      ]
-                    }));
-                    setIsArchiveWidgetOpen(false);
-                  }}
-                />
-              )}
-
+              {isArchiveWidgetOpen && <ArchiveWidget subjects={Object.keys(TYT_SUBJECTS)} onCancel={() => setIsArchiveWidgetOpen(false)} onSubmit={(q) => { store.addFailedQuestion(q); setIsArchiveWidgetOpen(false); }} />}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(state.failedQuestions || []).map(q => (
-                  <div key={q.id} className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-[#C17767]"></div>
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] uppercase tracking-widest opacity-50">{q.date}</span>
-                      <span className="text-[10px] uppercase tracking-widest bg-[#F5F2EB] dark:bg-zinc-800 px-2 py-1 rounded text-[#C17767] dark:text-rose-400 font-bold">{q.subject}</span>
-                    </div>
-                    <h4 className="font-bold text-[#4A443C] dark:text-zinc-200 mb-1">{q.topic}</h4>
-                    <p className="text-xs opacity-80 mb-4">{q.book} - Sayfa: {q.page}, Soru: {q.questionNumber}</p>
-                    <div className="bg-[#FDFBF7] dark:bg-zinc-950 p-3 rounded-lg border border-[#EAE6DF] dark:border-zinc-800">
-                      <p className="text-xs italic opacity-80">"{q.reason}"</p>
-                    </div>
-                  </div>
+                {store.failedQuestions.map(q => (
+                  <div key={q.id} className="bg-[#FFFFFF] dark:bg-zinc-900 border dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-sm"><div className="absolute top-0 left-0 w-1 h-full bg-[#C17767]"></div><h4 className="font-bold border-b pb-2 mb-2 border-zinc-200 dark:border-zinc-800">{q.topic}</h4><p className="text-xs opacity-80 mb-2">{q.book} - Sayfa: {q.page}</p><p className="bg-[#F5F2EB] dark:bg-zinc-950 p-2 text-xs italic opacity-80 rounded-md">"{q.reason}"</p></div>
                 ))}
-                {(!state.failedQuestions || state.failedQuestions.length === 0) && (
-                  <div className="col-span-full bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-sm">
-                    <p className="text-sm opacity-60 text-center py-8">Mezarlık henüz boş. Yanlış yaptığın soruları buraya ekleyebilirsin.</p>
-                  </div>
-                )}
               </div>
-            </motion.div>
+            </div>
           )}
 
           {activeTab === 'settings' && (
-            <motion.div 
-              key="settings"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="p-8 max-w-2xl mx-auto"
-            >
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="font-serif italic text-4xl text-[#4A443C] dark:text-zinc-200">Ayarlar</h2>
+            <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8 max-w-3xl mx-auto space-y-12">
+              <div>
+                <h2 className="font-serif italic text-4xl mb-8">Ayarlar & Profil</h2>
+                <div className="space-y-8">
+                  <ProfileSection title="Görünüm Ayarları">
+                    <div className="col-span-2 flex justify-between items-center">
+                      <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#EAE6DF]">Tema (Mevcut Sabit)</p><p className="text-sm text-zinc-500 line-through">Arayüz temasını değiştir</p></div>
+                      <button disabled className="opacity-50 cursor-not-allowed text-xs font-mono uppercase bg-black px-3 py-1 rounded border border-zinc-800">SADECE DARK-MODE</button>
+                    </div>
+                  </ProfileSection>
+
+                  <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
+                      <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
+                        <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
+                        <button onClick={() => { if (window.confirm('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
+                      </div>
+                  </ProfileSection>
+                </div>
               </div>
-              <div className="space-y-8">
-                <ProfileSection title="Görünüm">
-                  <div className="col-span-2 flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">Karanlık Tema</p>
-                      <p className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">Arayüzü koyu renklere çevir</p>
-                    </div>
-                    <button 
-                      onClick={() => document.documentElement.classList.toggle('dark')}
-                      className="px-4 py-2 bg-[#EAE6DF] dark:bg-zinc-800 text-[#4A443C] dark:text-zinc-200 text-xs uppercase tracking-widest font-bold rounded-xl hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                    >
-                      Değiştir
-                    </button>
-                  </div>
-                </ProfileSection>
-
-                <ProfileSection title="Veri Yönetimi">
-                  <div className="col-span-2 flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">Sohbet Geçmişi</p>
-                      <p className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">Koç ile olan konuşmaları indir</p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.chatHistory, null, 2));
-                        const downloadAnchorNode = document.createElement('a');
-                        downloadAnchorNode.setAttribute("href",     dataStr);
-                        downloadAnchorNode.setAttribute("download", "boho_mentosluk_sohbet.json");
-                        document.body.appendChild(downloadAnchorNode);
-                        downloadAnchorNode.click();
-                        downloadAnchorNode.remove();
-                      }}
-                      className="px-4 py-2 bg-[#EAE6DF] dark:bg-zinc-800 text-[#4A443C] dark:text-zinc-200 text-xs uppercase tracking-widest font-bold rounded-xl hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                    >
-                      Dışa Aktar
-                    </button>
-                  </div>
-                  <div className="col-span-2 flex justify-between items-center mt-4">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">Tüm Veriler</p>
-                      <p className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">Tüm uygulama verilerini indir</p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
-                        const downloadAnchorNode = document.createElement('a');
-                        downloadAnchorNode.setAttribute("href",     dataStr);
-                        downloadAnchorNode.setAttribute("download", "boho_mentosluk_yedek.json");
-                        document.body.appendChild(downloadAnchorNode);
-                        downloadAnchorNode.click();
-                        downloadAnchorNode.remove();
-                      }}
-                      className="px-4 py-2 bg-[#EAE6DF] dark:bg-zinc-800 text-[#4A443C] dark:text-zinc-200 text-xs uppercase tracking-widest font-bold rounded-xl hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                    >
-                      Yedekle
-                    </button>
-                  </div>
-                  <div className="col-span-2 flex justify-between items-center mt-4">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">Sıfırla</p>
-                      <p className="text-sm font-medium text-red-500">Tüm verileri sil ve baştan başla</p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        if (window.confirm('Tüm verileriniz silinecek. Emin misiniz?')) {
-                          localStorage.removeItem('yks_coach_state');
-                          window.location.reload();
-                        }
-                      }}
-                      className="px-4 py-2 bg-red-100 text-red-600 text-xs uppercase tracking-widest font-bold rounded-xl hover:bg-red-600 hover:text-white transition-colors"
-                    >
-                      Sıfırla
-                    </button>
-                  </div>
-                </ProfileSection>
-
-                <ProfileSection title="Geliştirici Ayarları">
-                  <div className="col-span-2 flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">Hata Ayıklama Modu</p>
-                      <p className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">Sistem loglarını konsola yazdır</p>
-                    </div>
-                    <button 
-                      onClick={() => alert('Hata ayıklama modu aktif edildi. (Konsolu kontrol edin)')}
-                      className="px-4 py-2 bg-[#EAE6DF] dark:bg-zinc-800 text-[#4A443C] dark:text-zinc-200 text-xs uppercase tracking-widest font-bold rounded-xl hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                    >
-                      Aktifleştir
-                    </button>
-                  </div>
-                  <div className="col-span-2 flex justify-between items-center mt-4 pt-4 border-t border-[#EAE6DF] dark:border-zinc-800">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">Özellik Kontrolü</p>
-                      <p className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">Deneysel özellikleri aç/kapat</p>
-                    </div>
-                    <button 
-                      onClick={() => alert('Deneysel özellikler yakında eklenecektir.')}
-                      className="px-4 py-2 bg-[#EAE6DF] dark:bg-zinc-800 text-[#4A443C] dark:text-zinc-200 text-xs uppercase tracking-widest font-bold rounded-xl hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-                    >
-                      Yönet
-                    </button>
-                  </div>
-                </ProfileSection>
+              
+              <div>
+                <h3 className="font-serif italic text-2xl mb-4 text-[#C17767]">Profil Yönetimi</h3>
+                <ProfileSettings onSubmit={(p) => store.setProfile(p)} initialData={store.profile} isEditMode={true} />
               </div>
             </motion.div>
           )}
+
         </AnimatePresence>
       </main>
-
-      <ExamEntryModal 
-        isOpen={isExamModalOpen} 
-        onClose={() => setIsExamModalOpen(false)} 
-        track={state.profile?.track || 'Sayısal'}
-        onSave={(exam) => {
-          setState(prev => ({ ...prev, exams: [...prev.exams, exam] }));
-          setIsExamModalOpen(false);
-        }}
-      />
+      <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={store.profile!.track} onSave={(exam) => { store.addExam(exam); setIsExamModalOpen(false); store.unlockTrophy('first_blood'); }} />
+      <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={store.isDevMode} />
+      <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
     </div>
   );
 }
 
-// --- Sub-components ---
+// ----- MOCK UI FORMS ------
+const NavItem = ({ icon, label, active, onClick }: any) => <button onClick={onClick} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 px-2 md:px-6 py-2 md:py-4 transition-all rounded-lg md:rounded-none ${active ? 'bg-[#1A1A1A] text-[#C17767] border-r-4 border-[#C17767]' : 'text-[#8C857B] hover:bg-[#1A1A1A]/80'}`}> <div className={`p-2 rounded-full md:p-0 md:rounded-none`}>{icon}</div> <span className="text-[10px] md:text-xs uppercase tracking-widest font-bold hidden md:inline">{label}</span></button>;
+const StatCard = ({ title, value, total, unit, icon }: any) => <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-6 shadow-sm"><div className="flex justify-between items-start mb-4"><span className="text-[10px] uppercase opacity-50 tracking-widest font-bold text-zinc-400">{title}</span>{icon}</div><div className="flex items-baseline gap-2"><span className="text-4xl font-serif italic text-zinc-200">{value}</span>{total && <span className="text-xl opacity-40 text-zinc-500">/ {total}</span>}{unit && <span className="text-[10px] uppercase tracking-widest opacity-60 ml-1 text-zinc-500 font-bold">{unit}</span>}</div></div>;
 
-function NavItem({ icon, label, active, onClick }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void }) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-4 px-2 md:px-6 py-2 md:py-4 transition-all ${
-        active 
-          ? 'bg-transparent md:bg-[#FFFFFF] dark:md:bg-zinc-900 text-[#C17767] dark:text-rose-400 md:border-r-4 md:border-[#C17767] md:border-b-0' 
-          : 'text-[#8C857B] dark:text-zinc-400 hover:bg-[#FFFFFF]/50 dark:hover:bg-zinc-900/50'
-      }`}
-    >
-      <div className={`p-2 rounded-full md:p-0 md:rounded-none transition-colors ${active ? 'bg-[#C17767]/10 dark:bg-rose-400/10 md:bg-transparent' : ''}`}>
-        {icon}
-      </div>
-      <span className={`text-[10px] md:text-xs uppercase tracking-widest font-medium ${active ? 'opacity-100' : 'opacity-60'}`}>
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function StatCard({ title, value, total, unit, icon }: { title: string, value: string | number, total?: number, unit?: string, icon: React.ReactNode }) {
-  return (
-    <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-[4px_4px_0px_0px_rgba(0,255,0,0.1)]">
-      <div className="flex justify-between items-start mb-4">
-        <span className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-200">{title}</span>
-        {icon}
-      </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-4xl font-serif italic text-[#4A443C] dark:text-zinc-200">{value}</span>
-        {total && <span className="text-xl opacity-40 text-[#4A443C] dark:text-zinc-200">/ {total}</span>}
-        {unit && <span className="text-xs uppercase opacity-60 tracking-widest text-[#4A443C] dark:text-zinc-200">{unit}</span>}
-      </div>
-    </div>
-  );
-}
-
-function SubjectList({ title, subjects, onStatusChange, onNotesChange }: { title: string, subjects: SubjectStatus[], onStatusChange: (idx: number, status: SubjectStatus['status']) => void, onNotesChange: (idx: number, notes: string) => void }) {
-  const groupedSubjects = subjects.reduce((acc, sub, idx) => {
+const SubjectList = ({ title, subjects, onStatusChange, onNotesChange }: any) => {
+  const grouped = subjects.reduce((acc: any, sub: any, idx: number) => {
     if (!acc[sub.subject]) acc[sub.subject] = [];
     acc[sub.subject].push({ ...sub, originalIndex: idx });
     return acc;
-  }, {} as Record<string, (SubjectStatus & { originalIndex: number })[]>);
+  }, {});
 
   return (
-    <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900">
-      <div className="p-4 border-b border-[#EAE6DF] dark:border-zinc-800 bg-[#F5F2EB] dark:bg-zinc-900 text-[#C17767] dark:text-rose-400">
-        <h3 className="font-serif italic text-lg">{title}</h3>
+    <div className="border border-[#2A2A2A] rounded-2xl bg-[#1A1A1A] overflow-hidden">
+      <div className="p-5 border-b border-[#2A2A2A] bg-gradient-to-r from-red-950/10 to-transparent">
+        <h3 className="font-serif italic text-xl text-[#C17767] font-bold tracking-wide">{title}</h3>
       </div>
-      <div className="divide-y divide-[#EAE6DF] dark:divide-zinc-800 max-h-[600px] overflow-auto">
-        {Object.entries(groupedSubjects).map(([subjectName, topics]) => (
-          <div key={subjectName}>
-            <div className="p-2 bg-[#F0EBE1] dark:bg-zinc-800 text-[#C17767] dark:text-rose-400 text-xs font-bold uppercase tracking-widest sticky top-0 z-10">
-              {subjectName}
+      <div className="overflow-auto h-[600px] custom-scrollbar">
+        {Object.entries(grouped).map(([groupName, groupSubjects]: [string, any]) => (
+          <div key={groupName} className="mb-4">
+            <div className="sticky top-0 bg-[#1A1A1A] z-10 px-5 py-2 border-b border-[#2A2A2A] border-t-4 border-t-transparent shadow-sm">
+              <h4 className="font-serif italic text-sm text-[#C17767]/70 uppercase tracking-widest">{groupName}</h4>
             </div>
-            {topics.map((sub) => (
-              <div key={sub.originalIndex} className="p-4 flex flex-col gap-2 hover:bg-[#C17767]/5 dark:hover:bg-rose-400/10 transition-colors pl-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">{sub.name}</span>
-                  <div className="flex gap-2">
-                    <StatusButton 
-                      active={sub.status === 'not-started'} 
-                      onClick={() => onStatusChange(sub.originalIndex, 'not-started')}
-                      color="gray"
-                      label="Başlamadı"
-                    />
-                    <StatusButton 
-                      active={sub.status === 'in-progress'} 
-                      onClick={() => onStatusChange(sub.originalIndex, 'in-progress')}
-                      color="blue"
-                      label="Çalışılıyor"
-                    />
-                    <StatusButton 
-                      active={sub.status === 'mastered'} 
-                      onClick={() => onStatusChange(sub.originalIndex, 'mastered')}
-                      color="green"
-                      label="Bitti"
+            <div className="divide-y divide-[#2A2A2A] opacity-90">
+              {groupSubjects.map((sub: any) => {
+                const i = sub.originalIndex;
+                const statuses = [
+                  { value: 'not-started', label: 'BAŞLAMADI', color: 'border-zinc-700 text-zinc-500 hover:bg-zinc-800' },
+                  { value: 'in-progress', label: 'ÇALIŞILIYOR', color: 'border-[#1E3A8A] text-[#60A5FA] bg-[#1E3A8A]/20 hover:bg-[#1E3A8A]/40' },
+                  { value: 'mastered', label: 'BİTTİ', color: 'border-[#064E3B] text-[#34D399] bg-[#064E3B]/20 hover:bg-[#064E3B]/40' }
+                ];
+
+                return (
+                  <div key={i} className="p-5 flex flex-col gap-4">
+                    <div className="flex justify-between items-center group">
+                      <span className="text-sm font-bold text-zinc-300 group-hover:text-white transition-colors">{sub.name}</span>
+                      <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A] gap-1 shrink-0">
+                        {statuses.map(s => (
+                           <button 
+                             key={s.value}
+                             onClick={() => onStatusChange(i, s.value)}
+                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all border ${sub.status === s.value ? s.color.replace('hover:','') : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
+                           >
+                             {s.label}
+                           </button>
+                        ))}
+                      </div>
+                    </div>
+                    <input 
+                      type="text" placeholder="Bu konuyla ilgili stratejik notlar..." 
+                      value={sub.notes} onChange={e=>onNotesChange(i, e.target.value)} 
+                      className="text-xs p-3 rounded-xl bg-[#121212] border border-[#2A2A2A] text-zinc-300 w-full outline-none focus:border-[#C17767] transition-colors" 
                     />
                   </div>
-                </div>
-                <textarea
-                  className="w-full mt-2 p-2 text-xs bg-[#FDFBF7] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] dark:focus:border-rose-400 transition-colors resize-none"
-                  placeholder="Bu konu hakkında notlar ekle..."
-                  rows={2}
-                  value={sub.notes || ''}
-                  onChange={(e) => onNotesChange(sub.originalIndex, e.target.value)}
-                />
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
     </div>
   );
-}
+};
 
-function StatusButton({ active, onClick, color, label }: { active: boolean, onClick: () => void, color: 'gray' | 'blue' | 'green', label: string }) {
-  const colors = {
-    gray: active ? 'bg-[#EAE6DF] text-[#4A443C] dark:bg-zinc-800 dark:text-zinc-200 border-[#C17767]/20 shadow-sm' : 'bg-transparent text-[#8C857B] dark:text-zinc-500 border-transparent hover:border-[#EAE6DF] dark:hover:border-zinc-800',
-    blue: active ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200 dark:border-blue-800/50 shadow-sm' : 'bg-transparent text-[#8C857B] dark:text-zinc-500 border-transparent hover:border-blue-100 dark:hover:border-blue-900/30',
-    green: active ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border-green-200 dark:border-green-800/50 shadow-sm' : 'bg-transparent text-[#8C857B] dark:text-zinc-500 border-transparent hover:border-green-100 dark:hover:border-green-900/30'
-  };
-  
-  return (
-    <button 
-      onClick={onClick}
-      className={`px-4 py-1.5 text-[10px] uppercase tracking-widest font-bold rounded-full border transition-all duration-300 ${colors[color]}`}
-    >
-      {label}
-    </button>
-  );
-}
+const ProfileSection = ({ title, children }: any) => <div className="border border-[#2A2A2A] rounded-2xl p-6 bg-[#1A1A1A] shadow-sm"><h3 className="text-[10px] uppercase opacity-50 tracking-widest mb-6 border-b border-[#2A2A2A] pb-2 text-[#C17767] font-bold">{title}</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6">{children}</div></div>;
+const ProfileField = ({ label, value }: any) => <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest">{label}</p><p className="text-sm font-bold">{value}</p></div>;
 
-function ProfileSection({ title, children }: { title: string, children: React.ReactNode }) {
-  return (
-    <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 bg-[#FFFFFF] dark:bg-zinc-900">
-      <h3 className="text-[10px] uppercase tracking-widest opacity-50 mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 text-[#C17767] dark:text-rose-400">{title}</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ProfileField({ label, value }: { label: string, value: string }) {
-  return (
-    <div>
-      <p className="text-[10px] uppercase tracking-widest opacity-40 mb-1 text-[#4A443C] dark:text-zinc-200">{label}</p>
-      <p className="text-sm font-medium text-[#4A443C] dark:text-zinc-200">{value}</p>
-    </div>
-  );
-}
-
-function ProfileSetup({ onSubmit, initialData }: { onSubmit: (profile: StudentProfile) => void, initialData?: StudentProfile }) {
-  const [formData, setFormData] = useState<StudentProfile>(initialData || {
-    name: '',
-    exam: 'YKS 2026',
-    track: 'Sayısal',
-    targetUniversity: 'Boğaziçi Üniversitesi',
-    targetMajor: 'Bilgisayar Mühendisliği',
-    tytTarget: 100,
-    aytTarget: 70,
-    minHours: 6,
-    maxHours: 10,
-    dailyGoalHours: 8,
-    startTime: '08:00',
-    endTime: '23:00',
-    aytPriorities: 'Matematik, Kimya',
-    weakSubjects: 'Fizik, Geometri',
-    strongSubjects: 'Türkçe, Biyoloji',
-    resources: '345, Bilgi Sarmal, Apotemi'
-  });
-
-  return (
-    <div className="min-h-screen bg-[#FDFBF7] dark:bg-zinc-950 flex items-center justify-center p-8 py-16">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="max-w-2xl w-full bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-10 shadow-lg"
-      >
-        <h1 className="font-serif italic text-4xl mb-2 text-[#C17767] dark:text-rose-400">Boho Mentosluk</h1>
-        <p className="text-[10px] uppercase tracking-widest opacity-50 mb-8 text-[#4A443C] dark:text-zinc-200">Profil Kurulumu</p>
-        
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="İsim" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
-            <div>
-              <label className="block text-[10px] uppercase tracking-widest opacity-50 mb-2 text-[#4A443C] dark:text-zinc-200">Alan</label>
-              <select 
-                value={formData.track}
-                onChange={e => setFormData({...formData, track: e.target.value as any})}
-                className="w-full bg-transparent border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors"
-              >
-                <option value="Sayısal">Sayısal</option>
-                <option value="Eşit Ağırlık">Eşit Ağırlık</option>
-                <option value="Sözel">Sözel</option>
-                <option value="Dil">Dil</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Hedef Üniversite" value={formData.targetUniversity} onChange={v => setFormData({...formData, targetUniversity: v})} />
-            <Input label="Hedef Bölüm" value={formData.targetMajor} onChange={v => setFormData({...formData, targetMajor: v})} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="TYT Hedef Net" type="number" value={formData.tytTarget} onChange={v => setFormData({...formData, tytTarget: Number(v)})} />
-            <Input label="AYT Hedef Net" type="number" value={formData.aytTarget} onChange={v => setFormData({...formData, aytTarget: Number(v)})} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input label="Min Saat" type="number" value={formData.minHours} onChange={v => setFormData({...formData, minHours: Number(v)})} />
-            <Input label="Max Saat" type="number" value={formData.maxHours} onChange={v => setFormData({...formData, maxHours: Number(v)})} />
-            <Input label="Günlük Hedef" type="number" value={formData.dailyGoalHours} onChange={v => setFormData({...formData, dailyGoalHours: Number(v)})} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Başlangıç" type="time" value={formData.startTime} onChange={v => setFormData({...formData, startTime: v})} />
-            <Input label="Bitiş" type="time" value={formData.endTime} onChange={v => setFormData({...formData, endTime: v})} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Güçlü Dersler" value={formData.strongSubjects} onChange={v => setFormData({...formData, strongSubjects: v})} />
-            <Input label="Zayıf Dersler" value={formData.weakSubjects} onChange={v => setFormData({...formData, weakSubjects: v})} />
-          </div>
-          <Input label="Kaynaklar" value={formData.resources} onChange={v => setFormData({...formData, resources: v})} />
-          
-          <button 
-            onClick={() => onSubmit(formData)}
-            className="w-full py-4 bg-[#C17767] text-[#FDFBF7] text-[10px] uppercase tracking-widest hover:opacity-90 transition-opacity mt-8 font-bold"
-          >
-            Sistemi Başlat
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function Input({ label, value, onChange, type = 'text' }: { label: string, value: any, onChange: (v: string) => void, type?: string }) {
-  return (
-    <div>
-      <label className="text-[10px] uppercase tracking-widest opacity-50 block mb-1 text-[#4A443C] dark:text-zinc-200">{label}</label>
-      <input 
-        type={type} 
-        value={value} 
-        onChange={e => onChange(e.target.value)}
-        className="w-full border-b border-[#EAE6DF] dark:border-zinc-800 py-2 focus:outline-none text-sm bg-transparent text-[#4A443C] dark:text-zinc-200 focus:border-[#C17767] transition-colors"
-      />
-    </div>
-  );
-}
-
-function LogEntryWidget({ onSubmit, onCancel, track }: { onSubmit: (log: DailyLog) => void, onCancel: () => void, track: string }) {
-  const [examType, setExamType] = useState<'TYT' | 'AYT'>('TYT');
-  const [subject, setSubject] = useState(Object.keys(TYT_SUBJECTS)[0]);
-  const [topic, setTopic] = useState(TYT_SUBJECTS[Object.keys(TYT_SUBJECTS)[0] as keyof typeof TYT_SUBJECTS][0]);
-  const [questions, setQuestions] = useState(0);
-  const [correct, setCorrect] = useState(0);
-  const [wrong, setWrong] = useState(0);
-  const [empty, setEmpty] = useState(0);
-  const [avgTime, setAvgTime] = useState(0);
-  const [fatigue, setFatigue] = useState(5);
-  const [tags, setTags] = useState('');
-
-  const getAytSubjectsForTrack = () => {
-    const all = AYT_SUBJECTS;
-    if (track === 'Sayısal') return { 'Matematik': all['Matematik'], 'Fizik': all['Fizik'], 'Kimya': all['Kimya'], 'Biyoloji': all['Biyoloji'] };
-    if (track === 'Eşit Ağırlık') return { 'Matematik': all['Matematik'], 'Edebiyat': all['Edebiyat'], 'Tarih': all['Tarih'], 'Coğrafya': all['Coğrafya'] };
-    if (track === 'Sözel') return { 'Edebiyat': all['Edebiyat'], 'Tarih': all['Tarih'], 'Coğrafya': all['Coğrafya'], 'Felsefe Grubu': all['Felsefe Grubu'] };
-    if (track === 'Dil') return { 'Yabancı Dil': all['Yabancı Dil'] };
-    return all;
-  };
-
-  const currentSubjects = examType === 'TYT' ? TYT_SUBJECTS : getAytSubjectsForTrack();
-  const currentTopics = currentSubjects[subject as keyof typeof currentSubjects] || [];
-
-  // Update subject and topic when exam type changes
-  useEffect(() => {
-    const newSubject = Object.keys(currentSubjects)[0];
-    if (newSubject) {
-      setSubject(newSubject);
-      setTopic(currentSubjects[newSubject as keyof typeof currentSubjects][0]);
-    }
-  }, [examType, track]);
-
-  // Update topic when subject changes
-  useEffect(() => {
-    if (currentSubjects[subject as keyof typeof currentSubjects]) {
-      setTopic(currentSubjects[subject as keyof typeof currentSubjects][0]);
-    }
-  }, [subject]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit({
-      date: new Date().toISOString(),
-      subject: `${examType} ${subject}`,
-      topic,
-      questions,
-      correct,
-      wrong,
-      empty,
-      avgTime,
-      fatigue,
-      tags: tags.split(',').map(t => t.trim()).filter(Boolean)
-    });
-  };
-
-  return (
-    <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 mb-4 text-sm shadow-sm">
-      <div className="flex justify-between items-center mb-6">
-        <h4 className="text-[#C17767] dark:text-rose-400 font-serif italic text-lg">Günlük Çalışma Logu</h4>
-        <div className="flex items-center gap-2">
-          <button 
-            type="button"
-            onClick={() => {
-              const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-              recognition.lang = 'tr-TR';
-              recognition.start();
-              recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                alert(`Algılanan Ses: "${transcript}"\n(Gerçek entegrasyon için NLP ile ayrıştırma gerekir)`);
-                // Örnek doldurma
-                setQuestions(40);
-                setCorrect(35);
-                setWrong(5);
-                setAvgTime(45);
-              };
-              recognition.onerror = () => {
-                alert("Ses algılanamadı. Lütfen mikrofon izinlerini kontrol edin.");
-              };
-            }}
-            className="px-3 py-1 bg-[#C17767]/10 text-[#C17767] dark:text-rose-400 rounded text-xs font-bold uppercase tracking-widest hover:bg-[#C17767]/20 transition-colors flex items-center gap-1"
-          >
-            <Volume2 size={14} /> Sesli Log
-          </button>
-          <button 
-            type="button"
-            onClick={() => {
-              alert("OCR Modülü (Simülasyon): Fotoğraf analiz ediliyor... (Gerçek entegrasyon için backend API gereklidir)");
-              setQuestions(40);
-              setCorrect(35);
-              setWrong(4);
-              setEmpty(1);
-              setAvgTime(45);
-            }}
-            className="px-3 py-1 bg-[#EAE6DF] dark:bg-zinc-800 text-[#4A443C] dark:text-zinc-200 rounded text-xs font-bold uppercase tracking-widest hover:bg-[#D5D0C5] dark:hover:bg-zinc-700 transition-colors"
-          >
-            Fotoğraftan Oku (OCR)
-          </button>
-          <button onClick={onCancel} className="text-[#4A443C] dark:text-zinc-200 opacity-50 hover:opacity-100"><X size={18} /></button>
-        </div>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        
-        <div className="flex items-center gap-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-4">
-          <span className="text-[#C17767] dark:text-rose-400 font-bold w-8">Q:</span>
-          <span className="text-[#8C857B] dark:text-zinc-400 flex-1">Hangi sınava çalıştın?</span>
-          <div className="flex gap-2 w-1/2">
-            <button type="button" onClick={() => setExamType('TYT')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border transition-colors ${examType === 'TYT' ? 'bg-[#C17767] text-[#FDFBF7] border-[#C17767]' : 'border-[#EAE6DF] dark:border-zinc-800 text-[#4A443C] dark:text-zinc-200 hover:border-[#C17767]'}`}>TYT</button>
-            <button type="button" onClick={() => setExamType('AYT')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border transition-colors ${examType === 'AYT' ? 'bg-[#E09F3E] text-[#FDFBF7] border-[#E09F3E]' : 'border-[#EAE6DF] dark:border-zinc-800 text-[#4A443C] dark:text-zinc-200 hover:border-[#E09F3E]'}`}>AYT</button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-4">
-          <span className="text-[#C17767] dark:text-rose-400 font-bold w-8">Q:</span>
-          <span className="text-[#8C857B] dark:text-zinc-400 flex-1">Ders ve Konu nedir?</span>
-          <div className="flex gap-2 w-1/2">
-            <select value={subject} onChange={e => setSubject(e.target.value)} className="flex-1 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767]">
-              {Object.keys(currentSubjects).map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select value={topic} onChange={e => setTopic(e.target.value)} className="flex-1 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767]">
-              {currentTopics.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-4">
-          <span className="text-[#C17767] dark:text-rose-400 font-bold w-8">Q:</span>
-          <span className="text-[#8C857B] dark:text-zinc-400 flex-1">Soru Dağılımı (D/Y/B)? <span className="text-xs opacity-50">(Top: {questions})</span></span>
-          <div className="flex gap-2 w-1/2">
-            <input type="number" min="0" placeholder="D" value={correct || ''} onChange={e => { setCorrect(parseInt(e.target.value) || 0); setQuestions((parseInt(e.target.value) || 0) + wrong + empty); }} className="w-1/3 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-green-600 focus:outline-none focus:border-[#C17767] text-center font-bold" />
-            <input type="number" min="0" placeholder="Y" value={wrong || ''} onChange={e => { setWrong(parseInt(e.target.value) || 0); setQuestions(correct + (parseInt(e.target.value) || 0) + empty); }} className="w-1/3 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-red-600 focus:outline-none focus:border-[#C17767] text-center font-bold" />
-            <input type="number" min="0" placeholder="B" value={empty || ''} onChange={e => { setEmpty(parseInt(e.target.value) || 0); setQuestions(correct + wrong + (parseInt(e.target.value) || 0)); }} className="w-1/3 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-gray-500 focus:outline-none focus:border-[#C17767] text-center font-bold" />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-4">
-          <span className="text-[#C17767] dark:text-rose-400 font-bold w-8">Q:</span>
-          <span className="text-[#8C857B] dark:text-zinc-400 flex-1">Toplam Süre (dk) ve Yorgunluk?</span>
-          <div className="flex gap-4 w-1/2 items-center">
-            <input type="number" min="0" placeholder="Süre (dk)" value={avgTime || ''} onChange={e => setAvgTime(parseInt(e.target.value) || 0)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] text-center" />
-            <div className="w-1/2 flex items-center gap-2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2">
-              <input type="range" min="1" max="10" value={fatigue} onChange={e => setFatigue(parseInt(e.target.value))} className="flex-1 accent-[#C17767]" />
-              <span className="text-xs font-bold text-[#C17767] dark:text-rose-400 w-4 text-center">{fatigue}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 pb-2">
-          <span className="text-[#C17767] dark:text-rose-400 font-bold w-8">Q:</span>
-          <span className="text-[#8C857B] dark:text-zinc-400 flex-1">Hata Etiketleri? <span className="text-xs opacity-50">(Örn: #KAVRAM, #DİKKAT)</span></span>
-          <input type="text" value={tags} onChange={e => setTags(e.target.value)} placeholder="#HESAP, #SÜRE" className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767]" />
-        </div>
-
-        <button type="submit" className="w-full py-3 bg-[#C17767] text-[#FDFBF7] font-bold rounded-xl hover:opacity-90 transition-opacity mt-4 tracking-widest uppercase text-xs">
-          LOG KAYDET VE ANALİZ ET
-        </button>
-      </form>
-    </div>
-  );
-}
-function PushU() {
-  const sendPush = () => {
-    const messages = [
-      "Zaman daralıyor, masaya dön!",
-      "Hedefin seni bekliyor, pes etme.",
-      "Bugün çözdüğün her soru seni 1 adım öne taşıyor.",
-      "Rakiplerin çalışıyor, sen neredesin?"
-    ];
-    const msg = messages[Math.floor(Math.random() * messages.length)];
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Boho Mentosluk', { body: msg });
-    } else {
-      alert(msg);
-    }
-  };
-
-  return (
-    <button 
-      onClick={sendPush}
-      className="flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 text-[#C17767] dark:text-rose-400 border border-[#C17767] text-xs uppercase tracking-widest font-bold hover:bg-[#C17767] hover:text-[#FDFBF7] transition-colors"
-    >
-      <Smartphone size={16} />
-      PushU
-    </button>
-  );
-}
-
-function ExamEntryModal({ isOpen, onClose, onSave, track }: { isOpen: boolean, onClose: () => void, onSave: (exam: ExamResult) => void, track: string }) {
-  const [examType, setExamType] = useState<'TYT' | 'AYT'>('TYT');
-  const [scores, setScores] = useState<Record<string, { correct: number, wrong: number, net: number }>>({});
+// --- GİZLİ ADMİN PANELİ ---
+const AdminPanelModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+  const store = useAppStore();
   
   if (!isOpen) return null;
   
-  const tytSubjects = [
-    { name: 'Türkçe', total: 40 },
-    { name: 'Sosyal Bilimler', total: 20 },
-    { name: 'Temel Matematik', total: 40 },
-    { name: 'Fen Bilimleri', total: 20 }
-  ];
-
-  const aytSubjectsByTrack: Record<string, { name: string, total: number }[]> = {
-    'Sayısal': [
-      { name: 'Matematik', total: 40 },
-      { name: 'Fizik', total: 14 },
-      { name: 'Kimya', total: 13 },
-      { name: 'Biyoloji', total: 13 }
-    ],
-    'Eşit Ağırlık': [
-      { name: 'Matematik', total: 40 },
-      { name: 'Edebiyat', total: 24 },
-      { name: 'Tarih-1', total: 10 },
-      { name: 'Coğrafya-1', total: 6 }
-    ],
-    'Sözel': [
-      { name: 'Edebiyat', total: 24 },
-      { name: 'Tarih-1', total: 10 },
-      { name: 'Coğrafya-1', total: 6 },
-      { name: 'Tarih-2', total: 11 },
-      { name: 'Coğrafya-2', total: 11 },
-      { name: 'Felsefe Grubu', total: 12 },
-      { name: 'Din Kültürü', total: 6 }
-    ],
-    'Dil': [
-      { name: 'Yabancı Dil', total: 80 }
-    ]
-  };
-
-  const aytSubjects = aytSubjectsByTrack[track] || aytSubjectsByTrack['Sayısal'];
-
-  const subjects = examType === 'TYT' ? tytSubjects : aytSubjects;
-
-  const handleScoreChange = (subject: string, type: 'correct' | 'wrong', value: number) => {
-    setScores(prev => {
-      const current = prev[subject] || { correct: 0, wrong: 0, net: 0 };
-      const updated = { ...current, [type]: value };
-      updated.net = updated.correct - (updated.wrong * 0.25);
-      return { ...prev, [subject]: updated };
-    });
-  };
-
-  const calculateNet = (subject: string) => {
-    const s = scores[subject] || { correct: 0, wrong: 0, net: 0 };
-    return (s.correct - (s.wrong * 0.25)).toFixed(2);
-  };
-
-  const totalNet = subjects.reduce((acc, sub) => acc + parseFloat(calculateNet(sub.name)), 0).toFixed(2);
-
-  const handleSave = () => {
-    const exam: ExamResult = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      type: examType,
-      totalNet: parseFloat(totalNet),
-      scores
-    };
-    onSave(exam);
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl w-full max-w-2xl shadow-2xl"
-      >
-        <div className="flex justify-between items-center p-6 border-b border-[#EAE6DF] dark:border-zinc-800">
-          <h2 className="font-serif italic text-2xl text-[#4A443C] dark:text-zinc-200">Deneme Neti Gir</h2>
-          <button onClick={onClose} className="text-[#4A443C] dark:text-zinc-200 hover:text-[#C17767] dark:text-rose-400 transition-colors">
-            <X size={24} />
-          </button>
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+      <div className="bg-[#FFFFFF] dark:bg-zinc-900 p-8 rounded-2xl max-w-sm w-full shadow-2xl relative border-2 border-red-500/50">
+        <button onClick={onClose} className="absolute top-4 right-4 opacity-50 hover:opacity-100"><X size={20}/></button>
+        <div className="flex items-center gap-3 mb-6 text-red-500 border-b border-red-500/20 pb-4">
+          <ShieldAlert size={28} />
+          <h2 className="font-mono text-xl font-bold tracking-widest uppercase">Geliştirici Modu</h2>
         </div>
-
-        <div className="p-6">
-          <div className="flex gap-4 mb-6">
+        
+        <div className="space-y-6">
+          <div className="flex items-center justify-between bg-[#F5F2EB] dark:bg-zinc-950 p-4 rounded-xl border border-[#EAE6DF] dark:border-zinc-800">
+            <div>
+              <p className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">Geliştirici Özellikleri</p>
+              <p className="text-[10px] opacity-60 uppercase tracking-widest mt-1 text-[#4A443C] dark:text-zinc-400">Deneme Silme ve Düzenleme</p>
+            </div>
             <button 
-              onClick={() => { setExamType('TYT'); setScores({}); }}
-              className={`flex-1 py-3 text-sm uppercase tracking-widest font-bold transition-colors ${examType === 'TYT' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#F5F2EB] dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-200 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl hover:bg-[#EAE6DF] dark:hover:bg-zinc-800 dark:bg-zinc-800'}`}
+              onClick={() => store.setDevMode(!store.isDevMode)}
+              className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors ${store.isDevMode ? 'bg-green-500' : 'bg-zinc-400 dark:bg-zinc-700'}`}
             >
-              TYT
-            </button>
-            <button 
-              onClick={() => { setExamType('AYT'); setScores({}); }}
-              className={`flex-1 py-3 text-sm uppercase tracking-widest font-bold transition-colors ${examType === 'AYT' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#F5F2EB] dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-200 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl hover:bg-[#EAE6DF] dark:hover:bg-zinc-800 dark:bg-zinc-800'}`}
-            >
-              AYT
+              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${store.isDevMode ? 'translate-x-6' : 'translate-x-0'}`} />
             </button>
           </div>
 
-          <div className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl">
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-[#EAE6DF] dark:border-zinc-800 text-[10px] uppercase tracking-widest opacity-60">
-              <div className="col-span-6">Ders</div>
-              <div className="col-span-2 text-center">Doğru</div>
-              <div className="col-span-2 text-center">Yanlış</div>
-              <div className="col-span-2 text-right">Net</div>
+          <div className="flex items-center justify-between bg-[#F5F2EB] dark:bg-zinc-950 p-4 rounded-xl border border-[#EAE6DF] dark:border-zinc-800">
+            <div>
+              <p className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">Sabah Kilidi</p>
+              <p className="text-[10px] opacity-60 uppercase tracking-widest mt-1 text-[#4A443C] dark:text-zinc-400">Sabah uyarısını kapat</p>
             </div>
-            
-            <div className="divide-y divide-[#EAE6DF] dark:divide-zinc-800">
-              {subjects.map(sub => (
-                <div key={sub.name} className="grid grid-cols-12 gap-4 p-4 items-center">
-                  <div className="col-span-6 text-sm font-medium">
-                    {sub.name} <span className="opacity-50 text-xs">({sub.total})</span>
-                  </div>
-                  <div className="col-span-2">
-                    <select 
-                      value={scores[sub.name]?.correct || 0}
-                      onChange={(e) => handleScoreChange(sub.name, 'correct', parseInt(e.target.value))}
-                      className="w-full bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl text-[#4A443C] dark:text-zinc-200 p-2 text-sm focus:outline-none focus:border-[#C17767]"
-                    >
-                      {Array.from({ length: sub.total + 1 }, (_, i) => (
-                        <option key={i} value={i}>{i}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-2">
-                    <select 
-                      value={scores[sub.name]?.wrong || 0}
-                      onChange={(e) => handleScoreChange(sub.name, 'wrong', parseInt(e.target.value))}
-                      className="w-full bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl text-[#4A443C] dark:text-zinc-200 p-2 text-sm focus:outline-none focus:border-[#C17767]"
-                    >
-                      {Array.from({ length: sub.total + 1 }, (_, i) => (
-                        <option key={i} value={i}>{i}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-span-2 text-right font-mono text-[#C17767] dark:text-rose-400">
-                    {calculateNet(sub.name)}
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="p-4 border-t border-[#EAE6DF] dark:border-zinc-800 bg-[#FFFFFF] dark:bg-zinc-900 flex justify-between items-center">
-              <span className="text-sm uppercase tracking-widest font-bold">Toplam Net</span>
-              <span className="text-xl font-mono text-[#C17767] dark:text-rose-400 font-bold">{totalNet}</span>
-            </div>
+            <button 
+              onClick={() => store.setMorningBlockerEnabled(!store.isMorningBlockerEnabled)}
+              className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors ${store.isMorningBlockerEnabled ? 'bg-green-500' : 'bg-zinc-400 dark:bg-zinc-700'}`}
+            >
+              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${store.isMorningBlockerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
           </div>
-        </div>
-
-        <div className="p-6 border-t border-[#EAE6DF] dark:border-zinc-800 flex justify-end gap-4">
+          
           <button 
-            onClick={onClose}
-            className="px-6 py-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl text-xs uppercase tracking-widest hover:bg-[#EAE6DF] dark:hover:bg-zinc-800 dark:bg-zinc-800 transition-colors"
+            onClick={() => { store.addElo(500); alert('Müthiş Hile: 500 Puan Eklendi!'); onClose(); }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-900/30 text-blue-400 border border-blue-900/50 hover:bg-blue-900/50 text-xs font-bold tracking-widest uppercase rounded-xl transition-colors"
           >
-            İptal
-          </button>
-          <button 
-            onClick={handleSave}
-            className="px-6 py-2 bg-[#C17767] text-[#FDFBF7] text-xs uppercase tracking-widest font-bold hover:opacity-90 transition-opacity"
-          >
-            Kaydet
+            Hile: +500 Elo Puanı
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
-}
+};
+
