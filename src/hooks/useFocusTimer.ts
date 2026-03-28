@@ -9,6 +9,7 @@ export interface FocusSession {
 export function useFocusTimer() {
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [mode, setMode] = useState<'up' | 'down'>('up');
   const [laps, setLaps] = useState<FocusSession[]>([]);
 
   // LocalStorage senkronizasyonu
@@ -18,21 +19,31 @@ export function useFocusTimer() {
       try {
         const parsed = JSON.parse(saved);
         setSessionSeconds(parsed.sessionSeconds || 0);
+        setMode(parsed.mode || 'up');
         setLaps(parsed.laps || []);
       } catch (e) {}
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('yks_focus_timer', JSON.stringify({ sessionSeconds, laps }));
-  }, [sessionSeconds, laps]);
+    localStorage.setItem('yks_focus_timer', JSON.stringify({ sessionSeconds, laps, mode }));
+  }, [sessionSeconds, laps, mode]);
 
   // Kronometre
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning) {
       interval = setInterval(() => {
-        setSessionSeconds(prev => prev + 1);
+        setSessionSeconds(prev => {
+          if (mode === 'down') {
+            if (prev <= 1) {
+              setIsRunning(false);
+              return 0;
+            }
+            return prev - 1;
+          }
+          return prev + 1;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -43,6 +54,16 @@ export function useFocusTimer() {
   const reset = useCallback(() => {
     setIsRunning(false);
     setSessionSeconds(0);
+  }, []);
+
+  const setDuration = useCallback((seconds: number) => {
+    setSessionSeconds(seconds);
+    setMode('down');
+  }, []);
+
+  const setStopwatch = useCallback(() => {
+    setSessionSeconds(0);
+    setMode('up');
   }, []);
 
   const addLap = useCallback(() => {
@@ -69,9 +90,12 @@ export function useFocusTimer() {
     sessionSeconds,
     formattedTime: formatTime(sessionSeconds),
     isRunning,
+    mode,
     start,
     pause,
     reset,
+    setDuration,
+    setStopwatch,
     addLap,
     laps,
     formatTime

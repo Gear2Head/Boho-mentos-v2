@@ -21,7 +21,9 @@ export function ProfileSettings({ initialData, onSubmit, isEditMode = false }: P
     weakSubjects: 'Matematik',
     strongSubjects: 'Türkçe',
     motivationQuote: '',
-    examYear: '2026'
+    examYear: '2026',
+    minDailyQuestions: 100,
+    maxDailyQuestions: 300
   });
 
   const handleChange = (field: keyof StudentProfile, value: any) => {

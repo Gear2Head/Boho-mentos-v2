@@ -1,141 +1,147 @@
 /**
- * AMAÇ: Çoklu AI sağlayıcı servisi — Gemini, Groq, OpenRouter fallback zinciri
- * MANTIK: Sağlayıcılar sırayla denenir; biri hata verir veya limit aşarsa bir sonrakine geçilir.
- *         Bu sayede ücretli sürüme geçilmez, kesintisiz çalışma sağlanır.
- * UYARI: Tüm API anahtarları .env dosyasında tutulur, kod içinde yer almaz.
+ * AMAÇ: Çoklu AI sağlayıcı servisi — Gemini, Groq, OpenRouter fallback zinciri + KEY ROTATION
+ * MANTIK: Sağlayıcılar sırayla denenir; her sağlayıcının anahtar havuzu (Primary + Backup) vardır.
+ *         Dönen hatalara (429, 413, 402) göre anahtar veya sağlayıcı değiştirilir.
+ * UYARI: Vite config'de (define) tanımlanan process.env değişkenlerini kullanır.
  */
 
 import { GoogleGenAI } from "@google/genai";
 
-// ─── Sabitler ───────────────────────────────────────────────────────────────
+// ─── Key Pools (Rotation) ──────────────────────────────────────────────────
+
+const getKeys = (prefix: string, count: number) => {
+  const keys: string[] = [];
+  // Vite 'define' bloğundan gelen process.env'leri oku
+  const env = (typeof process !== 'undefined' ? process.env : {}) as any;
+  
+  // Birinci (Primary) anahtar
+  if (env[prefix]) keys.push(env[prefix]);
+  
+  // Yedekleri (Backup) ekle: PREFIX_2, PREFIX_3...
+  for (let i = 2; i <= count; i++) {
+    const backupKey = `${prefix}_${i}`;
+    if (env[backupKey]) keys.push(env[backupKey]);
+  }
+  return keys;
+};
+
+const GEMINI_KEYS = getKeys('GEMINI_API_KEY', 4);
+const GROQ_KEYS = getKeys('GROQ_API_KEY', 2);
+const OPENROUTER_KEYS = getKeys('OPENROUTER_API_KEY', 1);
+const CEREBRAS_KEYS = getKeys('CEREBRAS_API_KEY', 1);
 
 const GEMINI_MODEL = "gemini-2.0-flash";
 const GROQ_MODEL = "llama-3.1-8b-instant";
 const OPENROUTER_MODEL = "meta-llama/llama-3.2-3b-instruct:free";
-
+const CEREBRAS_MODEL = "llama3.1-8b";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 
-// ─── Provider Tespit ────────────────────────────────────────────────────────
-
-type Provider = "gemini" | "groq" | "openrouter";
-
-function buildProviderChain(): Provider[] {
-  const chain: Provider[] = [];
-  if (process.env.GEMINI_API_KEY) chain.push("gemini");
-  if (process.env.GROQ_API_KEY) chain.push("groq");
-  if (process.env.OPENROUTER_API_KEY) chain.push("openrouter");
-  return chain;
-}
-
-// ─── System Prompt ──────────────────────────────────────────────────────────
+// ─── Compact System Prompt (Token Sıkıştırma) ───────────────────────────────
 
 export const SYSTEM_INSTRUCTION = `
-# Koç Kübra — Sistem Prompt v3.1
-> YKS Aktif Koçluk Motoru | Analiz & Direktif Protokolü
+# YKS AKTİF KOÇLUK SİSTEMİ - KONUŞMA VE YANIT ŞABLONLARI (PROMPT) v6.2
 
-## Kim Olduğun
-Sen **Koç Kübra**'sın. Bir danışman değilsin, bir rehber değilsin, bir chatbot kesinlikle değilsin.  
-Sen bir **YKS koçusun** — öğrencinin bugün ne yapacağını SEN belirleyen, sonuçtan hesap soran, performans verilerini acımasızca analiz eden birsin.
+Sistem, kullanıcının girdisine göre aşağıdaki 4 ana şablondan birini seçerek KESİNLİKLE BU FORMATTA yanıt vermelidir.
+Ekstra yorum, motivasyon cümlesi veya kapanış sözü EKLEME.
 
-Sana gelen her mesajı şu gözle oku: "Bu öğrenci hedefe gidiyor mu, gitmiyor mu?"  
-Cevabın "gitmiyor" ise — yumuşatma, teselli etme, kibarca öner. Sert konuş, direktif ver, faiz kes.
+---
 
-## Yapman Gereken — Durum Analizi Geldiğinde
-Öğrenci sana bir deneme sonucu, günlük log veya "nasılım" sorusu getirdiğinde aşağıdaki protokolü sırasıyla uygula. Hiçbir adımı atlama.
+## ŞABLON 1: SABAH GÖREV ATAMASI (SABAH / PLAN KOMUTU)
+*Tetikleyici: Kullanıcı güne başlarken veya "Plan" istediğinde.*
 
-### ADIM 1 — Başlık Bloğu
-Yanıtı kuru bir selamlama ile açma. İlk iki cümle öğrenciyi hemen masaya oturtmalı.  
-Saat ve bağlam bilgisini kullan ("Sabah 08:00'de şunu istiyorum", "Akşam raporunda şunu gördüm").  
-Tonu belirle: empatik ama asla yumuşak değil.
-Format:
-[Öğrenci adı], [bağlam cümlesi — bugün ne günü, hangi süreç].
-[Tablo net: TYT X net / AYT Y net — hedefle karşılaştır.]
+**🎯 BUGÜNÜN ÖNCELİĞİ:** [Önemli odak noktası]
 
-### ADIM 2 — Performans Şoku
-Ham verileri tabloya dök. Hangi derste düşüş var, hangi net donmuş, hangisi hedefin altında — bunları sayısal olarak ve sert bir dille yüzüne vur.  
-Düşüş varsa "bu bir uyarı değil, acil durumdur" gibi alarm cümlesi kullan.  
-TYT yüksekse bunu konfor tuzağı olarak çerçevele ("110 TYT neti seni uyutmasın — Boğaziçi TYT ile değil AYT ile kazanılır").
+─────────────────────────────────
+**GÖREV 1 — [DERS ADI]**
+─────────────────────────────────
+▸ **Konu    :** [Konu Adı]
+▸ **Kaynak  :** [Kaynak Adı]
+▸ **Görev   :** [Zorluk] seviyede [X] soru çözülecek.
+▸ **Süre    :** [X] dakika (Gerçekçi oran: Sayısal 2dk/soru, Sözel 1.5dk/soru).
+▸ **Limit   :** Soru başı maks. [X] saniye.
+▸ **Teslim  :** Bitince doğru, yanlış, boş sayıları ile log gir.
 
-### ADIM 3 — "3 Neden" Kök Analizi
-Öğrenci üst üste hata yapmışsa veya bir konu kötü gitmişse hemen çözüm sunma.  
-Önce "Neden?" diye sor — cevap ne olursa olsun tekrar "Neden?" diye sor — 3. kez "Neden?" diye sor.  
-Kök nedene göre direktif değişir. Uykusuzsa: "Bugün matematik çözme, uyu." Temel eksikse: "Konu anlatımına geri dön, soru çözme."
-Format:
-[Konu] için kök analiz:
-→ Neden? [Tahmin/soru]
-→ Neden? [Daha derin katman]
-→ Kök Neden: [Net tespit]
-→ Direktif: [Kök nedene özel — standart plan değil]
+─────────────────────────────────
+**GÖREV 2 — [DERS ADI]**
+─────────────────────────────────
+▸ **Konu    :** [Konu Adı]
+▸ **Kaynak  :** [Kaynak Adı]
+▸ **Görev   :** [Detay]
+▸ **Süre    :** [X] dakika.
+▸ **Teslim  :** Hata etiketlerini gir.
 
-### ADIM 4 — Shadow Student (Gölge Öğrenci) Kıyaslaması
-Öğrencinin hedeflediği okul/bölümdeki anonim bir "ideal öğrenci" profili çiz.  
-Öğrencinin şu anki neti ile bu profil arasındaki farkı sayısal göster.  
-Format:
-Gölge Öğrenci — [Hedef okul/bölüm]:
-→ AYT [Ders]: [Gölge net] | Sen: [Öğrenci neti] | Fark: [X net geride]
-→ [Gölge öğrencinin şu an yaptığı] / [Öğrencinin şu an yaptığı karşılaştırması]
+─────────────────────────────────
+**GÜNLÜK DENEME PAKETİ**
+─────────────────────────────────
+▸ [Ders Adı] : 1 mini deneme ([X] soru, [X] dk)
+▸ **Teslim   :** Net skorunu log'a ekle.
 
-### ADIM 5 — Günlük Direktif Blokları
-Günü zaman bloklarına böl (örn: 08:00–11:00, 11:30–14:00, 15:00–17:30).  
-Her blok için şunları kesin ve ölçülebilir şekilde yaz: (Hangi ders, konu, kitap/hoca adı, kaç soru).
-"İstersen çalışabilirsin" veya "öneririm" yasak. "Şunu yapacaksın" kullan.
-Format:
-BLOK [N]: [DERS] — [OPERASYON ADI] ([Süre])
-→ Konu: [Spesifik konu adı]
-→ Kaynak: [Hoca adı / Video + dakika]
-→ Görev: [Kaynak adı]'ndan [X] soru çözülecek
-→ Yanlışlar: Mezarlığa eklenecek
+⚡ **KURAL HATIRLATMASI:** [Kritik uyarı]
+*Başla. Akşam sonuçları gireceksin.*
 
-### ADIM 6 — Konu Borcu + Faiz Sistemi
-Öğrenci daha önce plan tamamlamadıysa veya yüksek yorgunlukla log girdiyse, bu borcu açıkça adlandır.  
-Her geçen gün borca "+N Soru" faiz ekle (standart: +5 soru/gün).  
-Format:
-KONU BORCU:
-→ [Konu adı]: [Neden borç oluştu]
-→ Faiz: +[X] soru (geçen [N] günden)
-→ Toplam Ek Görev: [Toplam faiz sorusu]
+---
 
-MEZARLIK TURU — [Saat]:
-→ [Son denemede yanlış yapılan X soru] defterine yapıştırılacak
-→ Çözümleri öğrenilmeden uyumak YASAK
+## ŞABLON 2: AKŞAM VERİ ANALİZİ (LOG KOMUTU)
+*Tetikleyici: Kullanıcı gün sonu verilerini girdiğinde.*
 
-### ADIM 7 — Kritik 20 Soru Seti
-En çok hata yapılan 4–5 konudan eşit dağılımlı toplam 20 soru belirle.  
-Her konudan kaç soru, hangi seviyede (zor, ek çizim gerektirenler, üst düzey vb.) olacağını söyle.  
-Format:
-KRİTİK 20 SORU — Akşam [Saat] sonrası:
-→ [Konu 1]: [X] soru — [Seviye]
-→ [Konu 2]: [X] soru — [Seviye]
-...
+**📊 GÜN SONU ANALİZİ:**
+▸ **İşlenen Veri:** [X] Ders, Toplam [X] Soru
+▸ **Genel Doğruluk:** %[X] | **Ort. Hız:** [X] sn/soru
+▸ **Tespit Edilen Darboğaz:** [Kök neden analizi]
 
-### ADIM 8 — Kapanış
-Tek bir güçlü, özlü cümleyle bitir. Bu cümle felsefi, motive edici ama gerçekçi olmalı.  
-Ardından rapor saatini belirt: "Gece [saat]'te raporunu bekliyorum."  
+**🛑 HATA ETİKET VE MÜDAHALE:**
+* [Hata Etiketi 1]: [Nedeni] → [Aksiyon/Ceza]
+* [Hata Etiketi 2]: [Nedeni] → [Aksiyon/Ceza]
 
-## Dinamik Kaynak Önerisi Kuralı
-Örnek: "Kenan Kara'nın YouTube'daki 'Üçgende Açılar' videosunun 18. dakikasında dış açı teoremi anlatılıyor — tam orada takılıyorsun, oradan başla." Genel önerme yasaktır.
+**📅 YARININ PLANI:**
+[ŞABLON 1 formatına göre Yarının Görevlerini Listele]
+*Analiz bitti. Yarın bu plana uyulacak.*
 
-## Pasif Mod Kuralı
-Eğer yorgunluk>=8 ise sistemi [PASİF MOD]'a al ve Soru çözme görevi verme.
+---
 
-## Son Kural
-Tüm çıktı bu formata birebir uymak zorundadır.
+## ŞABLON 3: EŞİK AŞIMI VE MÜDAHALE (ALARM DURUMU)
+*Tetikleyici: Üst üste 3 #KAVRAM hatası, netlerde düşüş veya süre aşımı.*
+
+**⚠️ SİSTEM UYARISI: [HATA TÜRÜ] EŞİĞİ AŞILDI**
+[Detaylı sorun tanımı] konuda [X] kez üst üste [Hata Türü] hatası yapıldı.
+
+**ZORUNLU AKSİYON:**
+1. [Kaynak] kitabını aç.
+2. [Konu] bölümünü baştan sona oku/izle.
+3. Formülleri yaz.
+*Bitirdiğinde "TAMAMLADIM" yaz.*
+
+---
+
+## ŞABLON 4: AI KONU ANLATIM MODU (ANLA KOMUTU)
+*Tetikleyici: Kullanıcı anlamadığını belirttiğinde.*
+
+**[KONU BAŞLIĞI]**
+**1. Temel Mantık:** [Özet mantık/formül]
+**2. Adım Adım Örnek:** 
+* **Soru:** [Örnek] | **Verilen:** [Veriler] | **İstenen:** [Hedef]
+* **Çözüm:** [Adım adım çözüm]
+**3. Kontrol Aşaması:** 
+1. [Kolay] 2. [Orta] 3. [Zor]
+*Çöz ve cevapları yaz. Doğru yapana kadar bu konudan çıkış yok.*
 `;
-
-// ─── OpenAI-Uyumlu API Çağrısı (Groq & OpenRouter) ─────────────────────────
 
 interface OpenAIMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
+// ─── AI Çağrı Fonksiyonları ──────────────────────────────────────────────────
+
 async function callOpenAICompatible(
   apiUrl: string,
   apiKey: string,
   model: string,
-  messages: OpenAIMessage[]
+  messages: OpenAIMessage[],
+  maxTokens: number = 1000
 ): Promise<string> {
   const response = await fetch(apiUrl, {
     method: "POST",
@@ -148,7 +154,7 @@ async function callOpenAICompatible(
       model,
       messages,
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
     }),
   });
 
@@ -161,15 +167,13 @@ async function callOpenAICompatible(
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-// ─── Gemini Çağrısı ─────────────────────────────────────────────────────────
-
 async function callGemini(
+  apiKey: string,
   prompt: string,
   systemInstruction: string,
   chatHistory: { role: "user" | "coach"; content: string }[]
 ): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
+  const ai = new GoogleGenAI({ apiKey });
   const contents = chatHistory.map((msg) => ({
     role: msg.role === "coach" ? "model" : "user",
     parts: [{ text: msg.content }],
@@ -179,133 +183,86 @@ async function callGemini(
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL,
     contents,
-    config: {
-      systemInstruction,
-      temperature: 0.7,
-    },
+    config: { systemInstruction, temperature: 0.7 },
   });
 
   return response.text ?? "";
 }
 
-// ─── Ortak Mesaj Yapıcı ─────────────────────────────────────────────────────
-
-function buildMessageChain(
-  userPrompt: string,
-  systemInstruction: string,
-  chatHistory: { role: "user" | "coach"; content: string }[]
-): OpenAIMessage[] {
-  const messages: OpenAIMessage[] = [
-    { role: "system", content: systemInstruction },
-  ];
-
-  for (const msg of chatHistory) {
-    messages.push({
-      role: msg.role === "coach" ? "assistant" : "user",
-      content: msg.content,
-    });
-  }
-
-  messages.push({ role: "user", content: userPrompt });
-  return messages;
-}
-
-// ─── Ana Koç Yanıtı (Fallback Zinciri) ─────────────────────────────────────
+// ─── Ana Servis (Rotation Logic) ───────────────────────────────────────────
 
 export async function getCoachResponse(
   userMessage: string,
   context: string,
   chatHistory: { role: "user" | "coach"; content: string }[] = []
 ): Promise<string> {
-  const systemWithExtras =
-    SYSTEM_INSTRUCTION +
-    "\n\nEk olarak: Öğrenciye mental destek ver. 'Sen bana bu neti hedeflediğini söylemiştin, başarabiliriz' gibi hatırlatmalar yap.";
+  // Chat geçmişini son 6 mesaj ile sınırla (Hafıza optimizasyonu)
+  const trimmedHistory = chatHistory.slice(-6);
+  const fullPrompt = `Mevcut Durum:\n${context}\n\nMesaj:\n${userMessage}`;
+  
+  // 1. DENE: Cerebras (Llama 3.1) - Primary
+  const openAIMsgs: OpenAIMessage[] = [
+    { role: "system", content: SYSTEM_INSTRUCTION },
+    ...trimmedHistory.map(m => ({ role: (m.role === 'coach' ? 'assistant' : 'user') as any, content: m.content })),
+    { role: "user", content: fullPrompt }
+  ];
 
-  const fullPrompt = `Mevcut Durum ve Hafıza:\n${context}\n\nKullanıcı Mesajı:\n${userMessage}`;
-  const providerChain = buildProviderChain();
-
-  for (const provider of providerChain) {
+  for (const key of CEREBRAS_KEYS) {
     try {
-      if (provider === "gemini") {
-        return await callGemini(fullPrompt, systemWithExtras, chatHistory);
-      }
-
-      const apiKey =
-        provider === "groq"
-          ? process.env.GROQ_API_KEY!
-          : process.env.OPENROUTER_API_KEY!;
-
-      const apiUrl = provider === "groq" ? GROQ_API_URL : OPENROUTER_API_URL;
-      const model = provider === "groq" ? GROQ_MODEL : OPENROUTER_MODEL;
-
-      const messages = buildMessageChain(fullPrompt, systemWithExtras, chatHistory);
-      return await callOpenAICompatible(apiUrl, apiKey, model, messages);
-    } catch (error) {
-      console.warn(`[AI] ${provider} başarısız, bir sonraki deneniyor:`, error);
+      return await callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, 1200);
+    } catch (e: any) {
+      console.warn(`[AI] Cerebras Key Failed:`, e.message);
+      continue;
     }
   }
 
-  return "Tüm AI sağlayıcıları yanıt vermedi. Lütfen biraz bekle ve tekrar dene.";
-}
+  // 2. DENE: Gemini Havuzu
+  for (const key of GEMINI_KEYS) {
+     try {
+       return await callGemini(key, fullPrompt, SYSTEM_INSTRUCTION, trimmedHistory);
+     } catch (e: any) {
+       console.warn(`[AI] Gemini Key Failed:`, e.message);
+       if (e.message.includes('429') || e.message.includes('Quota')) continue;
+       else break; 
+     }
+  }
 
-// ─── Sesli Log Ayrıştırıcı (Fallback Zinciri) ───────────────────────────────
-
-export async function parseVoiceLog(
-  transcript: string
-): Promise<Record<string, unknown> | null> {
-  const parsePrompt = `
-Aşağıdaki sesli log metnini analiz et ve JSON formatında döndür.
-Metin: "${transcript}"
-
-Döndürmen gereken JSON:
-{
-  "examType": "TYT" veya "AYT",
-  "subject": "Ders Adı",
-  "topic": "Konu Adı",
-  "questions": sayı,
-  "correct": sayı,
-  "wrong": sayı,
-  "empty": sayı,
-  "avgTime": dakika cinsinden sayı
-}
-
-Eksik bilgileri mantıklı varsay veya 0 bırak. SADECE JSON döndür.
-`;
-
-  const providerChain = buildProviderChain();
-
-  for (const provider of providerChain) {
+  // 3. DENE: Groq Havuzu
+  for (const key of GROQ_KEYS) {
     try {
-      let rawText = "";
-
-      if (provider === "gemini") {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        const response = await ai.models.generateContent({
-          model: GEMINI_MODEL,
-          contents: parsePrompt,
-          config: { responseMimeType: "application/json", temperature: 0.1 },
-        });
-        rawText = response.text ?? "{}";
-      } else {
-        const apiKey =
-          provider === "groq"
-            ? process.env.GROQ_API_KEY!
-            : process.env.OPENROUTER_API_KEY!;
-        const apiUrl = provider === "groq" ? GROQ_API_URL : OPENROUTER_API_URL;
-        const model = provider === "groq" ? GROQ_MODEL : OPENROUTER_MODEL;
-
-        rawText = await callOpenAICompatible(apiUrl, apiKey, model, [
-          { role: "system", content: "Sadece geçerli JSON döndür." },
-          { role: "user", content: parsePrompt },
-        ]);
-      }
-
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-    } catch (error) {
-      console.warn(`[AI] parseVoiceLog — ${provider} başarısız:`, error);
+      return await callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, 800);
+    } catch (e: any) {
+      console.warn(`[AI] Groq Key Failed:`, e.message);
+      continue;
     }
   }
 
+  // 4. DENE: OpenRouter Havuzu
+  for (const key of OPENROUTER_KEYS) {
+    try {
+      return await callOpenAICompatible(OPENROUTER_API_URL, key, OPENROUTER_MODEL, openAIMsgs, 1000);
+    } catch (e: any) {
+      console.warn(`[AI] OpenRouter Key Failed:`, e.message);
+      continue;
+    }
+  }
+
+  return "Tüm AI hatları meşgul veya limitler doldu. Lütfen anahtarlarını kontrol et veya 1 dakika sonra tekrar dene.";
+}
+
+export async function parseVoiceLog(transcript: string): Promise<Record<string, any> | null> {
+  const prompt = `Analiz et ve SADECE JSON döndür: "${transcript}" -> {examType, subject, topic, questions, correct, wrong, empty, avgTime}`;
+  
+  for (const key of GEMINI_KEYS) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: key });
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: prompt,
+        config: { responseMimeType: "application/json", temperature: 0.1 }
+      });
+      return JSON.parse(response.text || "{}");
+    } catch { continue; }
+  }
   return null;
 }

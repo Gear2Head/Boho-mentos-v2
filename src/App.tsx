@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import { 
   LayoutDashboard, UserCircle, BookOpen, MessageSquare, 
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map, LayoutList, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -20,7 +20,7 @@ import type {
   StudentProfile, DailyLog, ExamResult, FailedQuestion 
 } from './types';
 
-import { FocusTimer } from './components/FocusTimer';
+import { FocusSidePanel } from './components/FocusSidePanel';
 import { EloRankCard } from './components/EloRankCard';
 import { ThemeToggle } from './components/ThemeToggle';
 import { MorningBlocker } from './components/MorningBlocker';
@@ -32,6 +32,8 @@ import { LogEntryWidget } from './components/forms/LogEntryWidget';
 import { ExamEntryModal } from './components/forms/ExamEntryModal';
 import { ProfileSettings } from './components/forms/ProfileSettings';
 import { ExamDetailModal } from './components/ExamDetailModal';
+import { StrategyHub } from './components/StrategyHub';
+import { FlapClock, MiniFlapClock } from './components/FlapClock';
 
 // --- Helper ---
 
@@ -116,27 +118,63 @@ function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQ
   const [page, setPage] = useState('');
   const [questionNumber, setQuestionNumber] = useState('');
   const [reason, setReason] = useState('');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-lg mb-6">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="font-serif italic text-xl text-[#C17767] dark:text-rose-400">Mezarlığa Ekle</h3>
-        <button onClick={onCancel} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full"><X size={16} className="text-[#4A443C] dark:text-zinc-200" /></button>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-lg mb-6 max-w-2xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h3 className="font-serif italic text-2xl text-[#C17767] dark:text-rose-400">Yeni Mezar Kaz</h3>
+          <p className="text-[10px] uppercase tracking-widest opacity-50 text-zinc-500 font-bold">Hatalı soruyu arşive gönder</p>
+        </div>
+        <button onClick={onCancel} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"><X size={20} className="text-[#4A443C] dark:text-zinc-200" /></button>
       </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <select value={subject} onChange={e => setSubject(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200">
-          {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input type="text" placeholder="Konu" value={topic} onChange={e => setTopic(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
-        <input type="text" placeholder="Kitap Adı" value={book} onChange={e => setBook(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
+        <div className="space-y-1">
+          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">DERS</label>
+          <select value={subject} onChange={e => setSubject(e.target.value)} className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200">
+            {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">ZORLUK</label>
+          <select value={difficulty} onChange={e => setDifficulty(e.target.value as any)} className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200">
+            <option value="easy">KOLAY (DİKKAT HATASI)</option>
+            <option value="medium">ORTA (SÜRE/BİLGİ)</option>
+            <option value="hard">ZOR (MANTIK/ÜST DÜZEY)</option>
+          </select>
+        </div>
+        <input type="text" placeholder="Konu Başlığı" value={topic} onChange={e => setTopic(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
+        <input type="text" placeholder="Kitap / Kaynak Adı" value={book} onChange={e => setBook(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
         <div className="flex gap-2">
-          <input type="text" placeholder="Sayfa" value={page} onChange={e => setPage(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
-          <input type="text" placeholder="Soru No" value={questionNumber} onChange={e => setQuestionNumber(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
+          <input type="text" placeholder="Sayfa" value={page} onChange={e => setPage(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
+          <input type="text" placeholder="Soru No" value={questionNumber} onChange={e => setQuestionNumber(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
         </div>
       </div>
-      <textarea placeholder="Neden yanlış yaptın? (Örn: Formülü unuttum, işlem hatası)" value={reason} onChange={e => setReason(e.target.value)} className="w-full bg-[#F5F2EB] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-2 text-sm focus:outline-none focus:border-[#C17767] mb-4 h-20 resize-none text-[#4A443C] dark:text-zinc-200" />
-      <button onClick={() => { if (subject && topic && book) onSubmit({ id: Date.now().toString(), date: new Date().toLocaleDateString('tr-TR'), subject, topic, book, page, questionNumber, reason }); }} className="w-full py-2 bg-[#C17767] text-[#FDFBF7] rounded-lg text-sm font-bold tracking-widest uppercase hover:bg-[#A56253] transition-colors">
-        Kaydet
+      
+      <textarea 
+        placeholder="Neden yanlış yaptın? Hangi bilgi eksikti veya hangi tuzağa düştün?" 
+        value={reason} onChange={e => setReason(e.target.value)} 
+        className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] mb-6 h-24 resize-none text-[#4A443C] dark:text-zinc-200" 
+      />
+      
+      <button 
+        onClick={() => { 
+          if (subject && topic && book) {
+            onSubmit({ 
+              id: Date.now().toString(), 
+              date: new Date().toLocaleDateString('tr-TR'), 
+              subject, topic, book, page, questionNumber, reason,
+              difficulty,
+              status: 'active',
+              solveCount: 0
+            }); 
+          }
+        }} 
+        className="w-full py-4 bg-[#C17767] text-[#FDFBF7] rounded-xl text-xs font-bold tracking-[0.3em] uppercase hover:bg-[#A56253] transition-all hover:shadow-xl hover:shadow-[#C17767]/20 active:scale-[0.98]"
+      >
+        MEZARA GÖNDER
       </button>
     </motion.div>
   );
@@ -155,7 +193,7 @@ const markdownComponents = {
 
 export default function App() {
   const store = useAppStore();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions' | 'strategy' | 'countdown'>('dashboard');
   const [isTyping, setIsTyping] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
@@ -184,7 +222,10 @@ export default function App() {
     store.addChatMessage({ role: 'user', content: logMessage, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
-    const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nYeni Log: ${JSON.stringify(log)}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
+    const successRate = Math.round((log.correct / (log.questions || 1)) * 100);
+    const logSummary = `${log.subject} (${log.topic}): ${log.questions} soru, %${successRate} başarı, ${log.avgTime}dk. Yorgunluk: ${log.fatigue}/10.`;
+    
+    const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nYeni Log (Özet): ${logSummary}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
     const response = await getCoachResponse("LOG ANALİZİ YAP", context, store.chatHistory);
     
     store.addChatMessage({ role: 'coach', content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() });
@@ -205,7 +246,23 @@ export default function App() {
     return { day: dateStr, actual: avgTime, target: 45 };
   });
 
+  const summarizeLogs = (logs: DailyLog[]) => {
+    if (logs.length === 0) return "Henüz log girilmedi.";
+    return logs.map(l => {
+      const successRate = Math.round((l.correct / (l.questions || 1)) * 100);
+      return `${l.subject} (${l.topic}): ${l.questions} soru, %${successRate} başarı, ${l.avgTime}dk.`;
+    }).join(' | ');
+  };
+
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [store.chatHistory]);
+
+  useEffect(() => {
+    if (store.theme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+  }, [store.theme]);
 
   const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string) => {
     e?.preventDefault();
@@ -221,16 +278,20 @@ export default function App() {
     store.addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
-    const problemTyt = store.tytSubjects.filter(s => s.status === 'in-progress');
-    const tytCtx = problemTyt.length > 0 ? problemTyt.map(s => `${s.subject}-${s.name}: ${s.status}`).join(', ') : "Eksik TYT konusu bulunmuyor.";
+    const problemTyt = store.tytSubjects.filter(s => s.status === 'in-progress').slice(0, 10);
+    const tytCtx = problemTyt.length > 0 ? problemTyt.map(s => `${s.subject}:${s.name}`).join('|') : "Yok";
     
-    const problemAyt = store.aytSubjects.filter(s => s.status === 'in-progress' && store.profile?.track && getAytSubjectsForTrack(store.profile.track).includes(s.subject));
-    const aytCtx = problemAyt.length > 0 ? problemAyt.map(s => `${s.subject}-${s.name}: ${s.status}`).join(', ') : "Eksik AYT konusu bulunmuyor.";
+    const problemAyt = store.aytSubjects.filter(s => s.status === 'in-progress' && store.profile?.track && getAytSubjectsForTrack(store.profile.track).includes(s.subject)).slice(0, 10);
+    const aytCtx = problemAyt.length > 0 ? problemAyt.map(s => `${s.subject}:${s.name}`).join('|') : "Yok";
     
-    const logsCtx = store.logs.length > 0 ? JSON.stringify(store.logs.slice(-5)) : "Log girilmedi.";
-    const examsCtx = store.exams.length > 0 ? JSON.stringify(store.exams.slice(-3)) : "Deneme girilmedi.";
+    const logsCtx = summarizeLogs(store.logs.slice(-5));
+    const examsCtx = store.exams.length > 0 
+      ? store.exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|') 
+      : "Yok";
 
-    const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nTYT İlerleyişi: ${tytCtx}\nAYT İlerleyişi: ${aytCtx}\nSon Loglar: ${logsCtx}\nSon Denemeler: ${examsCtx}`;
+    const compactProfile = store.profile ? `${store.profile.name}, Alan:${store.profile.track}, Hedef:${store.profile.targetUniversity}, TYT:${store.profile.tytTarget}, AYT:${store.profile.aytTarget}, Günlük Soru:${store.profile.minDailyQuestions}-${store.profile.maxDailyQuestions}` : "Bilinmiyor";
+
+    const context = `P:${compactProfile}\nTYT:${tytCtx}\nAYT:${aytCtx}\nLogs:${logsCtx}\nExams:${examsCtx}\nNOT: Lütfen soru sayılarını belirlerken ${store.profile?.minDailyQuestions}-${store.profile?.maxDailyQuestions} arasını hedefle ve süreleri gerçekçi (Sayısal: 2dk/soru, Sözel: 1.5dk/soru) olarak ayarla.`;
     
     const response = await getCoachResponse(userMsg, context, store.chatHistory);
     store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
@@ -261,11 +322,13 @@ export default function App() {
         </div>
         <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
           <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<Target size={18} />} label="Sayaç" active={activeTab === 'countdown'} onClick={() => setActiveTab('countdown')} />
           <NavItem icon={<BrainCircuit size={18} />} label="Sorular" active={activeTab === 'questions'} onClick={() => setActiveTab('questions')} />
           <NavItem icon={<Calendar size={18} />} label="Analiz" active={activeTab === 'exams'} onClick={() => setActiveTab('exams')} />
           <NavItem icon={<List size={18} />} label="Loglar" active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} />
           <NavItem icon={<Archive size={18} />} label="Mezarlık" active={activeTab === 'archive'} onClick={() => setActiveTab('archive')} />
           <NavItem icon={<BookOpen size={18} />} label="Müfredat" active={activeTab === 'subjects'} onClick={() => setActiveTab('subjects')} />
+          <NavItem icon={<Target size={18} />} label="Strateji" active={activeTab === 'strategy'} onClick={() => setActiveTab('strategy')} />
           <NavItem icon={<MessageSquare size={18} />} label="Koç" active={activeTab === 'coach'} onClick={() => setActiveTab('coach')} />
           <NavItem icon={<UserCircle size={18} />} label="Profil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
           <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
@@ -293,10 +356,19 @@ export default function App() {
                   </div>
                 </div>
                 <div className="w-full md:w-auto flex flex-col items-end gap-4">
-                  <div className="flex justify-end w-full">
-                    {/* Spotify Widget buraya eklenebilir <SpotifyWidget /> */}
-                  </div>
-                  <FocusTimer />
+                  <MiniFlapClock targetDate="2026-06-20T09:00:00" />
+                  <button 
+                    onClick={() => store.setFocusSidePanelOpen(true)}
+                    className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                      <Clock size={16} />
+                    </div>
+                    <div className="text-left">
+                       <div className="text-[10px] uppercase font-bold tracking-widest opacity-70 leading-none">SEFERBERLİK</div>
+                       <div className="text-sm font-bold leading-none mt-1">ODAK MODUNU AÇ</div>
+                    </div>
+                  </button>
                 </div>
               </header>
 
@@ -397,11 +469,44 @@ export default function App() {
 
           {activeTab === 'subjects' && (
             <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-6xl mx-auto">
-              <h2 className="font-serif italic text-4xl mb-8">Müfredat Haritası</h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, {status})} onNotesChange={(idx, notes) => store.updateTytSubject(idx, {notes})} />
-                <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, {status}); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, {notes}); }} />
+              <div className="flex justify-between items-end mb-8">
+                <div>
+                   <h2 className="font-serif italic text-4xl text-zinc-200">Müfredat Haritası</h2>
+                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Topraklarını Genişlet ve Konuları Fethet</p>
+                </div>
+                <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A]">
+                  <button 
+                    onClick={() => store.setSubjectViewMode('list')}
+                    className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    <LayoutList size={14} /> Liste
+                  </button>
+                  <button 
+                    onClick={() => store.setSubjectViewMode('map')}
+                    className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    <Map size={14} /> Harita
+                  </button>
+                </div>
               </div>
+
+              {store.subjectViewMode === 'list' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, {status})} onNotesChange={(idx, notes) => store.updateTytSubject(idx, {notes})} />
+                  <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, {status}); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, {notes}); }} />
+                </div>
+              ) : (
+                <div className="space-y-12">
+                  <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, {status})} />
+                  <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, {status}); }} />
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'strategy' && (
+            <motion.div key="strategy" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }}>
+              <StrategyHub />
             </motion.div>
           )}
 
@@ -449,17 +554,74 @@ export default function App() {
           
           {activeTab === 'archive' && (
             <div className="p-4 md:p-8 max-w-6xl mx-auto">
-              <header className="mb-8 flex justify-between items-end">
-                <div><h2 className="font-serif italic text-3xl">Soru Bankası Mezarlığı</h2></div>
-                <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-4 py-2 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center"><Plus size={16} /> Yeni Ekle</button>
+              <header className="mb-12 flex justify-between items-end border-b border-[#2A2A2A] pb-6">
+                <div>
+                  <h2 className="font-serif italic text-4xl text-zinc-200">Soru Bankası Mezarlığı</h2>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Unutulanların ve Hataların Arşivi</p>
+                </div>
+                <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-6 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center shadow-lg shadow-[#C17767]/20 transition-all active:scale-95"><Plus size={16} /> Mezar Kaz</button>
               </header>
+              
               {isArchiveWidgetOpen && <ArchiveWidget subjects={Object.keys(TYT_SUBJECTS)} onCancel={() => setIsArchiveWidgetOpen(false)} onSubmit={(q) => { store.addFailedQuestion(q); setIsArchiveWidgetOpen(false); }} />}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {store.failedQuestions.map(q => (
-                  <div key={q.id} className="bg-[#FFFFFF] dark:bg-zinc-900 border dark:border-zinc-800 rounded-xl p-6 relative overflow-hidden shadow-sm"><div className="absolute top-0 left-0 w-1 h-full bg-[#C17767]"></div><h4 className="font-bold border-b pb-2 mb-2 border-zinc-200 dark:border-zinc-800">{q.topic}</h4><p className="text-xs opacity-80 mb-2">{q.book} - Sayfa: {q.page}</p><p className="bg-[#F5F2EB] dark:bg-zinc-950 p-2 text-xs italic opacity-80 rounded-md">"{q.reason}"</p></div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {store.failedQuestions.filter(q => q.status === 'active' || store.isDevMode).length === 0 ? (
+                  <div className="col-span-full py-20 text-center opacity-20 uppercase tracking-[0.5em] font-serif italic text-2xl">Burası şimdilik sessiz...</div>
+                ) : store.failedQuestions.map(q => (
+                  <div key={q.id} className={`group relative bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 transition-all hover:border-[#C17767]/50 ${q.status === 'solved' ? 'opacity-50 grayscale' : ''}`}>
+                    <div className="absolute top-0 left-0 w-1 h-full bg-[#C17767] group-hover:bg-[#E09F3E] transition-colors"></div>
+                    
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">{q.subject}</span>
+                      <div className="flex gap-1">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className={`w-2 h-2 rounded-full ${i < q.solveCount ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <h4 className="font-serif italic text-xl text-zinc-200 mb-2 truncate">{q.topic}</h4>
+                    <p className="text-[10px] uppercase font-bold text-zinc-500 mb-4">{q.book} • S:{q.page}</p>
+                    
+                    <div className="bg-black/40 rounded-xl p-4 mb-6 border border-[#222]">
+                      <p className="text-xs italic text-zinc-400 leading-relaxed font-mono">"{q.reason}"</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => store.solveFailedQuestion(q.id)}
+                        disabled={q.status === 'solved'}
+                        className={`flex-1 py-2 text-[10px] uppercase font-bold tracking-widest rounded-lg transition-all ${q.status === 'solved' ? 'bg-zinc-800 text-zinc-500' : 'bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 hover:bg-[#C17767] hover:text-white'}`}
+                      >
+                        {q.status === 'solved' ? 'HUZUR İÇİNDE' : 'HORTLAT (ÇÖZÜLDÜ)'}
+                      </button>
+                      
+                      {store.isDevMode && (
+                        <button 
+                          onClick={() => { if(confirm('Siliyorum?')) store.removeFailedQuestion(q.id); }}
+                          className="px-3 py-2 bg-red-950/20 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-500 hover:text-white transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
+          )}
+
+          {activeTab === 'countdown' && (
+            <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
+              <div className="text-center mb-12">
+                <h2 className="font-serif italic text-5xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
+                <p className="text-xs md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">20 HAZİRAN 2026'YA KALAN SÜRE</p>
+              </div>
+              <FlapClock targetDate="2026-06-20T09:00:00" />
+              <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-serif">
+                "Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin. Harcadığın her saniye hedefine yaklaşmak için bir fırsattır."
+              </p>
+            </motion.div>
           )}
 
           {activeTab === 'settings' && (
@@ -468,9 +630,65 @@ export default function App() {
                 <h2 className="font-serif italic text-4xl mb-8">Ayarlar & Profil</h2>
                 <div className="space-y-8">
                   <ProfileSection title="Görünüm Ayarları">
-                    <div className="col-span-2 flex justify-between items-center">
-                      <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#EAE6DF]">Tema (Mevcut Sabit)</p><p className="text-sm text-zinc-500 line-through">Arayüz temasını değiştir</p></div>
-                      <button disabled className="opacity-50 cursor-not-allowed text-xs font-mono uppercase bg-black px-3 py-1 rounded border border-zinc-800">SADECE DARK-MODE</button>
+                    <div className="col-span-2 flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
+                      <div>
+                        <p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#EAE6DF]">Müfredat Görünümü</p>
+                        <p className="text-sm text-zinc-500">Konu listesinin varsayılan gösterim biçimi</p>
+                      </div>
+                      <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
+                        <button 
+                          onClick={() => store.setSubjectViewMode('list')}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                        >
+                          Liste
+                        </button>
+                        <button 
+                          onClick={() => store.setSubjectViewMode('map')}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                        >
+                          Harita
+                        </button>
+                      </div>
+                    </div>
+                    <div className="col-span-2 flex justify-between items-center opacity-100">
+                      <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#C17767]">Arayüz Teması</p><p className="text-sm text-zinc-500">Karanlık veya Aydınlık mod arasında geçiş yap</p></div>
+                      <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
+                        <button 
+                          onClick={() => store.setTheme('dark')}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'dark' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                        >
+                          Dark
+                        </button>
+                        <button 
+                          onClick={() => store.setTheme('light')}
+                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'light' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                        >
+                          Light
+                        </button>
+                      </div>
+                    </div>
+                  </ProfileSection>
+
+                  <ProfileSection title="Soru Hedeflerİ">
+                    <div className="grid grid-cols-2 gap-4 col-span-2">
+                       <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MİN. GÜNLÜK SORU</label>
+                          <input 
+                            type="number" 
+                            value={store.profile?.minDailyQuestions || 100} 
+                            onChange={e => store.setProfile({ ...store.profile!, minDailyQuestions: parseInt(e.target.value) })}
+                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
+                          />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MAKS. GÜNLÜK SORU</label>
+                          <input 
+                            type="number" 
+                            value={store.profile?.maxDailyQuestions || 300} 
+                            onChange={e => store.setProfile({ ...store.profile!, maxDailyQuestions: parseInt(e.target.value) })}
+                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
+                          />
+                       </div>
                     </div>
                   </ProfileSection>
 
@@ -494,6 +712,7 @@ export default function App() {
       </main>
       <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={store.profile!.track} onSave={(exam) => { store.addExam(exam); setIsExamModalOpen(false); store.unlockTrophy('first_blood'); }} />
       <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={store.isDevMode} />
+      <FocusSidePanel />
       <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
     </div>
   );
@@ -566,6 +785,77 @@ const ProfileSection = ({ title, children }: any) => <div className="border bord
 const ProfileField = ({ label, value }: any) => <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest">{label}</p><p className="text-sm font-bold">{value}</p></div>;
 
 // --- GİZLİ ADMİN PANELİ ---
+const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
+  const grouped = subjects.reduce((acc: any, sub: any, idx: number) => {
+    if (!acc[sub.subject]) acc[sub.subject] = [];
+    acc[sub.subject].push({ ...sub, originalIndex: idx });
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-8">
+      <div className="flex items-center gap-4 mb-6">
+        <h3 className="font-serif italic text-2xl text-[#C17767] tracking-wide">{title}</h3>
+        <div className="flex-1 h-px bg-zinc-800"></div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {Object.entries(grouped).map(([province, cities]: [string, any]) => {
+          const masteredCount = cities.filter((c: any) => c.status === 'mastered').length;
+          const inProgressCount = cities.filter((c: any) => c.status === 'in-progress').length;
+          const totalCount = cities.length;
+          const progressPercent = Math.round((masteredCount / totalCount) * 100);
+
+          return (
+            <div key={province} className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 hover:border-[#C17767]/30 transition-all group shadow-sm">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                   <h4 className="font-serif italic text-xl text-zinc-200 group-hover:text-[#C17767] transition-colors">{province} Eyaleti</h4>
+                   <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-bold mt-1">Fetih Durumu: {masteredCount}/{totalCount}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-mono font-bold text-[#C17767] opacity-80">%{progressPercent}</span>
+                </div>
+              </div>
+              
+              <div className="h-1 bg-zinc-800 rounded-full mb-8 overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-[#C17767] to-[#E09F3E] transition-all duration-500 ease-out"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {cities.map((city: any) => (
+                  <button
+                    key={city.originalIndex}
+                    onClick={() => {
+                      const nextStatus = city.status === 'not-started' ? 'in-progress' : city.status === 'in-progress' ? 'mastered' : 'not-started';
+                      onStatusChange(city.originalIndex, nextStatus);
+                    }}
+                    title={`${city.name} - ${city.status === 'mastered' ? 'FETHERDİLDİ' : city.status === 'in-progress' ? 'KUŞATMADA' : 'HEDEFTE'}`}
+                    className={`min-w-[40px] h-10 px-3 rounded-lg flex items-center justify-center transition-all border relative group/castle ${
+                      city.status === 'mastered' 
+                        ? 'bg-[#22C55E]/10 border-[#22C55E]/40 text-[#22C55E] shadow-[0_0_10px_rgba(34,197,94,0.1)]' 
+                        : city.status === 'in-progress' 
+                        ? 'bg-[#E09F3E]/10 border-[#E09F3E]/40 text-[#E09F3E] animate-pulse' 
+                        : 'bg-zinc-800/40 border-zinc-700/50 text-zinc-600 hover:border-[#C17767]/50'
+                    }`}
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-tight text-center leading-none">
+                      {city.status === 'mastered' ? '🏰' : city.status === 'in-progress' ? '⚔️' : '🏴'}
+                      <div className="mt-0.5 text-[8px] line-clamp-1 opacity-60 group-hover/castle:opacity-100">{city.name}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const AdminPanelModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const store = useAppStore();
   

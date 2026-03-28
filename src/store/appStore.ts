@@ -35,6 +35,8 @@ interface AppState {
   addChatMessage: (message: ChatMessage) => void;
   setPassiveMode: (isPassive: boolean) => void;
   addFailedQuestion: (question: FailedQuestion) => void;
+  solveFailedQuestion: (id: string) => void;
+  removeFailedQuestion: (id: string) => void;
   unlockTrophy: (trophyId: string) => void;
   setMorningBlockerEnabled: (enabled: boolean) => void;
   removeExam: (id: string) => void;
@@ -43,6 +45,12 @@ interface AppState {
   resetStore: () => void;
   isDevMode: boolean;
   setDevMode: (enabled: boolean) => void;
+  subjectViewMode: 'list' | 'map';
+  setSubjectViewMode: (mode: 'list' | 'map') => void;
+  theme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark') => void;
+  isFocusSidePanelOpen: boolean;
+  setFocusSidePanelOpen: (isOpen: boolean) => void;
 }
 
 const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
@@ -75,8 +83,14 @@ export const useAppStore = create<AppState>()(
       streakDays: 0,
       isMorningBlockerEnabled: true,
       isDevMode: false,
+      subjectViewMode: 'map' as const,
+      theme: 'dark' as const,
 
       setDevMode: (isDevMode) => set({ isDevMode }),
+      setSubjectViewMode: (subjectViewMode) => set({ subjectViewMode }),
+      setTheme: (theme) => set({ theme }),
+      isFocusSidePanelOpen: false,
+      setFocusSidePanelOpen: (isOpen) => set({ isFocusSidePanelOpen: isOpen }),
 
       setProfile: (profile) => set({ profile }),
 
@@ -146,7 +160,31 @@ export const useAppStore = create<AppState>()(
       setPassiveMode: (isPassiveMode) => set({ isPassiveMode }),
 
       addFailedQuestion: (question) => set((state) => ({ 
-        failedQuestions: [...state.failedQuestions, question] 
+        failedQuestions: [...state.failedQuestions, { 
+          ...question, 
+          status: 'active', 
+          solveCount: 0,
+          difficulty: question.difficulty || 'medium' 
+        }] 
+      })),
+
+      solveFailedQuestion: (id) => set((state) => {
+        const newQuestions = state.failedQuestions.map(q => {
+          if (q.id === id) {
+            const newCount = q.solveCount + 1;
+            return { 
+              ...q, 
+              solveCount: newCount, 
+              status: newCount >= 3 ? 'solved' as const : 'active' as const 
+            };
+          }
+          return q;
+        });
+        return { failedQuestions: newQuestions };
+      }),
+
+      removeFailedQuestion: (id) => set((state) => ({
+        failedQuestions: state.failedQuestions.filter(q => q.id !== id)
       })),
 
       unlockTrophy: (trophyId) => set((state) => {

@@ -22,6 +22,8 @@ export interface StudentProfile {
   resources: string;
   motivationQuote?: string;
   examYear?: string;
+  minDailyQuestions: number;
+  maxDailyQuestions: number;
 }
 
 export type SubjectStatusType = 'not-started' | 'in-progress' | 'mastered';
@@ -63,6 +65,10 @@ export interface FailedQuestion {
   page: string;
   questionNumber: string;
   reason: string;
+  status: 'active' | 'solved';
+  solveCount: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  imageUrl?: string;
 }
 
 export interface ChatMessage {
