@@ -147,7 +147,7 @@ export function TopicExplain() {
             <div className="h-full flex flex-col items-center justify-center gap-3 opacity-60">
               <Loader2 size={28} className="animate-spin text-[#C17767]" />
               <div className="text-xs uppercase tracking-widest font-bold text-[#4A443C] dark:text-zinc-400">
-                Gear_Head. anlatımı hazırlıyor...
+                Koç Kübra anlatımı hazırlıyor...
               </div>
             </div>
           )}

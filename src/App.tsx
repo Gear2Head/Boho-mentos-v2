@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { 
-  LayoutDashboard, UserCircle, BookOpen, MessageSquare, 
+import {
+  LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
   Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock
 } from 'lucide-react';
@@ -16,8 +16,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { getCoachResponse } from './services/gemini';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from './constants';
 import { useAppStore } from './store/appStore';
-import type { 
-  StudentProfile, DailyLog, ExamResult, FailedQuestion 
+import type {
+  StudentProfile, DailyLog, ExamResult, FailedQuestion
 } from './types';
 
 import { FocusSidePanel } from './components/FocusSidePanel';
@@ -29,6 +29,8 @@ import { QuizEngine } from './components/QuizEngine';
 import { AchievementsPanel } from './components/AchievementsPanel';
 import { TopicExplain } from './components/TopicExplain';
 import { AgendaPage } from './components/AgendaPage';
+import { CoachInterventionModal } from './components/CoachInterventionModal';
+import { calcWorkloadRemaining } from './utils/statistics';
 // Kapsam Dışı: import { SpotifyWidget } from './components/SpotifyWidget'; 
 
 import { LogEntryWidget } from './components/forms/LogEntryWidget';
@@ -58,7 +60,7 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
   const [filterTag, setFilterTag] = useState('');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
-  
+
   const allTags = Array.from(new Set(logs.flatMap(log => log.tags || [])));
   const allSubjects = Array.from(new Set(logs.map(log => log.subject)));
 
@@ -187,7 +189,7 @@ function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQ
         </div>
         <button onClick={onCancel} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"><X size={20} className="text-[#4A443C] dark:text-zinc-200" /></button>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="space-y-1">
           <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">DERS</label>
@@ -210,26 +212,26 @@ function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQ
           <input type="text" placeholder="Soru No" value={questionNumber} onChange={e => setQuestionNumber(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
         </div>
       </div>
-      
-      <textarea 
-        placeholder="Neden yanlış yaptın? Hangi bilgi eksikti veya hangi tuzağa düştün?" 
-        value={reason} onChange={e => setReason(e.target.value)} 
-        className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] mb-6 h-24 resize-none text-[#4A443C] dark:text-zinc-200" 
+
+      <textarea
+        placeholder="Neden yanlış yaptın? Hangi bilgi eksikti veya hangi tuzağa düştün?"
+        value={reason} onChange={e => setReason(e.target.value)}
+        className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] mb-6 h-24 resize-none text-[#4A443C] dark:text-zinc-200"
       />
-      
-      <button 
-        onClick={() => { 
+
+      <button
+        onClick={() => {
           if (subject && topic && book) {
-            onSubmit({ 
-              id: Date.now().toString(), 
-              date: new Date().toLocaleDateString('tr-TR'), 
+            onSubmit({
+              id: Date.now().toString(),
+              date: new Date().toLocaleDateString('tr-TR'),
               subject, topic, book, page, questionNumber, reason,
               difficulty,
               status: 'active',
               solveCount: 0
-            }); 
+            });
           }
-        }} 
+        }}
         className="w-full py-4 bg-[#C17767] text-[#FDFBF7] rounded-xl text-xs font-bold tracking-[0.3em] uppercase hover:bg-[#A56253] transition-all hover:shadow-xl hover:shadow-[#C17767]/20 active:scale-[0.98]"
       >
         MEZARA GÖNDER
@@ -239,12 +241,12 @@ function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQ
 }
 
 const markdownComponents = {
-  p: ({node, ...props}: any) => <p className="leading-relaxed mb-4 text-[#4A443C] dark:text-zinc-200 text-base" {...props} />,
-  li: ({node, ...props}: any) => <li className="mb-2 leading-relaxed" {...props} />,
-  ul: ({node, ...props}: any) => <ul className="list-disc pl-5 mb-4 space-y-2 opacity-90" {...props} />,
-  ol: ({node, ...props}: any) => <ol className="list-decimal pl-5 mb-4 space-y-2 opacity-90" {...props} />,
-  strong: ({node, ...props}: any) => <strong className="font-bold text-[#C17767] dark:text-rose-400" {...props} />,
-  h3: ({node, ...props}: any) => <h3 className="text-lg font-bold font-display italic mt-6 mb-2 border-b border-[#EAE6DF] dark:border-zinc-800 pb-1" {...props} />,
+  p: ({ node, ...props }: any) => <p className="leading-relaxed mb-4 text-[#4A443C] dark:text-zinc-200 text-base" {...props} />,
+  li: ({ node, ...props }: any) => <li className="mb-2 leading-relaxed" {...props} />,
+  ul: ({ node, ...props }: any) => <ul className="list-disc pl-5 mb-4 space-y-2 opacity-90" {...props} />,
+  ol: ({ node, ...props }: any) => <ol className="list-decimal pl-5 mb-4 space-y-2 opacity-90" {...props} />,
+  strong: ({ node, ...props }: any) => <strong className="font-bold text-[#C17767] dark:text-rose-400" {...props} />,
+  h3: ({ node, ...props }: any) => <h3 className="text-lg font-bold font-display italic mt-6 mb-2 border-b border-[#EAE6DF] dark:border-zinc-800 pb-1" {...props} />,
 };
 
 // --- Main App ---
@@ -267,15 +269,15 @@ export default function App() {
   const handleLogSubmit = async (log: DailyLog) => {
     setIsLogWidgetOpen(false);
     const isPassive = log.fatigue >= 8;
-    
+
     store.addLog(log);
     if (isPassive && !store.isPassiveMode) store.setPassiveMode(true);
-    
+
     // Unlock Trophy
-    if (store.logs.length >= 2 && !store.trophies.find(t=>t.id==='streak_3')?.unlockedAt) {
+    if (store.logs.length >= 2 && !store.trophies.find(t => t.id === 'streak_3')?.unlockedAt) {
       store.unlockTrophy('streak_3');
     }
-    
+
     const logMessage = `LOG GİRİŞİ:\nDers: ${log.subject}\nKonu: ${log.topic}\nSoru: ${log.questions} (D:${log.correct} Y:${log.wrong} B:${log.empty})\nToplam Süre: ${log.avgTime}dk\nYorgunluk: ${log.fatigue}/10\nHatalar: ${log.tags.join(', ') || 'Yok'}${isPassive ? '\nSİSTEM NOTU: Öğrencinin zihinsel yorgunluğu 8 veya üzerinde. Sistemi otomatik olarak PASİF MODA geçir. Sadece video izleme, formül okuma gibi yorucu olmayan görevler ver.' : ''}`;
 
     store.addChatMessage({ role: 'user', content: logMessage, timestamp: new Date().toISOString() });
@@ -283,10 +285,10 @@ export default function App() {
 
     const successRate = Math.round((log.correct / (log.questions || 1)) * 100);
     const logSummary = `${log.subject} (${log.topic}): ${log.questions} soru, %${successRate} başarı, ${log.avgTime}dk. Yorgunluk: ${log.fatigue}/10.`;
-    
+
     const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nYeni Log (Özet): ${logSummary}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
     const response = await getCoachResponse("LOG ANALİZİ YAP", context, store.chatHistory, { coachPersonality: store.profile?.coachPersonality });
-    
+
     store.addChatMessage({ role: 'coach', content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() });
     setIsTyping(false);
   };
@@ -295,7 +297,7 @@ export default function App() {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     const dateStr = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-    
+
     const dayLogs = store.logs.filter(log => {
       const logDate = new Date(log.date);
       return logDate.getDate() === d.getDate() && logDate.getMonth() === d.getMonth() && logDate.getFullYear() === d.getFullYear();
@@ -338,25 +340,25 @@ export default function App() {
       return;
     }
     if (!messageOverride) setInputMessage('');
-    
+
     store.addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
     const problemTyt = store.tytSubjects.filter(s => s.status === 'in-progress').slice(0, 10);
     const tytCtx = problemTyt.length > 0 ? problemTyt.map(s => `${s.subject}:${s.name}`).join('|') : "Yok";
-    
+
     const problemAyt = store.aytSubjects.filter(s => s.status === 'in-progress' && store.profile?.track && getAytSubjectsForTrack(store.profile.track).includes(s.subject)).slice(0, 10);
     const aytCtx = problemAyt.length > 0 ? problemAyt.map(s => `${s.subject}:${s.name}`).join('|') : "Yok";
-    
+
     const logsCtx = summarizeLogs(store.logs.slice(-5));
-    const examsCtx = store.exams.length > 0 
-      ? store.exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|') 
+    const examsCtx = store.exams.length > 0
+      ? store.exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|')
       : "Yok";
 
     const compactProfile = store.profile ? `${store.profile.name}, Alan:${store.profile.track}, Hedef:${store.profile.targetUniversity}, TYT:${store.profile.tytTarget}, AYT:${store.profile.aytTarget}, Günlük Soru:${store.profile.minDailyQuestions}-${store.profile.maxDailyQuestions}` : "Bilinmiyor";
 
     const context = `P:${compactProfile}\nTYT:${tytCtx}\nAYT:${aytCtx}\nLogs:${logsCtx}\nExams:${examsCtx}\nNOT: Lütfen soru sayılarını belirlerken ${store.profile?.minDailyQuestions}-${store.profile?.maxDailyQuestions} arasını hedefle ve süreleri gerçekçi (Sayısal: 2dk/soru, Sözel: 1.5dk/soru) olarak ayarla.`;
-    
+
     const response = await getCoachResponse(userMsg, context, store.chatHistory, { coachPersonality: store.profile?.coachPersonality });
     store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
     setIsTyping(false);
@@ -399,12 +401,12 @@ export default function App() {
           <NavItem icon={<UserCircle size={18} />} label="Profil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
           <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
         </div>
-        <div 
+        <div
           className="hidden md:block p-4 border-t border-[#EAE6DF] dark:border-zinc-800 text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 cursor-pointer"
           onClick={() => setIsAdminPanelOpen(true)}
           title="Admin Panelini Aç"
         >
-          © 2026 Gear_Head.
+          © 2026 Gear_Head Architecture
         </div>
       </nav>
 
@@ -423,7 +425,24 @@ export default function App() {
                 </div>
                 <div className="w-full md:w-auto flex flex-col items-end gap-4 scale-90 md:scale-100 origin-right">
                   <MiniFlapClock targetDate={YKS_2026_TYT_DATE} />
-                  <button 
+
+                  {(() => {
+                    const wp = calcWorkloadRemaining(store.tytSubjects, store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)), store.logs);
+                    return (
+                      <div className="w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-3 shadow-md">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">MÜFREDAT YÜKÜ</span>
+                          <span className="text-xs font-mono font-bold text-zinc-300">%{wp.completedPercent}</span>
+                        </div>
+                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-[#C17767] transition-all" style={{ width: `${wp.completedPercent}%` }} />
+                        </div>
+                        <div className="text-[10px] text-zinc-500 uppercase tracking-widest mt-2">{wp.completedTopics} Bitti / {wp.remainingTopics} Kaldı</div>
+                      </div>
+                    );
+                  })()}
+
+                  <button
                     onClick={() => store.setFocusSidePanelOpen(true)}
                     className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group w-full md:w-auto justify-center"
                   >
@@ -431,8 +450,8 @@ export default function App() {
                       <Clock size={16} />
                     </div>
                     <div className="text-left">
-                       <div className="text-[10px] uppercase font-bold tracking-widest opacity-70 leading-none">SEFERBERLİK</div>
-                       <div className="text-sm font-bold leading-none mt-1">ODAK MODUNU AÇ</div>
+                      <div className="text-[10px] uppercase font-bold tracking-widest opacity-70 leading-none">SEFERBERLİK</div>
+                      <div className="text-sm font-bold leading-none mt-1">ODAK MODUNU AÇ</div>
                     </div>
                   </button>
                 </div>
@@ -571,7 +590,7 @@ export default function App() {
 
           {activeTab === 'questions' && (
             <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 w-full min-h-full">
-               <QuizEngine />
+              <QuizEngine />
             </motion.div>
           )}
 
@@ -599,18 +618,18 @@ export default function App() {
                 <div className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm">
                   <h3 className="font-display italic text-xl mb-6 uppercase tracking-tight text-zinc-300">Deneme Takvimi</h3>
                   {store.exams.length === 0 ? <p className="text-center opacity-40 text-xs text-zinc-500 font-bold uppercase tracking-widest">Henüz deneme girilmedi.</p> : store.exams.map(e => (
-                    <div 
-                       key={e.id} 
-                       onClick={() => setSelectedExam(e)}
-                       className="p-4 mb-3 border border-[#2A2A2A] rounded-xl bg-[#121212] flex justify-between items-center group hover:border-[#C17767]/50 transition-colors cursor-pointer"
+                    <div
+                      key={e.id}
+                      onClick={() => setSelectedExam(e)}
+                      className="p-4 mb-3 border border-[#2A2A2A] rounded-xl bg-[#121212] flex justify-between items-center group hover:border-[#C17767]/50 transition-colors cursor-pointer"
                     >
-                       <div>
-                         <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] group-hover:text-[#E09F3E] transition-colors">{e.type} DENEMESİ</span>
-                         <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{new Date(e.date).toLocaleDateString('tr-TR')}</span>
-                       </div>
-                       <div className="text-right">
-                         <span className="font-display italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>
-                       </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] group-hover:text-[#E09F3E] transition-colors">{e.type} DENEMESİ</span>
+                        <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{new Date(e.date).toLocaleDateString('tr-TR')}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-display italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -622,17 +641,17 @@ export default function App() {
             <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-6xl mx-auto">
               <div className="flex justify-between items-end mb-8">
                 <div>
-                   <h2 className="font-display italic text-4xl text-zinc-200">Müfredat Haritası</h2>
-                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Topraklarını Genişlet ve Konuları Fethet</p>
+                  <h2 className="font-display italic text-4xl text-zinc-200">Müfredat Haritası</h2>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Topraklarını Genişlet ve Konuları Fethet</p>
                 </div>
                 <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A]">
-                  <button 
+                  <button
                     onClick={() => store.setSubjectViewMode('list')}
                     className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                   >
                     <LayoutList size={14} /> Liste
                   </button>
-                  <button 
+                  <button
                     onClick={() => store.setSubjectViewMode('map')}
                     className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                   >
@@ -643,13 +662,13 @@ export default function App() {
 
               {store.subjectViewMode === 'list' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, {status})} onNotesChange={(idx, notes) => store.updateTytSubject(idx, {notes})} />
-                  <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, {status}); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, {notes}); }} />
+                  <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onNotesChange={(idx, notes) => store.updateTytSubject(idx, { notes })} />
+                  <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, { notes }); }} />
                 </div>
               ) : (
                 <div className="space-y-12">
-                  <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, {status})} />
-                  <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, {status}); }} />
+                  <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} />
+                  <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} />
                 </div>
               )}
             </motion.div>
@@ -674,10 +693,10 @@ export default function App() {
                     </div>
                   </div>
                 ))}
-                {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500"/><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Gear_Head. analiz ediyor...</span></div>}
+                {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500" /><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Gear_Head. analiz ediyor...</span></div>}
                 <div ref={chatEndRef} />
               </div>
-              
+
               <div className="p-4 md:p-8 border-t border-[#2A2A2A] bg-[#1A1A1A]">
                 {/* Hızlı Butonlar */}
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -686,9 +705,9 @@ export default function App() {
                   <button onClick={() => setIsExamModalOpen(true)} className="px-3 py-1.5 border border-red-600 text-red-500 bg-red-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-red-600 hover:text-white transition-colors">- DENEME</button>
                   <button onClick={() => handleSendMessage(undefined, "ANLA")} className="px-3 py-1.5 border border-zinc-600 text-zinc-400 bg-zinc-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-zinc-600 hover:text-white transition-colors">+ ANLA</button>
                 </div>
-                
+
                 {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
-                
+
                 <form onSubmit={handleSendMessage} className="flex gap-4 items-center">
                   <input value={inputMessage} onChange={e => setInputMessage(e.target.value)} placeholder="Komut gir veya mesaj yaz..." className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-4 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors" />
                   <button type="submit" disabled={isTyping} className="w-12 h-12 bg-[#2A2A2A] text-zinc-400 hover:text-[#C17767] border border-[#333] flex justify-center items-center rounded-xl transition-colors shrink-0 disabled:opacity-50"><Send size={18} className="transform -translate-y-px translate-x-px" /></button>
@@ -698,11 +717,11 @@ export default function App() {
           )}
 
           {activeTab === 'profile' && (
-             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-full">
-               <ProfileShowcase />
-             </motion.div>
+            <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-full">
+              <ProfileShowcase />
+            </motion.div>
           )}
-          
+
           {activeTab === 'archive' && (
             <div className="p-4 md:p-8 max-w-6xl mx-auto">
               <header className="mb-12 flex justify-between items-end border-b border-[#2A2A2A] pb-6">
@@ -712,16 +731,16 @@ export default function App() {
                 </div>
                 <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-6 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center shadow-lg shadow-[#C17767]/20 transition-all active:scale-95"><Plus size={16} /> Mezar Kaz</button>
               </header>
-              
+
               {isArchiveWidgetOpen && <ArchiveWidget subjects={Object.keys(TYT_SUBJECTS)} onCancel={() => setIsArchiveWidgetOpen(false)} onSubmit={(q) => { store.addFailedQuestion(q); setIsArchiveWidgetOpen(false); }} />}
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {store.failedQuestions.filter(q => q.status === 'active' || store.isDevMode).length === 0 ? (
                   <div className="col-span-full py-20 text-center opacity-20 uppercase tracking-[0.5em] font-display italic text-2xl">Burası şimdilik sessiz...</div>
                 ) : store.failedQuestions.map(q => (
                   <div key={q.id} className={`group relative bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 transition-all hover:border-[#C17767]/50 ${q.status === 'solved' ? 'opacity-50 grayscale' : ''}`}>
                     <div className="absolute top-0 left-0 w-1 h-full bg-[#C17767] group-hover:bg-[#E09F3E] transition-colors"></div>
-                    
+
                     <div className="flex justify-between items-start mb-4">
                       <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">{q.subject}</span>
                       <div className="flex gap-1">
@@ -733,23 +752,23 @@ export default function App() {
 
                     <h4 className="font-display italic text-xl text-zinc-200 mb-2 truncate">{q.topic}</h4>
                     <p className="text-[10px] uppercase font-bold text-zinc-500 mb-4">{q.book} • S:{q.page}</p>
-                    
+
                     <div className="bg-black/40 rounded-xl p-4 mb-6 border border-[#222]">
                       <p className="text-xs italic text-zinc-400 leading-relaxed font-mono">"{q.reason}"</p>
                     </div>
 
                     <div className="flex gap-2">
-                      <button 
+                      <button
                         onClick={() => store.solveFailedQuestion(q.id)}
                         disabled={q.status === 'solved'}
                         className={`flex-1 py-2 text-[10px] uppercase font-bold tracking-widest rounded-lg transition-all ${q.status === 'solved' ? 'bg-zinc-800 text-zinc-500' : 'bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 hover:bg-[#C17767] hover:text-white'}`}
                       >
                         {q.status === 'solved' ? 'HUZUR İÇİNDE' : 'HORTLAT (ÇÖZÜLDÜ)'}
                       </button>
-                      
+
                       {store.isDevMode && (
-                        <button 
-                          onClick={() => { if(confirm('Siliyorum?')) store.removeFailedQuestion(q.id); }}
+                        <button
+                          onClick={() => { if (confirm('Siliyorum?')) store.removeFailedQuestion(q.id); }}
                           className="px-3 py-2 bg-red-950/20 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-500 hover:text-white transition-all"
                         >
                           <Trash2 size={14} />
@@ -805,13 +824,13 @@ export default function App() {
                         <p className="text-sm text-zinc-500">Konu listesinin varsayılan gösterim biçimi</p>
                       </div>
                       <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
-                        <button 
+                        <button
                           onClick={() => store.setSubjectViewMode('list')}
                           className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
                         >
                           Liste
                         </button>
-                        <button 
+                        <button
                           onClick={() => store.setSubjectViewMode('map')}
                           className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
                         >
@@ -822,13 +841,13 @@ export default function App() {
                     <div className="col-span-2 flex justify-between items-center opacity-100">
                       <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#C17767]">Arayüz Teması</p><p className="text-sm text-zinc-500">Karanlık veya Aydınlık mod arasında geçiş yap</p></div>
                       <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
-                        <button 
+                        <button
                           onClick={() => store.setTheme('dark')}
                           className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'dark' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
                         >
                           Dark
                         </button>
-                        <button 
+                        <button
                           onClick={() => store.setTheme('light')}
                           className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'light' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
                         >
@@ -840,36 +859,36 @@ export default function App() {
 
                   <ProfileSection title="Soru Hedeflerİ">
                     <div className="grid grid-cols-2 gap-4 col-span-2">
-                       <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MİN. GÜNLÜK SORU</label>
-                          <input 
-                            type="number" 
-                            value={store.profile?.minDailyQuestions || 100} 
-                            onChange={e => store.setProfile({ ...store.profile!, minDailyQuestions: parseInt(e.target.value) })}
-                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
-                          />
-                       </div>
-                       <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MAKS. GÜNLÜK SORU</label>
-                          <input 
-                            type="number" 
-                            value={store.profile?.maxDailyQuestions || 300} 
-                            onChange={e => store.setProfile({ ...store.profile!, maxDailyQuestions: parseInt(e.target.value) })}
-                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
-                          />
-                       </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MİN. GÜNLÜK SORU</label>
+                        <input
+                          type="number"
+                          value={store.profile?.minDailyQuestions || 100}
+                          onChange={e => store.setProfile({ ...store.profile!, minDailyQuestions: parseInt(e.target.value) })}
+                          className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MAKS. GÜNLÜK SORU</label>
+                        <input
+                          type="number"
+                          value={store.profile?.maxDailyQuestions || 300}
+                          onChange={e => store.setProfile({ ...store.profile!, maxDailyQuestions: parseInt(e.target.value) })}
+                          className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
+                        />
+                      </div>
                     </div>
                   </ProfileSection>
 
                   <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
-                      <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
-                        <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
-                        <button onClick={() => { if (window.confirm('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
-                      </div>
+                    <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
+                      <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
+                      <button onClick={() => { if (window.confirm('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
+                    </div>
                   </ProfileSection>
                 </div>
               </div>
-              
+
               <div>
                 <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Profil Yönetimi</h3>
                 <ProfileSettings onSubmit={(p) => store.setProfile(p)} initialData={store.profile} isEditMode={true} />
@@ -882,6 +901,7 @@ export default function App() {
       <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={store.profile!.track} onSave={(exam) => { store.addExam(exam); setIsExamModalOpen(false); store.unlockTrophy('first_blood'); }} />
       <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={store.isDevMode} />
       <FocusSidePanel />
+      <CoachInterventionModal />
       <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
     </div>
   );
@@ -889,26 +909,25 @@ export default function App() {
 
 // ----- MOCK UI FORMS ------
 const NavItem = ({ icon, label, active, onClick }: any) => (
-  <button 
-    onClick={onClick} 
-    className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 px-2 md:px-6 py-3 md:py-2.5 transition-all relative ${
-      active 
-        ? 'text-[#C17767] md:bg-[#1A1A1A] md:border-r-4 md:border-[#C17767]' 
-        : 'text-[#8C857B] hover:text-[#C17767] md:hover:bg-[#1A1A1A]/80'
-    }`}
-  > 
+  <button
+    onClick={onClick}
+    className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 px-2 md:px-6 py-3 md:py-2.5 transition-all relative ${active
+      ? 'text-[#C17767] md:bg-[#1A1A1A] md:border-r-4 md:border-[#C17767]'
+      : 'text-[#8C857B] hover:text-[#C17767] md:hover:bg-[#1A1A1A]/80'
+      }`}
+  >
     {/* Mobile Active Indicator (Glow) */}
     {active && (
-      <motion.div 
+      <motion.div
         layoutId="activeNav"
         className="absolute inset-0 bg-[#C17767]/10 dark:bg-[#C17767]/20 md:hidden rounded-xl"
         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
       />
     )}
-    
+
     <div className={`relative p-2 rounded-full transition-all duration-300 ${active ? 'scale-110 drop-shadow-[0_0_8px_rgba(193,119,103,0.4)]' : 'opacity-70'}`}>
       {icon}
-    </div> 
+    </div>
     <span className="text-[10px] md:text-xs uppercase tracking-widest font-bold hidden md:inline relative">{label}</span>
   </button>
 );
@@ -959,20 +978,20 @@ const SubjectList = ({ title, subjects, onStatusChange, onNotesChange }: any) =>
                       <span className="text-sm font-bold text-zinc-300 group-hover:text-white transition-colors">{sub.name}</span>
                       <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A] gap-1 shrink-0">
                         {statuses.map(s => (
-                           <button 
-                             key={s.value}
-                             onClick={() => onStatusChange(i, s.value)}
-                             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all border ${sub.status === s.value ? s.color.replace('hover:','') : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
-                           >
-                             {s.label}
-                           </button>
+                          <button
+                            key={s.value}
+                            onClick={() => onStatusChange(i, s.value)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all border ${sub.status === s.value ? s.color.replace('hover:', '') : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}
+                          >
+                            {s.label}
+                          </button>
                         ))}
                       </div>
                     </div>
-                    <input 
-                      type="text" placeholder="Bu konuyla ilgili stratejik notlar..." 
-                      value={sub.notes} onChange={e=>onNotesChange(i, e.target.value)} 
-                      className="text-xs p-3 rounded-xl bg-[#121212] border border-[#2A2A2A] text-zinc-300 w-full outline-none focus:border-[#C17767] transition-colors" 
+                    <input
+                      type="text" placeholder="Bu konuyla ilgili stratejik notlar..."
+                      value={sub.notes} onChange={e => onNotesChange(i, e.target.value)}
+                      className="text-xs p-3 rounded-xl bg-[#121212] border border-[#2A2A2A] text-zinc-300 w-full outline-none focus:border-[#C17767] transition-colors"
                     />
                   </div>
                 );
@@ -1013,16 +1032,16 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
             <div key={province} className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 hover:border-[#C17767]/30 transition-all group shadow-sm">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                   <h4 className="font-display italic text-xl text-zinc-200 group-hover:text-[#C17767] transition-colors">{province} Eyaleti</h4>
-                   <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-bold mt-1">Fetih Durumu: {masteredCount}/{totalCount}</p>
+                  <h4 className="font-display italic text-xl text-zinc-200 group-hover:text-[#C17767] transition-colors">{province} Eyaleti</h4>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-bold mt-1">Fetih Durumu: {masteredCount}/{totalCount}</p>
                 </div>
                 <div className="text-right">
                   <span className="text-2xl font-mono font-bold text-[#C17767] opacity-80">%{progressPercent}</span>
                 </div>
               </div>
-              
+
               <div className="h-1 bg-zinc-800 rounded-full mb-8 overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-[#C17767] to-[#E09F3E] transition-all duration-500 ease-out"
                   style={{ width: `${progressPercent}%` }}
                 />
@@ -1037,13 +1056,12 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
                       onStatusChange(city.originalIndex, nextStatus);
                     }}
                     title={`${city.name} - ${city.status === 'mastered' ? 'FETHERDİLDİ' : city.status === 'in-progress' ? 'KUŞATMADA' : 'HEDEFTE'}`}
-                    className={`min-w-[40px] h-10 px-3 rounded-lg flex items-center justify-center transition-all border relative group/castle ${
-                      city.status === 'mastered' 
-                        ? 'bg-[#22C55E]/10 border-[#22C55E]/40 text-[#22C55E] shadow-[0_0_10px_rgba(34,197,94,0.1)]' 
-                        : city.status === 'in-progress' 
-                        ? 'bg-[#E09F3E]/10 border-[#E09F3E]/40 text-[#E09F3E] animate-pulse' 
+                    className={`min-w-[40px] h-10 px-3 rounded-lg flex items-center justify-center transition-all border relative group/castle ${city.status === 'mastered'
+                      ? 'bg-[#22C55E]/10 border-[#22C55E]/40 text-[#22C55E] shadow-[0_0_10px_rgba(34,197,94,0.1)]'
+                      : city.status === 'in-progress'
+                        ? 'bg-[#E09F3E]/10 border-[#E09F3E]/40 text-[#E09F3E] animate-pulse'
                         : 'bg-zinc-800/40 border-zinc-700/50 text-zinc-600 hover:border-[#C17767]/50'
-                    }`}
+                      }`}
                   >
                     <div className="text-[10px] font-bold uppercase tracking-tight text-center leading-none">
                       {city.status === 'mastered' ? '🏰' : city.status === 'in-progress' ? '⚔️' : '🏴'}
@@ -1062,25 +1080,25 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
 
 const AdminPanelModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const store = useAppStore();
-  
+
   if (!isOpen) return null;
-  
+
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
       <div className="bg-[#FFFFFF] dark:bg-zinc-900 p-8 rounded-2xl max-w-sm w-full shadow-2xl relative border-2 border-red-500/50">
-        <button onClick={onClose} className="absolute top-4 right-4 opacity-50 hover:opacity-100"><X size={20}/></button>
+        <button onClick={onClose} className="absolute top-4 right-4 opacity-50 hover:opacity-100"><X size={20} /></button>
         <div className="flex items-center gap-3 mb-6 text-red-500 border-b border-red-500/20 pb-4">
           <ShieldAlert size={28} />
           <h2 className="font-mono text-xl font-bold tracking-widest uppercase">Geliştirici Modu</h2>
         </div>
-        
+
         <div className="space-y-6">
           <div className="flex items-center justify-between bg-[#F5F2EB] dark:bg-zinc-950 p-4 rounded-xl border border-[#EAE6DF] dark:border-zinc-800">
             <div>
               <p className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">Geliştirici Özellikleri</p>
               <p className="text-[10px] opacity-60 uppercase tracking-widest mt-1 text-[#4A443C] dark:text-zinc-400">Deneme Silme ve Düzenleme</p>
             </div>
-            <button 
+            <button
               onClick={() => store.setDevMode(!store.isDevMode)}
               className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors ${store.isDevMode ? 'bg-green-500' : 'bg-zinc-400 dark:bg-zinc-700'}`}
             >
@@ -1093,15 +1111,15 @@ const AdminPanelModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
               <p className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">Sabah Kilidi</p>
               <p className="text-[10px] opacity-60 uppercase tracking-widest mt-1 text-[#4A443C] dark:text-zinc-400">Sabah uyarısını kapat</p>
             </div>
-            <button 
+            <button
               onClick={() => store.setMorningBlockerEnabled(!store.isMorningBlockerEnabled)}
               className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors ${store.isMorningBlockerEnabled ? 'bg-green-500' : 'bg-zinc-400 dark:bg-zinc-700'}`}
             >
               <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${store.isMorningBlockerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
             </button>
           </div>
-          
-          <button 
+
+          <button
             onClick={() => { store.addElo(500); alert('Müthiş Hile: 500 Puan Eklendi!'); onClose(); }}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-900/30 text-blue-400 border border-blue-900/50 hover:bg-blue-900/50 text-xs font-bold tracking-widest uppercase rounded-xl transition-colors"
           >

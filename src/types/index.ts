@@ -50,6 +50,25 @@ export interface DailyLog {
   fatigue: number;
   tags: string[];
   sessionId?: string;
+  sourceName?: string;
+}
+
+export interface SourceROI {
+  sourceName: string;
+  totalQuestions: number;
+  avgAccuracy: number;
+  avgSecondsPerQ: number;
+  roiScore: number;
+}
+
+export type HabitAlertType = 'avoiding_subject' | 'memorization_risk' | 'neglected_subject';
+
+export interface HabitAlert {
+  id: string;
+  type: HabitAlertType;
+  subject: string;
+  message: string;
+  createdAt: string;
 }
 
 export interface ExamResult {

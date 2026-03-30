@@ -3,7 +3,8 @@ import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon } fro
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useAppStore } from '../store/appStore';
 import { getRankTier } from './EloRankCard';
-import type { Trophy as TrophyType } from '../types';
+import type { Trophy as TrophyType, ExamResult } from '../types';
+import { findUniGoal } from '../data/uniGoals';
 
 const ICON_MAP: Record<string, React.FC<any>> = {
   Trophy, Star, Crown, Zap, Flame, Award, Target, BookOpen, Hexagon
@@ -40,6 +41,17 @@ export function ProfileShowcase() {
     { name: 'Kalan', value: aytTotal - aytMastered, color: '#EAE6DF' }
   ];
 
+  const tytExams = store.exams.filter((e: ExamResult) => e.type === 'TYT');
+  const aytExams = store.exams.filter((e: ExamResult) => e.type === 'AYT');
+  const lastTyt = tytExams.length > 0 ? tytExams[tytExams.length - 1].totalNet : 0;
+  const lastAyt = aytExams.length > 0 ? aytExams[aytExams.length - 1].totalNet : 0;
+
+  const targetGoalTyt = findUniGoal(profile.targetUniversity, profile.targetMajor, 'TYT');
+  const targetGoalAyt = findUniGoal(profile.targetUniversity, profile.targetMajor, 'AYT');
+
+  const tytProgress = targetGoalTyt ? Math.min(100, Math.round((lastTyt / targetGoalTyt.lastEntrantNet) * 100)) : Math.min(100, Math.round((lastTyt / profile.tytTarget) * 100));
+  const aytProgress = targetGoalAyt ? Math.min(100, Math.round((lastAyt / targetGoalAyt.lastEntrantNet) * 100)) : Math.min(100, Math.round((lastAyt / profile.aytTarget) * 100));
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       {/* Header & Lig Kartı */}
@@ -71,6 +83,40 @@ export function ProfileShowcase() {
               Hedef: <strong className="text-[#C17767]">{profile.targetUniversity}</strong> – {profile.targetMajor}. 
               Minimum günlük {profile.dailyGoalHours} saatlik çalışma temposu benimsendi.
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* YÖK Atlas Hedef Progress (Faz 5) */}
+      <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <Target size={24} className="text-[#C17767]" />
+          <div>
+            <h3 className="font-serif italic text-xl text-zinc-200">Hedef İlerlemesi</h3>
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold max-w-full truncate">
+              {profile.targetUniversity} • {profile.targetMajor}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs uppercase font-bold tracking-widest text-zinc-400">TYT — Temel Yeterlilik</span>
+              <span className="text-sm font-mono font-bold text-[#C17767]">{lastTyt} / {targetGoalTyt?.lastEntrantNet || profile.tytTarget}</span>
+            </div>
+            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full bg-[#C17767] transition-all duration-1000" style={{ width: `${tytProgress}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs uppercase font-bold tracking-widest text-zinc-400">AYT — Alan Yeterlilik</span>
+              <span className="text-sm font-mono font-bold text-[#E09F3E]">{lastAyt} / {targetGoalAyt?.lastEntrantNet || profile.aytTarget}</span>
+            </div>
+            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full bg-[#E09F3E] transition-all duration-1000" style={{ width: `${aytProgress}%` }} />
+            </div>
           </div>
         </div>
       </div>

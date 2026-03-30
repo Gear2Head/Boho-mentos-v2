@@ -1,5 +1,10 @@
+/**
+ * AMAÇ: Günlük çalışma logu giriş formu
+ * MANTIK: sourceName alanı eklenerek kaynak ROI takibi destekleniyor
+ */
+
 import React, { useState } from 'react';
-import { X, Mic, Camera, AlertCircle } from 'lucide-react';
+import { X, Mic, Camera, BookOpen } from 'lucide-react';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../../constants';
 import type { DailyLog } from '../../types';
 
@@ -18,6 +23,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
   const [time, setTime] = useState<number | ''>('');
   const [fatigue, setFatigue] = useState<number>(5);
   const [tags, setTags] = useState('');
+  const [sourceName, setSourceName] = useState('');
 
   const subjectsMap = examType === 'TYT' ? TYT_SUBJECTS : AYT_SUBJECTS;
   const availableSubjects = Object.keys(subjectsMap);
@@ -39,18 +45,19 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
       empty: Number(empty),
       avgTime: Number(time),
       fatigue,
-      tags: tags.split(',').map(t => t.trim().startsWith('#') ? t.trim() : `#${t.trim()}`).filter(t => t !== '#')
+      tags: tags.split(',').map(t => t.trim().startsWith('#') ? t.trim() : `#${t.trim()}`).filter(t => t !== '#'),
+      sourceName: sourceName.trim() || undefined,
     };
 
     onSubmit(log);
   };
 
   const handleVoiceLog = () => {
-    alert("Sesli Log Özelliği (Whisper API Entegrasyonu) çok yakında aktif edilecek.");
+    alert('Sesli Log Özelliği (Whisper API Entegrasyonu) çok yakında aktif edilecek.');
   };
 
   const handleOcrLog = () => {
-    alert("Fotoğraftan Test Okuma (OCR) çok yakında aktif edilecek.");
+    alert('Fotoğraftan Test Okuma (OCR) çok yakında aktif edilecek.');
   };
 
   return (
@@ -62,7 +69,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
             <Mic size={14} /> Sesli Log
           </button>
           <button onClick={handleOcrLog} className="flex items-center gap-2 px-3 py-1.5 bg-[#2A2A2A] text-zinc-300 rounded hover:bg-[#333] transition-colors text-[10px] font-bold tracking-widest uppercase">
-            <Camera size={14} /> Fotoğraftan Oku (OCR)
+            <Camera size={14} /> OCR
           </button>
           <button onClick={onCancel} className="p-1.5 ml-2 text-zinc-500 hover:text-white transition-colors">
             <X size={18}/>
@@ -111,6 +118,23 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
               <option value="" disabled>Konu Seç...</option>
               {availableTopics.map((t: string) => <option key={t} value={t}>{t}</option>)}
             </select>
+          </div>
+        </div>
+
+        {/* Kaynak */}
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <label className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] md:w-48">Q: Kaynak nedir?</label>
+          <div className="flex flex-1 gap-2 items-center">
+            <div className="relative flex-1">
+              <BookOpen size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                placeholder="Kitap / YouTube kanalı / Hoca adı (opsiyonel)"
+                value={sourceName}
+                onChange={e => setSourceName(e.target.value)}
+                className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 pl-10 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors"
+              />
+            </div>
           </div>
         </div>
 

@@ -1,14 +1,16 @@
 /**
- * AMAÇ: AI destekli haftalık strateji planlama ve kritik zayıf nokta analizi
- * MANTIK: Store verilerini harmanlayarak özelleşmiş AI prompt'ları oluşturup Gear_Head.'e gönderir
+ * AMAÇ: AI destekli haftalık strateji planlama, net projeksiyonu ve kaynak ROI analizi
+ * MANTIK: Store verilerini harmanlayarak insight kartları (grafik, ROI) gösterir ve AI prompt'ları çalıştırır
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, ChevronRight, BookOpen, TrendingUp } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
 import { YOK_ATLAS_TOP10 } from '../data/yokAtlasTop10';
+import { calcSourceROI, predictTYTAndAYT } from '../utils/statistics';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const markdownComponents = {
   p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 text-zinc-300 text-sm" {...props} />,
@@ -29,13 +31,47 @@ export function StrategyHub() {
   const [isLoadingWeekly, setIsLoadingWeekly] = useState(false);
   const [isLoadingSprint, setIsLoadingSprint] = useState(false);
 
+  // --- FAZ 1: KAYNAK ROI ---
+  const sourceROIs = useMemo(() => calcSourceROI(store.logs), [store.logs]);
+  const bestSources = sourceROIs.slice(0, 3);
+  const avgROI = sourceROIs.length > 0 ? sourceROIs.reduce((a, b) => a + b.roiScore, 0) / sourceROIs.length : 0;
+  const badSources = sourceROIs.filter(s => s.roiScore < avgROI * 0.6); // Ortanın %40 altı
+
+  // --- FAZ 2: NET PROJEKSİYONU ---
+  const examDate = new Date('2026-06-20T10:15:00+03:00');
+  const projection = useMemo(() => predictTYTAndAYT(store.exams, examDate), [store.exams]);
+
+  const projectionChartData = useMemo(() => {
+    const data = [];
+    const tytExams = store.exams.filter(e => e.type === 'TYT').slice(-5);
+    
+    // Mevcut veri
+    tytExams.forEach((e, i) => {
+      data.push({
+        name: `Deneme ${i + 1}`,
+        gercek: e.totalNet,
+        tahmin: null,
+      });
+    });
+
+    // Tahmin çizgisi
+    if (projection.tyt.hasEnoughData) {
+      const lastGercek = tytExams[tytExams.length - 1].totalNet;
+      data[data.length - 1].tahmin = lastGercek; // Bağlantı noktası
+      data.push({
+        name: 'Sınav 2026',
+        gercek: null,
+        tahmin: projection.tyt.predictedNet,
+      });
+    }
+
+    return data;
+  }, [store.exams, projection]);
+
   const buildBaseContext = () => {
     const recentLogs = store.logs.slice(-7);
     const logSummary = recentLogs.length > 0
-      ? recentLogs.map(l => {
-          const rate = Math.round((l.correct / (l.questions || 1)) * 100);
-          return `${l.subject}/${l.topic}: ${l.questions}S %${rate} başarı ${l.avgTime}dk`;
-        }).join(' | ')
+      ? recentLogs.map(l => `${l.subject}/${l.topic}: ${l.questions}S %${Math.round((l.correct/(l.questions||1))*100)} başarı ${l.avgTime}dk`).join(' | ')
       : 'Log yok';
 
     const inProgressTyt = store.tytSubjects.filter(s => s.status === 'in-progress').map(s => `${s.subject}-${s.name}`);
@@ -52,9 +88,8 @@ Son denemeler: ${recentExams || 'Yok'}`;
 
   const handleWeeklyPlan = async () => {
     setIsLoadingWeekly(true);
-    setWeeklyPlan(null);
     const ctx = buildBaseContext();
-    const prompt = `HAFTALIK KUŞATMA PLANI ÜRETİYORUM. Bu öğrencinin tüm verisini analiz et ve bugünden itibaren 7 günlük çalışma planı yaz. Formatı kesinlikle şu şekilde kullan: Her gün için "**Gün X (Tarih):**" başlığı altında 2-3 madde. Her madde: Ders | Konu | Hedef soru | Tahmini süre. Sonunda 1 satır "Haftalık Öncelik" yaz. Fazla açıklama yapma, sadece direktif.`;
+    const prompt = `HAFTALIK KUŞATMA PLANI ÜRETİYORUM. Bu öğrencinin tüm verisini analiz et ve bugünden itibaren 7 günlük çalışma planı yaz. Formatı kesinlikle şu şekilde kullan: Her gün için "**Gün X (Tarih):**" başlığı altında 2-3 madde. Her madde: Ders | Konu | Hedef soru | Tahmini süre. Sonunda 1 satır "Haftalık Öncelik" yaz.`;
     const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
     setWeeklyPlan(response || 'Yanıt alınamadı.');
     setIsLoadingWeekly(false);
@@ -62,7 +97,6 @@ Son denemeler: ${recentExams || 'Yok'}`;
 
   const handleSprintPlan = async () => {
     setIsLoadingSprint(true);
-    setSprintPlan(null);
     const ctx = buildBaseContext();
     const prompt = `24 SAATLİK SPRINT PLANI. Bu öğrencinin verilerine bakarak SADECE bugün için 3 kritik görev belirle. Format: **Görev 1:** [Ders] - [Konu] - [Kaç soru] - [Süre]. Sonunda motivasyona gerek yok, sadece emirler.`;
     const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
@@ -136,6 +170,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
       .sort((a, b) => (a.lastEntrantNet - currentNet) - (b.lastEntrantNet - currentNet))
       .find(p => p.lastEntrantNet >= currentNet) ?? pool.slice().sort((a, b) => a.lastEntrantNet - b.lastEntrantNet)[0];
 
+    if(!next) return null;
     const diff = Number((next.lastEntrantNet - currentNet).toFixed(2));
     const diffText = diff >= 0 ? `${diff} net gerisindesin` : `${Math.abs(diff)} net önündesin`;
     const marchDiff = Number((next.marchReferenceNet - currentNet).toFixed(2));
@@ -148,8 +183,94 @@ Son denemeler: ${recentExams || 'Yok'}`;
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <header className="mb-10 border-b border-[#2A2A2A] pb-6">
         <h2 className="font-serif italic text-4xl text-zinc-200 mb-2">Strateji Odası</h2>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] font-bold font-mono">Gear_Head. — Taktik Merkezi</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] font-bold font-mono">Taktik, Analiz ve İleri Görüş Merkezi</p>
       </header>
+
+      {/* FAZ 2: Projeksiyon Grafiği */}
+      <div className="grid grid-cols-1 mb-8">
+        <div className="bg-[#121212] border border-zinc-800 rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-green-500"></div>
+          <h3 className="font-serif italic text-xl mb-4 text-zinc-200 flex items-center gap-2">
+            <TrendingUp size={20} className="text-blue-500" /> Tahmini TYT Projeksiyonu
+          </h3>
+          
+          {projection.tyt.hasEnoughData ? (
+            <div className="h-64 mt-6">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
+                  <XAxis dataKey="name" stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
+                  <YAxis stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#2A2A2A', borderRadius: '8px' }}
+                    itemStyle={{ fontSize: 12, fontWeight: 'bold' }}
+                    labelStyle={{ fontSize: 10, color: '#888' }}
+                  />
+                  {store.profile?.tytTarget && <ReferenceLine y={store.profile.tytTarget} stroke="#C17767" strokeDasharray="3 3" />}
+                  <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
+                  <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="mt-4 flex justify-between items-center text-xs">
+                 <span className="text-zinc-500">Hesaplanan sapma (Regresyon bazlı)</span>
+                 <span className="font-bold text-green-500 uppercase tracking-widest">{projection.tyt.predictedNet} NET BEKLENTİSİ</span>
+              </div>
+            </div>
+          ) : (
+            <div className="h-40 flex flex-col items-center justify-center text-zinc-600">
+               <TrendingUp size={32} className="opacity-20 mb-2" />
+               <p className="text-xs uppercase tracking-widest font-bold">YETERLİ VERİ YOK</p>
+               <p className="text-[10px] mt-1 opacity-60">Tahmin için en az 3 TYT denemesi girmelisin.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* FAZ 1: Kaynak Analizi (ROI) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="bg-[#121212] border border-green-900/30 rounded-2xl p-6">
+          <h3 className="font-serif italic text-lg text-green-400 mb-4 flex items-center gap-2"><BookOpen size={16}/> En Verimli Kaynak</h3>
+          {bestSources.length > 0 ? (
+            <div className="space-y-4">
+              {bestSources.map((s, i) => (
+                <div key={i} className="flex justify-between items-center bg-green-900/10 p-3 rounded-lg border border-green-900/20">
+                  <div className="flex items-center gap-3">
+                    <span className="text-green-500 font-bold font-mono">#{i+1}</span>
+                    <div>
+                      <div className="text-sm font-bold text-zinc-200">{s.sourceName}</div>
+                      <div className="text-[10px] opacity-60 uppercase text-zinc-400">{s.totalQuestions} Soru • {s.avgSecondsPerQ} sn/soru</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-green-400">{s.roiScore}</div>
+                    <div className="text-[8px] uppercase tracking-widest text-green-600">ROI Puanı</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <div className="text-xs text-zinc-500 uppercase tracking-widest opacity-60 py-4">Kaynak verisi bulunamadı.</div>}
+        </div>
+
+        <div className="bg-[#121212] border border-red-900/30 rounded-2xl p-6">
+          <h3 className="font-serif italic text-lg text-red-400 mb-4 flex items-center gap-2"><AlertTriangle size={16}/> Zaman Kaybettiren Kaynak</h3>
+          {badSources.length > 0 ? (
+            <div className="space-y-4">
+              {badSources.map((s, i) => (
+                <div key={i} className="flex justify-between items-center bg-red-900/10 p-3 rounded-lg border border-red-900/20">
+                  <div>
+                    <div className="text-sm font-bold text-zinc-200">{s.sourceName}</div>
+                    <div className="text-[10px] opacity-60 uppercase text-zinc-400">Puan: {s.roiScore} | {s.avgSecondsPerQ} sn/soru | Doğruluk: %{s.avgAccuracy}</div>
+                  </div>
+                  <AlertTriangle size={16} className="text-red-500/50" />
+                </div>
+              ))}
+              <div className="text-[10px] text-red-400/80 leading-relaxed mt-2 p-2 bg-red-950/30 rounded">
+                Uyarı: Bu kaynaklarda doğruluk oranın düşük veya çok vakit kaybediyorsun. Hedefe uygunluğunu sorgula.
+              </div>
+            </div>
+          ) : <div className="text-xs text-zinc-500 uppercase tracking-widest opacity-60 py-4">Zaman kaybettiren kaynak tespit edilmedi.</div>}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {criticalSubjects.length > 0 ? criticalSubjects.map((cs, i) => (
@@ -161,18 +282,13 @@ Son denemeler: ${recentExams || 'Yok'}`;
             <h4 className="font-serif italic text-lg text-zinc-200 mb-1">{cs.subject}</h4>
             <div className="flex items-center gap-2 mt-3">
               <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${cs.rate < 40 ? 'bg-red-500' : cs.rate < 60 ? 'bg-[#E09F3E]' : 'bg-green-500'}`}
-                  style={{ width: `${cs.rate}%` }}
-                />
+                <div className={`h-full rounded-full transition-all ${cs.rate < 40 ? 'bg-red-500' : cs.rate < 60 ? 'bg-[#E09F3E]' : 'bg-green-500'}`} style={{ width: `${cs.rate}%` }} />
               </div>
               <span className={`text-sm font-bold font-mono ${cs.rate < 40 ? 'text-red-400' : 'text-[#E09F3E]'}`}>%{cs.rate}</span>
             </div>
           </div>
         )) : (
-          <div className="col-span-3 py-8 text-center text-zinc-600 text-xs uppercase tracking-widest">
-            Henüz yeterli log verisi yok. Önce log gir.
-          </div>
+          <div className="col-span-3 py-8 text-center text-zinc-600 text-xs uppercase tracking-widest">Henüz yeterli log verisi yok.</div>
         )}
       </div>
 
@@ -180,9 +296,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
         <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#60A5FA]/10 rounded-xl border border-[#60A5FA]/20">
-                <CrosshairIcon size={20} className="text-[#60A5FA]" />
-              </div>
+              <div className="p-2 bg-[#60A5FA]/10 rounded-xl border border-[#60A5FA]/20"><CrosshairIcon size={20} className="text-[#60A5FA]" /></div>
               <div>
                 <h3 className="font-serif italic text-xl text-zinc-200">Akıllı Deneme Önerisi</h3>
                 <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Hata verilerine göre (son 14 gün)</p>
@@ -191,22 +305,14 @@ Son denemeler: ${recentExams || 'Yok'}`;
           </div>
           <div className="p-6">
             {!smartMockSuggestion ? (
-              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">
-                Yeterli log verisi yok. Öneri için en az 1-2 gün detaylı log gir.
-              </div>
+              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">Yeterli log verisi yok.</div>
             ) : (
               <div className="space-y-3">
-                <div className="text-sm text-zinc-200 font-mono leading-relaxed">
-                  <span className="text-[#60A5FA] font-bold">{smartMockSuggestion.message}</span>
-                </div>
-                <div className="text-[10px] uppercase tracking-widest text-zinc-500">
-                  {smartMockSuggestion.reasoning}
-                </div>
+                <div className="text-sm text-zinc-200 font-mono leading-relaxed"><span className="text-[#60A5FA] font-bold">{smartMockSuggestion.message}</span></div>
+                <div className="text-[10px] uppercase tracking-widest text-zinc-500">{smartMockSuggestion.reasoning}</div>
                 <div className="flex flex-wrap gap-2 pt-2">
                   {smartMockSuggestion.focusTopics.map((t) => (
-                    <span key={t} className="px-2.5 py-1 bg-[#60A5FA]/10 text-[#60A5FA] border border-[#60A5FA]/20 rounded-lg text-[10px] uppercase font-bold tracking-widest">
-                      {t}
-                    </span>
+                    <span key={t} className="px-2.5 py-1 bg-[#60A5FA]/10 text-[#60A5FA] border border-[#60A5FA]/20 rounded-lg text-[10px] uppercase font-bold tracking-widest">{t}</span>
                   ))}
                 </div>
               </div>
@@ -219,9 +325,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
         <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#C17767]/10 rounded-xl border border-[#C17767]/20">
-                <ChevronRight size={20} className="text-[#C17767]" />
-              </div>
+              <div className="p-2 bg-[#C17767]/10 rounded-xl border border-[#C17767]/20"><ChevronRight size={20} className="text-[#C17767]" /></div>
               <div>
                 <h3 className="font-serif italic text-xl text-zinc-200">YÖK Atlas Kovalamaca</h3>
                 <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Hedefle arandaki bağı koparma</p>
@@ -230,13 +334,9 @@ Son denemeler: ${recentExams || 'Yok'}`;
           </div>
           <div className="p-6">
             {!yokAtlasChase ? (
-              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">
-                Kovalamaca için en az 1 deneme kaydı gerekli.
-              </div>
+              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">Kovalamaca için en az 1 deneme kaydı gerekli.</div>
             ) : (
-              <div className="text-sm font-mono leading-relaxed text-zinc-200">
-                {yokAtlasChase}
-              </div>
+              <div className="text-sm font-mono leading-relaxed text-zinc-200">{yokAtlasChase}</div>
             )}
           </div>
         </div>
@@ -246,78 +346,40 @@ Son denemeler: ${recentExams || 'Yok'}`;
         <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#C17767]/10 rounded-xl border border-[#C17767]/20">
-                <Target size={20} className="text-[#C17767]" />
-              </div>
+              <div className="p-2 bg-[#C17767]/10 rounded-xl border border-[#C17767]/20"><Target size={20} className="text-[#C17767]" /></div>
               <div>
                 <h3 className="font-serif italic text-xl text-zinc-200">Haftalık Kuşatma</h3>
                 <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">7 günlük saldırı planı</p>
               </div>
             </div>
-            <button
-              onClick={handleWeeklyPlan}
-              disabled={isLoadingWeekly}
-              className="flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#C17767] hover:text-white transition-all disabled:opacity-40"
-            >
-              {isLoadingWeekly ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              {weeklyPlan ? 'Yenile' : 'Oluştur'}
+            <button onClick={handleWeeklyPlan} disabled={isLoadingWeekly} className="flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#C17767] hover:text-white transition-all disabled:opacity-40">
+              {isLoadingWeekly ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {weeklyPlan ? 'Yenile' : 'Oluştur'}
             </button>
           </div>
           <div className="p-6 min-h-48">
-            {isLoadingWeekly && (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50">
-                <Loader2 size={24} className="animate-spin text-[#C17767]" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Gear_Head. hesaplıyor...</p>
-              </div>
-            )}
-            {!isLoadingWeekly && !weeklyPlan && (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30">
-                <Target size={32} className="text-zinc-600" />
-                <p className="text-xs uppercase tracking-widest text-zinc-600">Plan henüz oluşturulmadı</p>
-              </div>
-            )}
-            {weeklyPlan && !isLoadingWeekly && (
-              <ReactMarkdown components={markdownComponents}>{weeklyPlan}</ReactMarkdown>
-            )}
+            {isLoadingWeekly && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50"><Loader2 size={24} className="animate-spin text-[#C17767]" /><p className="text-xs uppercase tracking-widest text-zinc-500">Gear_Head. hesaplıyor...</p></div>}
+            {!isLoadingWeekly && !weeklyPlan && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30"><Target size={32} className="text-zinc-600" /><p className="text-xs uppercase tracking-widest text-zinc-600">Plan henüz oluşturulmadı</p></div>}
+            {weeklyPlan && !isLoadingWeekly && <ReactMarkdown components={markdownComponents}>{weeklyPlan}</ReactMarkdown>}
           </div>
         </div>
 
         <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#E09F3E]/10 rounded-xl border border-[#E09F3E]/20">
-                <Zap size={20} className="text-[#E09F3E]" />
-              </div>
+              <div className="p-2 bg-[#E09F3E]/10 rounded-xl border border-[#E09F3E]/20"><Zap size={20} className="text-[#E09F3E]" /></div>
               <div>
                 <h3 className="font-serif italic text-xl text-zinc-200">24 Saatlik Sprint</h3>
                 <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Bugünün 3 kritik görevi</p>
               </div>
             </div>
-            <button
-              onClick={handleSprintPlan}
-              disabled={isLoadingSprint}
-              className="flex items-center gap-2 px-4 py-2 bg-[#E09F3E]/10 text-[#E09F3E] border border-[#E09F3E]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#E09F3E] hover:text-black transition-all disabled:opacity-40"
-            >
-              {isLoadingSprint ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-              {sprintPlan ? 'Yenile' : 'Başlat'}
+            <button onClick={handleSprintPlan} disabled={isLoadingSprint} className="flex items-center gap-2 px-4 py-2 bg-[#E09F3E]/10 text-[#E09F3E] border border-[#E09F3E]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#E09F3E] hover:text-black transition-all disabled:opacity-40">
+              {isLoadingSprint ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />} {sprintPlan ? 'Yenile' : 'Başlat'}
             </button>
           </div>
           <div className="p-6 min-h-48">
-            {isLoadingSprint && (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50">
-                <Loader2 size={24} className="animate-spin text-[#E09F3E]" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Görevler hesaplanıyor...</p>
-              </div>
-            )}
-            {!isLoadingSprint && !sprintPlan && (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30">
-                <Zap size={32} className="text-zinc-600" />
-                <p className="text-xs uppercase tracking-widest text-zinc-600">Sprint henüz başlatılmadı</p>
-              </div>
-            )}
-            {sprintPlan && !isLoadingSprint && (
-              <ReactMarkdown components={markdownComponents}>{sprintPlan}</ReactMarkdown>
-            )}
+            {isLoadingSprint && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50"><Loader2 size={24} className="animate-spin text-[#E09F3E]" /><p className="text-xs uppercase tracking-widest text-zinc-500">Görevler hesaplanıyor...</p></div>}
+            {!isLoadingSprint && !sprintPlan && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30"><Zap size={32} className="text-zinc-600" /><p className="text-xs uppercase tracking-widest text-zinc-600">Sprint henüz başlatılmadı</p></div>}
+            {sprintPlan && !isLoadingSprint && <ReactMarkdown components={markdownComponents}>{sprintPlan}</ReactMarkdown>}
           </div>
         </div>
       </div>

@@ -1,7 +1,6 @@
 /**
- * AMAÇ: Merkezi durum (state) yönetimi (Zustand)
- * MANTIK: Prop drilling'i engelleme ve performansı artırma.
- *         Veriler localStorage'a persist edilir.
+ * AMAÇ: Zustand merkezi durum yönetimi
+ * MANTIK: Prop drilling engeli, localStorage persist, detectHabits alarmı
  */
 
 import { create } from 'zustand';
@@ -9,7 +8,8 @@ import { persist } from 'zustand/middleware';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
-  FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry
+  FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
+  HabitAlert
 } from '../types';
 
 type FailedQuestionInput = Omit<FailedQuestion, 'status' | 'solveCount' | 'difficulty'> & {
@@ -31,8 +31,8 @@ interface AppState {
   isMorningBlockerEnabled: boolean;
   focusSessions: FocusSessionRecord[];
   agendaEntries: AgendaEntry[];
+  activeAlerts: HabitAlert[];
 
-  // Actions
   setProfile: (profile: StudentProfile | null) => void;
   updateTytSubject: (index: number, updates: Partial<SubjectStatus>) => void;
   updateAytSubject: (originalIndex: number, updates: Partial<SubjectStatus>) => void;
@@ -52,6 +52,8 @@ interface AppState {
   addAgendaEntry: (entry: AgendaEntry) => void;
   updateAgendaEntry: (id: string, updates: Partial<AgendaEntry>) => void;
   removeAgendaEntry: (id: string) => void;
+  dismissAlert: (id: string) => void;
+  detectAndSetHabits: () => void;
   resetStore: () => void;
   isDevMode: boolean;
   setDevMode: (enabled: boolean) => void;
@@ -86,6 +88,80 @@ const INITIAL_TROPHIES: Trophy[] = [
   { id: 'exam_target_hit', title: 'Eşik Kırıldı', description: 'Bir denemede hedef nete ulaştın', unlockedAt: null, icon: 'Trophy', category: 'performance' },
 ];
 
+function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
+  const alerts: HabitAlert[] = [];
+  const now = new Date();
+
+  const last3Days = logs.filter(l => {
+    const diff = (now.getTime() - new Date(l.date).getTime()) / (1000 * 60 * 60 * 24);
+    return diff <= 3;
+  });
+
+  const last5Days = logs.filter(l => {
+    const diff = (now.getTime() - new Date(l.date).getTime()) / (1000 * 60 * 60 * 24);
+    return diff <= 5;
+  });
+
+  const subjectDays = new Map<string, Set<string>>();
+  logs.slice(-30).forEach(l => {
+    const day = new Date(l.date).toLocaleDateString('tr-TR');
+    if (!subjectDays.has(l.subject)) subjectDays.set(l.subject, new Set());
+    subjectDays.get(l.subject)!.add(day);
+  });
+
+  const last3DaySet = new Set<string>();
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    last3DaySet.add(d.toLocaleDateString('tr-TR'));
+  }
+
+  subjectDays.forEach((days, subject) => {
+    const worked = Array.from(days).filter(d => last3DaySet.has(d));
+    if (worked.length === 0 && subjectDays.size > 1) {
+      alerts.push({
+        id: `avoiding_${subject}_${Date.now()}`,
+        type: 'avoiding_subject',
+        subject,
+        message: `Son 3 günde "${subject}" dersine hiç girmiyorsun. Bu dersten kaçıyorsun.`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  });
+
+  const recentNets = logs.slice(-10);
+  if (recentNets.length >= 5) {
+    const netIncreasing = recentNets.slice(-3).every((l, i, arr) => i === 0 || (l.correct / l.questions) >= (arr[i - 1].correct / arr[i - 1].questions));
+    const speedDecreasing = recentNets.slice(-3).every((l, i, arr) => i === 0 || l.avgTime >= arr[i - 1].avgTime);
+    if (netIncreasing && speedDecreasing) {
+      alerts.push({
+        id: `memorization_${Date.now()}`,
+        type: 'memorization_risk',
+        subject: 'Genel',
+        message: 'Doğruluk artıyor ama çözüm süren uzuyor. Ezberleme riski — konuyu farklı soru tipleriyle test et.',
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  const last5SubjectSet = new Set(last5Days.map(l => l.subject));
+  subjectDays.forEach((_, subject) => {
+    if (!last5SubjectSet.has(subject) && subjectDays.size > 1) {
+      if (!alerts.find(a => a.subject === subject)) {
+        alerts.push({
+          id: `neglected_${subject}_${Date.now()}`,
+          type: 'neglected_subject',
+          subject,
+          message: `"${subject}" son 5 günde hiç çalışılmadı. İhmal edilen ders — bugün mutlaka gir.`,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  });
+
+  return alerts.slice(0, 3);
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -98,11 +174,12 @@ export const useAppStore = create<AppState>()(
       isPassiveMode: false,
       failedQuestions: [],
       trophies: INITIAL_TROPHIES,
-      eloScore: 1200, // Başlangıç ELO'su
+      eloScore: 1200,
       streakDays: 0,
       isMorningBlockerEnabled: true,
       focusSessions: [],
       agendaEntries: [],
+      activeAlerts: [],
       isDevMode: false,
       subjectViewMode: 'map' as const,
       theme: 'dark' as const,
@@ -114,6 +191,17 @@ export const useAppStore = create<AppState>()(
       setFocusSidePanelOpen: (isOpen) => set({ isFocusSidePanelOpen: isOpen }),
 
       setProfile: (profile) => set({ profile }),
+
+      dismissAlert: (id) => set((state) => ({
+        activeAlerts: state.activeAlerts.filter(a => a.id !== id),
+      })),
+
+      detectAndSetHabits: () => {
+        const logs = get().logs;
+        if (logs.length < 5) return;
+        const alerts = detectHabitsFromLogs(logs);
+        set({ activeAlerts: alerts });
+      },
 
       updateTytSubject: (index, updates) => set((state) => {
         const newSubs = [...state.tytSubjects];
@@ -153,7 +241,6 @@ export const useAppStore = create<AppState>()(
 
       addLog: (log) => set((state) => {
         const newLogs = [...state.logs, log];
-        // Basit Streak & Elo update
         const todayStr = new Date().toLocaleDateString('tr-TR');
         const hasLoggedToday = state.logs.some(l => l.date.includes(todayStr));
         const newStreak = hasLoggedToday ? state.streakDays : state.streakDays + 1;
@@ -177,7 +264,9 @@ export const useAppStore = create<AppState>()(
           return t;
         });
 
-        return { logs: newLogs, streakDays: newStreak, eloScore: state.eloScore + eloDelta, trophies };
+        const newAlerts = newLogs.length >= 5 ? detectHabitsFromLogs(newLogs) : state.activeAlerts;
+
+        return { logs: newLogs, streakDays: newStreak, eloScore: state.eloScore + eloDelta, trophies, activeAlerts: newAlerts };
       }),
 
       addExam: (exam) => set((state) => {
@@ -284,10 +373,11 @@ export const useAppStore = create<AppState>()(
         streakDays: 0,
         focusSessions: [],
         agendaEntries: [],
+        activeAlerts: [],
       }),
     }),
     {
-      name: 'yks_coach_storage', // localStorage state name
+      name: 'yks_coach_storage',
     }
   )
 );
