@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
+import { useAppStore } from '../store/appStore';
 
 export function ThemeToggle() {
+  const theme = useAppStore(s => s.theme);
+  const setTheme = useAppStore(s => s.setTheme);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       return document.documentElement.classList.contains('dark') || 
@@ -11,18 +14,12 @@ export function ThemeToggle() {
   });
 
   useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDark]);
+    setIsDark(theme === 'dark');
+  }, [theme]);
 
   return (
     <button 
-      onClick={() => setIsDark(!isDark)}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
       className="relative w-14 h-8 flex items-center bg-[#EAE6DF] dark:bg-zinc-800 rounded-full p-1 cursor-pointer transition-colors"
       aria-label="Temayı Değiştir"
     >

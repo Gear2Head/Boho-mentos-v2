@@ -23,7 +23,8 @@ export function ProfileSettings({ initialData, onSubmit, isEditMode = false }: P
     motivationQuote: '',
     examYear: '2026',
     minDailyQuestions: 100,
-    maxDailyQuestions: 300
+    maxDailyQuestions: 300,
+    coachPersonality: ''
   });
 
   const handleChange = (field: keyof StudentProfile, value: any) => {
@@ -154,6 +155,16 @@ export function ProfileSettings({ initialData, onSubmit, isEditMode = false }: P
                    onChange={e => handleChange('motivationQuote', e.target.value)} 
                    className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 rounded-xl focus:border-[#C17767] focus:outline-none"
                    placeholder="Örn: Çalışkanlık, bahaneleri çöpe atar."
+                 />
+               </div>
+               <div className="md:col-span-2">
+                 <label className="text-[10px] uppercase font-bold tracking-widest text-blue-400 opacity-90 block mb-2">Koç Kişiselleştirme İstekleri (AI Prompt Override)</label>
+                 <textarea 
+                   rows={3}
+                   value={formData.coachPersonality || ''} 
+                   onChange={e => handleChange('coachPersonality', e.target.value)} 
+                   className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 rounded-xl focus:border-blue-400 focus:outline-none resize-none"
+                   placeholder="Örn: Bana sert davran, azarla. Veya: Daha çok motivasyon ver, detaylı konu anlat."
                  />
                </div>
             </div>

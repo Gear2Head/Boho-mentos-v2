@@ -18,18 +18,18 @@ export function EloRankCard() {
   const streakDays = useAppStore(state => state.streakDays);
 
   const rank = getRankTier(eloScore);
-  
+
   // Calculate Progress
   let currentLimit = 0;
-  if (rank.title === 'Gümüş') currentLimit = 1200;
-  else if (rank.title === 'Altın') currentLimit = 1500;
-  else if (rank.title === 'Platin') currentLimit = 1800;
-  else if (rank.title === 'Elmas') currentLimit = 2200;
-  else if (rank.title === 'Usta') currentLimit = 2600;
-  else if (rank.title === 'Şampiyon') currentLimit = 3000;
+  if (rank.title === 'Gümüş') currentLimit = 2200;
+  else if (rank.title === 'Altın') currentLimit = 4500;
+  else if (rank.title === 'Platin') currentLimit = 5800;
+  else if (rank.title === 'Elmas') currentLimit = 7200;
+  else if (rank.title === 'Usta') currentLimit = 8600;
+  else if (rank.title === 'Şampiyon') currentLimit = 10000;
 
-  const progress = rank.title === 'Şampiyon' 
-    ? 100 
+  const progress = rank.title === 'Şampiyon'
+    ? 100
     : Math.max(0, Math.min(100, ((eloScore - currentLimit) / (rank.nextLimit - currentLimit)) * 100));
 
   return (
@@ -43,9 +43,9 @@ export function EloRankCard() {
           <span className="font-mono text-sm font-bold text-[#C17767]">{eloScore} <span className="text-[10px] opacity-50 font-sans">Puan</span></span>
         </div>
         <div className="h-2 w-full bg-[#121212] border border-[#2A2A2A] rounded-full overflow-hidden mt-2 relative">
-          <div 
-            className="h-full bg-gradient-to-r from-[#C17767] to-[#E09F3E] transition-all duration-1000" 
-            style={{ width: `${progress}%` }} 
+          <div
+            className="h-full bg-gradient-to-r from-[#C17767] to-[#E09F3E] transition-all duration-1000"
+            style={{ width: `${progress}%` }}
           />
         </div>
         <div className="flex justify-between mt-1 text-[9px] uppercase tracking-widest opacity-60 text-zinc-400">

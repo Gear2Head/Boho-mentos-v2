@@ -49,7 +49,6 @@ export const FlapUnit: React.FC<FlapUnitProps> = ({ value, label }) => {
 
 export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
   const [timeLeft, setTimeLeft] = useState({
-    months: 0,
     days: 0,
     hours: 0,
     minutes: 0,
@@ -65,13 +64,12 @@ export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
         return;
       }
 
-      const months = Math.floor(distance / (1000 * 60 * 60 * 24 * 30.44));
-      const days = Math.floor((distance % (1000 * 60 * 60 * 24 * 30.44)) / (1000 * 60 * 60 * 24));
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
       const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-      setTimeLeft({ months, days, hours, minutes, seconds });
+      setTimeLeft({ days, hours, minutes, seconds });
     };
 
     updateTimer();
@@ -81,7 +79,6 @@ export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
 
   return (
     <div className="flex gap-1.5 md:gap-4 p-4 items-center justify-center scale-[0.85] md:scale-100 origin-center">
-      <FlapUnit value={timeLeft.months} label="Ay" />
       <FlapUnit value={timeLeft.days} label="Gün" />
       <FlapUnit value={timeLeft.hours} label="Saat" />
       <FlapUnit value={timeLeft.minutes} label="Dak" />

@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import { 
   LayoutDashboard, UserCircle, BookOpen, MessageSquare, 
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map, LayoutList, Clock
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -26,6 +26,9 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { MorningBlocker } from './components/MorningBlocker';
 import { ProfileShowcase } from './components/ProfileShowcase';
 import { QuizEngine } from './components/QuizEngine';
+import { AchievementsPanel } from './components/AchievementsPanel';
+import { TopicExplain } from './components/TopicExplain';
+import { AgendaPage } from './components/AgendaPage';
 // Kapsam Dışı: import { SpotifyWidget } from './components/SpotifyWidget'; 
 
 import { LogEntryWidget } from './components/forms/LogEntryWidget';
@@ -36,6 +39,9 @@ import { StrategyHub } from './components/StrategyHub';
 import { FlapClock, MiniFlapClock } from './components/FlapClock';
 
 // --- Helper ---
+
+const YKS_2026_TYT_DATE = '2026-06-20T10:15:00+03:00';
+const YKS_2026_AYT_DATE = '2026-06-21T10:15:00+03:00';
 
 const getAytSubjectsForTrack = (track: string) => {
   if (track === 'Sayısal') return ['Matematik', 'Fizik', 'Kimya', 'Biyoloji'];
@@ -50,19 +56,50 @@ const getAytSubjectsForTrack = (track: string) => {
 function LogHistory({ logs }: { logs: DailyLog[] }) {
   const [filterSubject, setFilterSubject] = useState('');
   const [filterTag, setFilterTag] = useState('');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
   
   const allTags = Array.from(new Set(logs.flatMap(log => log.tags || [])));
   const allSubjects = Array.from(new Set(logs.map(log => log.subject)));
 
+  const parseDateMs = (d: string) => {
+    const ms = new Date(d).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+
+  const fromMs = fromDate ? new Date(fromDate).getTime() : null;
+  const toMs = toDate ? (new Date(toDate).getTime() + 24 * 60 * 60 * 1000 - 1) : null;
+
   const filteredLogs = logs.filter(log => {
     if (filterSubject && log.subject !== filterSubject) return false;
     if (filterTag && (!log.tags || !log.tags.includes(filterTag))) return false;
+    const ms = parseDateMs(log.date);
+    if (fromMs !== null && ms !== null && ms < fromMs) return false;
+    if (toMs !== null && ms !== null && ms > toMs) return false;
     return true;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const tagDistribution = (() => {
+    const map: Map<string, number> = new Map();
+    filteredLogs.forEach(l => (l.tags || []).forEach(t => map.set(t, (map.get(t) ?? 0) + 1)));
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  })();
 
   return (
     <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6">
       <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <input
+          type="date"
+          value={fromDate}
+          onChange={e => setFromDate(e.target.value)}
+          className="p-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-transparent text-sm text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors"
+        />
+        <input
+          type="date"
+          value={toDate}
+          onChange={e => setToDate(e.target.value)}
+          className="p-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-transparent text-sm text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors"
+        />
         <select value={filterSubject} onChange={e => setFilterSubject(e.target.value)} className="p-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-transparent text-sm text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767] transition-colors">
           <option value="">Tüm Dersler</option>
           {allSubjects.map(s => <option key={s} value={s}>{s}</option>)}
@@ -72,6 +109,21 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
           {allTags.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
+
+      {tagDistribution.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {tagDistribution.map(([tag, count]) => (
+            <span
+              key={tag}
+              className="px-2.5 py-1 bg-[#C17767]/10 dark:bg-rose-400/10 text-[#C17767] dark:text-rose-400 rounded text-[10px] uppercase tracking-widest font-bold"
+              title={`${count} kez`}
+            >
+              #{tag} <span className="opacity-60 ml-1">({count})</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-4">
         {filteredLogs.length === 0 ? (
           <p className="text-center py-8 opacity-40 text-xs text-[#4A443C] dark:text-zinc-400">Kriterlere uygun log bulunamadı.</p>
@@ -93,6 +145,12 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
               <div className="flex flex-wrap gap-2 mt-3">
                 <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest text-[#4A443C] dark:text-zinc-300">
                   Toplam Süre: {log.avgTime}dk
+                </span>
+                <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest text-[#4A443C] dark:text-zinc-300">
+                  Doğruluk: %{Math.round((log.correct / (log.questions || 1)) * 100)}
+                </span>
+                <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest text-[#4A443C] dark:text-zinc-300">
+                  Hız: {Math.max(1, Math.round(((log.avgTime || 0) * 60) / (log.questions || 1)))} sn/soru
                 </span>
                 <span className="px-2 py-1 bg-[#EAE6DF] dark:bg-zinc-800 rounded text-[10px] uppercase tracking-widest text-[#4A443C] dark:text-zinc-300">
                   Yorgunluk: {log.fatigue}/10
@@ -193,7 +251,8 @@ const markdownComponents = {
 
 export default function App() {
   const store = useAppStore();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions' | 'strategy' | 'countdown'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions' | 'strategy' | 'countdown' | 'explain' | 'agenda'>('dashboard');
+  const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
   const [isTyping, setIsTyping] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
@@ -226,7 +285,7 @@ export default function App() {
     const logSummary = `${log.subject} (${log.topic}): ${log.questions} soru, %${successRate} başarı, ${log.avgTime}dk. Yorgunluk: ${log.fatigue}/10.`;
     
     const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nYeni Log (Özet): ${logSummary}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
-    const response = await getCoachResponse("LOG ANALİZİ YAP", context, store.chatHistory);
+    const response = await getCoachResponse("LOG ANALİZİ YAP", context, store.chatHistory, { coachPersonality: store.profile?.coachPersonality });
     
     store.addChatMessage({ role: 'coach', content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() });
     setIsTyping(false);
@@ -257,10 +316,15 @@ export default function App() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [store.chatHistory]);
 
   useEffect(() => {
-    if (store.theme === 'light') {
-      document.documentElement.classList.add('light');
+    if (activeTab !== 'coach') return;
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (store.theme === 'dark') {
+      document.documentElement.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('light');
+      document.documentElement.classList.remove('dark');
     }
   }, [store.theme]);
 
@@ -293,7 +357,7 @@ export default function App() {
 
     const context = `P:${compactProfile}\nTYT:${tytCtx}\nAYT:${aytCtx}\nLogs:${logsCtx}\nExams:${examsCtx}\nNOT: Lütfen soru sayılarını belirlerken ${store.profile?.minDailyQuestions}-${store.profile?.maxDailyQuestions} arasını hedefle ve süreleri gerçekçi (Sayısal: 2dk/soru, Sözel: 1.5dk/soru) olarak ayarla.`;
     
-    const response = await getCoachResponse(userMsg, context, store.chatHistory);
+    const response = await getCoachResponse(userMsg, context, store.chatHistory, { coachPersonality: store.profile?.coachPersonality });
     store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
     setIsTyping(false);
   };
@@ -324,8 +388,10 @@ export default function App() {
           <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={<Target size={18} />} label="Sayaç" active={activeTab === 'countdown'} onClick={() => setActiveTab('countdown')} />
           <NavItem icon={<BrainCircuit size={18} />} label="Sorular" active={activeTab === 'questions'} onClick={() => setActiveTab('questions')} />
+          <NavItem icon={<BookOpen size={18} />} label="Anlatım" active={activeTab === 'explain'} onClick={() => setActiveTab('explain')} />
           <NavItem icon={<Calendar size={18} />} label="Analiz" active={activeTab === 'exams'} onClick={() => setActiveTab('exams')} />
           <NavItem icon={<List size={18} />} label="Loglar" active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} />
+          <NavItem icon={<BookOpen size={18} />} label="Ajanda" active={activeTab === 'agenda'} onClick={() => setActiveTab('agenda')} />
           <NavItem icon={<Archive size={18} />} label="Mezarlık" active={activeTab === 'archive'} onClick={() => setActiveTab('archive')} />
           <NavItem icon={<BookOpen size={18} />} label="Müfredat" active={activeTab === 'subjects'} onClick={() => setActiveTab('subjects')} />
           <NavItem icon={<Target size={18} />} label="Strateji" active={activeTab === 'strategy'} onClick={() => setActiveTab('strategy')} />
@@ -338,7 +404,7 @@ export default function App() {
           onClick={() => setIsAdminPanelOpen(true)}
           title="Admin Panelini Aç"
         >
-          © 2026 Kübra Architecture
+          © 2026 Gear_Head.
         </div>
       </nav>
 
@@ -356,7 +422,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="w-full md:w-auto flex flex-col items-end gap-4 scale-90 md:scale-100 origin-right">
-                  <MiniFlapClock targetDate="2026-06-20T09:00:00" />
+                  <MiniFlapClock targetDate={YKS_2026_TYT_DATE} />
                   <button 
                     onClick={() => store.setFocusSidePanelOpen(true)}
                     className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group w-full md:w-auto justify-center"
@@ -374,6 +440,10 @@ export default function App() {
 
               <div className="mb-12">
                 <EloRankCard />
+              </div>
+
+              <div className="mb-12">
+                <AchievementsPanel />
               </div>
 
               {(() => {
@@ -408,22 +478,91 @@ export default function App() {
                     <span>Konu Borcu</span><span className="text-[10px] bg-red-900/30 text-red-500 border border-red-500/20 px-2 py-1 rounded font-bold uppercase tracking-widest">FAİZ İŞLİYOR</span>
                   </h3>
                   <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                    {store.logs.filter(l => l.fatigue > 7).length > 0 ? (
-                      store.logs.filter(l => l.fatigue > 7).slice(-3).map((log, idx) => (
-                        <div key={idx} className="p-3 bg-[#121212] border border-[#2A2A2A] rounded-lg">
-                          <div className="flex justify-between items-start mb-1"><span className="font-bold text-xs text-zinc-300">{log.topic}</span><span className="text-xs font-mono text-red-500 font-bold">+{5 * (idx + 1)} Soru</span></div>
-                          <p className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Ertelenme: {new Date(log.date).toLocaleDateString('tr-TR')}</p>
+                    {(() => {
+                      const candidates = store.logs
+                        .slice(-30)
+                        .map((log) => {
+                          const accuracy = log.correct / (log.questions || 1);
+                          const secondsPerQuestion = ((log.avgTime || 0) * 60) / (log.questions || 1);
+                          const isLowAccuracy = accuracy < 0.65;
+                          const isSlow = secondsPerQuestion > 120;
+                          if (!isLowAccuracy && !isSlow) return null;
+
+                          let interest = 0;
+                          if (accuracy < 0.5) interest += 15;
+                          else if (accuracy < 0.65) interest += 10;
+                          if (isSlow) interest += 5;
+
+                          return {
+                            subject: log.subject,
+                            topic: log.topic,
+                            date: log.date,
+                            accuracy: Math.round(accuracy * 100),
+                            secondsPerQuestion: Math.round(secondsPerQuestion),
+                            interest,
+                          };
+                        })
+                        .filter(Boolean) as Array<{ subject: string; topic: string; date: string; accuracy: number; secondsPerQuestion: number; interest: number }>;
+
+                      const debts = candidates
+                        .sort((a, b) => b.interest - a.interest)
+                        .slice(0, 5);
+
+                      if (debts.length === 0) {
+                        return (
+                          <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-60">
+                            <CheckCircle2 size={32} className="mb-3 text-green-500/50" />
+                            <p className="text-xs uppercase tracking-widest font-bold">Borç Yok</p>
+                          </div>
+                        );
+                      }
+
+                      return debts.map((d, idx) => (
+                        <div key={`${d.subject}-${d.topic}-${idx}`} className="p-3 bg-[#121212] border border-[#2A2A2A] rounded-lg">
+                          <div className="flex justify-between items-start mb-1 gap-4">
+                            <div>
+                              <div className="font-bold text-xs text-zinc-300">{d.subject}</div>
+                              <div className="text-[10px] uppercase tracking-widest opacity-60 text-zinc-500 mt-1">{d.topic}</div>
+                            </div>
+                            <span className="text-xs font-mono text-red-500 font-bold">+{d.interest} Soru</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Doğruluk: %{d.accuracy}</span>
+                            <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Hız: {d.secondsPerQuestion} sn/soru</span>
+                            <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Tarih: {new Date(d.date).toLocaleDateString('tr-TR')}</span>
+                          </div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-60"><CheckCircle2 size={32} className="mb-3 text-green-500/50" /><p className="text-xs uppercase tracking-widest font-bold">Borç Yok</p></div>
-                    )}
+                      ));
+                    })()}
                   </div>
-                  {store.logs.filter(l => l.fatigue > 7).length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-[#2A2A2A] text-center">
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-[#C17767]">Toplam Faiz: <span className="font-bold text-base text-red-500">{store.logs.filter(l => l.fatigue > 7).slice(-3).reduce((acc, _, idx) => acc + (5 * (idx + 1)), 0)}</span> Soru</p>
-                    </div>
-                  )}
+                  {(() => {
+                    const candidates = store.logs
+                      .slice(-30)
+                      .map((log) => {
+                        const accuracy = log.correct / (log.questions || 1);
+                        const secondsPerQuestion = ((log.avgTime || 0) * 60) / (log.questions || 1);
+                        const isLowAccuracy = accuracy < 0.65;
+                        const isSlow = secondsPerQuestion > 120;
+                        if (!isLowAccuracy && !isSlow) return null;
+
+                        let interest = 0;
+                        if (accuracy < 0.5) interest += 15;
+                        else if (accuracy < 0.65) interest += 10;
+                        if (isSlow) interest += 5;
+                        return interest;
+                      })
+                      .filter((x): x is number => typeof x === 'number');
+
+                    const totalInterest = candidates.reduce((a, b) => a + b, 0);
+                    if (totalInterest <= 0) return null;
+                    return (
+                      <div className="mt-4 pt-4 border-t border-[#2A2A2A] text-center">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-[#C17767]">
+                          Toplam Faiz: <span className="font-bold text-base text-red-500">{totalInterest}</span> Soru
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </section>
               </div>
 
@@ -433,6 +572,18 @@ export default function App() {
           {activeTab === 'questions' && (
             <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 w-full min-h-full">
                <QuizEngine />
+            </motion.div>
+          )}
+
+          {activeTab === 'explain' && (
+            <motion.div key="explain" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <TopicExplain />
+            </motion.div>
+          )}
+
+          {activeTab === 'agenda' && (
+            <motion.div key="agenda" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <AgendaPage />
             </motion.div>
           )}
 
@@ -485,7 +636,7 @@ export default function App() {
                     onClick={() => store.setSubjectViewMode('map')}
                     className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                   >
-                    <Map size={14} /> Harita
+                    <MapIcon size={14} /> Harita
                   </button>
                 </div>
               </div>
@@ -517,13 +668,13 @@ export default function App() {
                   <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
                       <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
-                        {msg.role === 'user' ? `Öğrenci - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : 'Koç Kübra'}
+                        {msg.role === 'user' ? `${store.profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : 'Gear_Head.'}
                       </div>
                       <div className="text-sm font-mono leading-relaxed opacity-90 tracking-wide"><ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown></div>
                     </div>
                   </div>
                 ))}
-                {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500"/><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Kübra analiz ediyor...</span></div>}
+                {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500"/><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Gear_Head. analiz ediyor...</span></div>}
                 <div ref={chatEndRef} />
               </div>
               
@@ -615,9 +766,27 @@ export default function App() {
             <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
               <div className="text-center mb-12">
                 <h2 className="font-display italic text-4xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
-                <p className="text-[10px] md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">20 HAZİRAN 2026, 09:00'A KALAN SÜRE</p>
+                <div className="flex flex-col items-center gap-4">
+                  <div className="flex bg-black/30 p-1 rounded-xl border border-white/10">
+                    <button
+                      onClick={() => setCountdownSession('TYT')}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'TYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
+                    >
+                      2026 TYT
+                    </button>
+                    <button
+                      onClick={() => setCountdownSession('AYT')}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'AYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
+                    >
+                      2026 AYT
+                    </button>
+                  </div>
+                  <p className="text-[10px] md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">
+                    {(countdownSession === 'TYT' ? "20 HAZİRAN 2026, 10:15 (İSTANBUL)" : "21 HAZİRAN 2026, 10:15 (İSTANBUL)") + "'E KALAN SÜRE"}
+                  </p>
+                </div>
               </div>
-              <FlapClock targetDate="2026-06-20T09:00:00" />
+              <FlapClock targetDate={countdownSession === 'TYT' ? YKS_2026_TYT_DATE : YKS_2026_AYT_DATE} />
               <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-display">
                 "Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin. Harcadığın her saniye hedefine yaklaşmak için bir fırsattır."
               </p>

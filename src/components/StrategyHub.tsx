@@ -1,6 +1,6 @@
 /**
  * AMAÇ: AI destekli haftalık strateji planlama ve kritik zayıf nokta analizi
- * MANTIK: Store verilerini harmanlayarak özelleşmiş AI prompt'ları oluşturup Koç Kübra'ya gönderir
+ * MANTIK: Store verilerini harmanlayarak özelleşmiş AI prompt'ları oluşturup Gear_Head.'e gönderir
  */
 
 import React, { useState } from 'react';
@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import { Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, ChevronRight } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
+import { YOK_ATLAS_TOP10 } from '../data/yokAtlasTop10';
 
 const markdownComponents = {
   p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 text-zinc-300 text-sm" {...props} />,
@@ -54,7 +55,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
     setWeeklyPlan(null);
     const ctx = buildBaseContext();
     const prompt = `HAFTALIK KUŞATMA PLANI ÜRETİYORUM. Bu öğrencinin tüm verisini analiz et ve bugünden itibaren 7 günlük çalışma planı yaz. Formatı kesinlikle şu şekilde kullan: Her gün için "**Gün X (Tarih):**" başlığı altında 2-3 madde. Her madde: Ders | Konu | Hedef soru | Tahmini süre. Sonunda 1 satır "Haftalık Öncelik" yaz. Fazla açıklama yapma, sadece direktif.`;
-    const response = await getCoachResponse(prompt, ctx, []);
+    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
     setWeeklyPlan(response || 'Yanıt alınamadı.');
     setIsLoadingWeekly(false);
   };
@@ -64,7 +65,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
     setSprintPlan(null);
     const ctx = buildBaseContext();
     const prompt = `24 SAATLİK SPRINT PLANI. Bu öğrencinin verilerine bakarak SADECE bugün için 3 kritik görev belirle. Format: **Görev 1:** [Ders] - [Konu] - [Kaç soru] - [Süre]. Sonunda motivasyona gerek yok, sadece emirler.`;
-    const response = await getCoachResponse(prompt, ctx, []);
+    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
     setSprintPlan(response || 'Yanıt alınamadı.');
     setIsLoadingSprint(false);
   };
@@ -83,11 +84,71 @@ Son denemeler: ${recentExams || 'Yok'}`;
       .slice(0, 3);
   })();
 
+  const smartMockSuggestion = (() => {
+    const topicStats = new Map<string, { subject: string; topic: string; wrong: number; total: number }>();
+    const last14Days = Date.now() - 14 * 24 * 60 * 60 * 1000;
+
+    store.logs.forEach((l) => {
+      const ts = new Date(l.date).getTime();
+      if (!Number.isFinite(ts) || ts < last14Days) return;
+      const key = `${l.subject}__${l.topic}`;
+      const cur = topicStats.get(key) ?? { subject: l.subject, topic: l.topic, wrong: 0, total: 0 };
+      cur.wrong += l.wrong;
+      cur.total += l.questions;
+      topicStats.set(key, cur);
+    });
+
+    const ranked = Array.from(topicStats.values())
+      .filter((t) => t.total >= 10)
+      .map((t) => ({ ...t, wrongRate: t.wrong / (t.total || 1) }))
+      .sort((a, b) => b.wrongRate - a.wrongRate);
+
+    const top = ranked.slice(0, 3);
+    if (top.length === 0) return null;
+
+    const focusTopics = top.slice(0, 2).map((t) => t.topic);
+    const primarySubject = top[0].subject;
+    const examType = primarySubject.toUpperCase().includes("AYT") ? "AYT" : "TYT";
+    const cleanedSubject = primarySubject.replace(/^TYT\s*/i, "").replace(/^AYT\s*/i, "").trim();
+    const mockLabel = `${examType} ${cleanedSubject} denemesi`;
+
+    return {
+      mockLabel,
+      focusTopics,
+      reasoning: `Son 14 günde en çok hata yaptığın konu(lar): ${top.slice(0, 3).map(t => `${t.topic} (%${Math.round(t.wrongRate * 100)})`).join(", ")}.`,
+      message: `${mockLabel} çözmelisin. Özellikle ${focusTopics.join(" ve ")} konularına odaklan; bu denemede bu konulardan daha fazla soru çıkacak.`,
+    };
+  })();
+
+  const yokAtlasChase = (() => {
+    const profile = store.profile;
+    const lastExam = store.exams.slice(-1)[0];
+    if (!profile || !lastExam) return null;
+
+    const currentNet = lastExam.totalNet;
+    const candidates = YOK_ATLAS_TOP10
+      .filter(p => p.examType === lastExam.type)
+      .filter(p => (p.university.toLowerCase().includes(profile.targetUniversity.toLowerCase()) || p.major.toLowerCase().includes(profile.targetMajor.toLowerCase())));
+
+    const pool = candidates.length > 0 ? candidates : YOK_ATLAS_TOP10.filter(p => p.examType === lastExam.type);
+    const next = pool
+      .slice()
+      .sort((a, b) => (a.lastEntrantNet - currentNet) - (b.lastEntrantNet - currentNet))
+      .find(p => p.lastEntrantNet >= currentNet) ?? pool.slice().sort((a, b) => a.lastEntrantNet - b.lastEntrantNet)[0];
+
+    const diff = Number((next.lastEntrantNet - currentNet).toFixed(2));
+    const diffText = diff >= 0 ? `${diff} net gerisindesin` : `${Math.abs(diff)} net önündesin`;
+    const marchDiff = Number((next.marchReferenceNet - currentNet).toFixed(2));
+    const marchText = marchDiff >= 0 ? `${marchDiff} net fazlaydı` : `${Math.abs(marchDiff)} net daha düşüktü`;
+
+    return `Şu anki netlerinle ${next.university} ${next.major}'a giren son kişinin sadece ${diffText}. O son kişi Mart ayında senin şu anki netinden ${marchText}.`;
+  })();
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <header className="mb-10 border-b border-[#2A2A2A] pb-6">
         <h2 className="font-serif italic text-4xl text-zinc-200 mb-2">Strateji Odası</h2>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] font-bold font-mono">Koç Kübra — Taktik Merkezi</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] font-bold font-mono">Gear_Head. — Taktik Merkezi</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -115,6 +176,72 @@ Son denemeler: ${recentExams || 'Yok'}`;
         )}
       </div>
 
+      <div className="mb-8">
+        <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
+          <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#60A5FA]/10 rounded-xl border border-[#60A5FA]/20">
+                <CrosshairIcon size={20} className="text-[#60A5FA]" />
+              </div>
+              <div>
+                <h3 className="font-serif italic text-xl text-zinc-200">Akıllı Deneme Önerisi</h3>
+                <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Hata verilerine göre (son 14 gün)</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            {!smartMockSuggestion ? (
+              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">
+                Yeterli log verisi yok. Öneri için en az 1-2 gün detaylı log gir.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="text-sm text-zinc-200 font-mono leading-relaxed">
+                  <span className="text-[#60A5FA] font-bold">{smartMockSuggestion.message}</span>
+                </div>
+                <div className="text-[10px] uppercase tracking-widest text-zinc-500">
+                  {smartMockSuggestion.reasoning}
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {smartMockSuggestion.focusTopics.map((t) => (
+                    <span key={t} className="px-2.5 py-1 bg-[#60A5FA]/10 text-[#60A5FA] border border-[#60A5FA]/20 rounded-lg text-[10px] uppercase font-bold tracking-widest">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-8">
+        <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
+          <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#C17767]/10 rounded-xl border border-[#C17767]/20">
+                <ChevronRight size={20} className="text-[#C17767]" />
+              </div>
+              <div>
+                <h3 className="font-serif italic text-xl text-zinc-200">YÖK Atlas Kovalamaca</h3>
+                <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Hedefle arandaki bağı koparma</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            {!yokAtlasChase ? (
+              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">
+                Kovalamaca için en az 1 deneme kaydı gerekli.
+              </div>
+            ) : (
+              <div className="text-sm font-mono leading-relaxed text-zinc-200">
+                {yokAtlasChase}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
@@ -140,7 +267,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
             {isLoadingWeekly && (
               <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50">
                 <Loader2 size={24} className="animate-spin text-[#C17767]" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Koç Kübra hesaplıyor...</p>
+                <p className="text-xs uppercase tracking-widest text-zinc-500">Gear_Head. hesaplıyor...</p>
               </div>
             )}
             {!isLoadingWeekly && !weeklyPlan && (

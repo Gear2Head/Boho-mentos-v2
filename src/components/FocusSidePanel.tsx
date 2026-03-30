@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, Square, Zap, Clock, Timer, History } from 'lucide-react';
 import { useFocusTimer } from '../hooks/useFocusTimer';
@@ -6,7 +6,7 @@ import { useAppStore } from '../store/appStore';
 import { FlapUnit } from './FlapClock';
 
 export function FocusSidePanel() {
-  const { isFocusSidePanelOpen, setFocusSidePanelOpen } = useAppStore();
+  const { isFocusSidePanelOpen, setFocusSidePanelOpen, addFocusSession } = useAppStore();
   const { 
     sessionSeconds, 
     isRunning, 
@@ -19,17 +19,19 @@ export function FocusSidePanel() {
     addLap 
   } = useFocusTimer();
 
-  if (!isFocusSidePanelOpen) return null;
+  const [customCountdownMinutes, setCustomCountdownMinutes] = useState<number>(25);
 
   const h = Math.floor(sessionSeconds / 3600);
   const m = Math.floor((sessionSeconds % 3600) / 60);
   const s = sessionSeconds % 60;
 
-  const presets = [
+  const presets = useMemo(() => ([
     { label: '1.5 Saat', seconds: 90 * 60, icon: <Zap size={14} /> },
     { label: '3 Saat', seconds: 180 * 60, icon: <Zap size={14} /> },
     { label: '2.45 Saat', seconds: 165 * 60, icon: <History size={14} /> },
-  ];
+  ]), []);
+
+  if (!isFocusSidePanelOpen) return null;
 
   return (
     <AnimatePresence>
@@ -132,12 +134,47 @@ export function FocusSidePanel() {
             </div>
           </div>
 
+          {mode === 'down' && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">ÖZEL SÜRE</h3>
+              <div className="flex gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  max={240}
+                  value={customCountdownMinutes}
+                  onChange={(e) => setCustomCountdownMinutes(Math.max(1, Math.min(240, Number(e.target.value) || 1)))}
+                  className="flex-1 bg-white dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl p-4 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200"
+                  placeholder="Dakika"
+                />
+                <button
+                  onClick={() => setDuration(customCountdownMinutes * 60)}
+                  className="px-5 py-4 bg-[#C17767] text-white rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] transition-colors"
+                >
+                  Uygula
+                </button>
+              </div>
+              <div className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400">
+                Limit: 1–240 dakika
+              </div>
+            </div>
+          )}
+
           {/* Session Saver */}
           <div className="pt-6">
             <button 
               onClick={() => {
                 const lap = addLap();
                 if (lap) {
+                   const startTime = lap.startTime;
+                   const endTime = new Date(new Date(startTime).getTime() + lap.durationInSeconds * 1000).toISOString();
+                   addFocusSession({
+                     id: lap.id,
+                     startTime,
+                     endTime,
+                     durationSeconds: lap.durationInSeconds,
+                     label: mode === 'down' ? 'Geri Sayım' : 'Kronometre',
+                   });
                    setFocusSidePanelOpen(false);
                 }
               }}

@@ -24,6 +24,8 @@ export interface StudentProfile {
   examYear?: string;
   minDailyQuestions: number;
   maxDailyQuestions: number;
+  coachPersonality?: string;
+  yokAtlasNet?: number;
 }
 
 export type SubjectStatusType = 'not-started' | 'in-progress' | 'mastered';
@@ -36,6 +38,7 @@ export interface SubjectStatus {
 }
 
 export interface DailyLog {
+  id?: string;
   date: string;
   subject: string;
   topic: string;
@@ -46,6 +49,7 @@ export interface DailyLog {
   avgTime: number;
   fatigue: number;
   tags: string[];
+  sessionId?: string;
 }
 
 export interface ExamResult {
@@ -54,6 +58,8 @@ export interface ExamResult {
   type: 'TYT' | 'AYT';
   totalNet: number;
   scores: Record<string, { correct: number; wrong: number; net: number }>;
+  source?: 'manual' | 'agenda';
+  note?: string;
 }
 
 export interface FailedQuestion {
@@ -77,14 +83,42 @@ export interface ChatMessage {
   timestamp: string;
 }
 
-// Yeni: Sıralama
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';
 
-// Yeni: Oyunlaştırma
 export interface Trophy {
   id: string;
   title: string;
   description: string;
   unlockedAt: string | null;
-  icon: string; // lucide-react icon isme referans
+  icon: string;
+  category?: 'streak' | 'performance' | 'milestone' | 'special';
+}
+
+export interface AgendaEntry {
+  id: string;
+  date: string;
+  content: string;
+  parsedExam?: {
+    type: 'TYT' | 'AYT';
+    totalNet: number;
+  };
+  mood?: 1 | 2 | 3 | 4 | 5;
+  tags?: string[];
+  aiAnalysis?: string;
+}
+
+export interface FocusSessionRecord {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  label?: string;
+  linkedLogId?: string;
+}
+
+export interface SubjectExamNet {
+  subject: string;
+  nets: number[];
+  avgNet: number;
+  lastUpdated: string;
 }

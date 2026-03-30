@@ -51,7 +51,12 @@ export function QuizEngine() {
       ]
       Başka HİÇBİR AÇIKLAMA VEYA YAZI YAZMA. Doğrudan JSON döndür.`;
 
-      const response = await getCoachResponse(prompt, "Sen YKS soru yazarı bir yapay zekasın. Yalnızca geçerli JSON döndürürsün.");
+      const response = await getCoachResponse(
+        prompt,
+        "Sen YKS soru yazarı bir yapay zekasın. Yalnızca geçerli JSON döndürürsün.",
+        [],
+        { coachPersonality: store.profile?.coachPersonality, forceJson: true, maxTokens: 1200 }
+      );
       
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
