@@ -12,7 +12,7 @@ import ReactMarkdown from 'react-markdown';
 
 export function CoachInterventionModal() {
   const store = useAppStore();
-  const alert = store.activeAlerts[0]; // Sadece ilk uyarıyı göster
+  const alert = store.activeAlerts?.[0]; // Sadece ilk uyarıyı göster
   const [strategy, setStrategy] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

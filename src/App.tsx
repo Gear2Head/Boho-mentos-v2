@@ -374,8 +374,8 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-[#FDFBF7] dark:bg-zinc-950 text-[#4A443C] dark:text-zinc-200 font-sans selection:bg-[#4A443C] selection:text-[#FDFBF7]">
-      <nav className="fixed bottom-4 left-4 right-4 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border border-[#EAE6DF]/10 md:border-t-0 md:border-r border-[#EAE6DF] dark:border-zinc-800 flex flex-row md:flex-col bg-white/10 dark:bg-zinc-900/40 backdrop-blur-xl md:backdrop-blur-none z-50 rounded-2xl md:rounded-none shadow-2xl md:shadow-none transition-all duration-300">
+    <div className="flex flex-col md:flex-row h-screen bg-[#FDFBF7] dark:bg-zinc-950 text-[#4A443C] dark:text-zinc-200 font-sans selection:bg-[#4A443C] selection:text-[#FDFBF7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-[#EAE6DF] dark:border-zinc-800 flex flex-row md:flex-col bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)]">
         <div className="hidden md:block p-4 border-b border-[#EAE6DF] dark:border-zinc-800">
           <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767] dark:text-rose-400">Boho Mentosluk</h1>
           <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-[#4A443C] dark:text-zinc-400">YKS Mentörlük v5</p>
@@ -410,7 +410,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-auto relative bg-[#FDFBF7] dark:bg-zinc-950 pb-20 md:pb-0">
+      <main className="flex-1 overflow-auto relative bg-[#FDFBF7] dark:bg-zinc-950 pb-20 md:pb-0 pt-4 md:pt-0">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
             <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 max-w-5xl mx-auto">
@@ -1085,7 +1085,7 @@ const AdminPanelModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-      <div className="bg-[#FFFFFF] dark:bg-zinc-900 p-8 rounded-2xl max-w-sm w-full shadow-2xl relative border-2 border-red-500/50">
+      <div className="bg-[#FFFFFF] dark:bg-zinc-900 p-8 rounded-2xl max-w-sm w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl relative border-2 border-red-500/50">
         <button onClick={onClose} className="absolute top-4 right-4 opacity-50 hover:opacity-100"><X size={20} /></button>
         <div className="flex items-center gap-3 mb-6 text-red-500 border-b border-red-500/20 pb-4">
           <ShieldAlert size={28} />

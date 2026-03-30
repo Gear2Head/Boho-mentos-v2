@@ -4,13 +4,47 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
+import { openDB } from 'idb';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
   HabitAlert
 } from '../types';
+
+const idbStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    try {
+      const db = await openDB('yks-store', 1, {
+        upgrade(db) { db.createObjectStore('keyval'); },
+      });
+      return (await db.get('keyval', name)) || null;
+    } catch {
+      return null;
+    }
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    try {
+      const db = await openDB('yks-store', 1, {
+        upgrade(db) { db.createObjectStore('keyval'); },
+      });
+      await db.put('keyval', value, name);
+    } catch (err) {
+      console.warn('IDB write failed', err);
+    }
+  },
+  removeItem: async (name: string): Promise<void> => {
+    try {
+      const db = await openDB('yks-store', 1, {
+        upgrade(db) { db.createObjectStore('keyval'); },
+      });
+      await db.delete('keyval', name);
+    } catch (err) {
+      console.warn('IDB remove failed', err);
+    }
+  },
+};
 
 type FailedQuestionInput = Omit<FailedQuestion, 'status' | 'solveCount' | 'difficulty'> & {
   difficulty?: FailedQuestion['difficulty'];
@@ -378,6 +412,19 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yks_coach_storage',
+      storage: createJSONStorage(() => idbStorage),
+      merge: (persistedState: any, currentState) => ({
+        ...currentState,
+        ...persistedState,
+        activeAlerts: persistedState?.activeAlerts || [],
+        focusSessions: persistedState?.focusSessions || [],
+        agendaEntries: persistedState?.agendaEntries || [],
+        logs: persistedState?.logs || [],
+        exams: persistedState?.exams || [],
+        tytSubjects: persistedState?.tytSubjects || currentState.tytSubjects,
+        aytSubjects: persistedState?.aytSubjects || currentState.aytSubjects,
+        trophies: persistedState?.trophies || currentState.trophies,
+      })
     }
   )
 );
