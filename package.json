@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "node scripts/doctor.cjs && npx concurrently --kill-others \"vite --port=3000 --strictPort --host=127.0.0.1\" \"tsx server.ts\"",
+    "doctor": "node scripts/doctor.cjs",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -26,6 +27,7 @@
     "react": "^19.0.0",
     "react-canvas-draw": "^1.2.1",
     "react-dom": "^19.0.0",
+    "react-is": "^19.2.4",
     "react-katex": "^3.1.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
@@ -44,6 +46,8 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "concurrently": "^8.2.2",
+    "@emotion/is-prop-valid": "^1.2.1"
   }
 }

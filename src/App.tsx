@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -38,6 +38,7 @@ import { ExamEntryModal } from './components/forms/ExamEntryModal';
 import { ProfileSettings } from './components/forms/ProfileSettings';
 import { ExamDetailModal } from './components/ExamDetailModal';
 import { StrategyHub } from './components/StrategyHub';
+import { MebiWarRoom } from './components/MebiWarRoom';
 import { FlapClock, MiniFlapClock } from './components/FlapClock';
 
 // --- Helper ---
@@ -315,53 +316,108 @@ export default function App() {
     }).join(' | ');
   };
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [store.chatHistory]);
+  useEffect(() => {
+    const timer = requestAnimationFrame(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [store.chatHistory, isTyping]);
 
   useEffect(() => {
     if (activeTab !== 'coach') return;
-    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    const timer = setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'instant' });
+    }, 150);
+    return () => clearTimeout(timer);
   }, [activeTab]);
 
   useEffect(() => {
-    if (store.theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    if (typeof document !== 'undefined') {
+      const isDark = store.theme === 'dark';
+      document.documentElement.classList.toggle('dark', isDark);
+      document.documentElement.classList.toggle('light', !isDark);
+      // Force repaint/sync for some browsers
+      document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
     }
   }, [store.theme]);
+
+  // ERR-002: İlk açılış mesajı
+  useEffect(() => {
+    if (activeTab === 'coach' && store.chatHistory.length === 0) {
+      store.addChatMessage({
+        role: 'coach',
+        content: '📋 **Sistem Hazır.**\n\nGüne başlamak için **PLAN** yazabilir, bir çalışma seansını kaydetmek için **LOG** komutunu kullanabilirsin. Senin için buradayım.',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [activeTab, store.chatHistory.length]);
 
   const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string) => {
     e?.preventDefault();
     const userMsg = messageOverride || inputMessage;
     if (!userMsg.trim() || isTyping) return;
-    if (userMsg.trim().toUpperCase() === 'LOG') {
-      setIsLogWidgetOpen(true);
-      if (!messageOverride) setInputMessage('');
-      return;
-    }
+    
+    // YENİ: Q&A Tetikleyiciler
+    const upperMsg = userMsg.trim().toUpperCase();
+    const isQAStarter = ['PLAN', 'LOG', 'DENEME', 'ANLA', 'ANLAT'].includes(upperMsg);
+    
     if (!messageOverride) setInputMessage('');
+
+    // Mevcut bir Q&A seansı var mı?
+    const activeQA = store.qaSession;
 
     store.addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
-    const problemTyt = store.tytSubjects.filter(s => s.status === 'in-progress').slice(0, 10);
-    const tytCtx = problemTyt.length > 0 ? problemTyt.map(s => `${s.subject}:${s.name}`).join('|') : "Yok";
+    try {
+      const compactProfile = store.profile ? `${store.profile.name}, Alan:${store.profile.track}, Hedef:${store.profile.targetUniversity}, TYT:${store.profile.tytTarget}, AYT:${store.profile.aytTarget}` : "Bilinmiyor";
+      const logsCtx = summarizeLogs(store.logs.slice(-5));
+      const examsCtx = store.exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|');
+      
+      let context = `P:${compactProfile}\nLogs:${logsCtx}\nExams:${examsCtx}`;
+      let action: "coach" | "qa_mode" = "coach";
 
-    const problemAyt = store.aytSubjects.filter(s => s.status === 'in-progress' && store.profile?.track && getAytSubjectsForTrack(store.profile.track).includes(s.subject)).slice(0, 10);
-    const aytCtx = problemAyt.length > 0 ? problemAyt.map(s => `${s.subject}:${s.name}`).join('|') : "Yok";
+      if (isQAStarter && !activeQA) {
+        // Yeni Q&A Başlat
+        action = "qa_mode";
+        context += `\nKOMUT: ${upperMsg} SEANSI BAŞLATILIYOR. İLK SORUYU SOR.`;
+        
+        // Store'da seansı başlat (AI yanıtına göre güncellenecek ama şimdilik placeholder)
+        store.setQaSession({
+          scenario: upperMsg.includes('PLAN') ? 'plan' : upperMsg.includes('LOG') ? 'log' : upperMsg.includes('DENEME') ? 'exam' : 'topic',
+          currentQuestion: 1,
+          totalQuestions: upperMsg.includes('PLAN') ? 6 : upperMsg.includes('LOG') ? 7 : upperMsg.includes('DENEME') ? 8 : 5,
+          answers: {},
+          isComplete: false
+        });
+      } else if (activeQA) {
+        // Devam eden Q&A
+        action = "qa_mode";
+        const qIdx = activeQA.currentQuestion;
+        store.updateQaAnswer(qIdx, userMsg);
+        
+        context += `\nQA_MODU: AKTİF. Senaryo: ${activeQA.scenario}. Cevaplanan Soru: ${qIdx}/${activeQA.totalQuestions}.`;
+        
+        if (qIdx >= activeQA.totalQuestions) {
+          context += `\nQA_DURUM: TÜM SORULAR CEVAPLANDI. ANALİZİ VE SONUÇ TABLOSUNU DÖNDÜR.`;
+          store.setQaSession(null);
+        } else {
+          store.setQaSession({ ...activeQA, currentQuestion: qIdx + 1 });
+        }
+      }
 
-    const logsCtx = summarizeLogs(store.logs.slice(-5));
-    const examsCtx = store.exams.length > 0
-      ? store.exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|')
-      : "Yok";
+      const response = await getCoachResponse(userMsg, context, store.chatHistory, { 
+        coachPersonality: store.profile?.coachPersonality,
+        action: action 
+      });
 
-    const compactProfile = store.profile ? `${store.profile.name}, Alan:${store.profile.track}, Hedef:${store.profile.targetUniversity}, TYT:${store.profile.tytTarget}, AYT:${store.profile.aytTarget}, Günlük Soru:${store.profile.minDailyQuestions}-${store.profile.maxDailyQuestions}` : "Bilinmiyor";
-
-    const context = `P:${compactProfile}\nTYT:${tytCtx}\nAYT:${aytCtx}\nLogs:${logsCtx}\nExams:${examsCtx}\nNOT: Lütfen soru sayılarını belirlerken ${store.profile?.minDailyQuestions}-${store.profile?.maxDailyQuestions} arasını hedefle ve süreleri gerçekçi (Sayısal: 2dk/soru, Sözel: 1.5dk/soru) olarak ayarla.`;
-
-    const response = await getCoachResponse(userMsg, context, store.chatHistory, { coachPersonality: store.profile?.coachPersonality });
-    store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
-    setIsTyping(false);
+      store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
+    } catch (err) {
+      console.error("AI Error:", err);
+      store.addChatMessage({ role: 'coach', content: "Bağlantı hatası oluştu.", timestamp: new Date().toISOString() });
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   if (!store.profile) {
@@ -389,6 +445,7 @@ export default function App() {
         <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
           <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={<Target size={18} />} label="Sayaç" active={activeTab === 'countdown'} onClick={() => setActiveTab('countdown')} />
+          <NavItem icon={<PenTool size={18} />} label="War Room" active={activeTab === 'war_room'} onClick={() => setActiveTab('war_room')} />
           <NavItem icon={<BrainCircuit size={18} />} label="Sorular" active={activeTab === 'questions'} onClick={() => setActiveTab('questions')} />
           <NavItem icon={<BookOpen size={18} />} label="Anlatım" active={activeTab === 'explain'} onClick={() => setActiveTab('explain')} />
           <NavItem icon={<Calendar size={18} />} label="Analiz" active={activeTab === 'exams'} onClick={() => setActiveTab('exams')} />
@@ -585,6 +642,12 @@ export default function App() {
                 </section>
               </div>
 
+            </motion.div>
+          )}
+
+          {activeTab === 'war_room' && (
+            <motion.div key="war_room" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="w-full min-h-screen">
+              <MebiWarRoom />
             </motion.div>
           )}
 

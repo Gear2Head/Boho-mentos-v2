@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, Fingerprint, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, Target, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
@@ -57,7 +57,7 @@ Hemen SADECE 3 MADDELİK bir aksiyon planı çıkar. Çok sert, direkt ve kısa 
 
           <div className="bg-[#121212] border border-red-900/50 rounded-2xl p-6 mb-8 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 text-red-900/10 pointer-events-none -mt-4 -mr-4 transform rotate-12">
-              <Fingerprint size={140} />
+              <Target size={140} />
             </div>
             <h3 className="text-[10px] uppercase tracking-widest font-bold text-red-500 opacity-80 mb-2">Tespİt Edİlen Sorun:</h3>
             <p className="text-lg text-zinc-200 font-medium leading-relaxed">{alert.message}</p>

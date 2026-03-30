@@ -13,6 +13,14 @@ import type {
   HabitAlert
 } from '../types';
 
+export interface QASession {
+  scenario: 'plan' | 'log' | 'exam' | 'topic';
+  currentQuestion: number;
+  totalQuestions: number;
+  answers: Record<number, string>;
+  isComplete: boolean;
+}
+
 const idbStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
@@ -68,6 +76,8 @@ interface AppState {
   focusSessions: FocusSessionRecord[];
   agendaEntries: AgendaEntry[];
   activeAlerts: HabitAlert[];
+  qaSession: QASession | null;
+  drawingMode: 'pointer' | 'pen' | 'eraser';
 
   setProfile: (profile: StudentProfile | null) => void;
   updateTytSubject: (index: number, updates: Partial<SubjectStatus>) => void;
@@ -98,7 +108,10 @@ interface AppState {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   isFocusSidePanelOpen: boolean;
+  setQaSession: (session: QASession | null) => void;
+  updateQaAnswer: (questionIndex: number, answer: string) => void;
   setFocusSidePanelOpen: (isOpen: boolean) => void;
+  setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => void;
   analyzeUserData: () => string;
 }
 
@@ -222,10 +235,29 @@ export const useAppStore = create<AppState>()(
       isDevMode: false,
       subjectViewMode: 'map' as const,
       theme: 'dark' as const,
+      drawingMode: 'pen',
+      setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => set({ drawingMode: mode }),
 
       setDevMode: (isDevMode) => set({ isDevMode }),
       setSubjectViewMode: (subjectViewMode) => set({ subjectViewMode }),
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        set({ theme });
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.toggle('light', theme === 'light');
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+        }
+      },
+      qaSession: null,
+      setQaSession: (session) => set({ qaSession: session }),
+      updateQaAnswer: (qIdx, ans) => set((s) => {
+        if (!s.qaSession) return s;
+        return {
+          qaSession: {
+            ...s.qaSession,
+            answers: { ...s.qaSession.answers, [qIdx]: ans }
+          }
+        };
+      }),
       isFocusSidePanelOpen: false,
       setFocusSidePanelOpen: (isOpen) => set({ isFocusSidePanelOpen: isOpen }),
 

@@ -10,30 +10,25 @@
   --color-accent: #C17767;
 }
 
+:root.light {
+  --color-bg: #F9F8F6; /* Soft Creamy Paper */
+  --color-ink: #1C1917; /* Off Black */
+  --color-border: #E7E5E4;
+  --color-accent: #4361EE; /* New Blue Accent for Light Mode */
+  --color-card: #FFFFFF;
+  --color-muted: #78716C;
+  --color-glass: rgba(0, 0, 0, 0.03);
+}
+
 :root {
   /* Default: Dark Theme */
   --color-bg: #0A0A0A;
-  --color-ink: #E4E3E0;
-  --color-border: #2A2A2A;
-  --color-accent: #C17767;
-  --color-card: #141414;
-  --color-muted: #888888;
+  --color-ink: #E7E5E4;
+  --color-border: #262626;
+  --color-accent: #4361EE;
+  --color-card: #171717;
+  --color-muted: #737373;
   --color-glass: rgba(255, 255, 255, 0.03);
-
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-display: 'Source Code Pro', monospace;
-  --font-mono: 'Source Code Pro', monospace;
-  --font-serif: 'Playfair Display', Georgia, serif;
-}
-
-:root.light {
-  --color-bg: #FDFBF7; /* Soft Paper White */
-  --color-ink: #2A2A2A;
-  --color-border: #EAE6DF;
-  --color-accent: #C17767;
-  --color-card: #FFFFFF;
-  --color-muted: #8C857B;
-  --color-glass: rgba(0, 0, 0, 0.02);
 }
 
 body {

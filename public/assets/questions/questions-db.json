@@ -1,0 +1,22 @@
+[
+  {
+    "id": "OGM-MAT-1",
+    "subject": "Matematik",
+    "questionText": "Bir f(x) fonksiyonu için \\( f(x) = ax^2 + bx + c \\) verilmiştir. \\( f(1) = 5 \\) ve \\( f'(0) = 2 \\) olduğuna göre b+c toplamı kaçtır?",
+    "image": null,
+    "options": ["3", "4", "5", "6", "7"],
+    "correctAnswer": "C",
+    "source": "OGM Materyal",
+    "difficulty": "Orta"
+  },
+  {
+    "id": "OGM-FIZ-2",
+    "subject": "Fizik",
+    "questionText": "Basit harmonik hareket yapan bir sarkacın periyodu; \\( T = 2\\pi \\sqrt{\\frac{L}{g}} \\) formülüyle hesaplanır. Sarkacın boyu 4 katına çıkarılırsa periyodu nasıl değişir?",
+    "image": null,
+    "options": ["Yarıya iner", "Değişmez", "2 katına çıkar", "4 katına çıkar", "8 katına çıkar"],
+    "correctAnswer": "3",
+    "source": "OGM Materyal",
+    "difficulty": "Kolay"
+  }
+]

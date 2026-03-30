@@ -13,10 +13,10 @@ export async function getCoachResponse(
   userMessage: string,
   context: string,
   chatHistory: { role: "user" | "coach"; content: string }[] = [],
-  options?: { coachPersonality?: string; forceJson?: boolean; maxTokens?: number }
+  options?: { action?: "coach" | "qa_mode"; coachPersonality?: string; forceJson?: boolean; maxTokens?: number }
 ): Promise<string> {
   const payload = {
-    action: "coach",
+    action: options?.action || "coach",
     userMessage,
     context,
     chatHistory: chatHistory.slice(-6),

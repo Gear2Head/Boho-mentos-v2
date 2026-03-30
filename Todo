@@ -1,0 +1,691 @@
+# BOHO MENTOSLUK V5 — HATA KATALOĞU & ONARIM REHBERİ
+> Oluşturma: 2026-03-31 | Versiyon: 1.0 | Durum: AKTİF
+
+---
+
+## BÖLÜM 1 — MASTER TODO LİSTESİ
+
+### 🔴 KRİTİK (Sistem Çalışmıyor)
+
+- [ ] **TODO-001** `/api/ai` endpoint 404 veriyor — Vite proxy ayarı eksik
+- [ ] **TODO-002** Koç ekranı tamamen boş yükleniyor — ilk render state hatası
+- [ ] **TODO-003** Chat mesajları en üstten başlıyor, otomatik aşağı kaymıyor
+- [ ] **TODO-004** War Room canvas katmanı şık tıklamalarını engelliyor (`pointer-events`)
+- [ ] **TODO-005** Silgi çalışmıyor — `canvasRef` doğru bağlanmamış
+
+### 🟡 YÜKSEK (Kullanılamaz Hale Getiriyor)
+
+- [ ] **TODO-006** Soru ekranı responsive değil, taşıyor (`overflow`, `max-w` eksik)
+- [ ] **TODO-007** Beyaz tema (Light mode) uygulanmıyor — DOM class senkron değil
+- [ ] **TODO-008** Recharts grafikleri `width(-1) height(-1)` hatası veriyor
+- [ ] **TODO-009** `questions-db.json` dosyası her render'da iki kez fetch ediliyor
+- [ ] **TODO-010** KaTeX formülleri mobilde taşıyor
+
+### 🟢 ORTA (Çalışıyor Ama Kötü)
+
+- [ ] **TODO-011** War Room "Çizim Modu" / "İşaretleme Modu" toggle yok
+- [ ] **TODO-012** Koç boş ekran placeholder'ı yok (yeni kullanıcı ne yapacağını bilmiyor)
+- [ ] **TODO-013** Soru zamanlayıcısı sayfa yenilenince sıfırlanıyor
+- [ ] **TODO-014** Sidebar mobilde tüm ekranı kaplıyor, içerik görünmüyor
+- [ ] **TODO-015** Admin panel açıkken arka plan scroll etmeye devam ediyor
+- [ ] **TODO-016** ELO kartı yüklenmede titriyor (layout shift)
+- [ ] **TODO-017** Sabah Blocker ekranı light modda okunmuyor
+- [ ] **TODO-018** Log girişinde `avgTime` field'ı dakika mı saniye mi belirsiz
+- [ ] **TODO-019** Profil kaydedildiğinde başarı bildirimi yok
+- [ ] **TODO-020** Mezarlık kartları masaüstünde 3 kolon, mobilde 1 kolon — geçiş yok
+
+---
+
+## BÖLÜM 2 — DETAYLI HATA KATALOĞU
+
+---
+
+### ERR-001 | AI HATASI: 404
+
+```
+Kod        : ERR_AI_404
+Şiddet     : KRİTİK
+Ekran      : Koç sekmesi
+Belirti    : "AI HATASI: 404" mesajı, konsol: Failed to load /api/ai:1
+```
+
+**Kök Neden:**
+Vite dev sunucusu `/api/ai` rotasını tanımıyor. `api/ai.ts` Vercel Serverless Function olarak yazılmış ama local'de proxy tanımlanmamış.
+
+**Çözüm:**
+```typescript
+// vite.config.ts içine ekle:
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://localhost:3001', // Express server portu
+      changeOrigin: true,
+    }
+  }
+}
+```
+
+**Ya da Express server aç:**
+```typescript
+// server.ts (proje kökünde)
+import express from 'express';
+import handler from './api/ai';
+
+const app = express();
+app.use(express.json());
+app.post('/api/ai', handler);
+app.listen(3001, () => console.log('API server: 3001'));
+```
+
+**package.json:**
+```json
+"dev": "concurrently \"vite --port=3000\" \"tsx server.ts\""
+```
+
+**İlgili TODO:** TODO-001
+
+---
+
+### ERR-002 | KOÇ EKRANI BOŞ
+
+```
+Kod        : ERR_COACH_BLANK
+Şiddet     : KRİTİK
+Ekran      : Koç sekmesi
+Belirti    : Sayfa tamamen siyah, mesaj yok, widget yok
+```
+
+**Kök Neden:**
+`chatHistory` boş array ile başlıyor. Boş array render'da hiç eleman üretmiyor ama bir "başlangıç mesajı" da yok. Aynı zamanda `isTyping` false, bu yüzden loading da görünmüyor.
+
+**Çözüm:**
+```typescript
+// App.tsx — useEffect ile açılış mesajı ekle
+useEffect(() => {
+  if (activeTab === 'coach' && store.chatHistory.length === 0) {
+    store.addChatMessage({
+      role: 'coach',
+      content: '📋 Sistem hazır. "PLAN" yazarak güne başla veya "LOG" ile sonuç gir.',
+      timestamp: new Date().toISOString()
+    });
+  }
+}, [activeTab]);
+```
+
+**İlgili TODO:** TODO-002, TODO-012
+
+---
+
+### ERR-003 | CHAT SCROLL HATASI
+
+```
+Kod        : ERR_CHAT_SCROLL
+Şiddet     : KRİTİK
+Ekran      : Koç sekmesi
+Belirti    : Yeni mesajlar en üstte görünüyor, en alta gitmiyor
+```
+
+**Kök Neden:**
+`chatEndRef` scroll'u `activeTab` değişiminde ve mesaj gelişinde tetikliyor ama DOM henüz güncellenmemiş oluyor. `setTimeout` delay'i yetersiz kalıyor.
+
+**Çözüm:**
+```typescript
+// Mevcut kodu şununla değiştir:
+useEffect(() => {
+  const timer = requestAnimationFrame(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  });
+  return () => cancelAnimationFrame(timer);
+}, [store.chatHistory, isTyping]);
+
+// Coach sekmesi açılışında:
+useEffect(() => {
+  if (activeTab !== 'coach') return;
+  const timer = setTimeout(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'instant' });
+  }, 150);
+  return () => clearTimeout(timer);
+}, [activeTab]);
+```
+
+**İlgili TODO:** TODO-003
+
+---
+
+### ERR-004 | CANVAS POINTER ENGEL
+
+```
+Kod        : ERR_CANVAS_POINTER
+Şiddet     : KRİTİK
+Ekran      : War Room / Soru Ekranı
+Belirti    : Şıklara tıklanamıyor, canvas tüm ekranı bloke ediyor
+```
+
+**Kök Neden:**
+Canvas elementi `position: absolute; top: 0; left: 0; width: 100%; height: 100%` ile sorunun üzerine serilmiş ve `pointer-events: auto` durumunda. Tıklamalar şıklara değil canvas'a gidiyor.
+
+**Çözüm:**
+```typescript
+// Zustand'a mod ekle:
+drawingMode: 'pointer' | 'pen' | 'eraser'
+setDrawingMode: (mode) => set({ drawingMode: mode })
+
+// Canvas bileşeninde:
+<canvas
+  style={{
+    pointerEvents: store.drawingMode === 'pointer' ? 'none' : 'auto',
+    position: 'absolute',
+    top: 0, left: 0,
+    width: '100%', height: '100%',
+    zIndex: store.drawingMode === 'pointer' ? -1 : 10,
+  }}
+/>
+
+// Toolbar butonları:
+<button onClick={() => store.setDrawingMode('pointer')}>🖱️ İşaretle</button>
+<button onClick={() => store.setDrawingMode('pen')}>✏️ Çiz</button>
+<button onClick={() => store.setDrawingMode('eraser')}>🧹 Sil</button>
+```
+
+**İlgili TODO:** TODO-004, TODO-005, TODO-011
+
+---
+
+### ERR-005 | SİLGİ ÇALIŞMIYOR
+
+```
+Kod        : ERR_ERASER_BROKEN
+Şiddet     : KRİTİK
+Ekran      : War Room
+Belirti    : Silgi butonuna basılıyor ama çizimler gitmiyor
+```
+
+**Kök Neden:**
+`canvasRef.current` null olabiliyor ya da canvas kütüphanesinin `clear()` / `undo()` metodları yanlış çağrılıyor.
+
+**Çözüm:**
+```typescript
+const canvasRef = useRef<HTMLCanvasElement>(null);
+
+const handleClear = () => {
+  const canvas = canvasRef.current;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+};
+
+// Eğer react-canvas-draw kullanıyorsan:
+const canvasDrawRef = useRef<CanvasDraw>(null);
+const handleClear = () => canvasDrawRef.current?.clear();
+const handleUndo  = () => canvasDrawRef.current?.undo();
+```
+
+**İlgili TODO:** TODO-005
+
+---
+
+### ERR-006 | SORU EKRANI TAŞMASI
+
+```
+Kod        : ERR_QUESTION_OVERFLOW
+Şiddet     : YÜKSEK
+Ekran      : War Room / Sorular
+Belirti    : Soru metni ve şıklar ekrana sığmıyor, yatay scroll çıkıyor
+```
+
+**Kök Neden:**
+Soru konteyneri sabit piksel genişlikte tanımlanmış, KaTeX render'ı ek genişlik ekliyor, şık kutuları `min-width` ile büyüyor.
+
+**Çözüm:**
+```tsx
+// Soru wrapper:
+<div className="w-full max-w-full overflow-hidden px-4">
+  <div className="break-words overflow-wrap-anywhere">
+    {/* KaTeX soru metni */}
+  </div>
+  
+  {/* Şıklar grid */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+    {choices.map(choice => (
+      <button
+        key={choice.id}
+        className="w-full text-left p-3 rounded-xl border 
+                   overflow-hidden text-sm break-words"
+      >
+        {choice.text}
+      </button>
+    ))}
+  </div>
+</div>
+```
+
+```css
+/* global.css veya index.css'e ekle: */
+.overflow-wrap-anywhere { overflow-wrap: anywhere; }
+.katex { font-size: clamp(0.85rem, 2vw, 1rem) !important; }
+.katex-display { overflow-x: auto; max-width: 100%; }
+```
+
+**İlgili TODO:** TODO-006, TODO-010
+
+---
+
+### ERR-007 | LIGHT MODE ÇALIŞMIYOR
+
+```
+Kod        : ERR_THEME_STUCK
+Şiddet     : YÜKSEK
+Ekran      : Tüm uygulama
+Belirti    : Ayarlardan "LIGHT" seçilse de tema değişmiyor
+```
+
+**Kök Neden:**
+`store.setTheme('light')` Zustand state'ini güncelliyor ama `document.documentElement.classList` manipülasyonu sadece `useEffect` ile bir kere çalışıyor, reaktif değil.
+
+**Çözüm:**
+```typescript
+// App.tsx içinde mevcut useEffect'i güçlendir:
+useEffect(() => {
+  const root = document.documentElement;
+  if (store.theme === 'dark') {
+    root.classList.add('dark');
+    root.classList.remove('light');
+    root.style.colorScheme = 'dark';
+  } else {
+    root.classList.remove('dark');
+    root.classList.add('light');
+    root.style.colorScheme = 'light';
+  }
+}, [store.theme]);
+
+// tailwind.config.js:
+module.exports = {
+  darkMode: 'class', // 'media' DEĞİL, 'class' olmalı
+  // ...
+}
+```
+
+**İlgili TODO:** TODO-007, TODO-017
+
+---
+
+### ERR-008 | RECHARTS WIDTH -1 HATASI
+
+```
+Kod        : ERR_CHART_SIZE
+Şiddet     : YÜKSEK
+Ekran      : Dashboard, Analiz
+Belirti    : Konsol: "width(-1) and height(-1) of chart should be greater than 0"
+             Grafikler render olmıyor
+```
+
+**Kök Neden:**
+`ResponsiveContainer` parent'ının boyutu hesaplanmadan render oluyor. Parent `display: none` durumundan geliyor ya da `height` tanımlanmamış.
+
+**Çözüm:**
+```tsx
+// Her ResponsiveContainer için explicit height ver:
+<div style={{ width: '100%', height: 240 }}>  {/* ← sabit yükseklik şart */}
+  <ResponsiveContainer width="100%" height="100%">
+    <LineChart data={data}>
+      ...
+    </LineChart>
+  </ResponsiveContainer>
+</div>
+
+// Sekme geçişlerinde lazy render:
+{activeTab === 'dashboard' && (
+  <div style={{ width: '100%', height: 240 }}>
+    <ResponsiveContainer>...</ResponsiveContainer>
+  </div>
+)}
+```
+
+**İlgili TODO:** TODO-008
+
+---
+
+### ERR-009 | DOUBLE FETCH
+
+```
+Kod        : ERR_DOUBLE_FETCH
+Şiddet     : ORTA
+Ekran      : War Room
+Belirti    : Konsol: questions-db.json iki kez fetch ediliyor
+```
+
+**Kök Neden:**
+React 18 Strict Mode `useEffect`'i development'ta iki kez çalıştırıyor. Fetch cleanup fonksiyonu eksik.
+
+**Çözüm:**
+```typescript
+useEffect(() => {
+  let cancelled = false;
+  
+  fetch('/assets/questions/questions-db.json')
+    .then(r => r.json())
+    .then(data => {
+      if (!cancelled) setQuestions(data);
+    });
+    
+  return () => { cancelled = true; };
+}, []);
+```
+
+**İlgili TODO:** TODO-009
+
+---
+
+## BÖLÜM 3 — AUTO-BUG FIXER
+
+Projeyi başlatmadan önce otomatik koşan, sorunları tespit eden ve düzelten Node.js betiği.
+
+### Dosya: `scripts/doctor.cjs`
+
+```javascript
+#!/usr/bin/env node
+/**
+ * BOHO MENTOSLUK — DOKTOR
+ * Her `npm run dev` öncesi otomatik çalışır.
+ * Görev: Cache temizle, port kontrol et, env doğrula, server başlat.
+ */
+
+const { execSync, spawn } = require('child_process');
+const fs   = require('fs');
+const path = require('path');
+const net  = require('net');
+
+const ROOT = path.resolve(__dirname, '..');
+
+// ── Renkler ──────────────────────────────────────────────────────────────────
+const C = {
+  red:    (s) => `\x1b[31m${s}\x1b[0m`,
+  green:  (s) => `\x1b[32m${s}\x1b[0m`,
+  yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+  cyan:   (s) => `\x1b[36m${s}\x1b[0m`,
+  bold:   (s) => `\x1b[1m${s}\x1b[0m`,
+};
+
+const log  = (icon, msg) => console.log(`${icon}  ${msg}`);
+const ok   = (msg) => log(C.green('✔'), msg);
+const warn = (msg) => log(C.yellow('⚠'), msg);
+const err  = (msg) => log(C.red('✘'), msg);
+const info = (msg) => log(C.cyan('→'), msg);
+
+// ── Kontroller ────────────────────────────────────────────────────────────────
+
+function checkNodeVersion() {
+  const [major] = process.versions.node.split('.').map(Number);
+  if (major < 18) {
+    err(`Node.js 18+ gerekli. Mevcut: ${process.version}`);
+    process.exit(1);
+  }
+  ok(`Node.js ${process.version}`);
+}
+
+function clearViteCache() {
+  const cachePath = path.join(ROOT, 'node_modules', '.vite');
+  if (fs.existsSync(cachePath)) {
+    fs.rmSync(cachePath, { recursive: true, force: true });
+    ok('Vite cache temizlendi');
+  } else {
+    info('Vite cache zaten temiz');
+  }
+}
+
+function checkNodeModules() {
+  const nm = path.join(ROOT, 'node_modules');
+  if (!fs.existsSync(nm)) {
+    warn('node_modules bulunamadı — npm install çalıştırılıyor...');
+    try {
+      execSync('npm install', { cwd: ROOT, stdio: 'inherit' });
+      ok('Paketler yüklendi');
+    } catch {
+      err('npm install başarısız!');
+      process.exit(1);
+    }
+  } else {
+    ok('node_modules mevcut');
+  }
+}
+
+function checkEnvFile() {
+  const envPath = path.join(ROOT, '.env');
+  const envExamplePath = path.join(ROOT, '.env.example');
+
+  if (!fs.existsSync(envPath)) {
+    if (fs.existsSync(envExamplePath)) {
+      fs.copyFileSync(envExamplePath, envPath);
+      warn('.env bulunamadı — .env.example kopyalandı. API anahtarlarını doldur!');
+    } else {
+      warn('.env dosyası yok! API özellikleri çalışmayabilir.');
+    }
+    return;
+  }
+
+  const env = fs.readFileSync(envPath, 'utf8');
+  const required = ['GEMINI_API_KEY'];
+  const optional = ['GROQ_API_KEY', 'CEREBRAS_API_KEY', 'OPENROUTER_API_KEY'];
+
+  let missingRequired = false;
+  required.forEach(key => {
+    if (!env.includes(key) || env.includes(`${key}=\n`) || env.includes(`${key}=`)) {
+      if (!env.match(new RegExp(`${key}=.+`))) {
+        err(`Zorunlu env eksik: ${key}`);
+        missingRequired = true;
+      }
+    }
+  });
+
+  optional.forEach(key => {
+    if (!env.match(new RegExp(`${key}=.+`))) {
+      warn(`Opsiyonel env tanımsız (fallback olmayabilir): ${key}`);
+    }
+  });
+
+  if (missingRequired) {
+    err('.env dosyasındaki zorunlu anahtarları doldur ve tekrar çalıştır.');
+    process.exit(1);
+  }
+
+  ok('.env doğrulandı');
+}
+
+function checkTailwindConfig() {
+  const configPath = path.join(ROOT, 'tailwind.config.js');
+  const configTsPath = path.join(ROOT, 'tailwind.config.ts');
+  const target = fs.existsSync(configPath) ? configPath : configTsPath;
+
+  if (!fs.existsSync(target)) {
+    warn('tailwind.config bulunamadı — dark mode çalışmayabilir');
+    return;
+  }
+
+  const content = fs.readFileSync(target, 'utf8');
+  if (!content.includes("darkMode: 'class'")) {
+    warn("tailwind.config'de darkMode: 'class' yok — Light/Dark mod çalışmayabilir!");
+    warn("  Çözüm: tailwind.config içine darkMode: 'class' ekle");
+  } else {
+    ok("Tailwind darkMode: 'class' doğrulandı");
+  }
+}
+
+function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(true));
+    server.once('listening', () => { server.close(); resolve(false); });
+    server.listen(port);
+  });
+}
+
+async function checkPorts() {
+  const ports = [3000, 3001];
+
+  for (const port of ports) {
+    const inUse = await isPortInUse(port);
+    if (inUse) {
+      warn(`Port ${port} kullanımda!`);
+      if (process.platform !== 'win32') {
+        try {
+          const pid = execSync(`lsof -ti:${port}`).toString().trim();
+          if (pid) {
+            execSync(`kill -9 ${pid}`);
+            ok(`Port ${port} zorla boşaltıldı (PID: ${pid})`);
+          }
+        } catch {
+          warn(`Port ${port} boşaltılamadı — manuel kapat`);
+        }
+      } else {
+        try {
+          execSync(`for /f "tokens=5" %a in ('netstat -ano ^| find ":${port}"') do taskkill /F /PID %a`, { shell: true });
+          ok(`Port ${port} boşaltıldı`);
+        } catch {
+          warn(`Port ${port} boşaltılamadı — manuel kapat`);
+        }
+      }
+    } else {
+      ok(`Port ${port} müsait`);
+    }
+  }
+}
+
+function checkViteProxy() {
+  const viteConfig = path.join(ROOT, 'vite.config.ts');
+  if (!fs.existsSync(viteConfig)) return;
+
+  const content = fs.readFileSync(viteConfig, 'utf8');
+  if (!content.includes('proxy') || !content.includes('/api')) {
+    warn("vite.config.ts'de /api proxy ayarı bulunamadı!");
+    warn("  Çözüm: server.proxy içine '/api' → 'http://localhost:3001' ekle");
+    warn("  Aksi halde Koç ekranı AI HATASI: 404 verecek (ERR-001)");
+  } else {
+    ok('Vite proxy /api doğrulandı');
+  }
+}
+
+function checkCriticalFiles() {
+  const required = [
+    'src/App.tsx',
+    'src/store/appStore.ts',
+    'src/services/gemini.ts',
+    'api/ai.ts',
+  ];
+
+  const optional = [
+    'public/assets/questions/questions-db.json',
+  ];
+
+  required.forEach(file => {
+    if (!fs.existsSync(path.join(ROOT, file))) {
+      err(`Kritik dosya eksik: ${file}`);
+    } else {
+      ok(`Dosya mevcut: ${file}`);
+    }
+  });
+
+  optional.forEach(file => {
+    if (!fs.existsSync(path.join(ROOT, file))) {
+      warn(`Opsiyonel dosya yok: ${file} — Soru bankası çalışmayabilir`);
+    }
+  });
+}
+
+function printSummary(warnings) {
+  console.log('\n' + C.bold('─'.repeat(50)));
+  if (warnings === 0) {
+    console.log(C.green(C.bold('  ✔ Tüm kontroller geçti — Sistem sağlıklı')));
+  } else {
+    console.log(C.yellow(C.bold(`  ⚠ ${warnings} uyarı — Yukarıdaki çözümlere bak`)));
+  }
+  console.log(C.bold('─'.repeat(50)) + '\n');
+}
+
+// ── Ana Akış ─────────────────────────────────────────────────────────────────
+
+async function main() {
+  console.log('\n' + C.bold(C.cyan('  BOHO MENTOSLUK — SİSTEM DOKTORU')));
+  console.log(C.cyan('  Kontroller başlıyor...\n'));
+
+  let warnCount = 0;
+  const origWarn = global.console.warn;
+
+  checkNodeVersion();
+  checkNodeModules();
+  clearViteCache();
+  checkEnvFile();
+  checkTailwindConfig();
+  checkViteProxy();
+  checkCriticalFiles();
+  await checkPorts();
+
+  printSummary(warnCount);
+
+  info('Sunucu başlatılıyor...\n');
+}
+
+main().catch(e => {
+  err(`Doktor çöktü: ${e.message}`);
+  process.exit(1);
+});
+```
+
+---
+
+### `package.json` Güncellemesi
+
+```json
+{
+  "scripts": {
+    "dev":    "node scripts/doctor.cjs && concurrently \"vite --port=3000 --host=0.0.0.0\" \"tsx server.ts\"",
+    "doctor": "node scripts/doctor.cjs",
+    "fix":    "node scripts/doctor.cjs --fix",
+    "build":  "vite build",
+    "preview":"vite preview"
+  },
+  "dependencies": {
+    "concurrently": "^8.0.0"
+  }
+}
+```
+
+---
+
+## BÖLÜM 4 — HATA KATALOĞU REFERANS TABLOSU
+
+| Kod | Ekran | Belirti | Kök Neden | Çözüm Bölümü |
+|-----|-------|---------|-----------|--------------|
+| ERR-001 | Koç | AI HATASI: 404 | Vite proxy yok | §ERR-001 |
+| ERR-002 | Koç | Boş siyah ekran | Başlangıç mesajı yok | §ERR-002 |
+| ERR-003 | Koç | Chat ters scroll | requestAnimationFrame eksik | §ERR-003 |
+| ERR-004 | War Room | Şıklara tıklanamıyor | Canvas pointer-events | §ERR-004 |
+| ERR-005 | War Room | Silgi çalışmıyor | canvasRef null | §ERR-005 |
+| ERR-006 | Sorular | Soru taşıyor | overflow/max-w eksik | §ERR-006 |
+| ERR-007 | Tümü | Light mod çalışmıyor | classList sync yok | §ERR-007 |
+| ERR-008 | Dashboard | Grafik render olmuyor | height tanımsız | §ERR-008 |
+| ERR-009 | War Room | Double fetch | useEffect cleanup yok | §ERR-009 |
+| ERR-010 | Tümü | Mobil sidebar taşma | z-index/width sorunu | TODO-014 |
+
+---
+
+## BÖLÜM 5 — HIZLI ONARIM SIRASI
+
+Hangi sırayla düzeltmeli:
+
+```
+1. ERR-001  →  API çalışmadan hiçbir şey çalışmaz
+2. ERR-007  →  Tema fix'i global CSS etkiler
+3. ERR-002  →  Koç ekranını açar
+4. ERR-003  →  Chat scroll düzelir
+5. ERR-004  →  War Room kullanılabilir olur
+6. ERR-005  →  Silgi düzelir
+7. ERR-008  →  Grafikler görünür
+8. ERR-006  →  Responsive düzelir
+9. ERR-009  →  Performance düzelir
+10. TODO-011 → War Room toolbar tamamlanır
+```
+
+---
+
+*Son güncelleme: v1.0 — 20 TODO, 9 detaylı hata, 1 otomatik doktor betiği*

@@ -201,18 +201,20 @@ export function ExamEntryModal({ isOpen, onClose, onSave, track }: ExamEntryModa
           <div className="flex flex-col h-full bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6">
             <h3 className="font-serif italic text-lg text-zinc-300 uppercase tracking-widest border-b border-[#2A2A2A] pb-2 mb-6">Deneme Sinerjisi</h3>
             
-            <div className="flex-1 w-full min-h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 5 }}>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#8C857B', fontSize: 10, fontWeight: 'bold' }} />
-                  <Tooltip 
-                    cursor={{fill: '#2A2A2A'}} 
-                    contentStyle={{backgroundColor: '#1A1A1A', border: '1px solid #333', borderRadius: '8px', color: '#EAE6DF', fontSize: '12px'}} 
-                  />
-                  <Bar dataKey="net" fill="#C17767" radius={[0, 4, 4, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="flex-1 w-full min-h-[300px]">
+              <div style={{ width: '100%', height: '300px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 5 }}>
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#8C857B', fontSize: 10, fontWeight: 'bold' }} />
+                    <Tooltip 
+                      cursor={{fill: '#2A2A2A'}} 
+                      contentStyle={{backgroundColor: '#1A1A1A', border: '1px solid #333', borderRadius: '8px', color: '#EAE6DF', fontSize: '12px'}} 
+                    />
+                    <Bar dataKey="net" fill="#C17767" radius={[0, 4, 4, 0]} barSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-[#2A2A2A]">

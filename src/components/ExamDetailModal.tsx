@@ -27,7 +27,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
   };
 
   const totalNet = useMemo(() => {
-    return Object.values(scores).reduce((acc, s) => acc + (Number.isFinite(s.net) ? s.net : 0), 0);
+    return Object.values(scores).reduce((acc: number, s: any) => acc + (s?.net || 0), 0);
   }, [scores]);
 
   const handleDelete = () => {
@@ -37,7 +37,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
     }
   };
 
-  const chartData = Object.entries(scores).map(([subject, data]) => ({
+  const chartData = Object.entries(scores).map(([subject, data]: [string, any]) => ({
     name: subject,
     value: data.net > 0 ? data.net : 0, 
     color: subject === 'Türkçe' ? '#C17767' : subject === 'Matematik' ? '#3B82F6' : subject.includes('Fen') ? '#10B981' : '#F59E0B'
@@ -55,7 +55,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
 
   const saveEdit = () => {
     const normalized: ExamResult['scores'] = Object.fromEntries(
-      Object.entries(draftScores).map(([subject, s]) => {
+      Object.entries(draftScores).map(([subject, s]: [string, any]) => {
         const correct = Math.max(0, Number(s.correct) || 0);
         const wrong = Math.max(0, Number(s.wrong) || 0);
         const net = calcNet(correct, wrong);
@@ -118,20 +118,22 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
           <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6">
              <h3 className="font-serif italic text-[#C17767] text-lg mb-4 border-b border-[#2A2A2A] pb-2">Net Dağılımı</h3>
              <div className="h-48 w-full relative">
-               <ResponsiveContainer width="100%" height="100%">
-                 <PieChart>
-                   <Pie data={chartData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value" stroke="none">
-                     {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                   </Pie>
-                   <RechartsTooltip contentStyle={{ backgroundColor: '#1A1A1A', borderRadius: '8px', border: '1px solid #2A2A2A', color: '#fff', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }} itemStyle={{ color: '#fff' }} />
-                 </PieChart>
-               </ResponsiveContainer>
+               <div style={{ width: '100%', height: '100%' }}>
+                 <ResponsiveContainer width="100%" height="100%">
+                   <PieChart>
+                     <Pie data={chartData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value" stroke="none">
+                       {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                     </Pie>
+                     <RechartsTooltip contentStyle={{ backgroundColor: '#1A1A1A', borderRadius: '8px', border: '1px solid #2A2A2A', color: '#fff', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }} itemStyle={{ color: '#fff' }} />
+                   </PieChart>
+                 </ResponsiveContainer>
+               </div>
              </div>
           </div>
 
           <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 space-y-3 overflow-y-auto">
              <h3 className="font-serif italic text-zinc-300 text-lg mb-4 border-b border-[#2A2A2A] pb-2">Ders Detayları</h3>
-             {Object.entries(scores).map(([subject, data]) => (
+             {Object.entries(scores).map(([subject, data]: [string, any]) => (
                <div key={subject} className="flex justify-between items-center border-b border-[#2A2A2A]/50 pb-2 mb-2 last:border-0 last:mb-0 last:pb-0">
                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{subject}</span>
                  {!isEditing ? (
@@ -148,7 +150,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
                        value={data.correct}
                        onChange={(e) => {
                          const correct = Math.max(0, Number(e.target.value) || 0);
-                         setDraftScores((prev) => {
+                         setDraftScores((prev: any) => {
                            const cur = prev[subject] ?? { correct: 0, wrong: 0, net: 0 };
                            const wrong = cur.wrong;
                            return { ...prev, [subject]: { correct, wrong, net: calcNet(correct, wrong) } };
@@ -163,7 +165,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
                        value={data.wrong}
                        onChange={(e) => {
                          const wrong = Math.max(0, Number(e.target.value) || 0);
-                         setDraftScores((prev) => {
+                         setDraftScores((prev: any) => {
                            const cur = prev[subject] ?? { correct: 0, wrong: 0, net: 0 };
                            const correct = cur.correct;
                            return { ...prev, [subject]: { correct, wrong, net: calcNet(correct, wrong) } };

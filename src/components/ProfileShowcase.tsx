@@ -127,28 +127,32 @@ export function ProfileShowcase() {
         <div className="md:col-span-1 border border-[#2A2A2A] bg-[#1A1A1A] rounded-3xl p-6 flex flex-col items-center shadow-sm">
           <h3 className="font-serif italic text-xl mb-6 text-[#C17767] uppercase tracking-widest w-full border-b border-[#2A2A2A] pb-2">Mastery Oranı</h3>
           <div className="w-full h-40 relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={tytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
-                  {tytData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                </Pie>
-                <RechartsTooltip contentStyle={{ backgroundColor: '#121212', borderRadius: '8px', border: '1px solid #2A2A2A', color: '#fff', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }} itemStyle={{ color: '#fff' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div style={{ width: '100%', height: '100%', minHeight: '160px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={tytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
+                    {tytData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#121212', borderRadius: '8px', border: '1px solid #2A2A2A', color: '#fff', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }} itemStyle={{ color: '#fff' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-xl font-bold font-mono text-[#C17767]">{Math.round((tytMastered / (tytTotal || 1)) * 100)}%</span>
               <span className="text-[10px] opacity-50 uppercase tracking-widest font-bold text-zinc-400">TYT</span>
             </div>
           </div>
           <div className="w-full h-40 relative mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={aytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
-                  {aytData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                </Pie>
-                <RechartsTooltip contentStyle={{ backgroundColor: '#121212', borderRadius: '8px', border: '1px solid #2A2A2A', color: '#fff' }} itemStyle={{ color: '#fff' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div style={{ width: '100%', height: '100%', minHeight: '160px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={aytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
+                    {aytData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#121212', borderRadius: '8px', border: '1px solid #2A2A2A', color: '#fff' }} itemStyle={{ color: '#fff' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-xl font-bold font-mono text-[#E09F3E]">{Math.round((aytMastered / (aytTotal || 1)) * 100)}%</span>
               <span className="text-[10px] opacity-50 uppercase tracking-widest font-bold text-zinc-400">AYT</span>

@@ -233,9 +233,10 @@ Son denemeler: ${recentExams || 'Yok'}`;
           </div>
           
           {projection.tyt.hasEnoughData ? (
-            <div className="h-64 mt-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+            <div className="mt-6 w-full h-64">
+              <div style={{ width: '100%', height: '100%', minHeight: '256px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
                   <XAxis dataKey="name" stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
                   <YAxis stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
@@ -253,6 +254,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
                  <span className="text-zinc-500">Hesaplanan sapma (Regresyon bazlı)</span>
                  <span className="font-bold text-green-500 uppercase tracking-widest">{projection.tyt.predictedNet} NET BEKLENTİSİ</span>
               </div>
+            </div>
             </div>
           ) : (
             <div className="h-40 flex flex-col items-center justify-center text-zinc-600">
@@ -380,7 +382,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -418,6 +420,47 @@ Son denemeler: ${recentExams || 'Yok'}`;
             {isLoadingSprint && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50"><Loader2 size={24} className="animate-spin text-[#E09F3E]" /><p className="text-xs uppercase tracking-widest text-zinc-500">Görevler hesaplanıyor...</p></div>}
             {!isLoadingSprint && !sprintPlan && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30"><Zap size={32} className="text-zinc-600" /><p className="text-xs uppercase tracking-widest text-zinc-600">Sprint henüz başlatılmadı</p></div>}
             {sprintPlan && !isLoadingSprint && <ReactMarkdown components={markdownComponents}>{sprintPlan}</ReactMarkdown>}
+          </div>
+        </div>
+        
+        {/* WAR ROOM / ANLA KARTI */}
+        <div className="bg-[#121212] border border-red-900/30 rounded-2xl overflow-hidden shadow-[0_0_15px_rgba(239,68,68,0.05)]">
+          <div className="p-6 border-b border-red-900/40 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-900/10 rounded-xl border border-red-900/20">
+                <AlertTriangle size={20} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-serif italic text-xl text-zinc-200">Savaş Planı</h3>
+                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mt-0.5">Mezarlık & Log Analizi</p>
+              </div>
+            </div>
+            <button 
+              onClick={handleWarRoom} 
+              disabled={isLoadingWarRoom} 
+              className="flex items-center gap-2 px-4 py-2 bg-red-900/10 text-red-500 border border-red-900/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-900/30 hover:text-white transition-all disabled:opacity-40"
+            >
+              {isLoadingWarRoom ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />} {warRoomPlan ? 'Yenile' : 'ANLA'}
+            </button>
+          </div>
+          <div className="p-6 min-h-48">
+            {isLoadingWarRoom && (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50">
+                <Loader2 size={24} className="animate-spin text-red-500" />
+                <p className="text-xs uppercase tracking-widest text-zinc-500">Gear_Head analiz ediyor...</p>
+              </div>
+            )}
+            {!isLoadingWarRoom && !warRoomPlan && (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30">
+                <AlertTriangle size={32} className="text-zinc-600" />
+                <p className="text-xs uppercase tracking-widest text-zinc-600 font-bold ml-1 text-center">GELİŞİMİN DURDU MU, SAVAŞA HAZIR MISIN?</p>
+              </div>
+            )}
+            {warRoomPlan && !isLoadingWarRoom && (
+              <div className="border-l-2 border-red-500/50 pl-3">
+                 <ReactMarkdown components={markdownComponents}>{warRoomPlan}</ReactMarkdown>
+              </div>
+            )}
           </div>
         </div>
       </div>
