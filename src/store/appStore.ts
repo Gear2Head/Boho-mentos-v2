@@ -61,6 +61,8 @@ interface AppState {
   failedQuestions: FailedQuestion[];
   trophies: Trophy[];
   eloScore: number;
+  dailyEloDelta: number;
+  lastEloUpdateDate: string;
   streakDays: number;
   isMorningBlockerEnabled: boolean;
   focusSessions: FocusSessionRecord[];
@@ -97,6 +99,7 @@ interface AppState {
   setTheme: (theme: 'light' | 'dark') => void;
   isFocusSidePanelOpen: boolean;
   setFocusSidePanelOpen: (isOpen: boolean) => void;
+  analyzeUserData: () => string;
 }
 
 const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
@@ -209,6 +212,8 @@ export const useAppStore = create<AppState>()(
       failedQuestions: [],
       trophies: INITIAL_TROPHIES,
       eloScore: 1200,
+      dailyEloDelta: 0,
+      lastEloUpdateDate: new Date().toLocaleDateString('tr-TR'),
       streakDays: 0,
       isMorningBlockerEnabled: true,
       focusSessions: [],
@@ -279,8 +284,25 @@ export const useAppStore = create<AppState>()(
         const hasLoggedToday = state.logs.some(l => l.date.includes(todayStr));
         const newStreak = hasLoggedToday ? state.streakDays : state.streakDays + 1;
         
-        let eloDelta = 25;
-        if (log.correct / (log.questions || 1) > 0.8) eloDelta += 50;
+        let K = 30; 
+        if (state.eloScore >= 15000) K = 10;
+        else if (state.eloScore >= 7000) K = 15;
+        else if (state.eloScore >= 2500) K = 20;
+
+        const expectedNet = (log.questions || 1) * 0.60;
+        const actualNet = log.correct - (log.wrong * 0.25);
+        let netDiff = actualNet - expectedNet;
+        netDiff = Math.max(-50, Math.min(50, netDiff)); 
+        
+        const eloDelta = Math.round(K * netDiff);
+        
+        let newDailyDelta = state.dailyEloDelta;
+        if (state.lastEloUpdateDate !== todayStr) {
+           newDailyDelta = 0;
+        }
+        newDailyDelta += eloDelta;
+        
+        const newEloScore = Math.max(0, state.eloScore + eloDelta);
 
         const accuracy = log.correct / (log.questions || 1);
         const last3 = newLogs.slice(-3);
@@ -300,15 +322,24 @@ export const useAppStore = create<AppState>()(
 
         const newAlerts = newLogs.length >= 5 ? detectHabitsFromLogs(newLogs) : state.activeAlerts;
 
-        return { logs: newLogs, streakDays: newStreak, eloScore: state.eloScore + eloDelta, trophies, activeAlerts: newAlerts };
+        return { logs: newLogs, streakDays: newStreak, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies, activeAlerts: newAlerts };
       }),
 
       addExam: (exam) => set((state) => {
+        const todayStr = new Date().toLocaleDateString('tr-TR');
         let eloDelta = 100;
         if (state.profile) {
             const target = exam.type === 'TYT' ? state.profile.tytTarget : state.profile.aytTarget;
             if (exam.totalNet >= target) eloDelta += 150;
+            else if (exam.totalNet < target * 0.5) eloDelta -= 50; 
         }
+
+        let newDailyDelta = state.dailyEloDelta;
+        if (state.lastEloUpdateDate !== todayStr) {
+           newDailyDelta = 0;
+        }
+        newDailyDelta += eloDelta;
+        const newEloScore = Math.max(0, state.eloScore + eloDelta);
         const newExams = [...state.exams, exam];
         const trophies = state.trophies.map(t => {
           if (t.id === 'first_blood' && newExams.length >= 1 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
@@ -319,12 +350,33 @@ export const useAppStore = create<AppState>()(
           return t;
         });
 
-        return { exams: newExams, eloScore: state.eloScore + eloDelta, trophies };
+        return { exams: newExams, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies };
       }),
 
       removeExam: (id) => set((state) => ({
         exams: state.exams.filter(e => e.id !== id)
       })),
+
+      analyzeUserData: () => {
+         const state = get();
+         const tytTarget = state.profile?.tytTarget || 0;
+         const aytTarget = state.profile?.aytTarget || 0;
+         const last10Math = state.logs
+            .filter(l => l.subject?.toLowerCase().includes('matematik') || l.subject?.toLowerCase().includes('fizik') || l.subject?.toLowerCase().includes('kimya') || l.subject?.toLowerCase().includes('biyoloji'))
+            .slice(-10);
+            
+         const recentExams = state.exams.slice(-3);
+         const lastTyt = recentExams.filter(e => e.type === 'TYT').pop()?.totalNet || 0;
+         const lastAyt = recentExams.filter(e => e.type === 'AYT').pop()?.totalNet || 0;
+         
+         const mistakesContext = last10Math.map(l => `[${l.subject}] Konu: ${l.topic} -> Doğru: ${l.correct}, Hata: ${l.wrong}, Boş: ${l.empty} / Soru: ${l.questions}`).join(' | ');
+         
+         return `HEDEF: ${state.profile?.targetUniversity} ${state.profile?.targetMajor}. 
+MEVCUT NET: TYT ${lastTyt} (Hedef: ${tytTarget}), AYT ${lastAyt} (Hedef: ${aytTarget}).
+ELO: ${state.eloScore} | SERİ: ${state.streakDays} Gün.
+SON 10 SAYISAL LOG (Mezarlık Kaydı): ${mistakesContext || 'Yeterli log yok.'}
+TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir koç gibi davran ve MF (Sayısal) odaklı gerçekçi eleştiriler yap. Sorunun nereden kaynaklandığını belirleyen net ve nokta atışı 3 maddelik bir Savaş Planı/Strateji tavsiyesi sun! Lütfen gereksiz yorum yapma, sadece 3 madde ver.`;
+      },
 
       updateExam: (id, updates) => set((state) => ({
         exams: state.exams.map(e => e.id === id ? { ...e, ...updates } : e)

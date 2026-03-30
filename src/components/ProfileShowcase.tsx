@@ -2,7 +2,7 @@ import React from 'react';
 import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useAppStore } from '../store/appStore';
-import { getRankTier } from './EloRankCard';
+import { getRankDetails } from './EloRankCard';
 import type { Trophy as TrophyType, ExamResult } from '../types';
 import { findUniGoal } from '../data/uniGoals';
 
@@ -13,7 +13,8 @@ const ICON_MAP: Record<string, React.FC<any>> = {
 export function ProfileShowcase() {
   const store = useAppStore();
   const profile = store.profile;
-  const rank = getRankTier(store.eloScore);
+  const rank = getRankDetails(store.eloScore);
+  const RankIcon = ICON_MAP[rank.iconName] || Trophy;
 
   if (!profile) return null;
 
@@ -60,7 +61,7 @@ export function ProfileShowcase() {
         
         <div className="flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10">
           <div className={`w-32 h-32 rounded-3xl bg-[#121212] flex flex-col items-center justify-center border border-[#2A2A2A] shadow-inner ${rank.color}`}>
-            {React.cloneElement(rank.icon as React.ReactElement<any>, { size: 48, strokeWidth: 1.5 } as any)}
+            <RankIcon size={48} strokeWidth={1.5} />
             <span className="font-serif italic font-bold mt-2 tracking-widest uppercase text-xs opacity-90">{rank.title}</span>
           </div>
 

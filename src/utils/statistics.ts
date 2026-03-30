@@ -176,3 +176,53 @@ export function calcSourceROI(logs: DailyLog[]): SourceROI[] {
     })
     .sort((a, b) => b.roiScore - a.roiScore);
 }
+
+export function calculatePredictedNet(
+  exams: ExamResult[],
+  logs: DailyLog[],
+  targetDate: Date,
+  examType: 'TYT' | 'AYT',
+  currentElo: number
+): { predictedNet: number; confidence: number } {
+  const filteredExams = exams.filter(e => e.type === examType);
+  const maxNet = examType === 'TYT' ? 120 : 80;
+  
+  if (filteredExams.length < 2) {
+    const relatedLogs = logs.filter(l => l.questions > 0);
+    if (relatedLogs.length === 0) return { predictedNet: 0, confidence: 0 };
+    
+    const avgScore = relatedLogs.reduce((acc, l) => acc + (l.correct / l.questions), 0) / relatedLogs.length;
+    let basePred = avgScore * maxNet;
+    basePred += (currentElo / 1000); 
+    
+    return { predictedNet: Math.round(basePred), confidence: 30 }; 
+  }
+
+  const baseDate = new Date(filteredExams[0].date).getTime();
+  const points = filteredExams.map(e => ({
+    x: (new Date(e.date).getTime() - baseDate) / (1000 * 60 * 60 * 24),
+    y: e.totalNet,
+  }));
+
+  const { slope, intercept } = linearRegression(points);
+  const targetDays = (targetDate.getTime() - baseDate) / (1000 * 60 * 60 * 24);
+  
+  const recentLogs = logs.slice(-14);
+  const recentAccuracy = recentLogs.reduce((acc, l) => acc + ((l.correct || 0) / (l.questions || 1)), 0) / (recentLogs.length || 1);
+  const logBonus = recentAccuracy > 0.70 ? 5 : (recentAccuracy < 0.40 ? -5 : 0);
+  const eloBonus = (currentElo - 1000) / 1000; 
+
+  let predictedNet = slope * targetDays + intercept + logBonus + eloBonus;
+  
+  if(slope < 0 && recentAccuracy > 0.75) {
+     predictedNet += 10;
+  }
+
+  predictedNet = Math.max(0, Math.min(predictedNet, maxNet));
+  const confidence = Math.min(95, filteredExams.length * 8 + 35); 
+  
+  return { 
+    predictedNet: Math.round(predictedNet * 10) / 10,
+    confidence: Math.round(confidence)
+  };
+}

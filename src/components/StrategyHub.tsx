@@ -9,7 +9,7 @@ import { Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, ChevronR
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
 import { YOK_ATLAS_TOP10 } from '../data/yokAtlasTop10';
-import { calcSourceROI, predictTYTAndAYT } from '../utils/statistics';
+import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet } from '../utils/statistics';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const markdownComponents = {
@@ -28,8 +28,11 @@ export function StrategyHub() {
   const store = useAppStore();
   const [weeklyPlan, setWeeklyPlan] = useState<string | null>(null);
   const [sprintPlan, setSprintPlan] = useState<string | null>(null);
+  const [warRoomPlan, setWarRoomPlan] = useState<string | null>(null);
+  
   const [isLoadingWeekly, setIsLoadingWeekly] = useState(false);
   const [isLoadingSprint, setIsLoadingSprint] = useState(false);
+  const [isLoadingWarRoom, setIsLoadingWarRoom] = useState(false);
 
   // --- FAZ 1: KAYNAK ROI ---
   const sourceROIs = useMemo(() => calcSourceROI(store.logs), [store.logs]);
@@ -40,6 +43,11 @@ export function StrategyHub() {
   // --- FAZ 2: NET PROJEKSİYONU ---
   const examDate = new Date('2026-06-20T10:15:00+03:00');
   const projection = useMemo(() => predictTYTAndAYT(store.exams, examDate), [store.exams]);
+
+  const now = new Date();
+  const daysRemaining = Math.max(0, Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  const aiPredTyt = useMemo(() => calculatePredictedNet(store.exams, store.logs, examDate, 'TYT', store.eloScore), [store.exams, store.logs, store.eloScore]);
+  const aiPredAyt = useMemo(() => calculatePredictedNet(store.exams, store.logs, examDate, 'AYT', store.eloScore), [store.exams, store.logs, store.eloScore]);
 
   const projectionChartData = useMemo(() => {
     const data = [];
@@ -102,6 +110,15 @@ Son denemeler: ${recentExams || 'Yok'}`;
     const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
     setSprintPlan(response || 'Yanıt alınamadı.');
     setIsLoadingSprint(false);
+  };
+
+  const handleWarRoom = async () => {
+    setIsLoadingWarRoom(true);
+    const ctx = "GERÇEK BİR ANALİZ CANAVARI (MF-WARRIOR)";
+    const prompt = store.analyzeUserData();
+    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
+    setWarRoomPlan(response || 'Savaş planı elde edilemedi.');
+    setIsLoadingWarRoom(false);
   };
 
   const criticalSubjects = (() => {
@@ -193,6 +210,27 @@ Son denemeler: ${recentExams || 'Yok'}`;
           <h3 className="font-serif italic text-xl mb-4 text-zinc-200 flex items-center gap-2">
             <TrendingUp size={20} className="text-blue-500" /> Tahmini TYT Projeksiyonu
           </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 mt-2">
+            <div className="bg-[#1A1A1A]/80 backdrop-blur-md border border-[#C17767]/30 rounded-2xl p-5 shadow-[0_0_20px_rgba(193,119,103,0.05)]">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="text-[#C17767] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14}/> Sınav Günü Simülasyonu (TYT)</h4>
+                <span className="text-zinc-500 text-[10px] uppercase">{daysRemaining} Gün Kaldı</span>
+              </div>
+              <p className="text-zinc-300 text-sm leading-relaxed italic border-l-2 border-[#C17767]/50 pl-3">
+                "{store.profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-[#C17767] text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-zinc-100 font-mono">%{aiPredTyt.confidence}</strong>."
+              </p>
+            </div>
+            <div className="bg-[#1A1A1A]/80 backdrop-blur-md border border-[#E09F3E]/30 rounded-2xl p-5 shadow-[0_0_20px_rgba(224,159,62,0.05)]">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="text-[#E09F3E] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14}/> Sınav Günü Simülasyonu (AYT)</h4>
+                <span className="text-zinc-500 text-[10px] uppercase">{daysRemaining} Gün Kaldı</span>
+              </div>
+              <p className="text-zinc-300 text-sm leading-relaxed italic border-l-2 border-[#E09F3E]/50 pl-3">
+                "Alan testindeki ivmen, doğru/yanlış analizine ve algoritmanın regresyon hesabına göre AYT'de <strong className="text-[#E09F3E] text-xl">{aiPredAyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-zinc-100 font-mono">%{aiPredAyt.confidence}</strong>."
+              </p>
+            </div>
+          </div>
           
           {projection.tyt.hasEnoughData ? (
             <div className="h-64 mt-6">
