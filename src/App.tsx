@@ -1,14 +1,12 @@
-/**
- * AMAÇ: YKS Mentörlük Sistemi v5.0 Ana Uygulama
- * MANTIK: Merkezi state (Zustand), Gelişmiş Zamanlayıcı (FocusTimer), Elo Sistemi, Profil, Quiz ve Modüler mimari
- */
-
 import React, { useState, useEffect, useRef } from 'react';
+import { App as CapApp } from '@capacitor/app';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
 import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -267,6 +265,37 @@ export default function App() {
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // --- CAPACITOR NATIVE INTEGRATION ---
+  useEffect(() => {
+    if (Capacitor.getPlatform() === 'web') return;
+
+    // 1. Status Bar Kurulumu
+    const setupStatusBar = async () => {
+      try {
+        await StatusBar.setStyle({ style: store.theme === 'dark' ? Style.Dark : Style.Light });
+        await StatusBar.setBackgroundColor({ color: store.theme === 'dark' ? '#0A0A0A' : '#FDFBF7' });
+      } catch (e) {
+        console.warn('StatusBar Plugin not loaded', e);
+      }
+    };
+    setupStatusBar();
+
+    // 2. Geri Tuşu Yönetimi
+    const backListener = CapApp.addListener('backButton', ({ canGoBack }) => {
+      if (activeTab !== 'dashboard') {
+        setActiveTab('dashboard');
+      } else {
+        if (window.confirm('Boho Mentosluk\'tan çıkmak istediğine emin misin?')) {
+          CapApp.exitApp();
+        }
+      }
+    });
+
+    return () => {
+      backListener.then(l => l.remove());
+    };
+  }, [store.theme, activeTab]);
+
   const handleLogSubmit = async (log: DailyLog) => {
     setIsLogWidgetOpen(false);
     const isPassive = log.fatigue >= 8;
@@ -445,18 +474,28 @@ export default function App() {
         <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
           <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={<Target size={18} />} label="Sayaç" active={activeTab === 'countdown'} onClick={() => setActiveTab('countdown')} />
-          <NavItem icon={<PenTool size={18} />} label="War Room" active={activeTab === 'war_room'} onClick={() => setActiveTab('war_room')} />
-          <NavItem icon={<BrainCircuit size={18} />} label="Sorular" active={activeTab === 'questions'} onClick={() => setActiveTab('questions')} />
-          <NavItem icon={<BookOpen size={18} />} label="Anlatım" active={activeTab === 'explain'} onClick={() => setActiveTab('explain')} />
-          <NavItem icon={<Calendar size={18} />} label="Analiz" active={activeTab === 'exams'} onClick={() => setActiveTab('exams')} />
-          <NavItem icon={<List size={18} />} label="Loglar" active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} />
-          <NavItem icon={<BookOpen size={18} />} label="Ajanda" active={activeTab === 'agenda'} onClick={() => setActiveTab('agenda')} />
-          <NavItem icon={<Archive size={18} />} label="Mezarlık" active={activeTab === 'archive'} onClick={() => setActiveTab('archive')} />
-          <NavItem icon={<BookOpen size={18} />} label="Müfredat" active={activeTab === 'subjects'} onClick={() => setActiveTab('subjects')} />
-          <NavItem icon={<Target size={18} />} label="Strateji" active={activeTab === 'strategy'} onClick={() => setActiveTab('strategy')} />
+          <NavItem icon={<PenTool size={18} />} label="Savaş" active={activeTab === 'war_room'} onClick={() => setActiveTab('war_room')} />
+          
+          {/* Mobil Gizlenenler */}
+          <div className="hidden md:contents">
+            <NavItem icon={<BrainCircuit size={18} />} label="Sorular" active={activeTab === 'questions'} onClick={() => setActiveTab('questions')} />
+            <NavItem icon={<BookOpen size={18} />} label="Anlatım" active={activeTab === 'explain'} onClick={() => setActiveTab('explain')} />
+            <NavItem icon={<Calendar size={18} />} label="Analiz" active={activeTab === 'exams'} onClick={() => setActiveTab('exams')} />
+            <NavItem icon={<List size={18} />} label="Loglar" active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} />
+            <NavItem icon={<BookOpen size={18} />} label="Ajanda" active={activeTab === 'agenda'} onClick={() => setActiveTab('agenda')} />
+            <NavItem icon={<Archive size={18} />} label="Mezarlık" active={activeTab === 'archive'} onClick={() => setActiveTab('archive')} />
+            <NavItem icon={<BookOpen size={18} />} label="Müfredat" active={activeTab === 'subjects'} onClick={() => setActiveTab('subjects')} />
+            <NavItem icon={<Target size={18} />} label="Strateji" active={activeTab === 'strategy'} onClick={() => setActiveTab('strategy')} />
+            <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+          </div>
+
           <NavItem icon={<MessageSquare size={18} />} label="Koç" active={activeTab === 'coach'} onClick={() => setActiveTab('coach')} />
           <NavItem icon={<UserCircle size={18} />} label="Profil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
-          <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+          
+          {/* Mobil Menü Tetikleyici (Geçici) */}
+          <div className="md:hidden">
+             <NavItem icon={<Menu size={18} />} label="Menü" active={false} onClick={() => alert('Diğer menüler yakında eklenecek...')} />
+          </div>
         </div>
         <div
           className="hidden md:block p-4 border-t border-[#EAE6DF] dark:border-zinc-800 text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 cursor-pointer"
