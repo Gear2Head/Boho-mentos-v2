@@ -236,6 +236,7 @@ export const useAppStore = create<AppState>()(
       subjectViewMode: 'map' as const,
       theme: 'dark' as const,
       drawingMode: 'pen',
+
       setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => set({ drawingMode: mode }),
 
       setDevMode: (isDevMode) => set({ isDevMode }),
@@ -243,8 +244,10 @@ export const useAppStore = create<AppState>()(
       setTheme: (theme) => {
         set({ theme });
         if (typeof document !== 'undefined') {
-          document.documentElement.classList.toggle('light', theme === 'light');
-          document.documentElement.classList.toggle('dark', theme === 'dark');
+          const root = document.documentElement;
+          root.classList.remove('light', 'dark');
+          root.classList.add(theme);
+          root.style.colorScheme = theme;
         }
       },
       qaSession: null,
