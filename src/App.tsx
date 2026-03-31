@@ -273,9 +273,20 @@ export default function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobil Navigasyon Menüsü
   const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi
-  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false); // Gizli Admin Paneli
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // --- TEMA FLASHBANG ENGELLEYİCİ ---
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (store.theme === 'dark') {
+      root.classList.add('dark');
+      root.style.colorScheme = 'dark';
+    } else {
+      root.classList.remove('dark');
+      root.style.colorScheme = 'light';
+    }
+  }, [store.theme]);
 
   // --- CAPACITOR NATIVE INTEGRATION ---
   useEffect(() => {
@@ -1109,29 +1120,6 @@ export default function App() {
 }
 
 // ----- MOCK UI FORMS ------
-const NavItem = ({ icon, label, active, onClick }: any) => (
-  <button
-    onClick={onClick}
-    className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-4 px-2 md:px-6 py-3 md:py-2.5 transition-all relative ${active
-      ? 'text-[#C17767] md:bg-[#1A1A1A] md:border-r-4 md:border-[#C17767]'
-      : 'text-[#8C857B] hover:text-[#C17767] md:hover:bg-[#1A1A1A]/80'
-      }`}
-  >
-    {/* Mobile Active Indicator (Glow) */}
-    {active && (
-      <motion.div
-        layoutId="activeNav"
-        className="absolute inset-0 bg-[#C17767]/10 dark:bg-[#C17767]/20 md:hidden rounded-xl"
-        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-      />
-    )}
-
-    <div className={`relative p-2 rounded-full transition-all duration-300 ${active ? 'scale-110 drop-shadow-[0_0_8px_rgba(193,119,103,0.4)]' : 'opacity-70'}`}>
-      {icon}
-    </div>
-    <span className="text-[10px] md:text-xs uppercase tracking-widest font-bold hidden md:inline relative">{label}</span>
-  </button>
-);
 const StatCard = ({ title, value, total, unit, icon }: any) => (
   <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
     <div className="flex justify-between items-start mb-4">
@@ -1274,59 +1262,6 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-};
-
-const AdminPanelModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
-  const store = useAppStore();
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-      <div className="bg-[#FFFFFF] dark:bg-zinc-900 p-8 rounded-2xl max-w-sm w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl relative border-2 border-red-500/50">
-        <button onClick={onClose} className="absolute top-4 right-4 opacity-50 hover:opacity-100"><X size={20} /></button>
-        <div className="flex items-center gap-3 mb-6 text-red-500 border-b border-red-500/20 pb-4">
-          <ShieldAlert size={28} />
-          <h2 className="font-mono text-xl font-bold tracking-widest uppercase">Geliştirici Modu</h2>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex items-center justify-between bg-[#F5F2EB] dark:bg-zinc-950 p-4 rounded-xl border border-[#EAE6DF] dark:border-zinc-800">
-            <div>
-              <p className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">Geliştirici Özellikleri</p>
-              <p className="text-[10px] opacity-60 uppercase tracking-widest mt-1 text-[#4A443C] dark:text-zinc-400">Deneme Silme ve Düzenleme</p>
-            </div>
-            <button
-              onClick={() => store.setDevMode(!store.isDevMode)}
-              className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors ${store.isDevMode ? 'bg-green-500' : 'bg-zinc-400 dark:bg-zinc-700'}`}
-            >
-              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${store.isDevMode ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between bg-[#F5F2EB] dark:bg-zinc-950 p-4 rounded-xl border border-[#EAE6DF] dark:border-zinc-800">
-            <div>
-              <p className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">Sabah Kilidi</p>
-              <p className="text-[10px] opacity-60 uppercase tracking-widest mt-1 text-[#4A443C] dark:text-zinc-400">Sabah uyarısını kapat</p>
-            </div>
-            <button
-              onClick={() => store.setMorningBlockerEnabled(!store.isMorningBlockerEnabled)}
-              className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors ${store.isMorningBlockerEnabled ? 'bg-green-500' : 'bg-zinc-400 dark:bg-zinc-700'}`}
-            >
-              <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${store.isMorningBlockerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-          </div>
-
-          <button
-            onClick={() => { store.addElo(500); alert('Müthiş Hile: 500 Puan Eklendi!'); onClose(); }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-900/30 text-blue-400 border border-blue-900/50 hover:bg-blue-900/50 text-xs font-bold tracking-widest uppercase rounded-xl transition-colors"
-          >
-            Hile: +500 Elo Puanı
-          </button>
-        </div>
       </div>
     </div>
   );

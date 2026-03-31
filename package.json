@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/doctor.cjs && npx concurrently --kill-others \"vite --port=3000 --strictPort --host=127.0.0.1\" \"tsx server.ts\"",
-    "doctor": "node scripts/doctor.cjs",
+    "dev": "node scripts/autofix.cjs && npx concurrently --kill-others \"vite --port=3000 --strictPort --host=127.0.0.1\" \"tsx server.ts\"",
+    "doctor": "node scripts/autofix.cjs",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",

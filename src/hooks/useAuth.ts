@@ -14,7 +14,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider, db } from '../services/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useAppStore } from '../store/appStore';
 import { pullFromFirestore, pushToFirestore } from '../services/firestoreSync';
 
@@ -26,7 +26,9 @@ export function useAuth() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         store.setAuthUser({
           uid: firebaseUser.uid,
@@ -42,6 +44,17 @@ export function useAuth() {
           if (cloudData.theme) store.setTheme(cloudData.theme);
         }
         
+        // 🚀 SÜREKLİ DİNLEYİCİ (Real-Time ELO Sync)
+        unsubscribeSnapshot = onSnapshot(doc(db, 'userData', firebaseUser.uid), (docSnap) => {
+           if (docSnap.exists()) {
+             const rtData = docSnap.data();
+             // Frontend Cache yerine Firebase gerçeğini şokla (Zorla Ez)
+             if (rtData.eloScore !== undefined) {
+                useAppStore.setState({ eloScore: rtData.eloScore });
+             }
+           }
+        });
+
         // Geliştirici mimarisi için zorunlu (users dökümanı)
         try {
            const isSuperAdmin = firebaseUser.uid === '9z9OAxBXsFU3oPT8AqIxnDSfzNy2';
@@ -57,12 +70,19 @@ export function useAuth() {
            console.error("User doc sync error:", e);
         }
       } else {
+        if (unsubscribeSnapshot) {
+           unsubscribeSnapshot();
+           unsubscribeSnapshot = null;
+        }
         store.setAuthUser(null);
       }
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+       unsubscribeAuth();
+       if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {

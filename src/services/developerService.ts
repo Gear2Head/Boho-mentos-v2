@@ -142,3 +142,25 @@ export async function pushMockWarRoomSession(actorUid: string, actorRole: UserRo
      return { success: false, error: e.message };
    }
 }
+
+// PROFİL ONARIM (Zorla Veri Ekleme)
+export async function repairProfileDoc(actorUid: string, actorRole: UserRole, targetUid: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // userData doc
+      await setDoc(doc(db, "userData", targetUid), {
+        eloScore: 1200,
+        createdAt: serverTimestamp()
+      }, { merge: true });
+      
+      // users doc garanti
+      await setDoc(doc(db, "users", targetUid), {
+        uid: targetUid,
+        role: targetUid === SUPER_ADMIN_UID ? 'super_admin' : 'standard',
+      }, { merge: true });
+      
+      await logAdminAction(actorUid, actorRole, targetUid, 'REPAIR_PROFILE');
+      return { success: true };
+    } catch(e: any) {
+      return { success: false, error: e.message };
+    }
+}

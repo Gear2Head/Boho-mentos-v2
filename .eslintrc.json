@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "no-redeclare": "error", 
+    "no-unused-vars": "warn", 
+    "no-duplicate-imports": "error", 
+    "react/jsx-no-duplicate-props": "error" 
+  }
+}

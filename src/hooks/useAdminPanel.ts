@@ -63,9 +63,20 @@ export function useAdminPanel() {
   const banUser = (targetUid: string, reason: string) => _runAction(() => devService.toggleBan(user.uid, 'super_admin', targetUid, true, reason), 'Kullanıcı IP/Hesap olarak Banlandı.');
   const unbanUser = (targetUid: string) => _runAction(() => devService.toggleBan(user.uid, 'super_admin', targetUid, false), 'Kullanıcı engeli kaldırıldı.');
   
-  const addElo = (targetUid: string, amount: number) => _runAction(() => devService.injectElo(user.uid, 'super_admin', targetUid, amount), `Sisteme ${amount} ELO enjekte edildi.`);
+  const addElo = (targetUid: string, amount: number) => _runAction(async () => {
+    const res = await devService.injectElo(user.uid, 'super_admin', targetUid, amount);
+    if (res.success && targetUid === user.uid) {
+       // Kendi kendisine vuruyorsa frontend arayüzündeki (Dashboard) rakamı o an GÜNCELLE
+       import('../store/appStore').then(({ useAppStore }) => {
+          useAppStore.getState().addElo(amount);
+       });
+    }
+    return res;
+  }, `Sisteme ${amount} ELO enjekte edildi.`);
+
   const clearLogs = (targetUid: string) => _runAction(() => devService.clearUserLogs(user.uid, 'super_admin', targetUid), 'Kullanıcının tüm Log kayıtları tamamen silindi.');
   const mockWarRoom = (targetUid: string) => _runAction(() => devService.pushMockWarRoomSession(user.uid, 'super_admin', targetUid), 'Kullanıcı sahte (Mock) deneme sınav verisi aldı.');
+  const repairProfile = (targetUid: string) => _runAction(() => devService.repairProfileDoc(user.uid, 'super_admin', targetUid), 'Zede gören veya olmayan Profil veri tabanına ZORLA yazıldı (Onarıldı).');
 
   return {
     hasAccess,
@@ -83,6 +94,7 @@ export function useAdminPanel() {
     unbanUser,
     addElo,
     clearLogs,
-    mockWarRoom
+    mockWarRoom,
+    repairProfile
   };
 }

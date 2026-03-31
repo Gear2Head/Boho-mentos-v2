@@ -132,11 +132,12 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                    <div className="mt-8 p-6 bg-zinc-50 dark:bg-[#121212] rounded-3xl border border-[#EAE6DF] dark:border-zinc-800">
                      <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-500 text-xs mb-4">Müdahale Paneli : {admin.selectedUser.email}</h4>
                      
-                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                        <button onClick={() => admin.addElo(admin.selectedUser!.uid, +500)} disabled={admin.actionLoading} className="p-3 bg-green-500/10 text-green-600 rounded-xl text-[10px] font-bold uppercase border border-green-500/20 hover:bg-green-500/20">+500 ELO Bas</button>
                        <button onClick={() => admin.addElo(admin.selectedUser!.uid, -250)} disabled={admin.actionLoading} className="p-3 bg-red-500/10 text-red-600 rounded-xl text-[10px] font-bold uppercase border border-red-500/20 hover:bg-red-500/20">-250 ELO Tırpanla</button>
                        <button onClick={() => admin.mockWarRoom(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="p-3 bg-[#C17767]/10 text-[#C17767] rounded-xl text-[10px] font-bold uppercase border border-[#C17767]/20 hover:bg-[#C17767]/20">War Room Yolla</button>
                        <button onClick={() => admin.clearLogs(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="p-3 bg-zinc-800 text-zinc-400 rounded-xl text-[10px] font-bold uppercase border border-zinc-700 hover:text-white flex items-center justify-center gap-2"><Trash2 size={12}/> Tüm Logları Sil</button>
+                       <button onClick={() => admin.repairProfile(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="p-3 bg-blue-500/10 text-blue-500 rounded-xl text-[10px] font-bold uppercase border border-blue-500/20 hover:bg-blue-500/20 flex items-center justify-center text-center leading-tight">Profili Onar</button>
                      </div>
 
                      <div className="mt-4 pt-4 border-t border-[#EAE6DF] dark:border-zinc-800 grid grid-cols-2 gap-3">

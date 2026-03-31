@@ -11,7 +11,7 @@ export function CanvasLayer() {
   const store = useAppStore();
   const { containerRef, canvasRef, dims, clearCanvas, undoCanvas } = useCanvasSync(true);
   const [isDrawing, setIsDrawing] = useState(false);
-  const ctxRef = useRef<CanvasRenderingContextEx | null>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
 
   // Expose methods to global/window if needed for toolbars, or use store integration
   useEffect(() => {
@@ -98,7 +98,7 @@ export function CanvasLayer() {
         onTouchStart={startDrawing}
         onTouchMove={draw}
         onTouchEnd={stopDrawing}
-        className="w-full h-full cursor-crosshair"
+        className={`w-full h-full ${store.drawingMode === 'pointer' ? 'pointer-events-none' : 'cursor-crosshair'}`}
       />
     </div>
   );
