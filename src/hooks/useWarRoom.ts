@@ -18,13 +18,15 @@ export function useWarRoom() {
 
   // Timer Effect
   useEffect(() => {
-    if (warRoomMode !== 'solve' || !warRoomSession || warRoomSession.status !== 'active') return;
+    // Sadece 'solve' modunda, aktif bir oturum varken ve süre henüz bitmemişken çalışmalı
+    if (warRoomMode !== 'solve' || !warRoomSession || warRoomSession.status !== 'active' || timeLeft <= 0) return;
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          finishSession(); // Süre bitince otomatik sonlandır
+          // finishSession'ı bir timeout ile çağırıyoruz ki state batching tamamlansın
+          setTimeout(() => finishSession(), 0);
           return 0;
         }
         return prev - 1;
@@ -32,7 +34,7 @@ export function useWarRoom() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [warRoomSession?.status, warRoomMode]);
+  }, [warRoomSession?.status, warRoomMode, timeLeft > 0]);
 
   const startSession = useCallback(async (opts: GenerateQuestionsOptions, timeLimitSeconds: number) => {
     try {
