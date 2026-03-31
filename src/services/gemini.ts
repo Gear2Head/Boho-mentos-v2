@@ -61,12 +61,18 @@ export async function getCoachResponse(
       profile: store.profile,
       eloScore: store.eloScore,
       streakDays: store.streakDays,
-      // Sadece en kritik son verileri gönder (Token Tasarrufu)
-      logs: store.logs.slice(-5),
-      exams: store.exams.slice(-3),
-      activeTytSubjects: store.tytSubjects.filter(s => s.status === 'in-progress').slice(0, 5),
-      activeAytSubjects: store.aytSubjects.filter(s => s.status === 'in-progress').slice(0, 5),
-      failedQuestionsCount: store.failedQuestions.length,
+      // ⚡ RADİKAL ÖZET: Tüm listeyi değil, sadece sayısal özetleri gönder
+      stats: {
+        tytProgress: `${store.tytSubjects.filter(s => s.status === 'mastered').length}/${store.tytSubjects.length}`,
+        aytProgress: `${store.aytSubjects.filter(s => s.status === 'mastered').length}/${store.aytSubjects.length}`,
+        failedQuestionsCount: store.failedQuestions.length
+      },
+      logs: store.logs.slice(-3),
+      exams: store.exams.slice(-2),
+      activeTopics: [
+        ...store.tytSubjects.filter(s => s.status === 'in-progress').slice(0, 3).map(s => s.name),
+        ...store.aytSubjects.filter(s => s.status === 'in-progress').slice(0, 3).map(s => s.name)
+      ],
       activeAlerts: store.activeAlerts
     }
   };
