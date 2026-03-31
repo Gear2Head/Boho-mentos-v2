@@ -74,6 +74,7 @@ export function useAuth() {
            unsubscribeSnapshot();
            unsubscribeSnapshot = null;
         }
+        store.resetStore();
         store.setAuthUser(null);
       }
       setIsLoading(false);

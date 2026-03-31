@@ -4,6 +4,8 @@
  * UYARI: İstemci sadece context/prompt gönderir, anahtarlar asla bundle'a gömülmez.
  */
 
+import { useAppStore } from '../store/appStore';
+
 interface OpenAIMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -13,8 +15,16 @@ export async function getCoachResponse(
   userMessage: string,
   context: string,
   chatHistory: { role: "user" | "coach"; content: string }[] = [],
-  options?: { action?: "coach" | "qa_mode"; coachPersonality?: string; forceJson?: boolean; maxTokens?: number }
+  options?: { 
+    action?: "coach" | "qa_mode"; 
+    coachPersonality?: string; 
+    forceJson?: boolean; 
+    maxTokens?: number;
+    userState?: any;
+  }
 ): Promise<string> {
+  const store = useAppStore.getState();
+
   const payload = {
     action: options?.action || "coach",
     userMessage,
@@ -23,6 +33,17 @@ export async function getCoachResponse(
     coachPersonality: options?.coachPersonality,
     forceJson: options?.forceJson,
     maxTokens: options?.maxTokens,
+    userState: options?.userState || {
+      profile: store.profile,
+      eloScore: store.eloScore,
+      streakDays: store.streakDays,
+      logs: store.logs.slice(-10),
+      exams: store.exams.slice(-5),
+      tytSubjects: store.tytSubjects,
+      aytSubjects: store.aytSubjects,
+      failedQuestions: store.failedQuestions,
+      activeAlerts: store.activeAlerts
+    }
   };
 
   const response = await fetch("/api/ai", {

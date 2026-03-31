@@ -151,6 +151,37 @@ const INITIAL_TROPHIES: Trophy[] = [
   { id: 'exam_target_hit', title: 'Eşik Kırıldı', description: 'Bir denemede hedef nete ulaştın', unlockedAt: null, icon: 'Trophy', category: 'performance' },
 ];
 
+const INITIAL_STATE = {
+  profile: null,
+  tytSubjects: INITIAL_TYT,
+  aytSubjects: INITIAL_AYT,
+  logs: [],
+  exams: [],
+  chatHistory: [],
+  isPassiveMode: false,
+  failedQuestions: [],
+  trophies: INITIAL_TROPHIES,
+  eloScore: 0,
+  dailyEloDelta: 0,
+  lastEloUpdateDate: new Date().toLocaleDateString('tr-TR'),
+  streakDays: 0,
+  isMorningBlockerEnabled: true,
+  focusSessions: [],
+  agendaEntries: [],
+  activeAlerts: [],
+  isDevMode: false,
+  subjectViewMode: 'map' as const,
+  theme: 'dark' as const,
+  isFocusSidePanelOpen: false,
+  qaSession: null,
+  drawingMode: 'pen' as const,
+  warRoomMode: 'setup' as const,
+  warRoomSession: null,
+  warRoomAnswers: {},
+  warRoomEliminated: {},
+  authUser: null,
+};
+
 function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
   const alerts: HabitAlert[] = [];
   const now = new Date();
@@ -228,34 +259,13 @@ function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      profile: null,
-      tytSubjects: INITIAL_TYT,
-      aytSubjects: INITIAL_AYT,
-      logs: [],
-      exams: [],
-      chatHistory: [],
-      isPassiveMode: false,
-      failedQuestions: [],
-      trophies: INITIAL_TROPHIES,
-      eloScore: 0,
-      dailyEloDelta: 0,
-      lastEloUpdateDate: new Date().toLocaleDateString('tr-TR'),
-      streakDays: 0,
-      isMorningBlockerEnabled: true,
-      focusSessions: [],
-      agendaEntries: [],
-      activeAlerts: [],
-      isDevMode: false,
-      subjectViewMode: 'map' as const,
-      theme: 'dark' as const,
-      drawingMode: 'pen',
+      ...INITIAL_STATE,
 
-      warRoomMode: 'solve' as WarRoomMode,
-      warRoomSession: null,
-      warRoomAnswers: {},
-      warRoomEliminated: {},
+      resetStore: () => {
+        set(INITIAL_STATE);
+      },
 
-      authUser: null,
+      setProfile: (profile) => set({ profile }),
 
       setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => set({ drawingMode: mode }),
 
@@ -314,8 +324,6 @@ export const useAppStore = create<AppState>()(
       }),
       isFocusSidePanelOpen: false,
       setFocusSidePanelOpen: (isOpen) => set({ isFocusSidePanelOpen: isOpen }),
-
-      setProfile: (profile) => set({ profile }),
 
       dismissAlert: (id) => set((state) => ({
         activeAlerts: state.activeAlerts.filter(a => a.id !== id),
@@ -530,23 +538,6 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
       removeAgendaEntry: (id) => set((state) => ({
         agendaEntries: state.agendaEntries.filter(e => e.id !== id),
       })),
-
-      resetStore: () => set({
-        profile: null,
-        tytSubjects: INITIAL_TYT,
-        aytSubjects: INITIAL_AYT,
-        logs: [],
-        exams: [],
-        chatHistory: [],
-        isPassiveMode: false,
-        failedQuestions: [],
-        trophies: INITIAL_TROPHIES,
-        eloScore: 0,
-        streakDays: 0,
-        focusSessions: [],
-        agendaEntries: [],
-        activeAlerts: [],
-      }),
     }),
     {
       name: 'yks_coach_storage',
