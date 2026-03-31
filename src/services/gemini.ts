@@ -61,11 +61,12 @@ export async function getCoachResponse(
       profile: store.profile,
       eloScore: store.eloScore,
       streakDays: store.streakDays,
-      logs: store.logs.slice(-10),
-      exams: store.exams.slice(-5),
-      tytSubjects: store.tytSubjects,
-      aytSubjects: store.aytSubjects,
-      failedQuestions: store.failedQuestions,
+      // Sadece en kritik son verileri gönder (Token Tasarrufu)
+      logs: store.logs.slice(-5),
+      exams: store.exams.slice(-3),
+      activeTytSubjects: store.tytSubjects.filter(s => s.status === 'in-progress').slice(0, 5),
+      activeAytSubjects: store.aytSubjects.filter(s => s.status === 'in-progress').slice(0, 5),
+      failedQuestionsCount: store.failedQuestions.length,
       activeAlerts: store.activeAlerts
     }
   };
