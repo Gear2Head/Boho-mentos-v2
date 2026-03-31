@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -473,6 +473,7 @@ export default function App() {
         </div>
         <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
           <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<MessageSquare size={18} />} label="Koç" active={activeTab === 'coach'} onClick={() => setActiveTab('coach')} />
           <NavItem icon={<Target size={18} />} label="Sayaç" active={activeTab === 'countdown'} onClick={() => setActiveTab('countdown')} />
           <NavItem icon={<PenTool size={18} />} label="Savaş" active={activeTab === 'war_room'} onClick={() => setActiveTab('war_room')} />
           
@@ -489,7 +490,6 @@ export default function App() {
             <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
           </div>
 
-          <NavItem icon={<MessageSquare size={18} />} label="Koç" active={activeTab === 'coach'} onClick={() => setActiveTab('coach')} />
           <NavItem icon={<UserCircle size={18} />} label="Profil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
           
           {/* Mobil Menü Tetikleyici (Geçici) */}
@@ -588,10 +588,30 @@ export default function App() {
                   </div>
                 </section>
 
-                <section className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm flex flex-col">
-                  <h3 className="font-display italic text-xl mb-4 border-b border-[#2A2A2A] pb-2 uppercase tracking-tight text-[#C17767] flex items-center justify-between">
-                    <span>Konu Borcu</span><span className="text-[10px] bg-red-900/30 text-red-500 border border-red-500/20 px-2 py-1 rounded font-bold uppercase tracking-widest">FAİZ İŞLİYOR</span>
-                  </h3>
+                <section className="flex flex-col gap-4">
+                  {/* Yeni Koç Yönlendirme Kartı */}
+                  <div 
+                    onClick={() => setActiveTab('coach')}
+                    className="flex-1 bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 shadow-lg shadow-green-900/10 hover:border-[#C17767]/50 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                       <div className="p-2 bg-green-500/10 rounded-lg text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all">
+                          <MessageSquare size={20} />
+                       </div>
+                       <h3 className="font-bold tracking-tight text-sm text-zinc-200">Geleceğini İnşa Et</h3>
+                    </div>
+                    <p className="text-xs text-zinc-500 mb-4 leading-relaxed font-mono">Gear_Head. seni bekliyor. Bugün neyi fethedeceksin?</p>
+                    <button className="text-[10px] font-bold uppercase tracking-widest text-[#C17767] flex items-center gap-2 group-hover:translate-x-1 transition-transform">
+                       KOÇA DANIŞ <ChevronRight size={14} />
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-zinc-800 my-2" />
+
+                  <section className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm flex flex-col flex-1">
+                    <h3 className="font-display italic text-xl mb-4 border-b border-[#2A2A2A] pb-2 uppercase tracking-tight text-[#C17767] flex items-center justify-between">
+                      <span>Konu Borcu</span><span className="text-[10px] bg-red-900/30 text-red-500 border border-red-500/20 px-2 py-1 rounded font-bold uppercase tracking-widest">FAİZ İŞLİYOR</span>
+                    </h3>
                   <div className="flex-1 overflow-y-auto pr-2 space-y-3">
                     {(() => {
                       const candidates = store.logs
@@ -679,7 +699,8 @@ export default function App() {
                     );
                   })()}
                 </section>
-              </div>
+              </section>
+            </div>
 
             </motion.div>
           )}
