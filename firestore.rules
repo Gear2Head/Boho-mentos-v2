@@ -1,0 +1,56 @@
+/**
+ * AMAÇ: Firestore Security Rules Referans Noktası
+ * MANTIK: Bu kuralları kopyalayıp Firebase Console -> Firestore Database -> Rules sekmesine yapıştırın.
+ * DİKKAT: Üretim ortamında okuma/yazma güvenliği bu kurallarla yönetilir!
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Süper Admin UID (Kullanıcının talep ettiği ID)
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.uid == '9z9OAxBXsFU3oPT8AqIxnDSfzNy2';
+    }
+
+    // Developer Rolü: Eğer bir users dokümanı içerisinde role == 'developer' ise
+    function isDeveloper() {
+      return isSuperAdmin() || 
+        (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'developer');
+    }
+
+    // Single-Document Sync (userData koleksiyonu)
+    // Her kullanıcı (ya da Developer olan biri) sadece banlanmamışsa kendi verisini görebilir
+    match /userData/{uid} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == uid || isDeveloper()) &&
+        !get(/databases/$(database)/documents/users/$(uid)).data.isBanned;
+    }
+
+    // Kullanıcı Hesap & Rol Yönetimi
+    match /users/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isDeveloper());
+      
+      // Kullanıcı sisteme katılırken (SignUp) kendi dokümanını sadece kendi UID'si ise açabilir
+      allow create: if request.auth != null && request.auth.uid == uid;
+      
+      // Güncelleme: Kendisi yapıyorsa role/isBanned/banReason gibi admin alanlarına dokunamaz;
+      // Veya yapan bir Developer ise rahatlıkla yapabilir.
+      allow update: if request.auth != null && (
+        (request.auth.uid == uid && 
+         !('role' in request.resource.data.diff(resource.data).affectedKeys()) &&
+         !('isBanned' in request.resource.data.diff(resource.data).affectedKeys())
+        ) || 
+        isDeveloper()
+      );
+      
+      // Silme sadece SÜPER ADMİN yapabilir
+      allow delete: if isSuperAdmin();
+    }
+
+    // Admin (Developer) Log Kayıtları
+    match /adminLogs/{logId} {
+      allow read, write: if isDeveloper();
+    }
+  }
+}

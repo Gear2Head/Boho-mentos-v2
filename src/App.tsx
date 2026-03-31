@@ -38,6 +38,11 @@ import { ExamDetailModal } from './components/ExamDetailModal';
 import { StrategyHub } from './components/StrategyHub';
 import { MebiWarRoom } from './components/MebiWarRoom';
 import { FlapClock, MiniFlapClock } from './components/FlapClock';
+
+import { AdminPanelModal } from './components/admin/AdminPanelModal';
+import { NAV_ITEMS, ActiveTab } from './config/navItems';
+import { NavItem } from './components/NavItem';
+import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
 
@@ -257,7 +262,8 @@ export default function App() {
   const { user, isLoading } = useAuth(); // YENİ: Firebase Auth hook'u
   const [isAuthSkipped, setIsAuthSkipped] = useState(false); // YENİ: Misafir geçişi state'i
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions' | 'strategy' | 'countdown' | 'explain' | 'agenda' | 'war_room'>('dashboard');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
   const [isTyping, setIsTyping] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
@@ -522,54 +528,55 @@ export default function App() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{store.profile.name}</p>
-              <p className="text-[10px] uppercase tracking-widest text-ink-muted truncate">{store.profile.track}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                 <p className="text-[9px] uppercase tracking-widest text-ink-muted truncate">{store.profile.track}</p>
+                 {user?.uid && (
+                   <span 
+                     title="Tıkla ve Tam UID Kopyala" 
+                     onClick={(e) => { 
+                       e.stopPropagation(); 
+                       navigator.clipboard.writeText(user.uid); 
+                       alert('Kullanıcı ID (UID) kopyalandı.'); 
+                     }}
+                     className="text-[8px] bg-zinc-200 dark:bg-zinc-800 text-zinc-500 hover:text-white hover:bg-[#C17767] px-1.5 py-0.5 rounded transition-colors"
+                   >
+                     #{user.uid.slice(0, 5)}
+                   </span>
+                 )}
+              </div>
             </div>
           </div>
         </div>
-        <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-y-auto md:overflow-x-hidden custom-scrollbar">
-          <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <NavItem icon={<MessageSquare size={18} />} label="Koç" active={activeTab === 'coach'} onClick={() => setActiveTab('coach')} />
-          <NavItem icon={<Target size={18} />} label="Sayaç" active={activeTab === 'countdown'} onClick={() => setActiveTab('countdown')} />
-          <NavItem icon={<PenTool size={18} />} label="Savaş" active={activeTab === 'war_room'} onClick={() => setActiveTab('war_room')} />
-          
-          {/* Mobil Gizlenenler */}
-          <div className="hidden md:contents">
-            <NavItem icon={<BrainCircuit size={18} />} label="Sorular" active={activeTab === 'questions'} onClick={() => setActiveTab('questions')} />
-            <NavItem icon={<BookOpen size={18} />} label="Anlatım" active={activeTab === 'explain'} onClick={() => setActiveTab('explain')} />
-            <NavItem icon={<Calendar size={18} />} label="Analiz" active={activeTab === 'exams'} onClick={() => setActiveTab('exams')} />
-            <NavItem icon={<List size={18} />} label="Loglar" active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} />
-            <NavItem icon={<BookOpen size={18} />} label="Ajanda" active={activeTab === 'agenda'} onClick={() => setActiveTab('agenda')} />
-            <NavItem icon={<Archive size={18} />} label="Mezarlık" active={activeTab === 'archive'} onClick={() => setActiveTab('archive')} />
-            <NavItem icon={<BookOpen size={18} />} label="Müfredat" active={activeTab === 'subjects'} onClick={() => setActiveTab('subjects')} />
-            <NavItem icon={<Target size={18} />} label="Strateji" active={activeTab === 'strategy'} onClick={() => setActiveTab('strategy')} />
-            <NavItem icon={<Settings size={18} />} label="Ayarlar" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
-          </div>
-
-          <NavItem icon={<UserCircle size={18} />} label="Profil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
-
-          {/* Mobil: Profil avatar */}
-          <div className="md:hidden flex items-center ml-auto mr-2">
-            <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
-              {store.profile.avatar
-                ? <img src={store.profile.avatar} alt="avatar" className="w-full h-full rounded-full object-cover" />
-                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
-              }
-            </div>
-          </div>
-
-          {/* Mobil Menü Tetikleyici - Tam İşlevsel Modal */}
-          <div className="md:hidden">
-             <NavItem icon={<Menu size={18} />} label="Menü" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
+        <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
+          {NAV_ITEMS.map((item) => (
+             <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full md:mb-0.5`}>
+               <NavItem 
+                 icon={item.icon} 
+                 label={item.label} 
+                 active={activeTab === item.id} 
+                 onClick={() => setActiveTab(item.id)} 
+               />
+             </div>
+          ))}
+          {/* Mobil Menü (Daha fazla sekmesi) */}
+          <div className="md:hidden block w-full">
+             <NavItem icon={<Menu size={18} />} label="Daha Fazla" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
           </div>
         </div>
-        <div
-          className="hidden md:block p-4 border-t border-app text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-ink-muted cursor-pointer"
-          onClick={() => setIsAdminPanelOpen(true)}
-          title="Admin Panelini Aç"
-        >
-          © 2026 Gear_Head Architecture
-        </div>
+        
+        {/* Super Admin Dev Console Trigger - Sadece Yetkili UID */}
+        {isSuperAdmin(user?.uid) && (
+          <div
+            className="hidden md:block p-4 border-t border-app text-[9px] uppercase tracking-widest text-[#C17767] opacity-50 hover:opacity-100 transition-opacity cursor-pointer font-bold text-center"
+            onClick={() => setIsAdminPanelOpen(true)}
+            title="Dev Console Başlat"
+          >
+            ⬡ DEV CONSOLE
+          </div>
+        )}
       </nav>
+      {/* Dev Console Modalı */}
+      <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
 
       <main className="flex-1 overflow-auto relative bg-app pb-20 md:pb-0 pt-4 md:pt-0">
         <AnimatePresence mode="wait">

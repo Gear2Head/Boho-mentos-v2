@@ -13,7 +13,8 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { auth, googleProvider } from '../services/firebase';
+import { auth, googleProvider, db } from '../services/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { useAppStore } from '../store/appStore';
 import { pullFromFirestore, pushToFirestore } from '../services/firestoreSync';
 
@@ -39,6 +40,21 @@ export function useAuth() {
           store.setProfile(cloudData.profile);
           if (cloudData.eloScore !== undefined) store.addElo(cloudData.eloScore - store.eloScore);
           if (cloudData.theme) store.setTheme(cloudData.theme);
+        }
+        
+        // Geliştirici mimarisi için zorunlu (users dökümanı)
+        try {
+           const isSuperAdmin = firebaseUser.uid === '9z9OAxBXsFU3oPT8AqIxnDSfzNy2';
+           await setDoc(doc(db, 'users', firebaseUser.uid), {
+             uid: firebaseUser.uid,
+             email: firebaseUser.email,
+             displayName: firebaseUser.displayName || '',
+             photoURL: firebaseUser.photoURL || '',
+             role: isSuperAdmin ? 'super_admin' : 'standard',
+             lastSignedInAt: new Date().toISOString()
+           }, { merge: true });
+        } catch (e) {
+           console.error("User doc sync error:", e);
         }
       } else {
         store.setAuthUser(null);
