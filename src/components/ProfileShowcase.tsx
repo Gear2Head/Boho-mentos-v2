@@ -1,10 +1,11 @@
 import React from 'react';
-import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon } from 'lucide-react';
+import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon, X } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useAppStore } from '../store/appStore';
 import { getRankDetails } from './EloRankCard';
-import type { Trophy as TrophyType, ExamResult } from '../types';
-import { findUniGoal, UNI_GOALS } from '../data/uniGoals';
+import type { Trophy as TrophyType, ExamResult, AtlasProgram } from '../types';
+import { AtlasExplorer } from './AtlasExplorer';
+import { AnimatePresence } from 'motion/react';
 
 const ICON_MAP: Record<string, React.FC<any>> = {
   Trophy, Star, Crown, Zap, Flame, Award, Target, BookOpen, Hexagon
@@ -12,6 +13,7 @@ const ICON_MAP: Record<string, React.FC<any>> = {
 
 export function ProfileShowcase() {
   const store = useAppStore();
+  const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
   const profile = store.profile;
   const rank = getRankDetails(store.eloScore);
   const RankIcon = ICON_MAP[rank.iconName] || Trophy;
@@ -47,14 +49,12 @@ export function ProfileShowcase() {
   const lastTyt = tytExams.length > 0 ? tytExams[tytExams.length - 1].totalNet : 0;
   const lastAyt = aytExams.length > 0 ? aytExams[aytExams.length - 1].totalNet : 0;
 
-  const targetGoalTyt = findUniGoal(profile.targetUniversity, profile.targetMajor, 'TYT');
-  const targetGoalAyt = findUniGoal(profile.targetUniversity, profile.targetMajor, 'AYT');
+  const targetGoals = profile.targetGoals || [];
+  const primaryGoal = targetGoals[0];
 
-  const tytProgress = targetGoalTyt ? Math.min(100, Math.round((lastTyt / targetGoalTyt.lastEntrantNet) * 100)) : Math.min(100, Math.round((lastTyt / profile.tytTarget) * 100));
-  const aytProgress = targetGoalAyt ? Math.min(100, Math.round((lastAyt / targetGoalAyt.lastEntrantNet) * 100)) : Math.min(100, Math.round((lastAyt / profile.aytTarget) * 100));
-  const uniCandidates = UNI_GOALS
-    .filter((g) => g.major.toLowerCase().includes(profile.targetMajor.toLowerCase()))
-    .slice(0, 6);
+
+  const tytProgress = primaryGoal ? Math.min(100, Math.round((lastTyt / (primaryGoal.baseScore || profile.tytTarget)) * 100)) : Math.min(100, Math.round((lastTyt / profile.tytTarget) * 100));
+  const aytProgress = primaryGoal ? Math.min(100, Math.round((lastAyt / (primaryGoal.baseScore || profile.aytTarget)) * 100)) : Math.min(100, Math.round((lastAyt / profile.aytTarget) * 100));
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 md:space-y-8">
@@ -112,7 +112,7 @@ export function ProfileShowcase() {
           <div>
             <h3 className="font-serif italic text-xl text-zinc-200">Hedef İlerlemesi</h3>
             <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold max-w-full truncate">
-              {profile.targetUniversity} • {profile.targetMajor}
+              {primaryGoal ? `${primaryGoal.universityName} • ${primaryGoal.programName}` : `${profile.targetUniversity} • ${profile.targetMajor}`}
             </p>
           </div>
         </div>
@@ -121,7 +121,7 @@ export function ProfileShowcase() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs uppercase font-bold tracking-widest text-zinc-400">TYT — Temel Yeterlilik</span>
-              <span className="text-sm font-mono font-bold text-[#C17767]">{lastTyt} / {targetGoalTyt?.lastEntrantNet || profile.tytTarget}</span>
+              <span className="text-sm font-mono font-bold text-[#C17767]">{lastTyt} / {primaryGoal?.baseScore || profile.tytTarget}</span>
             </div>
             <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div className="h-full bg-[#C17767] transition-all duration-1000" style={{ width: `${tytProgress}%` }} />
@@ -130,7 +130,7 @@ export function ProfileShowcase() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs uppercase font-bold tracking-widest text-zinc-400">AYT — Alan Yeterlilik</span>
-              <span className="text-sm font-mono font-bold text-[#E09F3E]">{lastAyt} / {targetGoalAyt?.lastEntrantNet || profile.aytTarget}</span>
+              <span className="text-sm font-mono font-bold text-[#E09F3E]">{lastAyt} / {primaryGoal?.baseScore || profile.aytTarget}</span>
             </div>
             <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div className="h-full bg-[#E09F3E] transition-all duration-1000" style={{ width: `${aytProgress}%` }} />
@@ -140,24 +140,59 @@ export function ProfileShowcase() {
       </div>
 
       <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm">
-        <h3 className="font-serif italic text-xl text-zinc-200 mb-4">YOK Atlas Hedef Listesi</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {uniCandidates.map((item) => {
-            const currentNet = item.examType === 'TYT' ? lastTyt : lastAyt;
-            const gap = Math.max(0, Number((item.lastEntrantNet - currentNet).toFixed(1)));
-            const gapColor = gap <= 3 ? 'text-green-400' : gap <= 8 ? 'text-yellow-400' : 'text-red-400';
-            return (
-              <div key={item.id} className="rounded-2xl border border-[#2A2A2A] bg-[#1A1A1A] p-4">
-                <div className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{item.city} • {item.examType}</div>
-                <div className="text-sm font-bold text-zinc-200 mt-1">{item.university}</div>
-                <div className="text-xs text-zinc-400">{item.major}</div>
-                <div className="mt-3 text-xs text-zinc-400">Son giren net: <span className="font-mono text-zinc-200">{item.lastEntrantNet}</span></div>
-                <div className="text-xs text-zinc-400">Mevcut net: <span className="font-mono text-zinc-200">{currentNet}</span></div>
-                <div className={`text-xs font-bold mt-2 ${gapColor}`}>Fark: {gap} net</div>
-              </div>
-            );
-          })}
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="font-serif italic text-xl text-zinc-200">YÖK Atlas Hedef Listesi</h3>
+          <button 
+            className="text-[10px] font-bold uppercase tracking-widest text-[#C17767] border border-[#C17767]/30 px-3 py-1.5 rounded-xl hover:bg-[#C17767]/10 transition-colors"
+            onClick={() => setIsExplorerOpen(true)}
+          >
+            Yenİ Hedef Ekle
+          </button>
         </div>
+        
+        {targetGoals.length === 0 ? (
+          <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-2xl">
+            <p className="text-sm text-zinc-500 mb-4 tracking-wide italic">Henüz YÖK Atlas üzerinden bir hedef eklemedin.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {targetGoals.map((item) => {
+              const currentNet = item.scoreType === 'TYT' ? lastTyt : lastAyt;
+              const targetNet = item.baseScore || 0;
+              const gap = Math.max(0, Number((targetNet - currentNet).toFixed(1)));
+              const gapColor = gap <= 3 ? 'text-green-400' : gap <= 8 ? 'text-yellow-400' : 'text-red-400';
+              
+              return (
+                <div key={item.id} className="rounded-2xl border border-[#2A2A2A] bg-[#1A1A1A] p-5 hover:border-[#C17767]/50 transition-all group relative">
+                  <button 
+                    onClick={() => store.removeTargetGoal(item.id)}
+                    className="absolute top-4 right-4 p-1 rounded-full bg-red-500/10 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                  >
+                    <X size={12} />
+                  </button>
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">{item.scoreType} • {item.year || 2023}</div>
+                  <div className="text-sm font-bold text-zinc-200 leading-tight mb-0.5">{item.universityName}</div>
+                  <div className="text-xs text-[#C17767] italic mb-4">{item.programName}</div>
+                  
+                  <div className="space-y-2 pt-2 border-t border-zinc-800/50">
+                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-60">
+                      <span>Hedef Net:</span>
+                      <span className="text-zinc-200">{targetNet}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-60">
+                      <span>Mevcut:</span>
+                      <span className="text-zinc-200">{currentNet}</span>
+                    </div>
+                    <div className={`flex justify-between text-xs font-bold pt-1 ${gapColor}`}>
+                      <span>Kalan Fark:</span>
+                      <span>{gap} Net</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -223,6 +258,12 @@ export function ProfileShowcase() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isExplorerOpen && (
+          <AtlasExplorer onClose={() => setIsExplorerOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

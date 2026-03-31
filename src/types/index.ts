@@ -27,6 +27,18 @@ export interface StudentProfile {
   coachPersonality?: string;
   yokAtlasNet?: number;
   avatar?: string;
+  targetGoals?: AtlasProgram[];
+}
+
+export interface AtlasProgram {
+  id: string;
+  universityName: string;
+  programName: string;
+  faculty: string;
+  scoreType: string;
+  baseScore?: number;
+  successRank?: number;
+  year?: number;
 }
 
 export type SubjectStatusType = 'not-started' | 'in-progress' | 'mastered';

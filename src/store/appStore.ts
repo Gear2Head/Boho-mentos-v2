@@ -10,7 +10,7 @@ import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
-  HabitAlert, WarRoomMode, WarRoomSession, AuthUser
+  HabitAlert, WarRoomMode, WarRoomSession, AuthUser, AtlasProgram
 } from '../types';
 
 export interface QASession {
@@ -126,6 +126,9 @@ interface AppState {
 
   authUser: AuthUser | null;
   setAuthUser: (user: AuthUser | null) => void;
+
+  addTargetGoal: (goal: AtlasProgram) => void;
+  removeTargetGoal: (id: string) => void;
 }
 
 const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
@@ -537,6 +540,24 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
 
       removeAgendaEntry: (id) => set((state) => ({
         agendaEntries: state.agendaEntries.filter(e => e.id !== id),
+      })),
+
+      addTargetGoal: (goal) => set((state) => {
+        const currentGoals = state.profile?.targetGoals || [];
+        if (currentGoals.find(g => g.id === goal.id)) return state;
+        return {
+          profile: state.profile ? { 
+            ...state.profile, 
+            targetGoals: [...currentGoals, goal] 
+          } : null
+        };
+      }),
+
+      removeTargetGoal: (id) => set((state) => ({
+        profile: state.profile ? {
+          ...state.profile,
+          targetGoals: (state.profile.targetGoals || []).filter(g => g.id !== id)
+        } : null
       })),
     }),
     {
