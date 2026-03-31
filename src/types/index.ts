@@ -26,6 +26,7 @@ export interface StudentProfile {
   maxDailyQuestions: number;
   coachPersonality?: string;
   yokAtlasNet?: number;
+  avatar?: string;
 }
 
 export type SubjectStatusType = 'not-started' | 'in-progress' | 'mastered';

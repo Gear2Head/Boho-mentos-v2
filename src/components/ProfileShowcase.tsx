@@ -58,22 +58,36 @@ export function ProfileShowcase() {
       {/* Header & Lig Kartı */}
       <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-3xl p-8 relative overflow-hidden shadow-sm">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#C17767]/5 to-transparent rounded-bl-full pointer-events-none" />
-        
+
         <div className="flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10">
-          <div className={`w-32 h-32 rounded-3xl bg-[#121212] flex flex-col items-center justify-center border border-[#2A2A2A] shadow-inner ${rank.color}`}>
-            <RankIcon size={48} strokeWidth={1.5} />
-            <span className="font-serif italic font-bold mt-2 tracking-widest uppercase text-xs opacity-90">{rank.title}</span>
-          </div>
+          {/* Avatar veya Rank İkonu */}
+          {profile.avatar ? (
+            <div className="w-32 h-32 rounded-3xl overflow-hidden border-2 border-[#C17767]/40 shadow-xl shadow-[#C17767]/10 shrink-0">
+              <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className={`w-32 h-32 rounded-3xl bg-[#121212] flex flex-col items-center justify-center border border-[#2A2A2A] shadow-inner shrink-0 ${rank.color}`}>
+              <RankIcon size={48} strokeWidth={1.5} />
+              <span className="font-serif italic font-bold mt-2 tracking-widest uppercase text-xs opacity-90">{rank.title}</span>
+            </div>
+          )}
 
           <div className="flex-1 text-center md:text-left">
-            <h2 className="font-serif italic text-4xl text-zinc-200 mb-2">{profile.name}</h2>
+            <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2">
+              <h2 className="font-serif italic text-4xl text-zinc-200">{profile.name}</h2>
+              {profile.avatar && (
+                <span className={`self-center inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold tracking-widest uppercase ${rank.color} border-current/30 bg-current/5`}>
+                  <RankIcon size={12} /> {rank.title}
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs font-bold uppercase tracking-widest text-[#C17767]/70">
               <span className="bg-[#121212] border border-[#2A2A2A] px-3 py-1 rounded-full">{profile.track}</span>
               {profile.examYear && <span className="bg-[#121212] border border-[#2A2A2A] px-3 py-1 rounded-full text-zinc-300">🎯 YKS {profile.examYear}</span>}
               <span className="bg-[#C17767]/10 text-[#C17767] px-3 py-1 rounded-full border border-[#C17767]/20">🔥 {store.streakDays} GÜN SERİ</span>
               <span className="bg-[#121212] border border-[#2A2A2A] px-3 py-1 rounded-full text-blue-400">🏅 {store.eloScore} Puan</span>
             </div>
-            
+
             {profile.motivationQuote && (
               <p className="mt-4 text-lg italic font-serif border-l-2 border-[#C17767] pl-4 py-1 text-zinc-400">
                 "{profile.motivationQuote}"
@@ -81,7 +95,7 @@ export function ProfileShowcase() {
             )}
 
             <p className={`text-sm italic opacity-80 leading-relaxed max-w-xl text-zinc-300 ${profile.motivationQuote ? 'mt-3' : 'mt-6'}`}>
-              Hedef: <strong className="text-[#C17767]">{profile.targetUniversity}</strong> – {profile.targetMajor}. 
+              Hedef: <strong className="text-[#C17767]">{profile.targetUniversity}</strong> – {profile.targetMajor}.
               Minimum günlük {profile.dailyGoalHours} saatlik çalışma temposu benimsendi.
             </p>
           </div>

@@ -244,10 +244,15 @@ export const useAppStore = create<AppState>()(
       setTheme: (theme) => {
         set({ theme });
         if (typeof document !== 'undefined') {
-          const root = document.documentElement;
-          root.classList.remove('light', 'dark');
-          root.classList.add(theme);
-          root.style.colorScheme = theme;
+          const html = document.documentElement;
+          if (theme === 'dark') {
+            html.classList.add('dark');
+            html.classList.remove('light');
+          } else {
+            html.classList.remove('dark');
+            html.classList.add('light');
+          }
+          html.style.colorScheme = theme;
         }
       },
       qaSession: null,

@@ -260,6 +260,7 @@ export default function App() {
   const [isLogWidgetOpen, setIsLogWidgetOpen] = useState(false);
   const [isArchiveWidgetOpen, setIsArchiveWidgetOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobil Navigasyon Menüsü
   const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false); // Gizli Admin Paneli
   const [selectedExam, setSelectedExam] = useState<any>(null);
@@ -459,17 +460,51 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-[#FDFBF7] dark:bg-zinc-950 text-[#4A443C] dark:text-zinc-200 font-sans selection:bg-[#4A443C] selection:text-[#FDFBF7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-[#EAE6DF] dark:border-zinc-800 flex flex-row md:flex-col bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)]">
-        <div className="hidden md:block p-4 border-b border-[#EAE6DF] dark:border-zinc-800">
-          <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767] dark:text-rose-400">Boho Mentosluk</h1>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-[#4A443C] dark:text-zinc-400">YKS Mentörlük v5</p>
+    <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      {/* Mobile Top Header (Glassmorphism) */}
+      <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-[#C17767] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#C17767]/20">
+            <h1 className="font-display italic text-lg font-bold leading-none transform -rotate-12">B</h1>
+          </div>
+          <h2 className="font-display italic text-base font-bold tracking-tight text-ink">Boho Mentosluk</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
+             {store.profile.avatar
+               ? <img src={store.profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />
+               : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
+             }
+          </div>
+        </div>
+      </header>
+
+      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)]">
+        <div className="hidden md:block p-4 border-b border-app">
+          <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
+          <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-ink-muted">YKS Mentörlük v5</p>
           {store.isPassiveMode && (
             <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               <span className="text-xs font-bold text-rose-600 dark:text-rose-400">PASİF MOD AKTİF</span>
             </div>
           )}
+        </div>
+        {/* Desktop: Avatar Mini Profil Kartı */}
+        <div className="hidden md:block p-4 border-b border-app cursor-pointer group" onClick={() => setActiveTab('profile')}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-[#C17767]/30 shrink-0 group-hover:border-[#C17767]/70 transition-colors">
+              {store.profile.avatar
+                ? <img src={store.profile.avatar} alt={store.profile.name} className="w-full h-full object-cover" />
+                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full bg-surface" />
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{store.profile.name}</p>
+              <p className="text-[10px] uppercase tracking-widest text-ink-muted truncate">{store.profile.track}</p>
+            </div>
+          </div>
         </div>
         <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
           <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
@@ -491,14 +526,24 @@ export default function App() {
           </div>
 
           <NavItem icon={<UserCircle size={18} />} label="Profil" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
-          
-          {/* Mobil Menü Tetikleyici (Geçici) */}
+
+          {/* Mobil: Profil avatar */}
+          <div className="md:hidden flex items-center ml-auto mr-2">
+            <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
+              {store.profile.avatar
+                ? <img src={store.profile.avatar} alt="avatar" className="w-full h-full rounded-full object-cover" />
+                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
+              }
+            </div>
+          </div>
+
+          {/* Mobil Menü Tetikleyici - Tam İşlevsel Modal */}
           <div className="md:hidden">
-             <NavItem icon={<Menu size={18} />} label="Menü" active={false} onClick={() => alert('Diğer menüler yakında eklenecek...')} />
+             <NavItem icon={<Menu size={18} />} label="Menü" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
           </div>
         </div>
         <div
-          className="hidden md:block p-4 border-t border-[#EAE6DF] dark:border-zinc-800 text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 cursor-pointer"
+          className="hidden md:block p-4 border-t border-app text-[10px] opacity-20 hover:opacity-100 transition-opacity uppercase tracking-widest text-ink-muted cursor-pointer"
           onClick={() => setIsAdminPanelOpen(true)}
           title="Admin Panelini Aç"
         >
@@ -506,7 +551,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-auto relative bg-[#FDFBF7] dark:bg-zinc-950 pb-20 md:pb-0 pt-4 md:pt-0">
+      <main className="flex-1 overflow-auto relative bg-app pb-20 md:pb-0 pt-4 md:pt-0">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
             <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 max-w-5xl mx-auto">
@@ -1026,6 +1071,12 @@ export default function App() {
       <FocusSidePanel />
       <CoachInterventionModal />
       <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
+      <MobileMenuModal 
+        isOpen={isMobileMenuOpen} 
+        onClose={() => setIsMobileMenuOpen(false)} 
+        activeTab={activeTab}
+        onNavigate={setActiveTab}
+      />
     </div>
   );
 }
@@ -1254,3 +1305,67 @@ const AdminPanelModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 };
 
+// --- MOBİL MENÜ MODAL ---
+const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate }: any) => {
+  if (!isOpen) return null;
+
+  const menuItems = [
+    { id: 'questions', icon: <BrainCircuit size={20} />, label: 'SORULAR' },
+    { id: 'explain', icon: <BookOpen size={20} />, label: 'ANLATIM' },
+    { id: 'exams', icon: <Calendar size={20} />, label: 'ANALİZ' },
+    { id: 'logs', icon: <List size={20} />, label: 'LOGLAR' },
+    { id: 'agenda', icon: <BookOpen size={20} />, label: 'AJANDA' },
+    { id: 'archive', icon: <Archive size={20} />, label: 'MEZARLIK' },
+    { id: 'subjects', icon: <BookOpen size={20} />, label: 'MÜFREDAT' },
+    { id: 'strategy', icon: <Target size={20} />, label: 'STRATEJİ' },
+    { id: 'settings', icon: <Settings size={20} />, label: 'AYARLAR' },
+  ];
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end md:hidden"
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ y: "100%" }} 
+        animate={{ y: 0 }} 
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="w-full bg-[#FDFBF7] dark:bg-zinc-950 rounded-t-[2.5rem] border-t border-[#EAE6DF] dark:border-zinc-800 p-8 pt-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-12 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-8 cursor-pointer" onClick={onClose} />
+        
+        <header className="mb-8 pl-2">
+           <h3 className="font-display italic text-2xl text-[#C17767] dark:text-rose-400">Tüm Üniteler</h3>
+           <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold font-mono">Sistem Haritası v5.6</p>
+        </header>
+
+        <div className="grid grid-cols-3 gap-y-8 gap-x-4 pb-12">
+          {menuItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => { onNavigate(item.id); onClose(); }}
+              className="flex flex-col items-center gap-3 group"
+            >
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${activeTab === item.id ? 'bg-[#C17767] text-white shadow-xl shadow-[#C17767]/20 scale-110' : 'bg-zinc-100 dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-400 group-hover:bg-[#C17767]/10'}`}>
+                {item.icon}
+              </div>
+              <span className={`text-[9px] font-bold uppercase tracking-widest text-center ${activeTab === item.id ? 'text-[#C17767]' : 'text-[#4A443C]/60 dark:text-zinc-500'}`}>{item.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <button 
+          onClick={onClose}
+          className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-[#FDFBF7] dark:text-zinc-950 border border-transparent dark:border-zinc-200 rounded-2xl text-xs font-bold uppercase tracking-widest"
+        >
+          Menüyü Kapat
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+};
