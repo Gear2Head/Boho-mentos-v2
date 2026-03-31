@@ -28,7 +28,7 @@ type AiRequestBody =
 const GEMINI_MODEL = "gemini-2.0-flash";
 const GROQ_MODEL = "llama-3.1-8b-instant";
 const OPENROUTER_MODEL = "meta-llama/llama-3.2-3b-instruct:free";
-const CEREBRAS_MODEL = "llama3.1-8b";
+const CEREBRAS_MODEL = "llama3.1-70b";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
