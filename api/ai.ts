@@ -136,34 +136,46 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
     { role: "user", content: fullPrompt },
   ];
 
-  for (const key of CEREBRAS_KEYS()) {
-    try {
-      return { text: await callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, maxTokens) };
-    } catch (e: any) {
-      if (!isRetriableProviderError(String(e?.message ?? ""))) break;
+  // Tanımlı sağlayıcılar ve anahtarları
+  const providers = [
+    { 
+      name: "Cerebras", 
+      keys: CEREBRAS_KEYS(), 
+      call: (key: string) => callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, maxTokens) 
+    },
+    { 
+      name: "Gemini", 
+      keys: GEMINI_KEYS(), 
+      call: (key: string) => callGemini(key, fullPrompt, systemInstruction, chatHistory) 
+    },
+    { 
+      name: "Groq", 
+      keys: GROQ_KEYS(), 
+      call: (key: string) => callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, Math.min(maxTokens, 1200)) 
+    },
+    { 
+      name: "OpenRouter", 
+      keys: OPENROUTER_KEYS(), 
+      call: (key: string) => callOpenAICompatible(OPENROUTER_API_URL, key, OPENROUTER_MODEL, openAIMsgs, maxTokens) 
+    }
+  ];
+
+  // Agresif Fallback Döngüsü
+  for (const provider of providers) {
+    for (const key of provider.keys) {
+      try {
+        const text = await provider.call(key);
+        if (text && text.trim().length > 0) {
+          return { text: text.trim() };
+        }
+      } catch (e: any) {
+        console.error(`AI Error [${provider.name}]:`, e.message);
+        // Hata raporu retriable mı kontrol et, değilse bile bir sonraki anahtarı/sağlayıcıyı dene
+        continue;
+      }
     }
   }
-  for (const key of GEMINI_KEYS()) {
-    try {
-      return { text: await callGemini(key, fullPrompt, systemInstruction, chatHistory) };
-    } catch (e: any) {
-      if (!isRetriableProviderError(String(e?.message ?? ""))) break;
-    }
-  }
-  for (const key of GROQ_KEYS()) {
-    try {
-      return { text: await callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, Math.min(maxTokens, 1200)) };
-    } catch (e: any) {
-      if (!isRetriableProviderError(String(e?.message ?? ""))) break;
-    }
-  }
-  for (const key of OPENROUTER_KEYS()) {
-    try {
-      return { text: await callOpenAICompatible(OPENROUTER_API_URL, key, OPENROUTER_MODEL, openAIMsgs, maxTokens) };
-    } catch (e: any) {
-      if (!isRetriableProviderError(String(e?.message ?? ""))) break;
-    }
-  }
+
   const debugInfo = {
     gemini: GEMINI_KEYS().length,
     groq: GROQ_KEYS().length,
