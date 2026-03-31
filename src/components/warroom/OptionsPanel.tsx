@@ -16,15 +16,16 @@ const LaTeXRenderer = ({ text }: { text: string }) => {
       {parts.map((p, i) => {
         if (p.startsWith('\\(') && p.endsWith('\\)')) return <InlineMath key={i}>{p.slice(2, -2)}</InlineMath>;
         if (p.startsWith('\\[') && p.endsWith('\\]')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
-        return <span key={i} dangerouslySetInnerHTML={{ __html: p }} />;
+        return <span key={i}>{p}</span>;
       })}
     </div>
   );
 };
 
-export function OptionsPanel({ options }: { options: string[] }) {
+export function OptionsPanel({ options, currentQuestionId }: { options: string[]; currentQuestionId: string }) {
   const store = useAppStore();
-  const { selectedAnswer, eliminatedOptions, toggleEliminatedOption, setSelectedAnswer } = store;
+  const selectedAnswer = store.warRoomAnswers[currentQuestionId] ?? '';
+  const eliminatedOptions = store.warRoomEliminated[currentQuestionId] ?? [];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-12 w-full max-w-4xl mx-auto pb-24">
@@ -38,9 +39,9 @@ export function OptionsPanel({ options }: { options: string[] }) {
             key={i}
             onContextMenu={(e) => {
               e.preventDefault();
-              toggleEliminatedOption(i);
+              store.toggleEliminatedOption(currentQuestionId, i);
             }}
-            onClick={() => !isEliminated && setSelectedAnswer(letter)}
+            onClick={() => !isEliminated && store.updateWarRoomAnswer(currentQuestionId, letter)}
             className={`
               relative p-5 text-left border rounded-2xl flex gap-4 transition-all duration-300 group
               hover:scale-[1.02] active:scale-95 overflow-hidden

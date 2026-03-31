@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useAppStore } from '../../store/appStore';
 import { useWarRoom } from '../../hooks/useWarRoom';
 
@@ -22,6 +23,7 @@ export function QuestionNav({ currentIdx, totalCount, onNavigate }: QuestionNavP
   if (!session) return null;
 
   const currentQId = session.questions[currentIdx]?.id;
+  if (!currentQId) return null;
   const currentAnswer = store.warRoomAnswers[currentQId];
   const eliminated = store.warRoomEliminated[currentQId] || [];
 
@@ -59,7 +61,13 @@ export function QuestionNav({ currentIdx, totalCount, onNavigate }: QuestionNavP
               `}
             >
               <span className={isElim ? 'line-through decoration-2 decoration-red-500/50' : ''}>{opt}</span>
-              {isSelected && <motion.div layoutId="selRing" className="absolute -inset-1 rounded-[1.4rem] border-2 border-[#C17767]/30" />}
+              {isSelected && (
+                <motion.div
+                  layoutId="selRing"
+                  className="absolute -inset-1 rounded-[1.4rem] border-2 border-[#C17767]/30"
+                  transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                />
+              )}
             </button>
           )
         })}

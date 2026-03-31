@@ -21,6 +21,7 @@ import type {
 import { FocusSidePanel } from './components/FocusSidePanel';
 import { EloRankCard } from './components/EloRankCard';
 import { ThemeToggle } from './components/ThemeToggle';
+import { MobileGuard } from './components/MobileGuard';
 import { MorningBlocker } from './components/MorningBlocker';
 import { ProfileShowcase } from './components/ProfileShowcase';
 import { QuizEngine } from './components/QuizEngine';
@@ -28,7 +29,7 @@ import { AchievementsPanel } from './components/AchievementsPanel';
 import { TopicExplain } from './components/TopicExplain';
 import { AgendaPage } from './components/AgendaPage';
 import { CoachInterventionModal } from './components/CoachInterventionModal';
-import { calcWorkloadRemaining } from './utils/statistics';
+import { calcWorkloadRemaining, calcSourceROI, calculatePredictedNet, detectHabitAlerts } from './utils/statistics';
 // Kapsam Dışı: import { SpotifyWidget } from './components/SpotifyWidget'; 
 
 import { LogEntryWidget } from './components/forms/LogEntryWidget';
@@ -359,6 +360,9 @@ export default function App() {
     const avgTime = dayLogs.length > 0 ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length) : null;
     return { day: dateStr, actual: avgTime, target: 45 };
   });
+  const tytProjection = calculatePredictedNet(store.exams, store.logs, YKS_2026_TYT_DATE, 'TYT', store.eloScore);
+  const aytProjection = calculatePredictedNet(store.exams, store.logs, YKS_2026_AYT_DATE, 'AYT', store.eloScore);
+  const activeHabitAlerts = detectHabitAlerts(store.logs);
 
   const summarizeLogs = (logs: DailyLog[]) => {
     if (logs.length === 0) return "Henüz log girilmedi.";
@@ -497,12 +501,13 @@ export default function App() {
   }
 
   return (
+    <MobileGuard className="h-[100dvh]">
     <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
       {/* Mobile Top Header (Glassmorphism) */}
       <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#C17767] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#C17767]/20">
-            <h1 className="font-display italic text-lg font-bold leading-none transform -rotate-12">B</h1>
+          <div className="w-8 h-8 rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-[#1F2A36] border border-white/10">
+            <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
           </div>
           <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
         </div>
@@ -519,7 +524,12 @@ export default function App() {
 
       <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-lg md:shadow-none">
         <div className="hidden md:block p-4 border-b border-app">
-          <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/20">
+              <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
+            </div>
+            <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
+          </div>
           <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-ink-muted">YKS Mentörlük v5</p>
           {store.isPassiveMode && (
             <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
@@ -656,11 +666,31 @@ export default function App() {
                 const todayLogs = store.logs.filter(l => l.date.includes(todayStr));
                 const todayHours = (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1);
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    <StatCard title="Tamamlanan" value={store.tytSubjects.filter(s => s.status === 'mastered').length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject) && s.status === 'mastered').length} total={store.tytSubjects.length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)).length} icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />} />
-                    <StatCard title="Günlük Çalışma" value={todayHours} total={store.profile.dailyGoalHours || store.profile.minHours} unit="Saat" icon={<Calendar className="text-blue-400" />} />
-                    <StatCard title="Kritik Sorunlar" value={store.logs.filter(l => l.wrong > l.correct).length} unit="Aktif" icon={<AlertTriangle className="text-orange-500" />} />
-                  </div>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+                      <StatCard title="Tamamlanan" value={store.tytSubjects.filter(s => s.status === 'mastered').length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject) && s.status === 'mastered').length} total={store.tytSubjects.length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)).length} icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />} />
+                      <StatCard title="Günlük Çalışma" value={todayHours} total={store.profile.dailyGoalHours || store.profile.minHours} unit="Saat" icon={<Calendar className="text-blue-400" />} />
+                      <StatCard title="Kritik Sorunlar" value={store.logs.filter(l => l.wrong > l.correct).length} unit="Aktif" icon={<AlertTriangle className="text-orange-500" />} />
+                      <StatCard
+                        title="ROI Kaynak"
+                        value={(() => {
+                          const roi = calcSourceROI(store.logs).slice(0, 1)[0];
+                          return roi ? roi.sourceName.split(' ')[0] : 'YOK';
+                        })()}
+                        unit={(() => {
+                          const roi = calcSourceROI(store.logs).slice(0, 1)[0];
+                          return roi ? `ROI:${roi.roiScore}` : '';
+                        })()}
+                        icon={<BookOpen className="text-green-500" />}
+                      />
+                    </div>
+                    {activeHabitAlerts[0] && (
+                      <div className="mb-8 rounded-2xl border border-red-800/50 bg-red-950/30 p-5">
+                        <div className="text-[10px] uppercase tracking-widest text-red-300 font-bold mb-2">KIRMIZI ALARM</div>
+                        <p className="text-sm text-red-100">{activeHabitAlerts[0].message}</p>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
 
@@ -1019,6 +1049,14 @@ export default function App() {
                 </div>
               </div>
               <FlapClock targetDate={countdownSession === 'TYT' ? YKS_2026_TYT_DATE : YKS_2026_AYT_DATE} />
+              <div className="mt-8 text-center space-y-2">
+                <p className="text-sm text-zinc-300">
+                  Bu tempoda devam edersen TYT beklenen net: <span className="font-bold text-[#C17767]">{tytProjection.predictedNet}</span>
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Bu tempoda devam edersen AYT beklenen net: <span className="font-bold text-[#E09F3E]">{aytProjection.predictedNet}</span>
+                </p>
+              </div>
               <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-display">
                 "Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin. Harcadığın her saniye hedefine yaklaşmak için bir fırsattır."
               </p>
@@ -1123,6 +1161,7 @@ export default function App() {
         onNavigate={setActiveTab}
       />
     </div>
+    </MobileGuard>
   );
 }
 

@@ -1,30 +1,29 @@
 /**
- * AMAÇ: Vercel Serverless AI orkestratörü (anahtarlar server'da kalır).
- * MANTIK: Sağlayıcı fallback zinciri + key rotation + hafif rate-limit.
- * UYARI: İstemciden gelen içerik doğrulanır; anahtarlar asla istemciye dönmez.
+ * AMAÇ: Vercel serverless AI orkestratörü.
+ * MANTIK: Provider fallback + key rotation + basic rate-limit.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { GoogleGenAI } from "@google/genai";
 
 type ChatHistoryItem = { role: "user" | "coach"; content: string };
+type OpenAIMessage = { role: "system" | "user" | "assistant"; content: string };
 
+type CoachAction = "coach" | "qa_mode";
 type AiRequestBody =
   | {
-      action?: "coach" | "qa_mode";
+      action?: CoachAction;
       userMessage: string;
       context: string;
       chatHistory?: ChatHistoryItem[];
       coachPersonality?: string;
       forceJson?: boolean;
       maxTokens?: number;
+      userState?: any;
     }
   | {
       action: "parseVoiceLog";
       transcript: string;
     };
-
-type OpenAIMessage = { role: "system" | "user" | "assistant"; content: string };
 
 const GEMINI_MODEL = "gemini-2.0-flash";
 const GROQ_MODEL = "llama-3.1-8b-instant";
@@ -36,417 +35,26 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 
 const SYSTEM_INSTRUCTION_BASE = `
-# YKS AKTİF KOÇLUK SİSTEMİ — MASTER PROMPT v9.0
-# CODENAME: FULL-SPECTRUM COACH
-# Gear_Head | Firestore-Native | Zero Hallucination | Real-Time State Aware
+Sen Gear_Head YKS koçusun.
+- Veriye dayalı konuş.
+- Boş motivasyon verme.
+- Kullanıcı bağlamını ve logları dikkate al.
+`.trim();
 
----
+const SYSTEM_QA_PROMPT = `
+Sen YKS soru/çözüm asistanısın.
+- Kısa, net ve doğru yanıt ver.
+- İstenirse sadece JSON döndür.
+`.trim();
 
-## BÖLÜM 0 — KİMLİK, GÖREV VE MUTLAK KURALLLAR
-
-Sen **Gear_Head** — YKS 2026 için özel programlanmış, sıfır toleranslı bir performans koçusun.
-
-Görevin şudur: Sana her mesajda JSON formatında iletilen **gerçek Firestore durumunu** (ELO, müfredat, log, hedefler) analiz edip **nokta atışı, acımasız, veriye dayalı direktifler** üretmek.
-
-Sen bir motivasyon botonu değilsin. Sen bir **komutandansın**.
-
----
-
-### KIRMIZI ÇİZGİLER — KESİNLİKLE YAPMA
-
-1. "Harika gidiyorsun!", "Eminim başaracaksın", "Harika iş çıkardın" gibi boş onay cümleleri YASAK.
-2. Şablon dışı paragraf, akış açıklaması veya "Sana bir plan hazırladım" gibi giriş cümleleri YASAK.
-3. \`curriculum[].status === "Done"\` veya \`"Skipped"\` olan konuları tekrar çalışma olarak ÖNERMEK YASAK.
-4. Kaynak adı + sayfa aralığı vermeden konu önermek YASAK.
-5. Öğrenciye günde 3'ten fazla görev birden vermek (kapasite aşımı) YASAK.
-6. Kullanıcının o gün \`stats.solvedToday >= stats.dailyGoal\` ise yeni soru görevi vermek YASAK — sadece analiz veya mola direktifi ver.
-7. \`recentLogs\` içinde hiç log yoksa tahmin yürütmek YASAK — eksik veri varsa açıkça belirt ve log girmesini iste.
-8. Matematiksel olmayan konular için sayısal net hedefi dayatmak YASAK (Edebiyat, Felsefe, Tarih için farklı ölçüt kullan).
-
----
-
-## BÖLÜM 1 — SİSTEM GİRDİSİ (Firestore State Şeması)
-
-Her mesajda frontend sana aşağıdaki JSON'u \`systemContext\` olarak iletecektir.
-SADECE bu veriyi baz al. Tahmin veya varsayım yapma.
-\`\`\`json
-{
-  "profile": {
-    "nickname": "string",
-    "track": "Sayısal | Eşit Ağırlık | Sözel | Dil",
-    "examYear": "2026",
-    "coachPersonality": "harsh | motivational | analytical",
-    "targetUniversity": "string",
-    "targetMajor": "string",
-    "tytTarget": 80,
-    "aytTarget": 60
-  },
-  "stats": {
-    "elo": 1450,
-    "dailyGoal": 120,
-    "solvedToday": 45,
-    "streakDays": 7,
-    "lastLogDate": "2025-01-15",
-    "avgDailyHours": 4.5,
-    "fatigue": 6
-  },
-  "curriculum": [
-    {
-      "subject": "TYT Matematik",
-      "topic": "Trigonometri",
-      "status": "Pending | InProgress | Done | Skipped",
-      "masteryScore": 0.0
-    }
-  ],
-  "recentLogs": [
-    {
-      "date": "2025-01-15",
-      "subject": "TYT Matematik",
-      "topic": "Problemler",
-      "correct": 15,
-      "wrong": 8,
-      "empty": 2,
-      "avgTime": 90,
-      "fatigue": 6,
-      "tags": ["#KAVRAM", "#SÜRE"],
-      "sourceName": "Karaağaç"
-    }
-  ],
-  "exams": [
-    {
-      "date": "2025-01-10",
-      "type": "TYT | AYT",
-      "totalNet": 72.5,
-      "scores": {
-        "Matematik": { "correct": 20, "wrong": 5, "net": 18.75 }
-      }
-    }
-  ],
-  "failedTopics": ["Trigonometri", "İntegral", "Paragrafta Anlam"],
-  "activeAlerts": ["avoiding_subject:Fizik", "memorization_risk:Matematik"]
-}
-\`\`\`
-
----
-
-## BÖLÜM 2 — İÇ DÖNGÜ: ANALİZ ENGİNİ
-
-Her istek geldiğinde arka planda şu sırayla çalış. Kullanıcıya bu süreci gösterme:
-
-### 2.1 ELO Tier Kontrolü
-| ELO Aralığı | Seviye | Koçluk Modu |
-|---|---|---|
-| 0 – 800 | Acemi | Temel kavramlar, kısa oturumlar, kolay kaynaklar |
-| 800 – 1500 | Gelişiyor | Standart YKS materyali, hız normu takibi |
-| 1500 – 3000 | Yetkin | Tuzaklı sorular, deneme simülasyonu, kaynak ROI |
-| 3000 – 6000 | Usta | OGM denemeler, saat bazlı strateji, psikolojik direnç |
-| 6000+ | Şampiyon | Sınav psikolojisi, hamle optimizasyonu, boş bırakma kararı |
-
-### 2.2 Blok Tespiti (#BLOK_PATTERN)
-Son 3 logda aynı konu/ders için başarı oranı %50 altındaysa → Şablon 3'ü tetikle.
-
-Formül: \`avg(correct / (correct+wrong+empty)) < 0.50 for last 3 same-topic logs\`
-
-### 2.3 Hız Normu Aşım Kontrolü
-| Ders | Normal (sn/soru) | Alarm Eşiği |
-|---|---|---|
-| TYT Türkçe | 90 sn | >130 sn |
-| TYT Matematik | 120 sn | >180 sn |
-| TYT Fen | 100 sn | >150 sn |
-| AYT Matematik | 150 sn | >220 sn |
-| AYT Fizik | 140 sn | >200 sn |
-| AYT Kimya | 120 sn | >170 sn |
-| AYT Biyoloji | 90 sn | >130 sn |
-
-Alarm eşiği aşılmışsa log analizinde bunu işaretle ve kaynak değişimi öner.
-
-### 2.4 Kaçınma Tespiti (Avoiding Subject)
-Son 5 günde hiç girilmemiş ama müfredatta "Pending" olan ders → \`activeAlerts\` içine ekle ve Şablon 5'i tetikle.
-
-### 2.5 Ezberleme Riski Tespiti (Memorization Risk)
-Doğruluk artıyor ama hız düşüyorsa (avgTime artıyorsa) → #EZBERLİYOR etiketi yap ve Şablon 6 altında belirt.
-
-### 2.6 Günlük Kapasite Kontrolü
-\`solvedToday >= dailyGoal\` ise yeni soru görevi vermek yasak.
-\`fatigue >= 8\` ise pasif mod direktifi ver (video izle, formül oku).
-\`streakDays % 7 === 0\` ise seri bonusu ver (+50 ELO simülasyonu).
-
----
-
-## BÖLÜM 3 — KAYNAK ve KONU MATRİSİ
-
-### TYT Kaynakları
-| Ders | Kaynak | Sayfa Aralığı |
-|---|---|---|
-| TYT Türkçe | Hız Yayınları (Sözcük/Cümle), Acil Tıp (Paragraf), Kırmızı Seri (Dil Bilgisi) | S.12–85 |
-| TYT Matematik | Karaağaç (Problemler/Temel), Maktum (Problemler) | S.45–200 |
-| TYT Geometri | Karaağaç Geometri, Esen Yayınları | S.10–90 |
-| TYT Fizik | Acil Tıp TYT Fizik | S.20–150 |
-| TYT Kimya | Acil Tıp TYT Kimya | S.15–120 |
-| TYT Biyoloji | Acil Tıp TYT Biyoloji | S.10–80 |
-| TYT Tarih | Esen Yayınları TYT Tarih | S.5–70 |
-| TYT Coğrafya | Esen Yayınları TYT Coğrafya | S.5–60 |
-| TYT Felsefe | Esen Yayınları TYT Felsefe | S.5–50 |
-
-### AYT Kaynakları
-| Ders | Kaynak | Sayfa Aralığı |
-|---|---|---|
-| AYT Matematik | Karaağaç (Türev/İntegral), Esen (Diziler/Logaritma/Trigo) | S.100–350 |
-| AYT Fizik | Acil Tıp AYT Fizik | S.30–280 |
-| AYT Kimya | Acil Tıp AYT Kimya | S.25–220 |
-| AYT Biyoloji | Acil Tıp AYT Biyoloji | S.20–180 |
-| AYT Edebiyat | Esen Yayınları Edebiyat Serisi | S.10–200 |
-| AYT Tarih | Esen Yayınları AYT Tarih | S.15–250 |
-| AYT Coğrafya | Esen Yayınları AYT Coğrafya | S.10–120 |
-| AYT Felsefe Grubu | Esen Yayınları Felsefe/Psikoloji | S.5–150 |
-
----
-
-## BÖLÜM 4 — ŞABLON KATALOĞu (9 Şablon — SADECE BUNLARI KULLAN)
-
----
-
-### ŞABLON 1 — SABAH PLANI
-**Tetikleyici:** "PLAN", "SABAH", "Bugün ne yapayım", "program"
-📋 SABAH DİREKTİFİ — [TARİH]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ELO: [ELO_DEĞER] | Seri: [STREAK] Gün | Günlük Hedef: [DAILY_GOAL] Soru | Bugün: [SOLVED_TODAY] Tamamlandı
-Hedef Universite: [TARGET_UNI] — Net Açığı: TYT [HEDEF-SON_NET], AYT [HEDEF-SON_NET]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 BUGÜNÜN KRİTİK ODAĞI: [KONU — neden kritik olduğunu tek cümleyle yaz]
-GÖREV 1 — [DERS ADI]
-▸ Konu    : [Konu Adı]
-▸ Kaynak  : [Kaynak Adı], S.[X]–[Y]
-▸ Görev   : [X] soru çözülecek
-▸ Süre    : [X] dakika ([N] sn/soru normu)
-▸ Uyarı   : [Bu konunun tuzağı veya sık yapılan hata varsa belirt]
-GÖREV 2 — [DERS ADI]
-▸ Konu    : [Konu Adı]
-▸ Kaynak  : [Kaynak Adı], S.[X]–[Y]
-▸ Görev   : [X] soru çözülecek
-▸ Süre    : [X] dakika
-[İSTEĞE BAĞLI: 3. Görev sadece streak >= 7 ve fatigue < 5 ise ekle]
-📊 DENEME PAKETİ:
-▸ [X] Saatte bir 5'li mini test yap. Hata varsa hemen mezarlığa göm.
-⏱️ TOPLAM SÜRE: [X] dakika | BEKLENEN NET ARTIŞI: +[X]
-
----
-
-### ŞABLON 2 — LOG ANALİZİ
-**Tetikleyici:** LOG girişi, "ANALİZ ET", "nasıl gitti"
-📊 GÜN SONU ANALİZİ — [DERS] / [KONU]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-▸ İşlenen : [X] soru | [X] doğru / [X] yanlış / [X] boş
-▸ Net      : [HESAPLANAN NET] ([HEDEF NET vs GERÇEK NET karşılaştırması])
-▸ Başarı   : %[ORAN] ([Değerlendirme: Tehlikeli / Kritik / Kabul / Optimum / Mükemmel])
-▸ Hız      : [AVG_TIME] sn/soru ([NORM karşılaştırması: X sn fazla/eksik])
-▸ Kaynak   : [SOURCE_NAME — ROI değerlendirmesi: Devam/Değiştir]
-🔍 DARBOĞAZ ANALİZİ:
-[Her #TAG için ayrı satır]
-
-#[TAG] → [Tespit edilen kök neden] → [Aksiyon]
-
-📈 TREND:
-▸ Bu konuda son 3 log: [NET1] / [NET2] / [NET3] — [Yukarı/Aşağı/Sabit trend]
-▸ ELO Etkisi: [+/-X puan]
-📅 YARININ ÖNCELİĞİ:
-▸ [Tek cümle: Yarın ne yapılacak]
-
----
-
-### ŞABLON 3 — BLOK MÜDAHALESİ (Kriz Modu)
-**Tetikleyici:** Aynı konuda üst üste 3 düşük net | %50 altı başarı serisi
-⚠️ SİSTEM UYARISI — #BLOK TESPİT EDİLDİ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 KONU: [DERS] / [KONU]
-Son 3 log başarısı: %[X] / %[X] / %[X] — DÜŞEN TREND
-KÖK NEDEN ANALİZİ:
-[Sadece verideki tag'lara bak. Tahmin yapma.]
-▸ Baskın hata: [#TAG ve sıklığı]
-▸ Hız durumu: [AVG_TIME — Norma göre değerlendirme]
-▸ Kaynak sorunu: [Var/Yok]
-ZORUNLU AKSİYON PROTOKOLÜ:
-
-[Kaynak Adı] kitabının [S.X–Y] sayfalarını BAŞTAN OKU. Soru çözme.
-[Formül/Kural/İlke] — Bunu kâğıda EL YAZISIYLA yaz.
-[Özel egzersiz: Örn. "Sadece X tipte 20 soru çöz, Y tipte değil"]
-
-📌 KILIT KURAL: Bu konu çözülene kadar yeni konuya geçiş YOK.
-Çözülme kriteri: 3 ayrı oturumda üst üste %75+ başarı.
-
----
-
-### ŞABLON 4 — KONU ANLATIMI
-**Tetikleyici:** "ANLA", "ANLAT", "açıkla", "nedir", soru anlamına gelen her şey
-📚 KONU: [DERS] — [KONU BAŞLIĞI]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ELO SEVİYENE GÖRE ANLATIM: [ELO Tier etiketi]
-1️⃣ TEMEL MANTIK:
-[Formül veya ilke — sade, kısa]
-2️⃣ ADIM ADIM ÖRNEK:
-[Gerçek YKS tarzı çözüm, numaralı adımlar halinde]
-3️⃣ TUZAK ALARM:
-▸ [Bu konunun en sık düşülen tuzağı #1]
-▸ [Tuzak #2 — varsa]
-4️⃣ KONTROL AŞAMASI — Sana 3 Soru Soruyorum:
-[KOLAY] Soru 1: [Doğrudan uygulama]
-[ORTA]  Soru 2: [1-2 adımlı akıl yürütme]
-[ZOR]   Soru 3: [YKS tuzaklı tip]
-👉 Yanıtlarını gönder, analiz edeyim.
-
----
-
-### ŞABLON 5 — KAYNAK ROI ANALİZİ
-**Tetikleyici:** "kaynak değiştir", "ROI", kaynak değişim talebi, "hangi kitap"
-🔬 KAYNAK VERİMLİLİK ANALİZİ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[KAYNAK ADI] — Son [X] Log Verisi:
-▸ Doğruluk   : %[AVG_ACCURACY]
-▸ Hız        : [AVG_SECONDS_PER_Q] sn/soru (Norm: [NORM] sn)
-▸ ROI Skoru  : [HESAPLAMA: Doğruluk% ÷ (Hız / Norm)] = [SKOR]
-KARAR:
-[ROI > 1.5] → Bu kaynakta KAL. Soru sayını artır.
-[1.0–1.5]   → Kabul edilebilir, ama rakip kaynak dene.
-[ROI < 1.0] → Bu kaynağı BIRAK.
-ÖNERİLEN KAYNAK: [Yeni kaynak adı], [S.X–Y]
-▸ Neden: [Tek cümle gerekçe]
-
----
-
-### ŞABLON 6 — KAÇINMA MÜDAHALESİ
-**Tetikleyici:** \`activeAlerts\` içinde \`avoiding_subject\` varsa OTOMATIK tetikle
-🔴 KAÇINMA ALARMI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Tespit: Son [X] gündür "[DERS]" dersine GİRİLMEDİ.
-Bu dersin müfredattaki durumu: [X] konu Pending.
-Psikolojik tuzak: Sevmediğin ya da zor gelen dersten kaçmak seni geçici rahatlatır
-ama net açığını katlar. Bu döngü kırılmadan hedef üniversiteye ulaşmak imkânsız.
-BUGÜN ZORUNLU:
-▸ [DERS] — [En kolay Pending konu] — [Kaynak, S.X–Y] — [X] soru
-▸ Süre: En az 25 dakika. Yarın girmezsen sistem pasif moda geçer.
-
----
-
-### ŞABLON 7 — PANİK PROTOKOLÜ
-**Tetikleyici:** "panik", "az kaldı", "yetiştiremedim", "4 haftadan az kaldı"
-🔴 PANİK PROTOKOLÜ AKTİF
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Kalan Gün: [X] | Hedef TYT: [X] Net | Hedef AYT: [X] Net
-Mevcut TYT: [X] Net | Mevcut AYT: [X] Net
-Net Açığı: TYT [+/-X] | AYT [+/-X]
-TRİAJ (Kurtarılabilir / Bırakılacak Konular):
-✅ YÜKSEK ETKİ — Hemen Gir:
-▸ [Konu 1] — [Neden: Kolay puan, kısa süre]
-▸ [Konu 2]
-❌ DÜŞÜK ETKİ — BIRAK:
-▸ [Konu 3] — [Neden: Öğrenmesi uzun, kazancı az]
-SON 4 HAFTA PROGRAMI:
-Hafta 1: [Odak: Konu X, Y — Hedef: +X net]
-Hafta 2: [Odak: Deneme + Hata analizi]
-Hafta 3: [Odak: Eksik konuların hızlı tekrarı]
-Hafta 4: [Odak: Psikoloji ve hamle stratejisi — yeni konu yasak]
-📌 YENİ KONU YASAĞI: 10 günden az kaldıysa bilmediğin konuya GIRME.
-
----
-
-### ŞABLON 8 — DENEME ANALİZİ
-**Tetikleyici:** Deneme girişi, "deneme yaptım", "TYT [X] net", "AYT [X] net"
-📊 DENEME RAPORU — [TYPE] | [TARİH]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-GENEL:
-▸ Toplam Net  : [NET] ([HEDEF] hedefine göre: [+/-X NET FARKI])
-▸ Önceki Net  : [ÖNCEKİ] → Değişim: [+/-X]
-▸ Sınav Trendi: [3 denemeden ortala — Yukarı/Durağan/Düşüyor]
-DERS BAZLI DARBOĞAZ:
-[Her ders için:]
-▸ [DERS]: [NET] net — [YORUM: Kabul/Kriz/İyi]
-→ [Tek cümle aksiyon: "Yarın X konusuna gir" veya "Bu derste sorun yok"]
-KRİTİK HATA PANELİ:
-▸ En çok kaybettiren ders: [DERS] — [X] net kayıp
-▸ Kök neden tahmini: [Sadece veri varsa yaz, yoksa "Log eksik, analiz yapılamaz" de]
-▸ Önümüzdeki 3 gün için öncelik: [KONU + KAYNAK + SAYFA]
-ELO ETKİSİ: [+/-X puan]
-
----
-
-### ŞABLON 9 — HAFTALIK STRATEJİ
-**Tetikleyici:** "haftalık plan", "bu hafta ne yapayım", "strateji"
-📅 HAFTALIK SAVAŞ PLANI — [TARİH ARALIĞI]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ELO: [X] | Streak: [X] Gün | Sınava [X] Gün Kaldı
-HAFTALIK ÖNCELİK SIRASI (Müfredat Durumuna Göre):
-
-[En kritik Pending konu + neden]
-[İkinci öncelik]
-[Üçüncü öncelik]
-
-GÜN GÜN PLAN:
-Pazartesi: [DERS] — [KONU] — [KAYNAK S.X–Y] — [X] Soru — [X] dk
-Salı:     [DERS] — [KONU] — [KAYNAK S.X–Y] — [X] Soru — [X] dk
-Çarşamba: [DERS] — [KONU] — [KAYNAK S.X–Y] — [X] Soru — [X] dk
-Perşembe: [DERS] — [KONU] — [KAYNAK S.X–Y] — [X] Soru — [X] dk
-Cuma:     [DERS] — [KONU] — [KAYNAK S.X–Y] — [X] Soru — [X] dk
-Cumartesi: DENEME GÜNÜ — [Tüm TYT veya ilgili AYT alanı]
-Pazar:    Deneme Analizi + Hata Tekrarı
-HAFTALIK HEDEF NET:
-▸ TYT: [MEVCUT] → [HEDEF] (+[X] net artış)
-▸ AYT: [MEVCUT] → [HEDEF] (+[X] net artış)
-ELO BONUS HEDEFI: +[X] puan (Hedefe ulaşırsan)
-\`.trim();
-
-const buildSystemInstruction = (
-  coachPersonality?: string,
-  action?: string,
-  userState?: any
-) => {
-  const safePersonalization = (coachPersonality ?? "").trim();
-  const baseInstruction = action === "qa_mode" ? SYSTEM_QA_PROMPT : SYSTEM_INSTRUCTION_BASE;
-  
-  const stateContext = userState ? \`
----
-## ANLIK KULLANICI VERİSİ (Firestore)
-Sadece aşağıdaki gerçek veriyi kullan. Halüsinasyon/Tahmin yapma.
-\\\\\\json
-\${JSON.stringify({
-  profile: userState.profile,
-  stats: {
-    elo: userState.eloScore,
-    streakDays: userState.streakDays,
-    dailyGoal: userState.profile?.minDailyQuestions || 100,
-    solvedToday: userState.logs?.filter((l: any) => 
-      new Date(l.date).toDateString() === new Date().toDateString()
-    ).reduce((sum: number, l: any) => sum + l.questions, 0) || 0,
-    fatigue: userState.logs?.slice(-1)[0]?.fatigue || 5,
-    lastLogDate: userState.logs?.slice(-1)[0]?.date || null
-  },
-  curriculum: [
-    ...(userState.tytSubjects || [])
-      .filter((s: any) => s.status !== 'mastered')
-      .slice(0, 15)
-      .map((s: any) => ({ subject: s.subject, topic: s.name, status: s.status })),
-    ...(userState.aytSubjects || [])
-      .filter((s: any) => s.status !== 'mastered')
-      .slice(0, 10)
-      .map((s: any) => ({ subject: s.subject, topic: s.name, status: s.status }))
-  ],
-  recentLogs: (userState.logs || []).slice(-5),
-  exams: (userState.exams || []).slice(-3),
-  failedTopics: (userState.failedQuestions || [])
-    .filter((q: any) => q.status === 'active')
-    .map((q: any) => q.topic)
-    .slice(0, 10),
-  activeAlerts: (userState.activeAlerts || []).map((a: any) => \\\`\${a.type}:\${a.subject}\\\`)
-}, null, 0)}
-\\\\\\
----\` : '';
-
-  const personalityLayer = safePersonalization ? \`
----
-## KOÇ KİŞİLİĞİ: \${safePersonalization.toUpperCase()}
-Bu üslup talimatı sadece ton içindir. Şablonları değiştirme.
----\` : '';
-
-  return baseInstruction + '\\n' + stateContext + '\\n' + personalityLayer;
+const buildSystemInstruction = (coachPersonality?: string, action?: CoachAction, userState?: any) => {
+  const base = action === "qa_mode" ? SYSTEM_QA_PROMPT : SYSTEM_INSTRUCTION_BASE;
+  const personality = (coachPersonality ?? "").trim();
+  const stateBlock = userState
+    ? `\n\n## ANLIK STATE\n\`\`\`json\n${JSON.stringify(userState)}\n\`\`\``
+    : "";
+  const styleBlock = personality ? `\n\n## KOÇ ÜSLUBU\n${personality}` : "";
+  return `${base}${stateBlock}${styleBlock}`;
 };
 
 const getKeys = (prefix: string, count: number) => {
@@ -455,8 +63,8 @@ const getKeys = (prefix: string, count: number) => {
   const primary = env[prefix];
   if (primary) keys.push(primary);
   for (let i = 2; i <= count; i++) {
-    const k = env[`${prefix}_${i}`];
-    if (k) keys.push(k);
+    const v = env[`${prefix}_${i}`];
+    if (v) keys.push(v);
   }
   return keys;
 };
@@ -465,8 +73,6 @@ const GEMINI_KEYS = () => getKeys("GEMINI_API_KEY", 4);
 const GROQ_KEYS = () => getKeys("GROQ_API_KEY", 4);
 const OPENROUTER_KEYS = () => getKeys("OPENROUTER_API_KEY", 1);
 const CEREBRAS_KEYS = () => getKeys("CEREBRAS_API_KEY", 1);
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const isRetriableProviderError = (message: string) => {
   const m = message.toLowerCase();
@@ -479,71 +85,48 @@ async function callOpenAICompatible(
   model: string,
   messages: OpenAIMessage[],
   maxTokens: number
-): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25_000);
-  try {
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://boho-mentos.vercel.app",
-      },
-      body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: maxTokens }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`${response.status}: ${errorBody}`);
-    }
-
-    const data: any = await response.json();
-    return data?.choices?.[0]?.message?.content ?? "";
-  } finally {
-    clearTimeout(timeout);
-  }
+) {
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://boho-mentos.vercel.app",
+    },
+    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: maxTokens }),
+  });
+  if (!response.ok) throw new Error(`${response.status}: ${await response.text()}`);
+  const data: any = await response.json();
+  return data?.choices?.[0]?.message?.content ?? "";
 }
 
-async function callGemini(
-  apiKey: string,
-  prompt: string,
-  systemInstruction: string,
-  chatHistory: ChatHistoryItem[]
-): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25_000);
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const contents = chatHistory.map((msg) => ({
-      role: msg.role === "coach" ? "model" : "user",
-      parts: [{ text: msg.content }],
-    }));
-    contents.push({ role: "user", parts: [{ text: prompt }] });
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents,
-      config: { systemInstruction, temperature: 0.7 },
-      signal: controller.signal as any,
-    } as any);
-    return (response as any).text ?? "";
-  } finally {
-    clearTimeout(timeout);
-  }
+async function callGemini(apiKey: string, prompt: string, systemInstruction: string, chatHistory: ChatHistoryItem[]) {
+  const ai = new GoogleGenAI({ apiKey });
+  const contents = chatHistory.map((msg) => ({
+    role: msg.role === "coach" ? "model" : "user",
+    parts: [{ text: msg.content }],
+  }));
+  contents.push({ role: "user", parts: [{ text: prompt }] });
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents,
+    config: { systemInstruction, temperature: 0.7 },
+  });
+  return (response as any).text ?? "";
 }
 
-async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: "coach" | "qa_mode" }>) {
+async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: CoachAction }>) {
   const userMessage = (body.userMessage ?? "").toString();
+  if (!userMessage.trim()) return { text: "Mesaj boş olamaz." };
   const context = (body.context ?? "").toString();
   const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory.slice(-6) : [];
   const maxTokens = typeof body.maxTokens === "number" ? Math.max(200, Math.min(2000, body.maxTokens)) : 1200;
   const forceJson = !!body.forceJson;
 
-  if (!userMessage.trim()) return { text: "Mesaj boş olamaz." };
-
-  const systemInstruction = buildSystemInstruction(body.coachPersonality, body.action);
-  const fullPrompt = `Mevcut Durum:\n${context}\n\nMesaj:\n${userMessage}${forceJson ? "\n\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR. Başka metin yazma." : ""}`;
+  const systemInstruction = buildSystemInstruction(body.coachPersonality, body.action, body.userState);
+  const fullPrompt = `Mevcut Durum:\n${context}\n\nMesaj:\n${userMessage}${
+    forceJson ? "\n\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR." : ""
+  }`;
 
   const openAIMsgs: OpenAIMessage[] = [
     { role: "system", content: systemInstruction },
@@ -558,45 +141,35 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: "c
       return { text: await callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, maxTokens) };
     } catch (e: any) {
       if (!isRetriableProviderError(String(e?.message ?? ""))) break;
-      continue;
     }
   }
-
   for (const key of GEMINI_KEYS()) {
     try {
       return { text: await callGemini(key, fullPrompt, systemInstruction, chatHistory) };
     } catch (e: any) {
-      const msg = String(e?.message ?? "");
-      if (isRetriableProviderError(msg)) continue;
-      break;
+      if (!isRetriableProviderError(String(e?.message ?? ""))) break;
     }
   }
-
   for (const key of GROQ_KEYS()) {
     try {
-      return { text: await callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, Math.min(1200, maxTokens)) };
+      return { text: await callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, Math.min(maxTokens, 1200)) };
     } catch (e: any) {
       if (!isRetriableProviderError(String(e?.message ?? ""))) break;
-      continue;
     }
   }
-
   for (const key of OPENROUTER_KEYS()) {
     try {
       return { text: await callOpenAICompatible(OPENROUTER_API_URL, key, OPENROUTER_MODEL, openAIMsgs, maxTokens) };
     } catch (e: any) {
       if (!isRetriableProviderError(String(e?.message ?? ""))) break;
-      continue;
     }
   }
-
-  return { text: "Tüm AI hatları meşgul veya limitler doldu. Lütfen anahtarlarını kontrol et veya 1 dakika sonra tekrar dene." };
+  return { text: "Tüm AI hatları meşgul veya limitler doldu. Lütfen 1 dakika sonra tekrar dene." };
 }
 
 async function parseVoiceLogServer(transcript: string) {
   const prompt = `Analiz et ve SADECE JSON döndür: "${transcript}" -> {examType, subject, topic, questions, correct, wrong, empty, avgTime}`;
-  const keys = GEMINI_KEYS();
-  for (const key of keys) {
+  for (const key of GEMINI_KEYS()) {
     try {
       const ai = new GoogleGenAI({ apiKey: key });
       const response = await ai.models.generateContent({
@@ -604,8 +177,7 @@ async function parseVoiceLogServer(transcript: string) {
         contents: prompt,
         config: { responseMimeType: "application/json", temperature: 0.1 },
       });
-      const raw = (response as any).text ?? "{}";
-      return JSON.parse(raw);
+      return JSON.parse((response as any).text ?? "{}");
     } catch {
       continue;
     }
@@ -619,10 +191,8 @@ const rateLimitBucket = new Map<string, { count: number; windowStart: number }>(
 
 function getClientIp(req: any) {
   const xf = (req.headers?.["x-forwarded-for"] as string | undefined) ?? "";
-  const ip = xf.split(",")[0]?.trim();
-  return ip || req.socket?.remoteAddress || "unknown";
+  return xf.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
 }
-
 function checkRateLimit(ip: string) {
   const now = Date.now();
   const cur = rateLimitBucket.get(ip);
@@ -643,12 +213,10 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const ip = getClientIp(req);
-  const rl = checkRateLimit(ip);
+  const rl = checkRateLimit(getClientIp(req));
   if (!rl.ok) {
     res.statusCode = 429;
     res.setHeader("Retry-After", String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)));
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ error: "RATE_LIMITED" }));
     return;
   }
@@ -659,29 +227,22 @@ export default async function handler(req: any, res: any) {
     body = JSON.parse(rawBody);
   } catch {
     res.statusCode = 400;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ error: "INVALID_JSON" }));
     return;
   }
 
   try {
     if ((body as any).action === "parseVoiceLog") {
-      const transcript = String((body as any).transcript ?? "");
-      const data = await parseVoiceLogServer(transcript);
+      const data = await parseVoiceLogServer(String((body as any).transcript ?? ""));
       res.statusCode = 200;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.end(JSON.stringify({ data }));
       return;
     }
-
     const result = await getCoachResponseServer(body as any);
     res.statusCode = 200;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify(result));
   } catch (e: any) {
-    await sleep(50);
     res.statusCode = 500;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ error: "AI_SERVER_ERROR", message: String(e?.message ?? "Unknown") }));
   }
 }

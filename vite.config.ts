@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       useCredentials: true,
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.ico', 'logo.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Boho Mentosluk',
         short_name: 'BohoApp',
@@ -22,19 +22,19 @@ export default defineConfig({
         orientation: 'portrait',
         icons: [
           {
-            src: 'pwa-192x192.svg',
+            src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/svg+xml'
+            type: 'image/png'
           },
           {
-            src: 'pwa-512x512.svg',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/svg+xml'
+            type: 'image/png'
           },
           {
-            src: 'pwa-512x512.svg',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]
@@ -62,5 +62,19 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
+  },
+  build: {
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          charts: ['recharts'],
+          markdown: ['react-markdown'],
+          motion: ['motion'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+        },
+      },
+    },
   },
 });

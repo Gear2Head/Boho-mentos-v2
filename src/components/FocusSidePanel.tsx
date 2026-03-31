@@ -21,8 +21,13 @@ export function FocusSidePanel() {
 
   const [customCountdownMinutes, setCustomCountdownMinutes] = useState<number>(25);
   const [showBreakOverlay, setShowBreakOverlay] = useState(false);
-  const [isLofiEnabled, setIsLofiEnabled] = useState(() => {
-    return localStorage.getItem('yks_lofi_enabled') === 'true';
+  const [isLofiEnabled, setIsLofiEnabled] = useState<boolean>(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      return window.localStorage.getItem('yks_lofi_enabled') === 'true';
+    } catch {
+      return false;
+    }
   });
 
   const h = Math.floor(sessionSeconds / 3600);
@@ -45,7 +50,12 @@ export function FocusSidePanel() {
 
   // Lofi state persist
   useEffect(() => {
-    localStorage.setItem('yks_lofi_enabled', String(isLofiEnabled));
+    try {
+      if (typeof window === 'undefined') return;
+      window.localStorage.setItem('yks_lofi_enabled', String(isLofiEnabled));
+    } catch {
+      return;
+    }
   }, [isLofiEnabled]);
 
   return (

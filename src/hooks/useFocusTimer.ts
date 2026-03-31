@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface FocusSession {
   id: string;
@@ -11,29 +11,43 @@ export function useFocusTimer() {
   const [isRunning, setIsRunning] = useState(false);
   const [mode, setMode] = useState<'up' | 'down'>('up');
   const [laps, setLaps] = useState<FocusSession[]>([]);
+  const saveTimerRef = useRef<number | null>(null);
 
   // LocalStorage senkronizasyonu
   useEffect(() => {
-    const saved = localStorage.getItem('yks_focus_timer');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setSessionSeconds(parsed.sessionSeconds || 0);
-        setMode(parsed.mode || 'up');
-        setLaps(parsed.laps || []);
-      } catch (e) {}
+    try {
+      if (typeof window === 'undefined') return;
+      const saved = window.localStorage.getItem('yks_focus_timer');
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      setSessionSeconds(parsed.sessionSeconds || 0);
+      setMode(parsed.mode || 'up');
+      setLaps(parsed.laps || []);
+    } catch {
+      return;
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('yks_focus_timer', JSON.stringify({ sessionSeconds, laps, mode }));
+    if (typeof window === 'undefined') return;
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem('yks_focus_timer', JSON.stringify({ sessionSeconds, laps, mode }));
+      } catch {
+        return;
+      }
+    }, 5000);
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    };
   }, [sessionSeconds, laps, mode]);
 
   // Kronometre
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: number | undefined;
     if (isRunning) {
-      interval = setInterval(() => {
+      interval = window.setInterval(() => {
         setSessionSeconds(prev => {
           if (mode === 'down') {
             if (prev <= 1) {
@@ -46,8 +60,10 @@ export function useFocusTimer() {
         });
       }, 1000);
     }
-    return () => clearInterval(interval);
-  }, [isRunning]);
+    return () => {
+      if (interval !== undefined) window.clearInterval(interval);
+    };
+  }, [isRunning, mode]);
 
   const start = useCallback(() => setIsRunning(true), []);
   const pause = useCallback(() => setIsRunning(false), []);

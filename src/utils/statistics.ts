@@ -37,6 +37,12 @@ export interface SourceROI {
   roiScore: number;
 }
 
+export interface HabitAuditAlert {
+  id: string;
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+}
+
 export function linearRegression(points: { x: number; y: number }[]): RegressionResult {
   if (points.length < 2) return { slope: 0, intercept: points[0]?.y ?? 0 };
 
@@ -225,4 +231,35 @@ export function calculatePredictedNet(
     predictedNet: Math.round(predictedNet * 10) / 10,
     confidence: Math.round(confidence)
   };
+}
+
+export function detectHabitAlerts(logs: DailyLog[]): HabitAuditAlert[] {
+  if (logs.length === 0) return [];
+  const alerts: HabitAuditAlert[] = [];
+  const now = Date.now();
+  const last3Days = logs.filter((l) => now - new Date(l.date).getTime() <= 3 * 24 * 60 * 60 * 1000);
+  const hasMath = last3Days.some((l) => l.subject.toLowerCase().includes('matematik'));
+  if (!hasMath) {
+    alerts.push({
+      id: 'no-math-3-days',
+      severity: 'high',
+      message: 'Sinyalleri görüyorum. 3 gündür Matematik çalışmıyorsun. Yarın sabah ilk işin 2 saat Mat olacak.',
+    });
+  }
+
+  const last7Days = logs.filter((l) => now - new Date(l.date).getTime() <= 7 * 24 * 60 * 60 * 1000);
+  const bySubject = new Map<string, number>();
+  last7Days.forEach((l) => bySubject.set(l.subject, (bySubject.get(l.subject) ?? 0) + 1));
+  const total = last7Days.length || 1;
+  for (const [subject, count] of bySubject.entries()) {
+    if (count / total >= 0.7) {
+      alerts.push({
+        id: `overfocus-${subject}`,
+        severity: 'medium',
+        message: `Sadece ${subject} üzerine yüklendin. Denge bozuluyor; haftalık planı dağıt.`,
+      });
+      break;
+    }
+  }
+  return alerts;
 }

@@ -81,7 +81,8 @@ export function useWarRoom() {
     
     // Log olarak kaydet
     store.addLog({
-      date: new Date().toLocaleDateString('tr-TR'),
+      id: `warroom_${Date.now()}`,
+      date: new Date().toISOString(),
       subject: warRoomSession.examType + ' Savaş Odası',
       topic: warRoomSession.questions[0]?.topic || 'Karma',
       questions: warRoomSession.questions.length,
@@ -90,7 +91,9 @@ export function useWarRoom() {
       empty,
       fatigue: 0,
       avgTime: 1, // Savaş modunda şimdilik sabit
-      notes: 'War Room simülasyonu.'
+      tags: ['#SAVAŞ_ODASI'],
+      notes: 'War Room simülasyonu.',
+      sourceName: 'War Room',
     });
 
   }, [warRoomSession, store]);

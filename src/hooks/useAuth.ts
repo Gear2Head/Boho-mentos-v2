@@ -17,6 +17,7 @@ import { auth, googleProvider, db } from '../services/firebase';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useAppStore } from '../store/appStore';
 import { pullFromFirestore, pushToFirestore } from '../services/firestoreSync';
+import { parseAuthError } from '../utils/parseAuthError';
 
 type AuthMode = 'login' | 'register';
 
@@ -174,19 +175,4 @@ export function useAuth() {
     signOut,
     resetPassword,
   };
-}
-
-function parseAuthError(code: string): string {
-  const map: Record<string, string> = {
-    'auth/email-already-in-use': 'Bu e-posta zaten kayıtlı.',
-    'auth/user-not-found': 'Bu e-posta ile kayıtlı kullanıcı bulunamadı.',
-    'auth/wrong-password': 'Şifre yanlış.',
-    'auth/invalid-email': 'Geçersiz e-posta adresi.',
-    'auth/weak-password': 'Şifre en az 6 karakter olmalı.',
-    'auth/too-many-requests': 'Çok fazla deneme. Biraz bekle.',
-    'auth/popup-closed-by-user': 'Google girişi iptal edildi.',
-    'auth/network-request-failed': 'Bağlantı hatası. İnterneti kontrol et.',
-    'auth/invalid-credential': 'E-posta veya şifre hatalı.',
-  };
-  return map[code] ?? 'Bir hata oluştu. Tekrar dene.';
 }

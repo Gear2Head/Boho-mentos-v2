@@ -4,8 +4,8 @@
  */
 
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Target, CheckCircle2, XCircle, Clock, Home, ArrowRight } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Target, CheckCircle2, XCircle, Clock, Home, ArrowRight, Zap } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 
 export function WarRoomResultScreen() {
