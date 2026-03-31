@@ -164,7 +164,18 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
       if (!isRetriableProviderError(String(e?.message ?? ""))) break;
     }
   }
-  return { text: "Tüm AI hatları meşgul veya limitler doldu. Lütfen 1 dakika sonra tekrar dene." };
+  const debugInfo = {
+    gemini: GEMINI_KEYS().length,
+    groq: GROQ_KEYS().length,
+    openrouter: OPENROUTER_KEYS().length,
+    cerebras: CEREBRAS_KEYS().length
+  };
+
+  return { 
+    text: "Tüm AI hatları meşgul veya limitler doldu. Lütfen 1 dakika sonra tekrar dene.",
+    error: "ALL_PROVIDERS_FAILED",
+    debug: debugInfo
+  };
 }
 
 async function parseVoiceLogServer(transcript: string) {

@@ -82,8 +82,12 @@ export async function getCoachResponse(
       return `Sistem yoğunluğu nedeniyle yanıt alınamadı (${response.status}). Lütfen biraz bekleyip tekrar dene.`;
     }
 
-    const data = (await response.json()) as { text?: string; error?: string };
+    const data = (await response.json()) as { text?: string; error?: string; debug?: any };
     
+    if (data.debug) {
+      console.warn("GEAR_HEAD DEBUG:", data.debug);
+    }
+
     if (data.error === "RATE_LIMITED") {
       return "Anlık limitlere takıldın. Gear_Head biraz dinleniyor, 30 saniye sonra tekrar yazabilirsin.";
     }
