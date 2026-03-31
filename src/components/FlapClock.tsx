@@ -11,17 +11,17 @@ export const FlapUnit: React.FC<FlapUnitProps> = ({ value, label }) => {
   
   return (
     <div className="flex flex-col items-center">
-      <div className="relative w-16 h-20 md:w-24 md:h-32 bg-[#1A1A1A] rounded-lg overflow-hidden border border-white/5 shadow-2xl">
+      <div className="relative w-12 h-16 md:w-24 md:h-32 bg-[#1A1A1A] rounded-lg overflow-hidden border border-white/5 shadow-2xl">
         {/* Top Half */}
         <div className="absolute top-0 left-0 right-0 h-1/2 bg-[#222] border-b border-black/30 flex items-end justify-center overflow-hidden">
-          <span className="text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none translate-y-1/2">
+          <span className="text-2xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none translate-y-1/2">
             {formattedValue}
           </span>
         </div>
         
         {/* Bottom Half */}
         <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-[#1A1A1A] flex items-start justify-center overflow-hidden">
-          <span className="text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none -translate-y-1/2">
+          <span className="text-2xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none -translate-y-1/2">
             {formattedValue}
           </span>
         </div>
@@ -36,7 +36,7 @@ export const FlapUnit: React.FC<FlapUnitProps> = ({ value, label }) => {
             className="absolute top-0 left-0 right-0 h-1/2 bg-[#222] origin-bottom border-b border-black/30 flex items-end justify-center overflow-hidden backface-hidden z-10"
             style={{ transformStyle: 'preserve-3d' }}
           >
-             <div className="text-4xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none translate-y-1/2">
+             <div className="text-2xl md:text-6xl font-display font-bold text-[#EAE6DF] leading-none translate-y-1/2">
                 {formattedValue}
              </div>
           </motion.div>

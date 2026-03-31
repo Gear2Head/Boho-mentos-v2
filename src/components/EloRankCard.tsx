@@ -74,16 +74,16 @@ export function EloRankCard() {
   const IconComponent = iconMap[iconName] || Trophy;
 
   return (
-    <div className="bg-[#1A1A1A] border border-[#2A2A2A] p-5 rounded-2xl shadow-xl flex flex-col gap-4">
+    <div className="bg-[#1A1A1A] border border-[#2A2A2A] p-4 md:p-5 rounded-2xl shadow-xl flex flex-col gap-3 md:gap-4">
       <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className={`w-14 h-14 flex items-center justify-center rounded-xl bg-[#121212] border border-[#2A2A2A] shadow-inner ${color}`}>
-            <IconComponent size={28} />
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className={`w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-xl bg-[#121212] border border-[#2A2A2A] shadow-inner ${color}`}>
+            <IconComponent size={24} className="md:w-7 md:h-7" />
           </div>
           <div>
             <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Mevcut Lig</p>
-            <h3 className={`text-2xl font-black ${color} flex items-center gap-2 font-display italic`}>
-              {title} <span className="text-zinc-300 not-italic font-sans">{division}</span>
+            <h3 className={`text-xl md:text-2xl font-black ${color} flex items-center gap-2 font-display italic leading-none`}>
+              {title} <span className="text-zinc-300 not-italic font-sans text-sm md:text-base">{division}</span>
             </h3>
           </div>
         </div>

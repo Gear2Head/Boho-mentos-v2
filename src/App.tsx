@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2, LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -497,16 +497,16 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
       {/* Mobile Top Header (Glassmorphism) */}
-      <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4">
+      <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-[#C17767] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#C17767]/20">
             <h1 className="font-display italic text-lg font-bold leading-none transform -rotate-12">B</h1>
           </div>
-          <h2 className="font-display italic text-base font-bold tracking-tight text-ink">Boho Mentosluk</h2>
+          <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <ThemeToggle />
           <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
              {store.profile.avatar
@@ -517,7 +517,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh]">
+      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-lg md:shadow-none">
         <div className="hidden md:block p-4 border-b border-app">
           <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
           <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-ink-muted">YKS Mentörlük v5</p>
@@ -575,24 +575,31 @@ export default function App() {
           </div>
         </div>
         
-        {/* Super Admin Dev Console Trigger - Sadece Yetkili UID */}
-        {isSuperAdmin(user?.uid) && (
-          <div
-            className="hidden md:block p-4 border-t border-app text-[9px] uppercase tracking-widest text-[#C17767] opacity-50 hover:opacity-100 transition-opacity cursor-pointer font-bold text-center"
-            onClick={() => setIsAdminPanelOpen(true)}
-            title="Dev Console Başlat"
+        {/* Nav Alt İşlemler */}
+        <div className="hidden md:flex flex-col border-t border-app">
+          {isSuperAdmin(user?.uid) && (
+            <div
+              className="p-4 text-[9px] uppercase tracking-[0.3em] text-[#C17767] opacity-60 hover:opacity-100 transition-opacity cursor-pointer font-bold text-center border-b border-app/50"
+              onClick={() => setIsAdminPanelOpen(true)}
+            >
+              ⬡ DEV CONSOLE
+            </div>
+          )}
+          <button 
+            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) store.signOut(); }}
+            className="p-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all"
           >
-            ⬡ DEV CONSOLE
-          </div>
-        )}
+            <LogOut size={14} /> ÇIKIŞ YAP
+          </button>
+        </div>
       </nav>
       {/* Dev Console Modalı */}
       <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
 
-      <main className="flex-1 overflow-auto relative bg-app pb-20 md:pb-0 pt-4 md:pt-0">
+      <main className="flex-1 overflow-auto relative bg-app pb-24 md:pb-0 pt-0">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
-            <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 max-w-5xl mx-auto">
+            <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-4 md:p-8 max-w-5xl mx-auto">
               <header className="mb-12 flex flex-col md:flex-row md:justify-between items-start md:items-end gap-6">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
@@ -1306,24 +1313,34 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate }: any) => {
            <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold font-mono">Sistem Haritası v5.6</p>
         </header>
 
-        <div className="grid grid-cols-3 gap-y-8 gap-x-4 pb-12">
+        <div className="grid grid-cols-3 gap-y-6 gap-x-3 pb-8">
           {menuItems.map(item => (
             <button
               key={item.id}
               onClick={() => { onNavigate(item.id); onClose(); }}
-              className="flex flex-col items-center gap-3 group"
+              className="flex flex-col items-center gap-2 group"
             >
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${activeTab === item.id ? 'bg-[#C17767] text-white shadow-xl shadow-[#C17767]/20 scale-110' : 'bg-zinc-100 dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-400 group-hover:bg-[#C17767]/10'}`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${activeTab === item.id ? 'bg-[#C17767] text-white shadow-lg shadow-[#C17767]/20 scale-105' : 'bg-zinc-100 dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-400 group-hover:bg-[#C17767]/10'}`}>
                 {item.icon}
               </div>
-              <span className={`text-[9px] font-bold uppercase tracking-widest text-center ${activeTab === item.id ? 'text-[#C17767]' : 'text-[#4A443C]/60 dark:text-zinc-500'}`}>{item.label}</span>
+              <span className={`text-[8px] font-bold uppercase tracking-widest text-center leading-tight ${activeTab === item.id ? 'text-[#C17767]' : 'text-[#4A443C]/60 dark:text-zinc-500'}`}>{item.label}</span>
             </button>
           ))}
+          {/* Mobil Logout */}
+          <button
+            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) store.signOut(); }}
+            className="flex flex-col items-center gap-2 group"
+          >
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-rose-500/10 text-rose-500 shadow-sm border border-rose-500/20">
+              <LogOut size={20} />
+            </div>
+            <span className="text-[8px] font-bold uppercase tracking-widest text-rose-500">ÇIKIŞ YAP</span>
+          </button>
         </div>
 
         <button 
           onClick={onClose}
-          className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-[#FDFBF7] dark:text-zinc-950 border border-transparent dark:border-zinc-200 rounded-2xl text-xs font-bold uppercase tracking-widest"
+          className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-[#FDFBF7] dark:text-zinc-950 border border-transparent dark:border-zinc-200 rounded-2xl text-xs font-bold uppercase tracking-widest shadow-lg"
         >
           Menüyü Kapat
         </button>

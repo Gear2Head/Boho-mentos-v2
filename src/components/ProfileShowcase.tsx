@@ -54,21 +54,21 @@ export function ProfileShowcase() {
   const aytProgress = targetGoalAyt ? Math.min(100, Math.round((lastAyt / targetGoalAyt.lastEntrantNet) * 100)) : Math.min(100, Math.round((lastAyt / profile.aytTarget) * 100));
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 md:space-y-8">
       {/* Header & Lig Kartı */}
-      <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-3xl p-8 relative overflow-hidden shadow-sm">
+      <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-3xl p-5 md:p-8 relative overflow-hidden shadow-sm">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-[#C17767]/5 to-transparent rounded-bl-full pointer-events-none" />
 
-        <div className="flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10">
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start relative z-10">
           {/* Avatar veya Rank İkonu */}
           {profile.avatar ? (
-            <div className="w-32 h-32 rounded-3xl overflow-hidden border-2 border-[#C17767]/40 shadow-xl shadow-[#C17767]/10 shrink-0">
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl overflow-hidden border-2 border-[#C17767]/40 shadow-xl shadow-[#C17767]/10 shrink-0">
               <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
             </div>
           ) : (
-            <div className={`w-32 h-32 rounded-3xl bg-[#121212] flex flex-col items-center justify-center border border-[#2A2A2A] shadow-inner shrink-0 ${rank.color}`}>
-              <RankIcon size={48} strokeWidth={1.5} />
-              <span className="font-serif italic font-bold mt-2 tracking-widest uppercase text-xs opacity-90">{rank.title}</span>
+            <div className={`w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-[#121212] flex flex-col items-center justify-center border border-[#2A2A2A] shadow-inner shrink-0 ${rank.color}`}>
+              <RankIcon size={32} className="md:w-12 md:h-12" strokeWidth={1.5} />
+              <span className="font-serif italic font-bold mt-2 tracking-widest uppercase text-[10px] md:text-xs opacity-90">{rank.title}</span>
             </div>
           )}
 
