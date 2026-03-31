@@ -141,7 +141,7 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
     { 
       name: "Cerebras", 
       keys: CEREBRAS_KEYS(), 
-      call: (key: string) => callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, maxTokens) 
+      call: (key: string) => callOpenAICompatible(CEREBRAS_API_URL, key, "llama3.1-8b", openAIMsgs, maxTokens) 
     },
     { 
       name: "Gemini", 
@@ -151,7 +151,7 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
     { 
       name: "Groq", 
       keys: GROQ_KEYS(), 
-      call: (key: string) => callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, Math.min(maxTokens, 1200)) 
+      call: (key: string) => callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, Math.min(maxTokens, 800)) 
     },
     { 
       name: "OpenRouter", 
