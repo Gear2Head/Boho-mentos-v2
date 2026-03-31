@@ -38,6 +38,8 @@ import { ExamDetailModal } from './components/ExamDetailModal';
 import { StrategyHub } from './components/StrategyHub';
 import { MebiWarRoom } from './components/MebiWarRoom';
 import { FlapClock, MiniFlapClock } from './components/FlapClock';
+import { AuthGate } from './components/AuthGate';
+import { useAuth } from './hooks/useAuth';
 
 // --- Helper ---
 
@@ -252,7 +254,10 @@ const markdownComponents = {
 
 export default function App() {
   const store = useAppStore();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions' | 'strategy' | 'countdown' | 'explain' | 'agenda'>('dashboard');
+  const { user, isLoading } = useAuth(); // YENİ: Firebase Auth hook'u
+  const [isAuthSkipped, setIsAuthSkipped] = useState(false); // YENİ: Misafir geçişi state'i
+  
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'subjects' | 'coach' | 'profile' | 'exams' | 'logs' | 'settings' | 'archive' | 'questions' | 'strategy' | 'countdown' | 'explain' | 'agenda' | 'war_room'>('dashboard');
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
   const [isTyping, setIsTyping] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
@@ -450,6 +455,21 @@ export default function App() {
     }
   };
 
+  // 1. Durum: Auth kontrolü yapılıyor
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-app">
+        <div className="w-8 h-8 border-2 border-[#C17767]/30 border-t-[#C17767] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // 2. Durum: Kimlik doğrulaması yok ve misafir geçişi de atlanmamış
+  if (!user && !isAuthSkipped) {
+    return <AuthGate onSkip={() => setIsAuthSkipped(true)} />;
+  }
+
+  // 3. Durum: Profil kurulumu eksik
   if (!store.profile) {
     return <ProfileSettings onSubmit={(p) => store.setProfile(p)} />;
   }
@@ -480,7 +500,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh]">
         <div className="hidden md:block p-4 border-b border-app">
           <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
           <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-ink-muted">YKS Mentörlük v5</p>
@@ -506,7 +526,7 @@ export default function App() {
             </div>
           </div>
         </div>
-        <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
+        <div className="flex-1 flex flex-row md:flex-col py-2 md:py-4 justify-around md:justify-start overflow-x-auto md:overflow-y-auto md:overflow-x-hidden custom-scrollbar">
           <NavItem icon={<LayoutDashboard size={18} />} label="Dash" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={<MessageSquare size={18} />} label="Koç" active={activeTab === 'coach'} onClick={() => setActiveTab('coach')} />
           <NavItem icon={<Target size={18} />} label="Sayaç" active={activeTab === 'countdown'} onClick={() => setActiveTab('countdown')} />

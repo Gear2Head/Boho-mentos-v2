@@ -10,7 +10,7 @@ import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
-  HabitAlert
+  HabitAlert, WarRoomMode, WarRoomSession, AuthUser
 } from '../types';
 
 export interface QASession {
@@ -113,6 +113,19 @@ interface AppState {
   setFocusSidePanelOpen: (isOpen: boolean) => void;
   setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => void;
   analyzeUserData: () => string;
+
+  warRoomMode: WarRoomMode;
+  setWarRoomMode: (mode: WarRoomMode) => void;
+  warRoomSession: WarRoomSession | null;
+  setWarRoomSession: (session: WarRoomSession | null) => void;
+  warRoomAnswers: Record<string, string>;
+  warRoomEliminated: Record<string, number[]>;
+  setSelectedAnswer: (questionId: string, answer: string) => void;
+  toggleEliminatedOption: (questionId: string, optionIndex: number) => void;
+  updateWarRoomAnswer: (questionId: string, answer: string) => void;
+
+  authUser: AuthUser | null;
+  setAuthUser: (user: AuthUser | null) => void;
 }
 
 const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
@@ -224,7 +237,7 @@ export const useAppStore = create<AppState>()(
       isPassiveMode: false,
       failedQuestions: [],
       trophies: INITIAL_TROPHIES,
-      eloScore: 1200,
+      eloScore: 0,
       dailyEloDelta: 0,
       lastEloUpdateDate: new Date().toLocaleDateString('tr-TR'),
       streakDays: 0,
@@ -237,7 +250,40 @@ export const useAppStore = create<AppState>()(
       theme: 'dark' as const,
       drawingMode: 'pen',
 
+      warRoomMode: 'solve' as WarRoomMode,
+      warRoomSession: null,
+      warRoomAnswers: {},
+      warRoomEliminated: {},
+
+      authUser: null,
+
       setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => set({ drawingMode: mode }),
+
+      setWarRoomMode: (warRoomMode) => set({ warRoomMode }),
+
+      setWarRoomSession: (session) => set({
+        warRoomSession: session,
+        warRoomAnswers: {},
+        warRoomEliminated: {},
+      }),
+
+      setSelectedAnswer: (questionId, answer) => set((state) => ({
+        warRoomAnswers: { ...state.warRoomAnswers, [questionId]: answer },
+      })),
+
+      toggleEliminatedOption: (questionId, optionIndex) => set((state) => {
+        const current = state.warRoomEliminated[questionId] ?? [];
+        const next = current.includes(optionIndex)
+          ? current.filter((i) => i !== optionIndex)
+          : [...current, optionIndex];
+        return { warRoomEliminated: { ...state.warRoomEliminated, [questionId]: next } };
+      }),
+
+      updateWarRoomAnswer: (questionId, answer) => set((state) => ({
+        warRoomAnswers: { ...state.warRoomAnswers, [questionId]: answer },
+      })),
+
+      setAuthUser: (authUser) => set({ authUser }),
 
       setDevMode: (isDevMode) => set({ isDevMode }),
       setSubjectViewMode: (subjectViewMode) => set({ subjectViewMode }),
@@ -495,7 +541,7 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
         isPassiveMode: false,
         failedQuestions: [],
         trophies: INITIAL_TROPHIES,
-        eloScore: 1200,
+        eloScore: 0,
         streakDays: 0,
         focusSessions: [],
         agendaEntries: [],

@@ -49,7 +49,8 @@ export interface DailyLog {
   empty: number;
   avgTime: number;
   fatigue: number;
-  tags: string[];
+  tags?: string[];
+  notes?: string;
   sessionId?: string;
   sourceName?: string;
 }
@@ -142,3 +143,53 @@ export interface SubjectExamNet {
   avgNet: number;
   lastUpdated: string;
 }
+
+
+export interface WarRoomQuestion {
+  id: string;
+  subject: string;
+  topic: string;
+  difficulty: 'easy' | 'medium' | 'hard' | 'elite';
+  examType: 'TYT' | 'AYT';
+  text: string;
+  image?: string;
+  options: string[];
+  correctAnswer: string;
+  analysis: string;
+  source?: 'AI' | 'manual' | 'archive';
+}
+
+export interface WarRoomResult {
+  questionId: string;
+  selected: string | null;
+  correct: boolean;
+  eliminated: number[];
+  timeSpent: number;
+}
+
+export type WarRoomMode = 'setup' | 'solve' | 'result';
+
+export interface WarRoomSession {
+  id: string;
+  startTime: number;
+  examType: 'TYT' | 'AYT' | 'mixed';
+  difficulty: 'easy' | 'medium' | 'hard' | 'elite';
+  questions: WarRoomQuestion[];
+  status: 'active' | 'completed' | 'abandoned';
+  result?: {
+    correct: number;
+    wrong: number;
+    empty: number;
+    net: number;
+    accuracy: number;
+    timeSpentSeconds: number;
+  };
+}
+
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
