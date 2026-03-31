@@ -1,11 +1,12 @@
 /**
  * Atlas Service — Frontend API Client
  * Sorumluluk: Atlas Data Engine backend servisi ile iletişim kurmak
+ * Not: Build güvenilirliği için native 'fetch' kullanılmıştır.
  */
 
-import axios from 'axios';
-
-const ATLAS_API_URL = process.env.VITE_ATLAS_API_URL || 'http://localhost:3002/api/atlas';
+const ATLAS_API_URL = (typeof process !== 'undefined' && process.env.VITE_ATLAS_API_URL) 
+  || (import.meta.env?.VITE_ATLAS_API_URL)
+  || 'http://localhost:3002/api/atlas';
 
 export interface AtlasProgram {
   id: string;
@@ -23,10 +24,14 @@ export const atlasService = {
    */
   async search(query: string): Promise<AtlasProgram[]> {
     try {
-      const response = await axios.get(`${ATLAS_API_URL}/search`, {
-        params: { q: query }
-      });
-      return response.data.results || [];
+      const url = new URL(`${ATLAS_API_URL}/search`);
+      url.searchParams.append('q', query);
+      
+      const response = await fetch(url.toString());
+      if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+      
+      const data = await response.json();
+      return data.results || [];
     } catch (err) {
       console.error('Atlas Search Error:', err);
       return [];
@@ -38,8 +43,16 @@ export const atlasService = {
    */
   async triggerSync(programId: string): Promise<string | null> {
     try {
-      const response = await axios.post(`${ATLAS_API_URL}/sync`, { programId });
-      return response.data.jobId;
+      const response = await fetch(`${ATLAS_API_URL}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programId })
+      });
+      
+      if (!response.ok) throw new Error(`Sync failed: ${response.status}`);
+      
+      const data = await response.json();
+      return data.jobId;
     } catch (err) {
       console.error('Atlas Sync Trigger Error:', err);
       return null;
@@ -47,12 +60,14 @@ export const atlasService = {
   },
 
   /**
-   * Program detaylarını getir (Cache'den veya API'den)
+   * Program detaylarını getir
    */
   async getProgramDetails(programId: string): Promise<any | null> {
     try {
-      const response = await axios.get(`${ATLAS_API_URL}/programs/${programId}`);
-      return response.data;
+      const response = await fetch(`${ATLAS_API_URL}/programs/${programId}`);
+      if (!response.ok) throw new Error(`Details fetch failed: ${response.status}`);
+      
+      return await response.json();
     } catch (err) {
       console.error('Atlas Get Details Error:', err);
       return null;

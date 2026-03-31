@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  base: './', // CSS ve varlık yollarının WebView'da çözülebilmesi için (Offline First)
+  base: '/', // PWA ve Vercel uyumluluğu için kök dizin temelli path
   plugins: [
     tailwindcss(),
     react(),
@@ -56,7 +56,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3001',
         changeOrigin: true,
-        rewrite: (path) => path // Yolun korunmasını sağlar
+        rewrite: (path) => path
       }
     }
   },
@@ -64,7 +64,8 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
-    chunkSizeWarningLimit: 900,
+    emptyOutDir: true, // Her build öncesi dist'i temizle
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks: {

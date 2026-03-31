@@ -11,6 +11,30 @@ interface OpenAIMessage {
   content: string;
 }
 
+/**
+ * safeFetch: Hata yönetimi ve retry mekanizmalı fetch sarmalayıcısı
+ */
+async function safeFetch(url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
+  try {
+    const response = await fetch(url, options);
+    
+    // Rate limit (429) veya Server Error (5xx) durumunda retry yap
+    if ((response.status === 429 || response.status >= 500) && retries > 0) {
+      console.warn(`AI API hatası (${response.status}). ${backoff}ms sonra tekrar deneniyor... Kalan deneme: ${retries}`);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return safeFetch(url, options, retries - 1, backoff * 2);
+    }
+    
+    return response;
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return safeFetch(url, options, retries - 1, backoff * 2);
+    }
+    throw err;
+  }
+}
+
 export async function getCoachResponse(
   userMessage: string,
   context: string,
@@ -46,19 +70,29 @@ export async function getCoachResponse(
     }
   };
 
-  const response = await fetch("/api/ai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await safeFetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    const txt = await response.text();
-    return `AI HATASI: ${response.status} ${txt}`;
+    if (!response.ok) {
+      const txt = await response.text();
+      return `Sistem yoğunluğu nedeniyle yanıt alınamadı (${response.status}). Lütfen biraz bekleyip tekrar dene.`;
+    }
+
+    const data = (await response.json()) as { text?: string; error?: string };
+    
+    if (data.error === "RATE_LIMITED") {
+      return "Anlık limitlere takıldın. Gear_Head biraz dinleniyor, 30 saniye sonra tekrar yazabilirsin.";
+    }
+
+    return data.text ?? "Yanıt oluşturulurken bir hata oluştu. Lütfen tekrar dene.";
+  } catch (err) {
+    console.error("AI Fetch Error:", err);
+    return "Bağlantı hatası oluştu. Lütfen internetini kontrol et veya biraz sonra tekrar dene.";
   }
-
-  const data = (await response.json()) as { text?: string; error?: string };
-  return data.text ?? "Tüm AI hatları meşgul veya limitler doldu. Lütfen 1 dakika sonra tekrar dene.";
 }
 
 export async function parseVoiceLog(transcript: string): Promise<Record<string, any> | null> {

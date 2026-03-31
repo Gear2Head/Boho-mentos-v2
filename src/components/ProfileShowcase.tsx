@@ -5,6 +5,7 @@ import { useAppStore } from '../store/appStore';
 import { getRankDetails } from './EloRankCard';
 import type { Trophy as TrophyType, ExamResult, AtlasProgram } from '../types';
 import { AtlasExplorer } from './AtlasExplorer';
+import { HabitAuditPanel } from './HabitAuditPanel';
 import { AnimatePresence } from 'motion/react';
 
 const ICON_MAP: Record<string, React.FC<any>> = {
@@ -256,8 +257,11 @@ export function ProfileShowcase() {
               );
             })}
           </div>
+
         </div>
       </div>
+
+      <HabitAuditPanel />
 
       <AnimatePresence>
         {isExplorerOpen && (

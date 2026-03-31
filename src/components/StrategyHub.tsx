@@ -11,6 +11,7 @@ import { getCoachResponse } from '../services/gemini';
 import { YOK_ATLAS_TOP10 } from '../data/yokAtlasTop10';
 import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet } from '../utils/statistics';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { SourceROIPanel } from './SourceROIPanel';
 
 const markdownComponents = {
   p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 text-zinc-300 text-sm" {...props} />,
@@ -267,49 +268,8 @@ Son denemeler: ${recentExams || 'Yok'}`;
       </div>
 
       {/* FAZ 1: Kaynak Analizi (ROI) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-[#121212] border border-green-900/30 rounded-2xl p-6">
-          <h3 className="font-serif italic text-lg text-green-400 mb-4 flex items-center gap-2"><BookOpen size={16}/> En Verimli Kaynak</h3>
-          {bestSources.length > 0 ? (
-            <div className="space-y-4">
-              {bestSources.map((s, i) => (
-                <div key={i} className="flex justify-between items-center bg-green-900/10 p-3 rounded-lg border border-green-900/20">
-                  <div className="flex items-center gap-3">
-                    <span className="text-green-500 font-bold font-mono">#{i+1}</span>
-                    <div>
-                      <div className="text-sm font-bold text-zinc-200">{s.sourceName}</div>
-                      <div className="text-[10px] opacity-60 uppercase text-zinc-400">{s.totalQuestions} Soru • {s.avgSecondsPerQ} sn/soru</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold text-green-400">{s.roiScore}</div>
-                    <div className="text-[8px] uppercase tracking-widest text-green-600">ROI Puanı</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <div className="text-xs text-zinc-500 uppercase tracking-widest opacity-60 py-4">Kaynak verisi bulunamadı.</div>}
-        </div>
-
-        <div className="bg-[#121212] border border-red-900/30 rounded-2xl p-6">
-          <h3 className="font-serif italic text-lg text-red-400 mb-4 flex items-center gap-2"><AlertTriangle size={16}/> Zaman Kaybettiren Kaynak</h3>
-          {badSources.length > 0 ? (
-            <div className="space-y-4">
-              {badSources.map((s, i) => (
-                <div key={i} className="flex justify-between items-center bg-red-900/10 p-3 rounded-lg border border-red-900/20">
-                  <div>
-                    <div className="text-sm font-bold text-zinc-200">{s.sourceName}</div>
-                    <div className="text-[10px] opacity-60 uppercase text-zinc-400">Puan: {s.roiScore} | {s.avgSecondsPerQ} sn/soru | Doğruluk: %{s.avgAccuracy}</div>
-                  </div>
-                  <AlertTriangle size={16} className="text-red-500/50" />
-                </div>
-              ))}
-              <div className="text-[10px] text-red-400/80 leading-relaxed mt-2 p-2 bg-red-950/30 rounded">
-                Uyarı: Bu kaynaklarda doğruluk oranın düşük veya çok vakit kaybediyorsun. Hedefe uygunluğunu sorgula.
-              </div>
-            </div>
-          ) : <div className="text-xs text-zinc-500 uppercase tracking-widest opacity-60 py-4">Zaman kaybettiren kaynak tespit edilmedi.</div>}
-        </div>
+      <div className="mb-8">
+        <SourceROIPanel />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
