@@ -58,22 +58,16 @@ export async function getCoachResponse(
     forceJson: options?.forceJson,
     maxTokens: options?.maxTokens,
     userState: options?.userState || {
-      profile: store.profile,
-      eloScore: store.eloScore,
-      streakDays: store.streakDays,
-      // ⚡ RADİKAL ÖZET: Tüm listeyi değil, sadece sayısal özetleri gönder
-      stats: {
-        tytProgress: `${store.tytSubjects.filter(s => s.status === 'mastered').length}/${store.tytSubjects.length}`,
-        aytProgress: `${store.aytSubjects.filter(s => s.status === 'mastered').length}/${store.aytSubjects.length}`,
-        failedQuestionsCount: store.failedQuestions.length
-      },
-      logs: store.logs.slice(-3),
-      exams: store.exams.slice(-2),
-      activeTopics: [
-        ...store.tytSubjects.filter(s => s.status === 'in-progress').slice(0, 3).map(s => s.name),
-        ...store.aytSubjects.filter(s => s.status === 'in-progress').slice(0, 3).map(s => s.name)
-      ],
-      activeAlerts: store.activeAlerts
+      name: store.profile?.name,
+      track: store.profile?.track,
+      elo: store.eloScore,
+      streak: store.streakDays,
+      // TÜM DİZİLERİ ÖZETLE (Token Patlamasını Önle)
+      summary: `TYT %${Math.round((store.tytSubjects.filter(s => s.status === 'mastered').length / (store.tytSubjects.length || 1)) * 100)} bi̇tti̇, AYT %${Math.round((store.aytSubjects.filter(s => s.status === 'mastered').length / (store.aytSubjects.length || 1)) * 100)} bi̇tti̇.`,
+      lastLogs: store.logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct/l.questions)*100)} başari`),
+      lastExams: store.exams.slice(-1).map(e => `${e.type}: ${e.totalNet} net`),
+      alerts: store.activeAlerts.length,
+      target: store.profile?.targetUniversity
     }
   };
 

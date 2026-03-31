@@ -28,33 +28,16 @@ type AiRequestBody =
 const GEMINI_MODEL = "gemini-2.0-flash";
 const GROQ_MODEL = "llama-3.1-8b-instant";
 const OPENROUTER_MODEL = "meta-llama/llama-3.2-3b-instruct:free";
-const CEREBRAS_MODEL = "llama3.1-70b";
+const CEREBRAS_MODEL = "llama3.1-8b";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 
-const SYSTEM_INSTRUCTION_BASE = `
-Sen Gear_Head YKS koçusun.
-- Veriye dayalı konuş.
-- Boş motivasyon verme.
-- Kullanıcı bağlamını ve logları dikkate al.
-`.trim();
-
-const SYSTEM_QA_PROMPT = `
-Sen YKS soru/çözüm asistanısın.
-- Kısa, net ve doğru yanıt ver.
-- İstenirse sadece JSON döndür.
-`.trim();
-
 const buildSystemInstruction = (coachPersonality?: string, action?: CoachAction, userState?: any) => {
-  const base = action === "qa_mode" ? SYSTEM_QA_PROMPT : SYSTEM_INSTRUCTION_BASE;
-  const personality = (coachPersonality ?? "").trim();
-  const stateBlock = userState
-    ? `\n\n## ANLIK STATE\n\`\`\`json\n${JSON.stringify(userState)}\n\`\`\``
-    : "";
-  const styleBlock = personality ? `\n\n## KOÇ ÜSLUBU\n${personality}` : "";
-  return `${base}${stateBlock}${styleBlock}`;
+  const base = action === "qa_mode" ? "YKS asistani: Kisa, net cevap ver." : "Gear_Head koç: Sert, analitik, kisa konuş.";
+  const stateStr = userState ? `\n[Veri: ${JSON.stringify(userState)}]` : "";
+  return `${base}${stateStr}${coachPersonality ? `\n[Tarz: ${coachPersonality}]` : ""}`;
 };
 
 const getKeys = (prefix: string, count: number) => {
