@@ -5,13 +5,12 @@
  */
 
 import {
-  doc, getDoc, setDoc, collection, getDocs,
-  writeBatch, serverTimestamp, Timestamp
+  doc, getDoc, setDoc, serverTimestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type {
   StudentProfile, DailyLog, ExamResult, FailedQuestion,
-  SubjectStatus, ChatMessage, AgendaEntry, FocusSessionRecord, Trophy
+  SubjectStatus, ChatMessage, AgendaEntry, FocusSessionRecord, Trophy, HabitAlert
 } from '../types';
 
 export interface FirestoreUserData {
@@ -29,20 +28,42 @@ export interface FirestoreUserData {
   theme: 'light' | 'dark';
   subjectViewMode: 'list' | 'map';
   chatHistory: ChatMessage[];
+  isPassiveMode: boolean;
+  activeAlerts: HabitAlert[];
 }
+
+const EXCLUDED_KEYS = new Set([
+  'warRoomSession',
+  'warRoomAnswers',
+  'warRoomEliminated',
+  'warRoomTimeLeft',
+  'warRoomMode',
+  'isFocusSidePanelOpen',
+  'qaSession',
+  'drawingMode',
+  'authUser',
+  'isDevMode',
+  'subjectViewMode',
+]);
 
 export async function pushToFirestore(uid: string, data: Partial<FirestoreUserData>): Promise<void> {
   try {
     const userRef = doc(db, 'users', uid);
-    const payload: any = { ...data, updatedAt: serverTimestamp() };
-    
-    // Avatarı Firebase döküman 1MB limitinden ve yazma yükünden korumak için Cloud'a yollarken büyükse at
-    if (payload.profile?.avatar && payload.profile.avatar.length > 50000) {
-      payload.profile = { ...payload.profile };
-      delete payload.profile.avatar;
+    const payload: Record<string, unknown> = { updatedAt: serverTimestamp() };
+
+    for (const [key, value] of Object.entries(data)) {
+      if (EXCLUDED_KEYS.has(key)) continue;
+      payload[key] = value;
     }
 
-    // Her debounced tetiklenmede tam olarak SADECE 1 Write kotası harcar! (20K Single limitine çok uygun)
+    if (payload.profile && typeof payload.profile === 'object') {
+      const profileObj = payload.profile as Record<string, unknown>;
+      if (typeof profileObj.avatar === 'string' && profileObj.avatar.length > 50000) {
+        payload.profile = { ...profileObj };
+        delete (payload.profile as Record<string, unknown>).avatar;
+      }
+    }
+
     await setDoc(userRef, payload, { merge: true });
   } catch (err) {
     console.warn('[Firestore] Push failed:', err);
@@ -55,25 +76,26 @@ export async function pullFromFirestore(uid: string): Promise<FirestoreUserData 
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) return null;
-    
-    // Tek okuma ile (1 Read kotası) tüm state geri gelir
-    const userData = userSnap.data();
+
+    const d = userSnap.data();
 
     return {
-      profile: userData.profile ?? null,
-      tytSubjects: userData.tytSubjects ?? [],
-      aytSubjects: userData.aytSubjects ?? [],
-      eloScore: userData.eloScore ?? 0,
-      streakDays: userData.streakDays ?? 0,
-      theme: userData.theme ?? 'dark',
-      subjectViewMode: userData.subjectViewMode ?? 'map',
-      trophies: userData.trophies ?? [],
-      chatHistory: userData.chatHistory ?? [],
-      focusSessions: userData.focusSessions ?? [],
-      logs: userData.logs ?? [],
-      exams: userData.exams ?? [],
-      failedQuestions: userData.failedQuestions ?? [],
-      agendaEntries: userData.agendaEntries ?? [],
+      profile: d.profile ?? null,
+      tytSubjects: d.tytSubjects ?? [],
+      aytSubjects: d.aytSubjects ?? [],
+      eloScore: d.eloScore ?? 0,
+      streakDays: d.streakDays ?? 0,
+      theme: d.theme ?? 'dark',
+      subjectViewMode: d.subjectViewMode ?? 'map',
+      trophies: d.trophies ?? [],
+      chatHistory: d.chatHistory ?? [],
+      focusSessions: d.focusSessions ?? [],
+      logs: d.logs ?? [],
+      exams: d.exams ?? [],
+      failedQuestions: d.failedQuestions ?? [],
+      agendaEntries: d.agendaEntries ?? [],
+      isPassiveMode: d.isPassiveMode ?? false,
+      activeAlerts: d.activeAlerts ?? [],
     };
   } catch (err) {
     console.warn('[Firestore] Pull failed:', err);

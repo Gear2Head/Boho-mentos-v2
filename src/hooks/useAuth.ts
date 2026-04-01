@@ -1,6 +1,8 @@
 /**
  * AMAÇ: Firebase Authentication hook — giriş, çıkış, oturum takibi
- * MANTIK: onAuthStateChanged ile oturum senkronize, store'a AuthUser yazar
+ * MANTIK: onAuthStateChanged ile oturum senkronize, store'a AuthUser yazar.
+ *         onSnapshot hasPendingWrites kontrolü ile infinite-loop engellenir.
+ *         pullFromFirestore tüm kritik state alanlarını store'a basar.
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -18,8 +20,40 @@ import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useAppStore } from '../store/appStore';
 import { pullFromFirestore, pushToFirestore } from '../services/firestoreSync';
 import { parseAuthError } from '../utils/parseAuthError';
+import type { FirestoreUserData } from '../services/firestoreSync';
 
 type AuthMode = 'login' | 'register';
+
+const SYNC_FIELDS: Array<keyof FirestoreUserData> = [
+  'profile', 'tytSubjects', 'aytSubjects', 'logs', 'exams',
+  'failedQuestions', 'agendaEntries', 'focusSessions', 'trophies',
+  'eloScore', 'streakDays', 'theme', 'chatHistory',
+  'isPassiveMode', 'activeAlerts',
+];
+
+function applyCloudDataToStore(data: FirestoreUserData) {
+  const store = useAppStore.getState();
+  if (data.profile) store.setProfile(data.profile);
+  if (data.theme) store.setTheme(data.theme);
+  if (data.eloScore !== undefined) {
+    const delta = data.eloScore - useAppStore.getState().eloScore;
+    if (delta !== 0) store.addElo(delta);
+  }
+  useAppStore.setState({
+    tytSubjects: data.tytSubjects?.length ? data.tytSubjects : useAppStore.getState().tytSubjects,
+    aytSubjects: data.aytSubjects?.length ? data.aytSubjects : useAppStore.getState().aytSubjects,
+    logs: data.logs ?? useAppStore.getState().logs,
+    exams: data.exams ?? useAppStore.getState().exams,
+    failedQuestions: data.failedQuestions ?? useAppStore.getState().failedQuestions,
+    agendaEntries: data.agendaEntries ?? useAppStore.getState().agendaEntries,
+    focusSessions: data.focusSessions ?? useAppStore.getState().focusSessions,
+    trophies: data.trophies?.length ? data.trophies : useAppStore.getState().trophies,
+    streakDays: data.streakDays ?? useAppStore.getState().streakDays,
+    isPassiveMode: data.isPassiveMode ?? useAppStore.getState().isPassiveMode,
+    activeAlerts: data.activeAlerts ?? useAppStore.getState().activeAlerts,
+    chatHistory: data.chatHistory ?? useAppStore.getState().chatHistory,
+  });
+}
 
 export function useAuth() {
   const store = useAppStore();
@@ -39,41 +73,47 @@ export function useAuth() {
         });
 
         const cloudData = await pullFromFirestore(firebaseUser.uid);
-        if (cloudData && cloudData.profile) {
-          store.setProfile(cloudData.profile);
-          if (cloudData.eloScore !== undefined) store.addElo(cloudData.eloScore - store.eloScore);
-          if (cloudData.theme) store.setTheme(cloudData.theme);
+        if (cloudData) {
+          applyCloudDataToStore(cloudData);
         }
-        
-        // 🚀 SÜREKLİ DİNLEYİCİ (Real-Time ELO Sync)
-        unsubscribeSnapshot = onSnapshot(doc(db, 'userData', firebaseUser.uid), (docSnap) => {
-           if (docSnap.exists()) {
-             const rtData = docSnap.data();
-             // Frontend Cache yerine Firebase gerçeğini şokla (Zorla Ez)
-             if (rtData.eloScore !== undefined) {
-                useAppStore.setState({ eloScore: rtData.eloScore });
-             }
-           }
-        });
 
-        // Geliştirici mimarisi için zorunlu (users dökümanı)
+        unsubscribeSnapshot = onSnapshot(
+          doc(db, 'users', firebaseUser.uid),
+          { includeMetadataChanges: true },
+          (docSnap) => {
+            if (!docSnap.exists()) return;
+            if (docSnap.metadata.hasPendingWrites) return;
+
+            const rtData = docSnap.data() as Partial<FirestoreUserData>;
+            const partial: Partial<FirestoreUserData> = {};
+            for (const key of SYNC_FIELDS) {
+              if (rtData[key] !== undefined) {
+                (partial as Record<string, unknown>)[key] = rtData[key];
+              }
+            }
+            if (Object.keys(partial).length > 0) {
+              applyCloudDataToStore(partial as FirestoreUserData);
+            }
+          }
+        );
+
         try {
-           const isSuperAdmin = firebaseUser.uid === '9z9OAxBXsFU3oPT8AqIxnDSfzNy2';
-           await setDoc(doc(db, 'users', firebaseUser.uid), {
-             uid: firebaseUser.uid,
-             email: firebaseUser.email,
-             displayName: firebaseUser.displayName || '',
-             photoURL: firebaseUser.photoURL || '',
-             role: isSuperAdmin ? 'super_admin' : 'standard',
-             lastSignedInAt: new Date().toISOString()
-           }, { merge: true });
+          const isSuperAdmin = firebaseUser.uid === '9z9OAxBXsFU3oPT8AqIxnDSfzNy2';
+          await setDoc(doc(db, 'users', firebaseUser.uid), {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || '',
+            photoURL: firebaseUser.photoURL || '',
+            role: isSuperAdmin ? 'super_admin' : 'standard',
+            lastSignedInAt: new Date().toISOString()
+          }, { merge: true });
         } catch (e) {
-           console.error("User doc sync error:", e);
+          console.warn('[Auth] User doc sync error:', e);
         }
       } else {
         if (unsubscribeSnapshot) {
-           unsubscribeSnapshot();
-           unsubscribeSnapshot = null;
+          unsubscribeSnapshot();
+          unsubscribeSnapshot = null;
         }
         store.resetStore();
         store.setAuthUser(null);
@@ -82,8 +122,29 @@ export function useAuth() {
     });
 
     return () => {
-       unsubscribeAuth();
-       if (unsubscribeSnapshot) unsubscribeSnapshot();
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
+  }, []);
+
+  const buildFullSnapshot = useCallback((): Partial<FirestoreUserData> => {
+    const s = useAppStore.getState();
+    return {
+      profile: s.profile ?? undefined,
+      tytSubjects: s.tytSubjects,
+      aytSubjects: s.aytSubjects,
+      logs: s.logs,
+      exams: s.exams,
+      failedQuestions: s.failedQuestions,
+      agendaEntries: s.agendaEntries,
+      focusSessions: s.focusSessions,
+      trophies: s.trophies,
+      eloScore: s.eloScore,
+      streakDays: s.streakDays,
+      theme: s.theme,
+      chatHistory: s.chatHistory,
+      isPassiveMode: s.isPassiveMode,
+      activeAlerts: s.activeAlerts,
     };
   }, []);
 
@@ -95,21 +156,15 @@ export function useAuth() {
       const user = result.user;
       const cloudData = await pullFromFirestore(user.uid);
       if (!cloudData?.profile && store.profile) {
-        await pushToFirestore(user.uid, {
-          profile: store.profile,
-          eloScore: store.eloScore,
-          logs: store.logs,
-          exams: store.exams,
-          trophies: store.trophies,
-          theme: store.theme,
-        });
+        await pushToFirestore(user.uid, buildFullSnapshot());
       }
-    } catch (err: any) {
-      setAuthError(parseAuthError(err.code));
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code;
+      setAuthError(parseAuthError(code ?? ''));
     } finally {
       setIsLoading(false);
     }
-  }, [store]);
+  }, [store, buildFullSnapshot]);
 
   const signInWithEmail = useCallback(async (email: string, password: string, mode: AuthMode, displayName?: string) => {
     setAuthError(null);
@@ -119,48 +174,36 @@ export function useAuth() {
         const result = await createUserWithEmailAndPassword(auth, email, password);
         if (displayName) await updateProfile(result.user, { displayName });
         if (store.profile) {
-          await pushToFirestore(result.user.uid, {
-            profile: store.profile,
-            eloScore: store.eloScore,
-            logs: store.logs,
-            exams: store.exams,
-            trophies: store.trophies,
-            theme: store.theme,
-          });
+          await pushToFirestore(result.user.uid, buildFullSnapshot());
         }
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-    } catch (err: any) {
-      setAuthError(parseAuthError(err.code));
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code;
+      setAuthError(parseAuthError(code ?? ''));
     } finally {
       setIsLoading(false);
     }
-  }, [store]);
+  }, [store, buildFullSnapshot]);
 
   const signOut = useCallback(async () => {
     try {
-      if (store.authUser && store.profile) {
-        await pushToFirestore(store.authUser.uid, {
-          profile: store.profile,
-          eloScore: store.eloScore,
-          logs: store.logs,
-          exams: store.exams,
-          trophies: store.trophies,
-          theme: store.theme,
-        });
+      const currentUid = useAppStore.getState().authUser?.uid;
+      if (currentUid) {
+        await pushToFirestore(currentUid, buildFullSnapshot());
       }
       await firebaseSignOut(auth);
     } catch (err) {
       console.warn('[Auth] Sign out error:', err);
     }
-  }, [store]);
+  }, [buildFullSnapshot]);
 
-  const resetPassword = useCallback(async (email: string) => {
+  const resetPassword = useCallback(async (email: string): Promise<boolean> => {
     try {
       await sendPasswordResetEmail(auth, email);
       return true;
-    } catch (err) {
+    } catch {
       return false;
     }
   }, []);

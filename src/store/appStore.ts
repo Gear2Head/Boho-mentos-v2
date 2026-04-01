@@ -120,12 +120,16 @@ interface AppState {
   setWarRoomSession: (session: WarRoomSession | null) => void;
   warRoomAnswers: Record<string, string>;
   warRoomEliminated: Record<string, number[]>;
+  warRoomTimeLeft: number;
+  setWarRoomTimeLeft: (time: number | ((prev: number) => number)) => void;
   setSelectedAnswer: (questionId: string, answer: string) => void;
   toggleEliminatedOption: (questionId: string, optionIndex: number) => void;
   updateWarRoomAnswer: (questionId: string, answer: string) => void;
 
   authUser: AuthUser | null;
   setAuthUser: (user: AuthUser | null) => void;
+
+  signOut: () => Promise<void>;
 
   addTargetGoal: (goal: AtlasProgram) => void;
   removeTargetGoal: (id: string) => void;
@@ -182,6 +186,7 @@ const INITIAL_STATE = {
   warRoomSession: null,
   warRoomAnswers: {},
   warRoomEliminated: {},
+  warRoomTimeLeft: 0,
   authUser: null,
 };
 
@@ -278,7 +283,12 @@ export const useAppStore = create<AppState>()(
         warRoomSession: session,
         warRoomAnswers: {},
         warRoomEliminated: {},
+        warRoomTimeLeft: 0,
       }),
+
+      setWarRoomTimeLeft: (time) => set((state) => ({
+        warRoomTimeLeft: typeof time === 'function' ? time(state.warRoomTimeLeft) : time,
+      })),
 
       setSelectedAnswer: (questionId, answer) => set((state) => ({
         warRoomAnswers: { ...state.warRoomAnswers, [questionId]: answer },
@@ -297,6 +307,8 @@ export const useAppStore = create<AppState>()(
       })),
 
       setAuthUser: (authUser) => set({ authUser }),
+
+      signOut: async () => {},
 
       setDevMode: (isDevMode) => set({ isDevMode }),
       setSubjectViewMode: (subjectViewMode) => set({ subjectViewMode }),
@@ -424,11 +436,15 @@ export const useAppStore = create<AppState>()(
 
       addExam: (exam) => set((state) => {
         const todayStr = new Date().toLocaleDateString('tr-TR');
+        const safeTotalNet = !isFinite(exam.totalNet) || isNaN(exam.totalNet) ? 0 : exam.totalNet;
+        const safeScores = exam.scores ?? {};
+        const normalizedExam = { ...exam, totalNet: safeTotalNet, scores: safeScores };
+
         let eloDelta = 100;
         if (state.profile) {
-            const target = exam.type === 'TYT' ? state.profile.tytTarget : state.profile.aytTarget;
-            if (exam.totalNet >= target) eloDelta += 150;
-            else if (exam.totalNet < target * 0.5) eloDelta -= 50; 
+            const target = normalizedExam.type === 'TYT' ? state.profile.tytTarget : state.profile.aytTarget;
+            if (normalizedExam.totalNet >= target) eloDelta += 150;
+            else if (normalizedExam.totalNet < target * 0.5) eloDelta -= 50;
         }
 
         let newDailyDelta = state.dailyEloDelta;
@@ -437,12 +453,12 @@ export const useAppStore = create<AppState>()(
         }
         newDailyDelta += eloDelta;
         const newEloScore = Math.max(0, state.eloScore + eloDelta);
-        const newExams = [...state.exams, exam];
+        const newExams = [...state.exams, normalizedExam];
         const trophies = state.trophies.map(t => {
           if (t.id === 'first_blood' && newExams.length >= 1 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           if (t.id === 'exam_target_hit' && state.profile) {
-            const target = exam.type === 'TYT' ? state.profile.tytTarget : state.profile.aytTarget;
-            if (exam.totalNet >= target && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
+            const target = normalizedExam.type === 'TYT' ? state.profile.tytTarget : state.profile.aytTarget;
+            if (normalizedExam.totalNet >= target && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           }
           return t;
         });

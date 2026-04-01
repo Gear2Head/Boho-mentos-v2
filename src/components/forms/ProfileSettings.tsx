@@ -1,11 +1,10 @@
 /**
  * AMAÇ: Profil ayarları, hesap kurulum sihirbazı ve avatar yönetimi
- * MANTIK: Setup wizard (ilk açılış) ve edit mode arasında geçiş yapar. Avatar Base64 olarak store'a kaydedilir.
- * UYARI: Avatar Base64 büyük olabilir — IndexedDB persist ile sorunsuz çalışır.
+ * MANTIK: Ultra-Elite Boho tasarımı (Glassmorphism, High-Energy Backdrop).
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Target, Save, Search, Camera, X, User } from 'lucide-react';
+import { Target, Save, Search, Camera, User } from 'lucide-react';
 import type { StudentProfile } from '../../types';
 import { searchUniGoals, type UniGoal } from '../../data/uniGoals';
 
@@ -54,12 +53,6 @@ export function ProfileSettings({ onSubmit, initialData, isEditMode = false }: P
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const MAX_SIZE_MB = 2;
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      alert(`Resim çok büyük. Maksimum ${MAX_SIZE_MB}MB yükleyebilirsin.`);
-      return;
-    }
-
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
@@ -78,7 +71,7 @@ export function ProfileSettings({ onSubmit, initialData, isEditMode = false }: P
       const ctx = canvas.getContext('2d');
       if (!ctx) { callback(dataUrl); return; }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      callback(canvas.toDataURL('image/jpeg', 0.82));
+      callback(canvas.toDataURL('image/jpeg', 0.85));
     };
     img.src = dataUrl;
   };
@@ -122,173 +115,175 @@ export function ProfileSettings({ onSubmit, initialData, isEditMode = false }: P
     setMajorSearchFocus(false);
   };
 
-  const wrapperClass = isEditMode
-    ? 'bg-transparent text-ink'
-    : 'fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 backdrop-blur-2xl';
-
-  const containerClass = isEditMode
-    ? 'w-full space-y-8'
-    : 'bg-[#121212] border border-[#2A2A2A] rounded-3xl p-8 max-w-2xl w-full shadow-2xl space-y-8 max-h-[90vh] overflow-y-auto custom-scrollbar';
-
   return (
-    <div className={wrapperClass}>
-      <div className={containerClass}>
-        {!isEditMode && (
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-[#C17767]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Target size={32} className="text-[#C17767]" />
-            </div>
-            <h2 className="font-serif italic text-4xl text-[#C17767] mb-2">Hesap Kurulumu</h2>
-            <p className="text-xs uppercase tracking-widest text-ink-muted font-bold">Rotanı çizmeden yelken açamazsın</p>
-          </div>
-        )}
+    <div className={isEditMode ? "p-0" : "fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8 overflow-hidden"}>
+      {!isEditMode && (
+        <div className="absolute inset-0 bg-[#020202] overflow-hidden">
+          {/* Hareketli Leke Efektleri (Dynamic Backdrop) */}
+          <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[80%] bg-[#C17767]/15 rounded-full blur-[140px] animate-pulse" />
+          <div className="absolute bottom-[-20%] right-[-20%] w-[70%] h-[70%] bg-blue-900/10 rounded-full blur-[140px]" />
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] opacity-[0.05]" />
+        </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-
-          {/* Avatar Picker */}
-          <div className="flex flex-col sm:flex-row items-center gap-6 p-6 border border-[#2A2A2A] rounded-2xl bg-[#161616]">
-            <div className="relative shrink-0">
-              <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-[#C17767]/40 bg-[#1A1A1A]">
-                {avatar ? (
-                  <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    {name ? (
-                      <img
-                        src={`https://api.dicebear.com/7.x/bottts/svg?seed=${name}`}
-                        alt="default"
-                        className="w-full h-full"
-                      />
-                    ) : (
-                      <User size={36} className="text-zinc-600" />
-                    )}
-                  </div>
-                )}
+      <div className={isEditMode ? "w-full" : "relative w-full max-w-2xl bg-[#0F0F0F]/60 backdrop-blur-3xl border border-white/[0.08] rounded-[3rem] p-8 md:p-12 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] max-h-[92vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in duration-500"}>
+        <div className="text-center mb-12">
+          {!isEditMode && (
+            <>
+              <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-[#C17767]/30 to-transparent rounded-[2rem] mb-6 border border-[#C17767]/30 shadow-2xl shadow-[#C17767]/10 group transition-all duration-500 hover:rotate-12">
+                <Target size={44} className="text-[#C17767] transition-transform group-hover:scale-110" />
               </div>
-              {avatar && (
-                <button
-                  type="button"
-                  onClick={() => setAvatar(undefined)}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-500 transition-colors"
+              <h2 className="font-serif italic text-5xl text-white mb-3 tracking-tight">Kaderini Çiz</h2>
+              <p className="text-[11px] uppercase tracking-[0.5em] text-zinc-500 font-black opacity-80">Gelecek, onu bugünden inşa edenlerindir</p>
+            </>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-10">
+          {/* Avatar Section - Premium Feel */}
+          <div className="group relative flex flex-col items-center p-1 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent">
+            <div className="w-full bg-[#1A1A1A]/90 backdrop-blur-md rounded-[2.4rem] p-8 flex flex-col items-center">
+              <div className="relative mb-4">
+                <div className="w-32 h-32 rounded-3xl overflow-hidden border-[3px] border-[#C17767]/40 bg-zinc-950 p-1.5 shadow-[0_0_40px_rgba(193,119,103,0.15)] transition-all duration-500 group-hover:border-[#C17767]">
+                  {avatar ? (
+                    <img src={avatar} alt="P" className="w-full h-full object-cover rounded-2xl" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-900/50">
+                      <User size={50} className="text-zinc-800" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-4">
+                <p className="text-xs font-bold text-[#C17767] uppercase tracking-widest mb-1">Görsel Kimlik</p>
+                <label htmlFor="avatar-up" className="px-6 py-2 bg-[#C17767]/10 border border-[#C17767]/30 text-[#C17767] rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-[#C17767] hover:text-white transition-all duration-300">
+                  Karakterini Seç
+                  <input ref={fileInputRef} id="avatar-up" type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="text-[10px] uppercase font-black tracking-[0.2em] text-[#C17767] ml-2">KOD ADIN / MAHLASIN</label>
+              <div className="relative">
+                <input
+                  type="text" required value={name} onChange={e => setName(e.target.value)}
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl p-5 text-sm text-white placeholder:text-zinc-700 focus:border-[#C17767] focus:ring-1 focus:ring-[#C17767]/30 transition-all outline-none"
+                  placeholder="Örn: Savaşçı"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] uppercase font-black tracking-[0.2em] text-[#C17767] ml-2">AKADEMİK ALAN</label>
+              <div className="relative">
+                <select
+                  value={track} onChange={e => setTrack(e.target.value as any)}
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl p-5 text-sm text-white focus:border-[#C17767] transition-all outline-none appearance-none cursor-pointer"
                 >
-                  <X size={12} className="text-white" />
+                  <option value="Sayısal">Sayısal — Mühendislik / Tıp</option>
+                  <option value="Eşit Ağırlık">Eşit Ağırlık — Hukuk / İŞLETME</option>
+                  <option value="Sözel">Sözel — İletişim / Tarih</option>
+                  <option value="Dil">Dil — Mütercim / Edebiyat</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Atlas Section - Neon Accent */}
+          <div className="relative p-[1px] rounded-[3rem] overflow-hidden bg-gradient-to-br from-white/10 via-transparent to-white/5 shadow-2xl">
+            <div className="bg-[#0A0A0A]/95 backdrop-blur-2xl rounded-[2.9rem] p-8 space-y-8">
+              <div className="flex items-center gap-4 border-b border-white/[0.05] pb-6">
+                <div className="w-10 h-10 bg-[#C17767]/20 rounded-xl flex items-center justify-center shadow-inner">
+                  <Search size={18} className="text-[#C17767]" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white">YÖK Atlas Entegrasyonu</h3>
+                  <p className="text-[9px] text-zinc-600 uppercase tracking-widest mt-0.5">Gerçek verilerle hedefini seç</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3 relative">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">ÜNİVERSİTE</label>
+                  <input
+                    type="text" required value={targetUni} onChange={e => setTargetUni(e.target.value)}
+                    onFocus={() => setUniSearchFocus(true)} onBlur={() => setTimeout(() => setUniSearchFocus(false), 250)}
+                    className="w-full bg-white/[0.02] border border-white/5 rounded-2xl p-5 text-sm text-white focus:bg-white/5 focus:border-[#C17767] transition-all outline-none"
+                    placeholder="Kurum ara..."
+                  />
+                  {uniSearchFocus && uniSuggestions.length > 0 && (
+                    <div className="absolute z-50 w-full mt-3 bg-zinc-900/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden animate-in slide-in-from-top-4 duration-300">
+                      {uniSuggestions.map(g => (
+                        <div key={g.id} onMouseDown={() => handleSelectUni(g)} className="p-5 hover:bg-[#C17767] transition-all cursor-pointer border-b border-white/5 last:border-0 group">
+                          <div className="text-xs font-bold text-white group-hover:text-white leading-tight">{g.university}</div>
+                          <div className="text-[10px] text-zinc-500 group-hover:text-white/70 mt-1 uppercase tracking-tighter">{g.major} • {g.examType}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3 relative">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">BÖLÜM / FAKÜLTE</label>
+                  <input
+                    type="text" required value={targetMajor} onChange={e => setTargetMajor(e.target.value)}
+                    onFocus={() => setMajorSearchFocus(true)} onBlur={() => setTimeout(() => setMajorSearchFocus(false), 250)}
+                    className="w-full bg-white/[0.02] border border-white/5 rounded-2xl p-5 text-sm text-white focus:bg-white/5 focus:border-[#C17767] transition-all outline-none"
+                    placeholder="Bölüm ara..."
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 bg-black/40 border border-white/[0.03] rounded-[2rem] flex flex-col items-center justify-center space-y-2 transition-all hover:border-[#C17767]/30">
+              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">TYT HEDEFİ</label>
+              <input type="number" value={tytTarget} onChange={e => setTytTarget(Number(e.target.value))} className="w-full bg-transparent text-4xl font-serif italic text-center text-[#C17767] outline-none" />
+            </div>
+            <div className="p-6 bg-black/40 border border-white/[0.03] rounded-[2rem] flex flex-col items-center justify-center space-y-2 transition-all hover:border-[#C17767]/30">
+              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">AYT HEDEFİ</label>
+              <input type="number" value={aytTarget} onChange={e => setAytTarget(Number(e.target.value))} className="w-full bg-transparent text-4xl font-serif italic text-center text-[#C17767] outline-none" />
+            </div>
+            <div className="p-6 bg-black/40 border border-white/[0.03] rounded-[2rem] flex flex-col items-center justify-center space-y-2 transition-all hover:border-[#C17767]/30">
+              <label className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">MESAİ (SAAT)</label>
+              <input type="number" value={minHours} onChange={e => setMinHours(Number(e.target.value))} className="w-full bg-transparent text-4xl font-serif italic text-center text-blue-400 outline-none" />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <label className="text-[10px] uppercase font-black tracking-[0.4em] text-[#C17767] ml-2">KOÇ KARAKTERİN</label>
+            <div className="grid grid-cols-1 gap-4">
+              {[
+                { id: 'harsh', label: 'DİSİPLİNER', desc: 'Gerçekleri yüzüne vurur, mazeret sevmez.', icon: '💀' },
+                { id: 'motivational', label: 'DESTEKLEYİCİ', desc: 'Potansiyelini hatırlar, sana inanır.', icon: '🔥' },
+                { id: 'analytical', label: 'ANALİTİK', desc: 'Verilerle konuşur, mantıkla yolunu çizer.', icon: '📊' }
+              ].map(p => (
+                <button
+                  key={p.id} type="button"
+                  onClick={() => setCoachPersonality(p.id as any)}
+                  className={`relative p-6 rounded-[2rem] border-2 text-left transition-all duration-500 overflow-hidden ${coachPersonality === p.id ? 'bg-[#C17767] border-[#C17767] text-white shadow-2xl scale-[1.02]' : 'bg-white/[0.03] border-white/[0.05] text-zinc-400 hover:border-white/20'}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl">{p.icon}</span>
+                    <div>
+                      <div className="text-xs font-black tracking-widest mb-1">{p.label}</div>
+                      <div className={`text-[10px] uppercase font-medium leading-none ${coachPersonality === p.id ? 'text-white/80' : 'text-zinc-600'}`}>{p.desc}</div>
+                    </div>
+                  </div>
                 </button>
-              )}
-            </div>
-
-            <div className="flex-1 text-center sm:text-left">
-              <p className="text-xs uppercase tracking-widest font-bold text-[#C17767] mb-1">Profil Resmi</p>
-              <p className="text-sm text-ink-muted mb-4">Fotoğraf, çizim veya avatar yükle. Maks 2MB.</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-                id="avatar-upload"
-              />
-              <label
-                htmlFor="avatar-upload"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 border border-[#C17767]/40 text-[#C17767] rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-[#C17767] hover:text-white transition-all"
-              >
-                <Camera size={14} /> Fotoğraf Seç
-              </label>
+              ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 text-[#C17767]">Adın / Mahlasın</label>
-              <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-3 text-sm focus:border-[#C17767] transition-colors outline-none text-zinc-200" placeholder="Örn: Savaşçı" />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 text-[#C17767]">Alan</label>
-              <select value={track} onChange={e => setTrack(e.target.value as any)} className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-3 text-sm focus:border-[#C17767] transition-colors outline-none text-zinc-200">
-                <option value="Sayısal">Sayısal - Mühendislik/Tıp</option>
-                <option value="Eşit Ağırlık">Eşit Ağırlık - Hukuk/İşletme</option>
-                <option value="Sözel">Sözel - İletişim/Tarih</option>
-                <option value="Dil">Dil - Mütercim/Öğretmenlik</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-6 p-6 border border-[#2A2A2A] bg-[#161616] rounded-2xl relative">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Search size={48} />
-            </div>
-            <h3 className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#C17767] border-b border-[#2A2A2A] pb-2">YÖK Atlas Entegrasyonlu Hedef</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1 relative">
-                <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 text-[#C17767]">Hedef Üniversite</label>
-                <input
-                  type="text" required value={targetUni} onChange={e => setTargetUni(e.target.value)}
-                  onFocus={() => setUniSearchFocus(true)} onBlur={() => setTimeout(() => setUniSearchFocus(false), 200)}
-                  className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-3 text-sm focus:border-[#C17767] transition-colors outline-none text-zinc-200"
-                  placeholder="Örn: Boğaziçi Üniversitesi"
-                />
-                {uniSearchFocus && uniSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl shadow-2xl max-h-48 overflow-y-auto">
-                    {uniSuggestions.map(g => (
-                      <div key={g.id} onMouseDown={() => handleSelectUni(g)} className="p-3 hover:bg-[#C17767]/20 border-b border-[#2A2A2A] cursor-pointer group">
-                        <div className="text-sm font-bold text-zinc-200 group-hover:text-[#C17767]">{g.university}</div>
-                        <div className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest">{g.major} • {g.examType} {g.lastEntrantNet} NET</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-1 relative">
-                <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 text-[#C17767]">Hedef Bölüm</label>
-                <input
-                  type="text" required value={targetMajor} onChange={e => setTargetMajor(e.target.value)}
-                  onFocus={() => setMajorSearchFocus(true)} onBlur={() => setTimeout(() => setMajorSearchFocus(false), 200)}
-                  className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-3 text-sm focus:border-[#C17767] transition-colors outline-none text-zinc-200"
-                  placeholder="Örn: Bilgisayar Mühendisliği"
-                />
-                {majorSearchFocus && majorSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl shadow-2xl max-h-48 overflow-y-auto">
-                    {majorSuggestions.map(g => (
-                      <div key={g.id} onMouseDown={() => handleSelectMajor(g)} className="p-3 hover:bg-[#C17767]/20 border-b border-[#2A2A2A] cursor-pointer group">
-                        <div className="text-sm font-bold text-zinc-200 group-hover:text-[#C17767]">{g.major}</div>
-                        <div className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest">{g.university} • {g.examType} {g.lastEntrantNet} NET</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="text-[10px] text-amber-500/80 bg-amber-950/20 px-3 py-2 rounded uppercase tracking-widest">
-              Öneri: YÖK Atlas veritabanından seçim yaparsan, TYT ve AYT hedeflerin otomatik hesaplanır.
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-[#2A2A2A] rounded-2xl bg-[#1A1A1A]">
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 text-[#C17767]">TYT Net Hedefi</label>
-              <input type="number" required min="0" max="120" value={tytTarget} onChange={e => setTytTarget(Number(e.target.value))} className="w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-3 text-sm focus:border-[#C17767] transition-colors outline-none font-mono text-zinc-200" />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 text-[#C17767]">AYT Net Hedefi</label>
-              <input type="number" required min="0" max="80" value={aytTarget} onChange={e => setAytTarget(Number(e.target.value))} className="w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-3 text-sm focus:border-[#C17767] transition-colors outline-none font-mono text-zinc-200" />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 text-[#C17767]">Koç Karakteri</label>
-            <select value={coachPersonality} onChange={e => setCoachPersonality(e.target.value as any)} className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-3 text-sm focus:border-[#C17767] transition-colors outline-none text-zinc-200">
-              <option value="harsh">Disipliner — Gerçekleri yüzüne vurur, mazeret sevmez (Önerilen)</option>
-              <option value="motivational">Destekleyici — Hata yapsan da motive eder, sakinleştirir</option>
-              <option value="analytical">Analitik — Sadece sayılarla ve mantıkla konuşur</option>
-            </select>
-          </div>
-
-          <button type="submit" className="w-full py-4 bg-[#C17767] text-[#FDFBF7] rounded-xl text-xs font-bold tracking-[0.3em] uppercase hover:bg-[#A56253] transition-all flex items-center justify-center gap-3 active:scale-[0.98]">
-            <Save size={18} /> {isEditMode ? 'DEĞİŞİKLİKLERİ KAYDET' : 'HEDEFİ KİLİTLE VE BAŞLA'}
+          <button
+            type="submit"
+            className="group relative w-full py-6 bg-[#C17767] text-white rounded-[2rem] text-sm font-black tracking-[0.5em] uppercase shadow-[0_20px_50px_rgba(193,119,103,0.3)] hover:bg-[#A56253] transition-all duration-500 overflow-hidden active:scale-95"
+          >
+            SİSTEMİ BAŞLAT
           </button>
         </form>
       </div>

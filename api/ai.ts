@@ -174,7 +174,13 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
 }
 
 async function parseVoiceLogServer(transcript: string) {
-  const prompt = `Analiz et ve SADECE JSON döndür: "${transcript}" -> {examType, subject, topic, questions, correct, wrong, empty, avgTime}`;
+  const prompt = `Analiz et ve SADECE JSON döndür: "${transcript}".
+    İstenen Veriler: 
+    - examType, subject, topic, questions, correct, wrong, empty, avgTime
+    - emotion: { fatigue (0-10), stress (0-10), motivation (0-10) }
+    - coachAdvice: Gear_Head stilinde (sert, kisa, aksiyon odakli) 1 cümlelik tavsiye.
+    Format: {examType, subject, topic, questions, correct, wrong, empty, avgTime, emotion, coachAdvice}`;
+    
   for (const key of GEMINI_KEYS()) {
     try {
       const ai = new GoogleGenAI({ apiKey: key });

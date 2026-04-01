@@ -1,6 +1,7 @@
 /**
  * AMAÇ: War Room Oturum Yönetimi
- * MANTIK: Timer, oturumu başlatma, bitirme, sonraki soruya geçme
+ * MANTIK: Timer app-wide Zustand store'da tutulur — hook yeniden mount edilse bile state sıfırlanmaz.
+ * UYARI: timeLeft yerel useState YOKTUR. Her mount'ta 0'dan başlama sorununu ortadan kaldırır.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,22 +11,58 @@ import type { WarRoomSession, WarRoomQuestion } from '../types';
 
 export function useWarRoom() {
   const store = useAppStore();
+  const { warRoomSession, warRoomMode, warRoomTimeLeft, setWarRoomSession, setWarRoomMode, setWarRoomTimeLeft } = store;
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(0);
 
-  const { warRoomSession, warRoomMode, setWarRoomSession, setWarRoomMode } = store;
+  const finishSession = useCallback(() => {
+    if (!warRoomSession) return;
 
-  // Timer Effect
+    const { correct, wrong, empty, net, accuracy } = scoreWarRoomSession(
+      warRoomSession.questions,
+      store.warRoomAnswers
+    );
+
+    const endedSession: WarRoomSession = {
+      ...warRoomSession,
+      status: 'completed',
+      result: { correct, wrong, empty, net, accuracy, timeSpentSeconds: 0 }
+    };
+
+    setWarRoomTimeLeft(0);
+    setWarRoomSession(endedSession);
+    setWarRoomMode('result');
+
+    store.addLog({
+      id: `warroom_${Date.now()}`,
+      date: new Date().toISOString(),
+      subject: warRoomSession.examType + ' Savaş Odası',
+      topic: warRoomSession.questions[0]?.topic || 'Karma',
+      questions: warRoomSession.questions.length,
+      correct,
+      wrong,
+      empty,
+      fatigue: 0,
+      avgTime: 1,
+      tags: ['#SAVAŞ_ODASI'],
+      notes: 'War Room simülasyonu.',
+      sourceName: 'War Room',
+    });
+  }, [warRoomSession, store, setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
+
   useEffect(() => {
-    // Sadece 'solve' modunda, aktif bir oturum varken ve süre henüz bitmemişken çalışmalı
-    if (warRoomMode !== 'solve' || !warRoomSession || warRoomSession.status !== 'active' || timeLeft <= 0) return;
+    const shouldTick =
+      warRoomMode === 'solve' &&
+      warRoomSession?.status === 'active' &&
+      warRoomTimeLeft > 0;
+
+    if (!shouldTick) return;
 
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
+      setWarRoomTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          // finishSession'ı bir timeout ile çağırıyoruz ki state batching tamamlansın
           setTimeout(() => finishSession(), 0);
           return 0;
         }
@@ -34,7 +71,7 @@ export function useWarRoom() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [warRoomSession?.status, warRoomMode, timeLeft > 0]);
+  }, [warRoomSession?.status, warRoomMode, warRoomTimeLeft, finishSession]);
 
   const startSession = useCallback(async (opts: GenerateQuestionsOptions, timeLimitSeconds: number) => {
     try {
@@ -53,64 +90,28 @@ export function useWarRoom() {
       };
 
       setWarRoomSession(newSession);
-      setTimeLeft(timeLimitSeconds);
+      setWarRoomTimeLeft(timeLimitSeconds);
       setWarRoomMode('solve');
-    } catch (err: any) {
-      setError(err.message || 'Savaş odası başlatılamadı.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Savaş odası başlatılamadı.';
+      setError(message);
     } finally {
       setIsGenerating(false);
     }
-  }, [setWarRoomSession, setWarRoomMode]);
-
-  const finishSession = useCallback(() => {
-    if (!warRoomSession) return;
-
-    const { correct, wrong, empty, net, accuracy } = scoreWarRoomSession(
-      warRoomSession.questions,
-      store.warRoomAnswers
-    );
-
-    const endedSession: WarRoomSession = {
-      ...warRoomSession,
-      status: 'completed',
-      result: {
-        correct, wrong, empty, net, accuracy, timeSpentSeconds: 0 //TODO total - timeLeft
-      }
-    };
-
-    setWarRoomSession(endedSession);
-    setWarRoomMode('result');
-    
-    // Log olarak kaydet
-    store.addLog({
-      id: `warroom_${Date.now()}`,
-      date: new Date().toISOString(),
-      subject: warRoomSession.examType + ' Savaş Odası',
-      topic: warRoomSession.questions[0]?.topic || 'Karma',
-      questions: warRoomSession.questions.length,
-      correct,
-      wrong,
-      empty,
-      fatigue: 0,
-      avgTime: 1, // Savaş modunda şimdilik sabit
-      tags: ['#SAVAŞ_ODASI'],
-      notes: 'War Room simülasyonu.',
-      sourceName: 'War Room',
-    });
-
-  }, [warRoomSession, store]);
+  }, [setWarRoomSession, setWarRoomTimeLeft, setWarRoomMode]);
 
   const quitSession = useCallback(() => {
     if (window.confirm('Savaştan kaçıyor musun? Geri dönüşü yok.')) {
+      setWarRoomTimeLeft(0);
       setWarRoomSession(null);
       setWarRoomMode('setup');
     }
-  }, [setWarRoomSession, setWarRoomMode]);
+  }, [setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
 
   return {
     isGenerating,
     error,
-    timeLeft,
+    timeLeft: warRoomTimeLeft,
     startSession,
     finishSession,
     quitSession

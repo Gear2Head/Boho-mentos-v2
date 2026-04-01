@@ -46,6 +46,7 @@ import { NavItem } from './components/NavItem';
 import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
+import { debouncedPush } from './services/firestoreSync';
 
 // --- Helper ---
 
@@ -260,8 +261,8 @@ const markdownComponents = {
 
 export default function App() {
   const store = useAppStore();
-  const { user, isLoading } = useAuth(); // YENİ: Firebase Auth hook'u
-  const [isAuthSkipped, setIsAuthSkipped] = useState(false); // YENİ: Misafir geçişi state'i
+  const { user, isLoading, signOut } = useAuth();
+  const [isAuthSkipped, setIsAuthSkipped] = useState(false);
   
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
@@ -360,8 +361,8 @@ export default function App() {
     const avgTime = dayLogs.length > 0 ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length) : null;
     return { day: dateStr, actual: avgTime, target: 45 };
   });
-  const tytProjection = calculatePredictedNet(store.exams, store.logs, YKS_2026_TYT_DATE, 'TYT', store.eloScore);
-  const aytProjection = calculatePredictedNet(store.exams, store.logs, YKS_2026_AYT_DATE, 'AYT', store.eloScore);
+  const tytProjection = calculatePredictedNet(store.exams, store.logs, new Date(YKS_2026_TYT_DATE), 'TYT', store.eloScore);
+  const aytProjection = calculatePredictedNet(store.exams, store.logs, new Date(YKS_2026_AYT_DATE), 'AYT', store.eloScore);
   const activeHabitAlerts = detectHabitAlerts(store.logs);
 
   const summarizeLogs = (logs: DailyLog[]) => {
@@ -392,10 +393,34 @@ export default function App() {
       const isDark = store.theme === 'dark';
       document.documentElement.classList.toggle('dark', isDark);
       document.documentElement.classList.toggle('light', !isDark);
-      // Force repaint/sync for some browsers
       document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
     }
   }, [store.theme]);
+
+  // Global store -> Firestore sync (her değişiklikte debounced push)
+  useEffect(() => {
+    const EXCLUDED = new Set([
+      'warRoomSession', 'warRoomAnswers', 'warRoomEliminated',
+      'warRoomTimeLeft', 'warRoomMode', 'isFocusSidePanelOpen',
+      'qaSession', 'drawingMode', 'authUser', 'isDevMode',
+    ]);
+
+    const unsubscribe = useAppStore.subscribe((state) => {
+      const uid = state.authUser?.uid;
+      if (!uid) return;
+
+      const payload: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(state)) {
+        if (!EXCLUDED.has(k) && typeof v !== 'function') {
+          payload[k] = v;
+        }
+      }
+
+      debouncedPush(uid, payload, 2000);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // ERR-002: İlk açılış mesajı
   useEffect(() => {
@@ -596,7 +621,7 @@ export default function App() {
             </div>
           )}
           <button 
-            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) store.signOut(); }}
+            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) signOut(); }}
             className="p-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all"
           >
             <LogOut size={14} /> ÇIKIŞ YAP
@@ -1159,6 +1184,7 @@ export default function App() {
         onClose={() => setIsMobileMenuOpen(false)} 
         activeTab={activeTab}
         onNavigate={setActiveTab}
+        onSignOut={signOut}
       />
     </div>
     </MobileGuard>
@@ -1314,7 +1340,7 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
 };
 
 // --- MOBİL MENÜ MODAL ---
-const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate }: any) => {
+const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: { isOpen: boolean; onClose: () => void; activeTab: string; onNavigate: (id: string) => void; onSignOut: () => void }) => {
   if (!isOpen) return null;
 
   const menuItems = [
@@ -1367,7 +1393,7 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate }: any) => {
           ))}
           {/* Mobil Logout */}
           <button
-            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) store.signOut(); }}
+            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
             className="flex flex-col items-center gap-2 group"
           >
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-rose-500/10 text-rose-500 shadow-sm border border-rose-500/20">

@@ -15,8 +15,8 @@ import { QuestionNav } from './warroom/QuestionNav';
 
 export function MebiWarRoom() {
   const store = useAppStore();
-  const { warRoomMode, warRoomSession } = store;
-  const { timeLeft, quitSession } = useWarRoom();
+  const { warRoomMode, warRoomSession, warRoomTimeLeft } = store;
+  const { quitSession } = useWarRoom();
   const [currentIdx, setCurrentIdx] = useState(0);
 
   if (warRoomMode === 'setup') return <WarRoomSetupScreen />;
@@ -57,8 +57,8 @@ export function MebiWarRoom() {
         <div className="flex items-center gap-6">
           <div className="text-center">
              <span className="text-[10px] uppercase font-bold opacity-40 text-[#4A443C] dark:text-zinc-400">KALAN SÜRE</span>
-             <div className={`text-2xl font-mono font-bold flex items-center gap-2 ${timeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-[#4A443C] dark:text-zinc-200'}`}>
-                <ClockIcon size={20} className={timeLeft < 300 ? 'text-red-500 opacity-60' : 'text-[#C17767] opacity-60'} /> {formatTime(timeLeft)}
+             <div className={`text-2xl font-mono font-bold flex items-center gap-2 ${warRoomTimeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-[#4A443C] dark:text-zinc-200'}`}>
+                <ClockIcon size={20} className={warRoomTimeLeft < 300 ? 'text-red-500 opacity-60' : 'text-[#C17767] opacity-60'} /> {formatTime(warRoomTimeLeft)}
              </div>
           </div>
         </div>

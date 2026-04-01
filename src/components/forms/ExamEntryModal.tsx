@@ -89,26 +89,28 @@ export function ExamEntryModal({ isOpen, onClose, onSave, track }: ExamEntryModa
   const totalNet = useMemo(() => chartData.reduce((acc, curr) => acc + curr.net, 0), [chartData]);
 
   const handleSubmit = () => {
-    // Skorları formata oturt
+    if (!sections.length) return;
+
     const processedScores: Record<string, { correct: number, wrong: number, net: number }> = {};
     sections.forEach(sec => {
       const s = scores[sec.id];
-      if (s) {
-        processedScores[sec.name] = {
-          correct: s.correct,
-          wrong: s.wrong,
-          net: s.correct - (s.wrong * 0.25)
-        };
-      } else {
-        processedScores[sec.name] = { correct: 0, wrong: 0, net: 0 };
-      }
+      const correct = s?.correct ?? 0;
+      const wrong = s?.wrong ?? 0;
+      const net = correct - (wrong * 0.25);
+      processedScores[sec.name] = {
+        correct,
+        wrong,
+        net: isFinite(net) ? net : 0,
+      };
     });
+
+    const safeTotal = isFinite(totalNet) && !isNaN(totalNet) ? parseFloat(totalNet.toFixed(2)) : 0;
 
     onSave({
       id: Date.now().toString(),
       date,
       type: examType,
-      totalNet: parseFloat(totalNet.toFixed(2)),
+      totalNet: safeTotal,
       scores: processedScores
     });
   };
