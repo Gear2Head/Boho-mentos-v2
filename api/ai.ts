@@ -1,6 +1,11 @@
 /**
  * AMAÇ: Vercel serverless AI orkestratörü.
  * MANTIK: Provider fallback + key rotation + basic rate-limit.
+ *
+ * [BUG-007 FIX]: In-memory rate limiter kapasitesi 10 → 30'a çıkarıldı.
+ * Not: Bu limiter Vercel serverless'ta cold start'ta sıfırlanır.
+ * Gerçek production için Upstash Redis önerilir (TODO: DEBT).
+ * Geçici fix olarak pencere genişletildi: 30s/30req.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { GoogleGenAI } from "@google/genai";
@@ -28,16 +33,32 @@ type AiRequestBody =
 const GEMINI_MODEL = "gemini-2.0-flash";
 const GROQ_MODEL = "llama-3.1-8b-instant";
 const OPENROUTER_MODEL = "meta-llama/llama-3.2-3b-instruct:free";
-const CEREBRAS_MODEL = "llama3.1-8b";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CEREBRAS_API_URL = "https://api.cerebras.ai/v1/chat/completions";
 
-const buildSystemInstruction = (coachPersonality?: string, action?: CoachAction, userState?: any) => {
-  const base = action === "qa_mode" ? "YKS asistani: Kisa, net cevap ver." : "Gear_Head koç: Sert, analitik, kisa konuş.";
-  const stateStr = userState ? `\n[Veri: ${JSON.stringify(userState)}]` : "";
-  return `${base}${stateStr}${coachPersonality ? `\n[Tarz: ${coachPersonality}]` : ""}`;
+const buildSystemInstruction = (
+  coachPersonality?: string,
+  action?: CoachAction,
+  userState?: any
+) => {
+  const base =
+    action === "qa_mode"
+      ? "Sen YKS asistanısın. Kısa, teknik ve net cevap ver. Kaynak odaklı konuş."
+      : "Sen 'Gear_Head'sin. YKS koçusun. Sert, analitik, mazeret kabul etmeyen bir tavrın var. Toksik olmayan ama disiplinli bir dille konuş.";
+
+  let atlasContext = "";
+  if (userState?.targetUniversity && userState?.targetMajor) {
+    atlasContext = `\nHedef: ${userState.targetUniversity} - ${userState.targetMajor}.`;
+    if (userState.tytTarget || userState.aytTarget) {
+      atlasContext += ` Hedef Netler: TYT:${userState.tytTarget || "-"}, AYT:${userState.aytTarget || "-"}.`;
+    }
+  }
+
+  const stateStr = userState ? `\n[Mevcut Durum: ${JSON.stringify(userState)}]${atlasContext}` : "";
+  
+  return `${base}${stateStr}${coachPersonality ? `\n[Koçluk Kişiliği: ${coachPersonality}]` : ""}\nÖğrenciye hedefini hatirlat ve verilere dayali sert/gerçekçi tavsiyeler ver.`;
 };
 
 const getKeys = (prefix: string, count: number) => {
@@ -57,11 +78,6 @@ const GROQ_KEYS = () => getKeys("GROQ_API_KEY", 4);
 const OPENROUTER_KEYS = () => getKeys("OPENROUTER_API_KEY", 1);
 const CEREBRAS_KEYS = () => getKeys("CEREBRAS_API_KEY", 1);
 
-const isRetriableProviderError = (message: string) => {
-  const m = message.toLowerCase();
-  return m.includes("429") || m.includes("quota") || m.includes("rate limit") || m.includes("overloaded");
-};
-
 async function callOpenAICompatible(
   apiUrl: string,
   apiKey: string,
@@ -76,14 +92,26 @@ async function callOpenAICompatible(
       Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": "https://boho-mentos.vercel.app",
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: maxTokens }),
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.7,
+      max_tokens: maxTokens,
+    }),
   });
-  if (!response.ok) throw new Error(`${response.status}: ${await response.text()}`);
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${await response.text()}`);
+  }
   const data: any = await response.json();
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
-async function callGemini(apiKey: string, prompt: string, systemInstruction: string, chatHistory: ChatHistoryItem[]) {
+async function callGemini(
+  apiKey: string,
+  prompt: string,
+  systemInstruction: string,
+  chatHistory: ChatHistoryItem[]
+) {
   const ai = new GoogleGenAI({ apiKey });
   const contents = chatHistory.map((msg) => ({
     role: msg.role === "coach" ? "model" : "user",
@@ -98,15 +126,27 @@ async function callGemini(apiKey: string, prompt: string, systemInstruction: str
   return (response as any).text ?? "";
 }
 
-async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: CoachAction }>) {
+async function getCoachResponseServer(
+  body: Extract<AiRequestBody, { action?: CoachAction }>
+) {
   const userMessage = (body.userMessage ?? "").toString();
   if (!userMessage.trim()) return { text: "Mesaj boş olamaz." };
+
   const context = (body.context ?? "").toString();
-  const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory.slice(-6) : [];
-  const maxTokens = typeof body.maxTokens === "number" ? Math.max(200, Math.min(2000, body.maxTokens)) : 1200;
+  const chatHistory = Array.isArray(body.chatHistory)
+    ? body.chatHistory.slice(-6)
+    : [];
+  const maxTokens =
+    typeof body.maxTokens === "number"
+      ? Math.max(200, Math.min(2000, body.maxTokens))
+      : 1200;
   const forceJson = !!body.forceJson;
 
-  const systemInstruction = buildSystemInstruction(body.coachPersonality, body.action, body.userState);
+  const systemInstruction = buildSystemInstruction(
+    body.coachPersonality,
+    body.action,
+    body.userState
+  );
   const fullPrompt = `Mevcut Durum:\n${context}\n\nMesaj:\n${userMessage}${
     forceJson ? "\n\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR." : ""
   }`;
@@ -114,36 +154,59 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
   const openAIMsgs: OpenAIMessage[] = [
     { role: "system", content: systemInstruction },
     ...chatHistory.map(
-      (m): OpenAIMessage => ({ role: m.role === "coach" ? "assistant" : "user", content: m.content })
+      (m): OpenAIMessage => ({
+        role: m.role === "coach" ? "assistant" : "user",
+        content: m.content,
+      })
     ),
     { role: "user", content: fullPrompt },
   ];
 
-  // Tanımlı sağlayıcılar ve anahtarları
   const providers = [
-    { 
-      name: "Cerebras", 
-      keys: CEREBRAS_KEYS(), 
-      call: (key: string) => callOpenAICompatible(CEREBRAS_API_URL, key, "llama3.1-8b", openAIMsgs, maxTokens) 
+    {
+      name: "Cerebras",
+      keys: CEREBRAS_KEYS(),
+      call: (key: string) =>
+        callOpenAICompatible(
+          CEREBRAS_API_URL,
+          key,
+          "llama3.1-8b",
+          openAIMsgs,
+          maxTokens
+        ),
     },
-    { 
-      name: "Gemini", 
-      keys: GEMINI_KEYS(), 
-      call: (key: string) => callGemini(key, fullPrompt, systemInstruction, chatHistory) 
+    {
+      name: "Gemini",
+      keys: GEMINI_KEYS(),
+      call: (key: string) =>
+        callGemini(key, fullPrompt, systemInstruction, chatHistory),
     },
-    { 
-      name: "Groq", 
-      keys: GROQ_KEYS(), 
-      call: (key: string) => callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, Math.min(maxTokens, 800)) 
+    {
+      name: "Groq",
+      keys: GROQ_KEYS(),
+      call: (key: string) =>
+        callOpenAICompatible(
+          GROQ_API_URL,
+          key,
+          GROQ_MODEL,
+          openAIMsgs,
+          Math.min(maxTokens, 800)
+        ),
     },
-    { 
-      name: "OpenRouter", 
-      keys: OPENROUTER_KEYS(), 
-      call: (key: string) => callOpenAICompatible(OPENROUTER_API_URL, key, OPENROUTER_MODEL, openAIMsgs, maxTokens) 
-    }
+    {
+      name: "OpenRouter",
+      keys: OPENROUTER_KEYS(),
+      call: (key: string) =>
+        callOpenAICompatible(
+          OPENROUTER_API_URL,
+          key,
+          OPENROUTER_MODEL,
+          openAIMsgs,
+          maxTokens
+        ),
+    },
   ];
 
-  // Agresif Fallback Döngüsü
   for (const provider of providers) {
     for (const key of provider.keys) {
       try {
@@ -153,7 +216,6 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
         }
       } catch (e: any) {
         console.error(`AI Error [${provider.name}]:`, e.message);
-        // Hata raporu retriable mı kontrol et, değilse bile bir sonraki anahtarı/sağlayıcıyı dene
         continue;
       }
     }
@@ -163,24 +225,24 @@ async function getCoachResponseServer(body: Extract<AiRequestBody, { action?: Co
     gemini: GEMINI_KEYS().length,
     groq: GROQ_KEYS().length,
     openrouter: OPENROUTER_KEYS().length,
-    cerebras: CEREBRAS_KEYS().length
+    cerebras: CEREBRAS_KEYS().length,
   };
 
-  return { 
+  return {
     text: "Tüm AI hatları meşgul veya limitler doldu. Lütfen 1 dakika sonra tekrar dene.",
     error: "ALL_PROVIDERS_FAILED",
-    debug: debugInfo
+    debug: debugInfo,
   };
 }
 
 async function parseVoiceLogServer(transcript: string) {
   const prompt = `Analiz et ve SADECE JSON döndür: "${transcript}".
-    İstenen Veriler: 
+    İstenen Veriler:
     - examType, subject, topic, questions, correct, wrong, empty, avgTime
     - emotion: { fatigue (0-10), stress (0-10), motivation (0-10) }
     - coachAdvice: Gear_Head stilinde (sert, kisa, aksiyon odakli) 1 cümlelik tavsiye.
     Format: {examType, subject, topic, questions, correct, wrong, empty, avgTime, emotion, coachAdvice}`;
-    
+
   for (const key of GEMINI_KEYS()) {
     try {
       const ai = new GoogleGenAI({ apiKey: key });
@@ -197,14 +259,24 @@ async function parseVoiceLogServer(transcript: string) {
   return null;
 }
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 30; // BUG-007 Geçici yüksek kapasite (Vercel rate limit mitigation)
+// ─── Rate Limiter ─────────────────────────────────────────────────────────────
+
+const RATE_LIMIT_WINDOW_MS = 30_000;
+
+/**
+ * [BUG-007 FIX]: 10 → 30
+ * In-memory limiter Vercel serverless'ta cold start'ta sıfırlanır.
+ * Geçici çözüm: kapasiteyi artırdık. Kalıcı çözüm: Upstash Redis (backlog'da).
+ */
+const RATE_LIMIT_MAX = 30;
+
 const rateLimitBucket = new Map<string, { count: number; windowStart: number }>();
 
 function getClientIp(req: any) {
   const xf = (req.headers?.["x-forwarded-for"] as string | undefined) ?? "";
   return xf.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
 }
+
 function checkRateLimit(ip: string) {
   const now = Date.now();
   const cur = rateLimitBucket.get(ip);
@@ -212,10 +284,17 @@ function checkRateLimit(ip: string) {
     rateLimitBucket.set(ip, { count: 1, windowStart: now });
     return { ok: true };
   }
-  if (cur.count >= RATE_LIMIT_MAX) return { ok: false, retryAfterMs: RATE_LIMIT_WINDOW_MS - (now - cur.windowStart) };
+  if (cur.count >= RATE_LIMIT_MAX) {
+    return {
+      ok: false,
+      retryAfterMs: RATE_LIMIT_WINDOW_MS - (now - cur.windowStart),
+    };
+  }
   cur.count += 1;
   return { ok: true };
 }
+
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -228,12 +307,19 @@ export default async function handler(req: any, res: any) {
   const rl = checkRateLimit(getClientIp(req));
   if (!rl.ok) {
     res.statusCode = 429;
-    res.setHeader("Retry-After", String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)));
+    res.setHeader(
+      "Retry-After",
+      String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000))
+    );
     res.end(JSON.stringify({ error: "RATE_LIMITED" }));
     return;
   }
 
-  const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {});
+  const rawBody =
+    typeof req.body === "string"
+      ? req.body
+      : JSON.stringify(req.body ?? {});
+
   let body: AiRequestBody;
   try {
     body = JSON.parse(rawBody);
@@ -245,7 +331,9 @@ export default async function handler(req: any, res: any) {
 
   try {
     if ((body as any).action === "parseVoiceLog") {
-      const data = await parseVoiceLogServer(String((body as any).transcript ?? ""));
+      const data = await parseVoiceLogServer(
+        String((body as any).transcript ?? "")
+      );
       res.statusCode = 200;
       res.end(JSON.stringify({ data }));
       return;
@@ -255,7 +343,11 @@ export default async function handler(req: any, res: any) {
     res.end(JSON.stringify(result));
   } catch (e: any) {
     res.statusCode = 500;
-    res.end(JSON.stringify({ error: "AI_SERVER_ERROR", message: String(e?.message ?? "Unknown") }));
+    res.end(
+      JSON.stringify({
+        error: "AI_SERVER_ERROR",
+        message: String(e?.message ?? "Unknown"),
+      })
+    );
   }
 }
-

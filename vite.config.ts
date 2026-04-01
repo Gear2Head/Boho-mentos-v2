@@ -3,7 +3,10 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
   base: '/', // PWA ve Vercel uyumluluğu için kök dizin temelli path
   plugins: [
     tailwindcss(),
@@ -78,4 +81,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

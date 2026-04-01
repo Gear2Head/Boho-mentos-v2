@@ -1,22 +1,35 @@
 /**
  * AMAÇ: War Room Oturum Yönetimi
  * MANTIK: Timer app-wide Zustand store'da tutulur — hook yeniden mount edilse bile state sıfırlanmaz.
- * UYARI: timeLeft yerel useState YOKTUR. Her mount'ta 0'dan başlama sorununu ortadan kaldırır.
+ *
+ * [BUG-012 FIX]: timeSpentSeconds artık 0 hardcoded değil.
+ *   session.startTime epoch timestamp'inden gerçek süre hesaplanıyor.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
-import { generateWarRoomQuestions, scoreWarRoomSession, type GenerateQuestionsOptions } from '../services/warRoomService';
+import {
+  generateWarRoomQuestions,
+  scoreWarRoomSession,
+  type GenerateQuestionsOptions,
+} from '../services/warRoomService';
 import type { WarRoomSession, WarRoomQuestion } from '../types';
-import { useToast } from '../components/ToastContext';
 
 export function useWarRoom() {
   const store = useAppStore();
-  const { confirm } = useToast();
-  const { warRoomSession, warRoomMode, warRoomTimeLeft, setWarRoomSession, setWarRoomMode, setWarRoomTimeLeft } = store;
+  const {
+    warRoomSession,
+    warRoomMode,
+    warRoomTimeLeft,
+    setWarRoomSession,
+    setWarRoomMode,
+    setWarRoomTimeLeft,
+  } = store;
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ─── finishSession ────────────────────────────────────────────────────────
 
   const finishSession = useCallback(() => {
     if (!warRoomSession) return;
@@ -26,17 +39,29 @@ export function useWarRoom() {
       store.warRoomAnswers
     );
 
-    const timeSpentSeconds = Math.max(0, Math.round((Date.now() - warRoomSession.startTime) / 1000));
+    // [BUG-012 FIX]: Gerçek geçen süreyi hesapla
+    const timeSpentSeconds = Math.round(
+      (Date.now() - warRoomSession.startTime) / 1000
+    );
+
     const endedSession: WarRoomSession = {
       ...warRoomSession,
       status: 'completed',
-      result: { correct, wrong, empty, net, accuracy, timeSpentSeconds }
+      result: {
+        correct,
+        wrong,
+        empty,
+        net,
+        accuracy,
+        timeSpentSeconds, // artık gerçek değer
+      },
     };
 
     setWarRoomTimeLeft(0);
     setWarRoomSession(endedSession);
     setWarRoomMode('result');
 
+    // Log olarak kaydet
     store.addLog({
       id: `warroom_${Date.now()}`,
       date: new Date().toISOString(),
@@ -47,12 +72,14 @@ export function useWarRoom() {
       wrong,
       empty,
       fatigue: 0,
-      avgTime: 1,
+      avgTime: Math.round(timeSpentSeconds / 60), // dakika cinsinden
       tags: ['#SAVAŞ_ODASI'],
-      notes: 'War Room simülasyonu.',
+      notes: `War Room simülasyonu. Süre: ${Math.floor(timeSpentSeconds / 60)}dk ${timeSpentSeconds % 60}sn`,
       sourceName: 'War Room',
     });
   }, [warRoomSession, store, setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
+
+  // ─── Timer tick ───────────────────────────────────────────────────────────
 
   useEffect(() => {
     const shouldTick =
@@ -66,6 +93,7 @@ export function useWarRoom() {
       setWarRoomTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          // Süre bitti → finishSession
           setTimeout(() => finishSession(), 0);
           return 0;
         }
@@ -76,40 +104,56 @@ export function useWarRoom() {
     return () => clearInterval(interval);
   }, [warRoomSession?.status, warRoomMode, warRoomTimeLeft, finishSession]);
 
-  const startSession = useCallback(async (opts: GenerateQuestionsOptions, timeLimitSeconds: number) => {
-    try {
-      setIsGenerating(true);
-      setError(null);
+  // ─── startSession ─────────────────────────────────────────────────────────
 
-      const qs: WarRoomQuestion[] = await generateWarRoomQuestions(opts);
+  const startSession = useCallback(
+    async (opts: GenerateQuestionsOptions, timeLimitSeconds: number) => {
+      try {
+        setIsGenerating(true);
+        setError(null);
 
-      const newSession: WarRoomSession = {
-        id: `sess_${Date.now()}`,
-        startTime: Date.now(),
-        examType: opts.examType,
-        difficulty: opts.difficulty || 'medium',
-        questions: qs,
-        status: 'active',
-      };
+        const qs: WarRoomQuestion[] = await generateWarRoomQuestions(opts);
 
-      setWarRoomSession(newSession);
-      setWarRoomTimeLeft(timeLimitSeconds);
-      setWarRoomMode('solve');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Savaş odası başlatılamadı.';
-      setError(message);
-    } finally {
-      setIsGenerating(false);
-    }
-  }, [setWarRoomSession, setWarRoomTimeLeft, setWarRoomMode]);
+        const newSession: WarRoomSession = {
+          id: `sess_${Date.now()}`,
+          startTime: Date.now(), // epoch — finishSession'da kullanılır
+          examType: opts.examType,
+          difficulty: opts.difficulty || 'medium',
+          questions: qs,
+          status: 'active',
+        };
 
-  const quitSession = useCallback(async () => {
-    if (await confirm('Savaştan kaçıyor musun? Geri dönüşü yok.')) {
-      setWarRoomTimeLeft(0);
-      setWarRoomSession(null);
-      setWarRoomMode('setup');
-    }
-  }, [confirm, setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
+        setWarRoomSession(newSession);
+        setWarRoomTimeLeft(timeLimitSeconds);
+        setWarRoomMode('solve');
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'Savaş odası başlatılamadı.';
+        setError(message);
+      } finally {
+        setIsGenerating(false);
+      }
+    },
+    [setWarRoomSession, setWarRoomTimeLeft, setWarRoomMode]
+  );
+
+  // ─── quitSession ──────────────────────────────────────────────────────────
+
+  const quitSession = useCallback(
+    async (confirmFn?: (opts: string) => Promise<boolean>) => {
+      // confirmFn varsa tema uyumlu dialog kullan, yoksa window.confirm fallback
+      const confirmed = confirmFn
+        ? await confirmFn('Savaştan kaçıyor musun? Geri dönüşü yok.')
+        : window.confirm('Savaştan kaçıyor musun? Geri dönüşü yok.');
+
+      if (confirmed) {
+        setWarRoomTimeLeft(0);
+        setWarRoomSession(null);
+        setWarRoomMode('setup');
+      }
+    },
+    [setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]
+  );
 
   return {
     isGenerating,
@@ -117,6 +161,6 @@ export function useWarRoom() {
     timeLeft: warRoomTimeLeft,
     startSession,
     finishSession,
-    quitSession
+    quitSession,
   };
 }

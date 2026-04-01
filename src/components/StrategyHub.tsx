@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import { Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, ChevronRight, BookOpen, TrendingUp } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
-import { YOK_ATLAS_TOP10 } from '../data/yokAtlasTop10';
+import { YOK_ATLAS_DATA, type YokAtlasProgram } from '../data/yokAtlasData';
 import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet } from '../utils/statistics';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { SourceROIPanel } from './SourceROIPanel';
@@ -178,23 +178,46 @@ Son denemeler: ${recentExams || 'Yok'}`;
     if (!profile || !lastExam) return null;
 
     const currentNet = lastExam.totalNet;
-    const candidates = YOK_ATLAS_TOP10
-      .filter(p => p.examType === lastExam.type)
-      .filter(p => (p.university.toLowerCase().includes(profile.targetUniversity.toLowerCase()) || p.major.toLowerCase().includes(profile.targetMajor.toLowerCase())));
+    // Hedef üniversite ve bölüm eşleşmesini bul
+    const candidates = YOK_ATLAS_DATA.filter(p => 
+      (p.university.toLowerCase().includes(profile.targetUniversity.toLowerCase()) && 
+       p.major.toLowerCase().includes(profile.targetMajor.toLowerCase()))
+    );
 
-    const pool = candidates.length > 0 ? candidates : YOK_ATLAS_TOP10.filter(p => p.examType === lastExam.type);
+    const pool = candidates.length > 0 ? candidates : YOK_ATLAS_DATA.filter(p => p.track === profile.track);
     const next = pool
       .slice()
-      .sort((a, b) => (a.lastEntrantNet - currentNet) - (b.lastEntrantNet - currentNet))
-      .find(p => p.lastEntrantNet >= currentNet) ?? pool.slice().sort((a, b) => a.lastEntrantNet - b.lastEntrantNet)[0];
+      .sort((a, b) => Math.abs(a.lastEntrantNet - currentNet) - Math.abs(b.lastEntrantNet - currentNet))[0];
 
     if(!next) return null;
     const diff = Number((next.lastEntrantNet - currentNet).toFixed(2));
     const diffText = diff >= 0 ? `${diff} net gerisindesin` : `${Math.abs(diff)} net önündesin`;
+    
+    // Mart Referansı Analizi
     const marchDiff = Number((next.marchReferenceNet - currentNet).toFixed(2));
-    const marchText = marchDiff >= 0 ? `${marchDiff} net fazlaydı` : `${Math.abs(marchDiff)} net daha düşüktü`;
+    const isAheadOfMarch = marchDiff < 0;
 
-    return `Şu anki netlerinle ${next.university} ${next.major}'a giren son kişinin sadece ${diffText}. O son kişi Mart ayında senin şu anki netinden ${marchText}.`;
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-zinc-100 font-bold text-sm">{next.university}</h4>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{next.major} • 2024 Sıralama: #{next.ranking.toLocaleString()}</p>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${diff >= 0 ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+            {diffText}
+          </div>
+        </div>
+        
+        <div className="p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800">
+          <p className="text-xs text-zinc-400 leading-relaxed italic">
+            "Geçen yıl bu bölüme giren son kişi Mart ayında ortalama <strong className="text-zinc-200">{next.marchReferenceNet} net</strong> yapıyordu. 
+            Sen şu an {isAheadOfMarch ? <span className="text-green-500">onun {Math.abs(marchDiff)} net önündesin.</span> : <span className="text-amber-500">o seviyenin {marchDiff} net gerisindesin.</span>} 
+            Saldırıya devam et!"
+          </p>
+        </div>
+      </div>
+    );
   })();
 
   return (
@@ -334,9 +357,9 @@ Son denemeler: ${recentExams || 'Yok'}`;
           </div>
           <div className="p-6">
             {!yokAtlasChase ? (
-              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">Kovalamaca için en az 1 deneme kaydı gerekli.</div>
+              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70 italic">Kovalamaca için en az 1 deneme kaydı gerekli.</div>
             ) : (
-              <div className="text-sm font-mono leading-relaxed text-zinc-200">{yokAtlasChase}</div>
+              <div>{yokAtlasChase}</div>
             )}
           </div>
         </div>

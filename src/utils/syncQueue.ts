@@ -1,6 +1,9 @@
 /**
  * AMAÇ: Offline-first çalışma ve verileri Vercel Sync Endpoint'ine basma
  * MANTIK: Gelen log, exam gibi operasyonları IndexedDB'ye yazar, internet olunca senkronize eder.
+ * 
+ * [BUG-003 FIX]: window.addEventListener module scope'dan çıkarıldı.
+ * initOfflineSync() → App.tsx içinde useEffect ile çağrılmalı.
  */
 
 import { openDB } from 'idb';
@@ -27,19 +30,19 @@ export async function addToSyncQueue(endpoint: string, payload: any) {
       timestamp: Date.now(),
       status: 'pending'
     });
-    
+
     // Eğer online isek anında tetikle
-    if (navigator.onLine) {
+    if (typeof window !== 'undefined' && navigator.onLine) {
       processSyncQueue();
     }
   } catch (error) {
-    console.warn('Sync queue error:', error);
+    console.warn('[SyncQueue] addToSyncQueue error:', error);
   }
 }
 
 export async function processSyncQueue() {
-  if (!navigator.onLine) return;
-  
+  if (typeof window === 'undefined' || !navigator.onLine) return;
+
   try {
     const db = await initSyncDB();
     const tx = db.transaction(SYNC_STORE, 'readwrite');
@@ -60,24 +63,39 @@ export async function processSyncQueue() {
           if (res.ok) {
             await store.delete(item.id);
           } else {
-             // Fallback
-             item.status = 'failed';
-             await store.put(item);
+            item.status = 'failed';
+            await store.put(item);
           }
         } catch {
-          // Network error in loop
+          // Network error — bir sonraki online event'e bırak
           break;
         }
       }
     }
   } catch (error) {
-    console.warn('Process sync queue error:', error);
+    console.warn('[SyncQueue] processSyncQueue error:', error);
   }
 }
-export function initProcessSyncQueueListener() {
-  if (typeof window !== 'undefined') {
-    window.addEventListener('online', processSyncQueue);
-    return () => window.removeEventListener('online', processSyncQueue);
+
+/**
+ * [BUG-003 FIX] - Daha önce module scope'daydı.
+ * Çağrım: App.tsx içinde useEffect(() => { const cleanup = initOfflineSync(); return cleanup; }, [])
+ */
+export function initOfflineSync(): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const handleOnline = () => {
+    processSyncQueue();
+  };
+
+  window.addEventListener('online', handleOnline);
+
+  // İlk yüklemede online isek hemen çalıştır
+  if (navigator.onLine) {
+    processSyncQueue();
   }
-  return () => {};
+
+  return () => {
+    window.removeEventListener('online', handleOnline);
+  };
 }

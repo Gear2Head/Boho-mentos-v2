@@ -15,11 +15,11 @@ export function getSpotifyTokenFromUrl(): string | null {
   const params = new URLSearchParams(hash);
   const token = params.get('access_token');
   if (token) {
-    localStorage.setItem('spotify_token', token);
+    sessionStorage.setItem('spotify_token', token);
     window.location.hash = ''; // Temizle
     return token;
   }
-  return localStorage.getItem('spotify_token');
+  return sessionStorage.getItem('spotify_token');
 }
 
 export async function getCurrentTrack(token: string) {

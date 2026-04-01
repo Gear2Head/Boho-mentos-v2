@@ -308,7 +308,10 @@ export const useAppStore = create<AppState>()(
 
       setAuthUser: (authUser) => set({ authUser }),
 
-      signOut: async () => {},
+      signOut: async () => {
+        set({ authUser: null });
+        get().resetStore();
+      },
 
       setDevMode: (isDevMode) => set({ isDevMode }),
       setSubjectViewMode: (subjectViewMode) => set({ subjectViewMode }),
@@ -463,7 +466,7 @@ export const useAppStore = create<AppState>()(
           return t;
         });
 
-        return { exams: newExams, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies };
+        return { exams: newExams.slice(-200), eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies };
       }),
 
       removeExam: (id) => set((state) => ({
@@ -500,7 +503,7 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
       })),
 
       addChatMessage: (message) => set((state) => ({ 
-        chatHistory: [...state.chatHistory, message] 
+        chatHistory: [...state.chatHistory.slice(-100), message] 
       })),
 
       setPassiveMode: (isPassiveMode) => set({ isPassiveMode }),

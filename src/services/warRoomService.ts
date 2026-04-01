@@ -1,6 +1,10 @@
 /**
  * AMAÇ: War Room Soru Üretimi (Groq/Gemini üzerinden)
  * MANTIK: Taze soruları AI ile üretir, session skorlaması yapar
+ *
+ * [BUG-005 FIX]: AI halüsinasyonlarından kaynaklanan eksik JSON field'ları artık
+ * guard clause tabanlı validation katmanıyla tespit edilip normalize ediliyor.
+ * Hatalı/eksik sorular atılıp kalan geçerli sorularla devam ediliyor.
  */
 
 import { getCoachResponse } from './gemini';
@@ -15,6 +19,110 @@ export interface GenerateQuestionsOptions {
   weakTopics?: string[];
   coachPersonality?: string;
 }
+
+// ─── Validation ───────────────────────────────────────────────────────────────
+
+const VALID_ANSWERS = new Set(['A', 'B', 'C', 'D', 'E']);
+const VALID_DIFFICULTIES = new Set(['easy', 'medium', 'hard', 'elite']);
+const VALID_EXAM_TYPES = new Set(['TYT', 'AYT']);
+
+/**
+ * [BUG-005] Guard clause validation.
+ * Eksik veya hatalı field'ları düzeltir ya da soruyu atar.
+ * Throw etmek yerine null döndürür — caller invalid soruları filtreler.
+ */
+function validateAndNormalizeQuestion(
+  raw: unknown,
+  index: number,
+  fallbackExamType: 'TYT' | 'AYT',
+  fallbackDifficulty: string
+): WarRoomQuestion | null {
+  if (!raw || typeof raw !== 'object') {
+    console.warn(`[WarRoom] Soru ${index}: geçersiz nesne`, raw);
+    return null;
+  }
+
+  const q = raw as Record<string, unknown>;
+
+  // text: zorunlu, string olmalı
+  if (!q.text || typeof q.text !== 'string' || q.text.trim().length < 5) {
+    console.warn(`[WarRoom] Soru ${index}: "text" eksik veya çok kısa`, q.text);
+    return null;
+  }
+
+  // options: zorunlu, en az 4 şık, string dizisi
+  if (!Array.isArray(q.options) || q.options.length < 4) {
+    console.warn(`[WarRoom] Soru ${index}: "options" eksik veya yetersiz`, q.options);
+    return null;
+  }
+  const options = q.options
+    .filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
+    .slice(0, 5);
+  if (options.length < 4) {
+    console.warn(`[WarRoom] Soru ${index}: geçerli şık sayısı yetersiz`);
+    return null;
+  }
+
+  // correctAnswer: A-E arası olmalı
+  const rawAnswer = typeof q.correctAnswer === 'string'
+    ? q.correctAnswer.trim().toUpperCase()
+    : '';
+  const correctAnswer = VALID_ANSWERS.has(rawAnswer) ? rawAnswer : 'A';
+  if (!VALID_ANSWERS.has(rawAnswer)) {
+    console.warn(`[WarRoom] Soru ${index}: "correctAnswer" geçersiz, A kullanılıyor`, q.correctAnswer);
+  }
+
+  // difficulty: normalize
+  const rawDifficulty = typeof q.difficulty === 'string' ? q.difficulty : fallbackDifficulty;
+  const difficulty = VALID_DIFFICULTIES.has(rawDifficulty)
+    ? (rawDifficulty as WarRoomQuestion['difficulty'])
+    : (fallbackDifficulty as WarRoomQuestion['difficulty']);
+
+  // examType: normalize
+  const rawExamType = typeof q.examType === 'string' ? q.examType.toUpperCase() : fallbackExamType;
+  const examType = VALID_EXAM_TYPES.has(rawExamType)
+    ? (rawExamType as 'TYT' | 'AYT')
+    : fallbackExamType;
+
+  return {
+    id: typeof q.id === 'string' && q.id.trim() ? q.id : `q${index}_${Date.now()}`,
+    subject: typeof q.subject === 'string' && q.subject.trim() ? q.subject : `${examType} Karma`,
+    topic: typeof q.topic === 'string' && q.topic.trim() ? q.topic : 'Genel',
+    difficulty,
+    examType,
+    text: q.text.trim(),
+    options,
+    correctAnswer,
+    analysis: typeof q.analysis === 'string' && q.analysis.trim()
+      ? q.analysis.trim()
+      : 'Analiz mevcut değil.',
+    image: typeof q.image === 'string' ? q.image : undefined,
+    source: 'AI',
+  };
+}
+
+// ─── Fallback mock soru ────────────────────────────────────────────────────────
+
+function buildFallbackQuestion(
+  examType: 'TYT' | 'AYT',
+  topic: string,
+  difficulty: string
+): WarRoomQuestion {
+  return {
+    id: `offline_mock_${Date.now()}`,
+    subject: examType,
+    topic: topic || 'Temel Kavramlar',
+    difficulty: (VALID_DIFFICULTIES.has(difficulty) ? difficulty : 'medium') as WarRoomQuestion['difficulty'],
+    examType,
+    text: 'İnternet bağlantınızda veya AI servisinde geçici bir sorun var. Bu bir yedek (offline) sorudur. 2 + 2 kaçtır?',
+    options: ['1', '2', '3', '4', '5'],
+    correctAnswer: 'D',
+    analysis: 'Matematikte 2 + 2 = 4\'tür. Offline modda çalışmaktayız.',
+    source: 'archive',
+  };
+}
+
+// ─── Ana üretim fonksiyonu ────────────────────────────────────────────────────
 
 export async function generateWarRoomQuestions(
   opts: GenerateQuestionsOptions
@@ -46,32 +154,34 @@ export async function generateWarRoomQuestions(
   };
 
   const prompt = `
-Sen YKS soru yazarısın. Aşağıdaki kriterlere göre ${count} adet çoktan seçmeli soru üret.
+Sen Türkiye'nin en seçkin yayın evlerinde (Bilgi Sarmal, 3D, Apotemi ayarında) soru yazan bir uzmansın. 
+Aşağıdaki kriterlere göre ${count} adet %100 ÖSYM TARZI YENİ NESİL soru üret.
 
 KRİTERLER:
 - Sınav: ${examType}
 - ${topicCtx}
-- Zorluk: ${diffMap[difficulty]}
-- Her sorunun 5 şıkkı olsun (A, B, C, D, E)
-- Türkçe olsun
-- Sadece TYT ve AYT formatına uygun müfredat içi özgün sorular olsun
+- Zorluk Seviyesi: ${diffMap[difficulty]}
+- Soru Tipi: Sadece "Yeni Nesil" (Günlük hayat senaryolu, grafik yorumlamalı veya derin mantık muhakemesi gerektiren) sorular.
+- Dil: Akademik ve pürüzsüz bir Türkçe.
+- Şıklar: 5 seçenek (A, B, C, D, E). Çeldiriciler (yanlış şıklar) çok kuvvetli ve mantıklı olmalı, rastgele olmamalı.
+- Format: Metin içerisinde matematiksel ifadeler varsa mutlaka LaTeX kullan (örn: \\(x^2 + 5\\) veya \\[... \\]).
 
-ZORUNLU ÇIKTI FORMATI (SADECE JSON DİZİSİ):
+ZORUNLU ÇIKTI FORMATI (SADECE SAF JSON DİZİSİ):
 [
   {
-    "id": "q1",
-    "subject": "${subject || 'TYT Karma'}",
-    "topic": "Problemler",
-    "difficulty": "medium",
-    "examType": "TYT",
-    "text": "Soru metni burada",
-    "options": ["Şık A", "Şık B", "Şık C", "Şık D", "Şık E"],
-    "correctAnswer": "B",
-    "analysis": "Çözüm açıklaması burada. Neden C değil B vs."
+    "id": "unique_id_${Date.now()}_index",
+    "subject": "${subject || examType + ' Karma'}",
+    "topic": "İlgili Alt Konu",
+    "difficulty": "${difficulty}",
+    "examType": "${examType}",
+    "text": "Buraya sorunun hikayeleştirilmiş metni gelecek. Verilenler ve istenen net olmalı.",
+    "options": ["A Şıkkı", "B Şıkkı", "C Şıkkı", "D Şıkkı", "E Şıkkı"],
+    "correctAnswer": "C",
+    "analysis": "Sorunun detaylı çözüm mantığı ve neden diğer şıkların yanlış olduğu açıklaması."
   }
 ]
 
-UYARI: Başka hiçbir metin yazma, sadece JSON formatında array döndür ve syntax olarak hatasız olsun.
+ÖNEMLİ UYARI: JSON dışında hiçbir açıklama metni ekleme. JSON yapısı tam ve hatasız olmalı.
 `.trim();
 
   try {
@@ -82,62 +192,51 @@ UYARI: Başka hiçbir metin yazma, sadece JSON formatında array döndür ve syn
       { forceJson: true, maxTokens: 3000, coachPersonality }
     );
 
+    // JSON array'i bul
     const match = raw.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    if (!match) throw new Error('YKS Koçu geçerli bir JSON liste döndüremedi.');
+    if (!match) {
+      console.error('[WarRoom] AI geçerli JSON array döndürmedi');
+      return [buildFallbackQuestion(examType, topic || '', difficulty)];
+    }
 
-    const parsedData = JSON.parse(match[0]);
-    if (!Array.isArray(parsedData)) throw new Error('JSON formatı hatalı');
+    let parsedData: unknown[];
+    try {
+      parsedData = JSON.parse(match[0]);
+    } catch (parseErr) {
+      console.error('[WarRoom] JSON parse hatası', parseErr);
+      return [buildFallbackQuestion(examType, topic || '', difficulty)];
+    }
 
-    const questions: WarRoomQuestion[] = parsedData.map((q: any, i: number) => {
-      // String validation
-      const text = typeof q.text === 'string' && q.text.trim() ? q.text : `Soru metni alınamadı (Hatalı Dönüş)`;
-      
-      // Options validation
-      let options = ['A', 'B', 'C', 'D', 'E'];
-      if (Array.isArray(q.options) && q.options.length >= 2) {
-         options = q.options.map(String).slice(0, 5);
-      }
-      
-      // Answer validation
-      let correctAnswer = 'A';
-      const possibleAnswers = ['A', 'B', 'C', 'D', 'E'];
-      if (typeof q.correctAnswer === 'string' && possibleAnswers.includes(q.correctAnswer.trim().toUpperCase())) {
-         correctAnswer = q.correctAnswer.trim().toUpperCase();
-      }
+    if (!Array.isArray(parsedData)) {
+      console.error('[WarRoom] Parse edilen veri array değil');
+      return [buildFallbackQuestion(examType, topic || '', difficulty)];
+    }
 
-      return {
-        id: q.id ?? `q${i + 1}_${Date.now()}`,
-        subject: q.subject ?? `${examType} ${subject ?? 'Karma'}`,
-        topic: q.topic ?? topic ?? 'Genel',
-        difficulty: q.difficulty ?? difficulty,
-        examType: q.examType ?? examType,
-        text,
-        options,
-        correctAnswer,
-        analysis: typeof q.analysis === 'string' ? q.analysis : 'Analiz bulunamadı.',
-        source: 'AI',
-      };
-    });
-    return questions;
+    // [BUG-005] Her soruyu validate et, geçersizleri filtrele
+    const validated = parsedData
+      .map((q, i) => validateAndNormalizeQuestion(q, i + 1, examType, difficulty))
+      .filter((q): q is WarRoomQuestion => q !== null);
+
+    if (validated.length === 0) {
+      console.warn('[WarRoom] Tüm sorular validation\'dan geçemedi, fallback kullanılıyor');
+      return [buildFallbackQuestion(examType, topic || '', difficulty)];
+    }
+
+    if (validated.length < parsedData.length) {
+      console.warn(
+        `[WarRoom] ${parsedData.length - validated.length} soru validation'dan geçemedi, ` +
+        `${validated.length} soru kullanılıyor`
+      );
+    }
+
+    return validated;
   } catch (error) {
-    console.error("War room question gen error", error);
-    // Fallback Mock Datası
-    return [
-      {
-         id: "mock_q1",
-         subject: examType,
-         topic: topic || "Temel Kavramlar",
-         difficulty: difficulty,
-         examType: examType,
-         text: "İnternet bağlantınız veya API erişiminizde bir sorun var. Bu bir yedek (offline) sorudur. 2+2 kaçtır?",
-         options: ["1", "2", "3", "4", "5"],
-         correctAnswer: "D",
-         analysis: "Matematikte 2+2 her zaman 4'tür. Offline modda çalışmaktayız.",
-         source: "archive"
-      }
-    ];
+    console.error('[WarRoom] generateWarRoomQuestions genel hata', error);
+    return [buildFallbackQuestion(examType, topic || '', difficulty)];
   }
 }
+
+// ─── Skorlama ─────────────────────────────────────────────────────────────────
 
 export function scoreWarRoomSession(
   questions: WarRoomQuestion[],
@@ -147,7 +246,7 @@ export function scoreWarRoomSession(
   let wrong = 0;
   let empty = 0;
 
-  questions.forEach((q) => {
+  for (const q of questions) {
     const ans = answers[q.id];
     if (!ans) {
       empty++;
@@ -156,12 +255,11 @@ export function scoreWarRoomSession(
     } else {
       wrong++;
     }
-  });
+  }
 
   const net = correct - wrong * 0.25;
-  const accuracy = questions.length > 0
-    ? Math.round((correct / questions.length) * 100)
-    : 0;
+  const accuracy =
+    questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
 
   return { correct, wrong, empty, net, accuracy };
 }

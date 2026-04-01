@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { isSuperAdmin, FirestoreUser, UserRole } from '../config/admin';
 import * as devService from '../services/developerService';
+import * as systemService from '../services/systemService';
 
 export function useAdminPanel() {
   const { user } = useAuth(); // from app auth store wrapper
@@ -19,6 +20,11 @@ export function useAdminPanel() {
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // System States
+  const [systemConfig, setSystemConfig] = useState<systemService.SystemConfig | null>(null);
+  const [systemStats, setSystemStats] = useState<any>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   const _runAction = async (actionFn: () => Promise<{ success: boolean, error?: string }>, successMsg: string) => {
     if (!hasAccess) return;
@@ -78,6 +84,31 @@ export function useAdminPanel() {
   const mockWarRoom = (targetUid: string) => _runAction(() => devService.pushMockWarRoomSession(user.uid, 'super_admin', targetUid), 'Kullanıcı sahte (Mock) deneme sınav verisi aldı.');
   const repairProfile = (targetUid: string) => _runAction(() => devService.repairProfileDoc(user.uid, 'super_admin', targetUid), 'Zede gören veya olmayan Profil veri tabanına ZORLA yazıldı (Onarıldı).');
 
+  /* --- SYSTEM ACTIONS --- */
+  const loadSystemData = useCallback(async () => {
+    if (!hasAccess) return;
+    setIsStatsLoading(true);
+    try {
+      const [config, stats] = await Promise.all([
+        systemService.getSystemConfig(),
+        systemService.getSystemStats()
+      ]);
+      setSystemConfig(config);
+      setSystemStats(stats);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setIsStatsLoading(false);
+  }, [hasAccess]);
+
+  const toggleMaintenance = (enabled: boolean) => 
+    _runAction(() => systemService.toggleMaintenanceMode(user.uid, 'super_admin', enabled), 
+    `Bakım Modu ${enabled ? 'AÇILDI' : 'KAPATILDI'}.`);
+
+  const updateAnnouncement = (msg: string | null) => 
+    _runAction(() => systemService.setGlobalAnnouncement(user.uid, 'super_admin', msg), 
+    'Global Duyuru Güncellendi.');
+
   return {
     hasAccess,
     searchResults,
@@ -95,6 +126,13 @@ export function useAdminPanel() {
     addElo,
     clearLogs,
     mockWarRoom,
-    repairProfile
+    repairProfile,
+    // System
+    systemConfig,
+    systemStats,
+    isStatsLoading,
+    loadSystemData,
+    toggleMaintenance,
+    updateAnnouncement
   };
 }

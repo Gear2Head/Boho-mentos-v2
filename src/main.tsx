@@ -1,14 +1,12 @@
-import {StrictMode} from 'react';
-import {createRoot} from 'react-dom/client';
+import { StrictMode, Component, ReactNode } from 'react';
+import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
-import { ToastProvider } from './components/ToastContext';
 import './index.css';
 
 // --- BEYAZ EKRAN (CACHE/SW) RESETLEYICI ---
 if (typeof window !== 'undefined') {
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   if (isLocal) {
-    // 1. Service Worker'ları kesinlikle sil
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const registration of registrations) {
@@ -18,14 +16,13 @@ if (typeof window !== 'undefined') {
       });
     }
 
-    // 2. Cache-Control: Hard Clear 
     const REFRESH_KEY = 'boho_app_emergency_reset_v2';
     if (!localStorage.getItem(REFRESH_KEY)) {
       if ('caches' in window) {
         caches.keys().then((names) => {
           Promise.all(names.map(name => caches.delete(name))).then(() => {
             localStorage.setItem(REFRESH_KEY, 'true');
-            window.location.reload(); // Zorunlu Yenileme
+            window.location.reload();
           });
         });
       }
@@ -33,12 +30,25 @@ if (typeof window !== 'undefined') {
   }
 }
 
-import React, { Component } from 'react';
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
 
-class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean}> {
-  constructor(props: any) { super(props); this.state = { hasError: false }; }
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: any, errorInfo: any) { console.error('BOHO_CRASH:', error, errorInfo); }
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error('BOHO_CRASH:', error, errorInfo);
+  }
   render() {
     if (this.state.hasError) {
       return (
@@ -56,9 +66,7 @@ class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: bo
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
+      <App />
     </ErrorBoundary>
   </StrictMode>,
 );

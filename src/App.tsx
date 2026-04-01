@@ -47,8 +47,11 @@ import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
 import { debouncedPush } from './services/firestoreSync';
-import { initProcessSyncQueueListener } from './utils/syncQueue';
-import { useToast } from './components/ToastContext';
+import { initOfflineSync } from './utils/syncQueue';
+import { useToast } from './contexts/ToastContext';
+import { subscribeToSystemConfig, SystemConfig } from './services/systemService';
+import { MaintenanceBlocker } from './components/MaintenanceBlocker';
+import { ToastProvider, toast, confirmDialog } from './contexts/ToastContext';
 
 // --- Helper ---
 
@@ -264,7 +267,6 @@ const markdownComponents = {
 export default function App() {
   const store = useAppStore();
   const { user, isLoading, signOut } = useAuth();
-  const { toast, confirm } = useToast();
   const [isAuthSkipped, setIsAuthSkipped] = useState(false);
   
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -280,6 +282,23 @@ export default function App() {
   const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // --- SYSTEM STATE & BROADCAST ---
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+  const lastAnnouncementRef = useRef<string | null>(null);
+  const { toast: toastAPI } = useToast();
+
+  useEffect(() => {
+    return subscribeToSystemConfig((config) => {
+      setSystemConfig(config);
+      
+      // Yeni bir duyuru varsa ve daha önce gösterilmemişse göster
+      if (config.globalAnnouncement && config.globalAnnouncement !== lastAnnouncementRef.current) {
+        lastAnnouncementRef.current = config.globalAnnouncement;
+        toastAPI.info(config.globalAnnouncement, 10000); // 10 saniye göster
+      }
+    });
+  }, [toastAPI]);
 
   // --- TEMA FLASHBANG ENGELLEYİCİ ---
   useEffect(() => {
@@ -313,7 +332,7 @@ export default function App() {
       if (activeTab !== 'dashboard') {
         setActiveTab('dashboard');
       } else {
-        if (await confirm('Boho Mentosluk\'tan çıkmak istediğine emin misin?')) {
+        if (await confirmDialog('Boho Mentosluk\'tan çıkmak istediğine emin misin?')) {
           CapApp.exitApp();
         }
       }
@@ -426,7 +445,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    return initProcessSyncQueueListener();
+    return initOfflineSync();
   }, []);
 
   // ERR-002: İlk açılış mesajı
@@ -496,9 +515,22 @@ export default function App() {
         }
       }
 
+      const userState = {
+        name: store.profile?.name,
+        track: store.profile?.track,
+        elo: store.eloScore,
+        streak: store.streakDays,
+        summary: `TYT %${Math.round((store.tytSubjects.filter(s => s.status === 'mastered').length / (store.tytSubjects.length || 1)) * 100)} bitti, AYT %${Math.round((store.aytSubjects.filter(s => s.status === 'mastered').length / (store.aytSubjects.length || 1)) * 100)} bitti.`,
+        lastLogs: store.logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct/(l.questions||1))*100)} başarı`),
+        lastExams: store.exams.slice(-1).map(e => `${e.type}: ${e.totalNet} net`),
+        alerts: store.activeAlerts.length,
+        target: store.profile?.targetUniversity
+      };
+
       const response = await getCoachResponse(userMsg, context, store.chatHistory, { 
         coachPersonality: store.profile?.coachPersonality,
-        action: action 
+        action: action,
+        userState
       });
 
       store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
@@ -509,6 +541,12 @@ export default function App() {
       setIsTyping(false);
     }
   };
+
+  // Bakım Modu Kontrolü (Sadece Adminlere Açık)
+  const isUserAdmin = user && isSuperAdmin(user.uid);
+  if (systemConfig?.maintenanceMode && !isUserAdmin) {
+    return <MaintenanceBlocker />;
+  }
 
   // 1. Durum: Auth kontrolü yapılıyor
   if (isLoading) {
@@ -535,9 +573,10 @@ export default function App() {
   }
 
   return (
-    <MobileGuard className="h-[100dvh]">
-    <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
-      {/* Mobile Top Header (Glassmorphism) */}
+    <ToastProvider>
+      <MobileGuard className="h-[100dvh]">
+        <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
+
       <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-[#1F2A36] border border-white/10">
@@ -630,7 +669,7 @@ export default function App() {
             </div>
           )}
           <button 
-            onClick={async () => { if(await confirm('Çıkış yapmak istediğine emin misin?')) signOut(); }}
+            onClick={async () => { if(await confirmDialog('Çıkış yapmak istediğine emin misin?')) signOut(); }}
             className="p-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all"
           >
             <LogOut size={14} /> ÇIKIŞ YAP
@@ -1043,7 +1082,7 @@ export default function App() {
 
                       {store.isDevMode && (
                         <button
-                          onClick={async () => { if (await confirm('Siliyorum?')) store.removeFailedQuestion(q.id); }}
+                          onClick={async () => { if (await confirmDialog('Siliyorum?')) store.removeFailedQuestion(q.id); }}
                           className="px-3 py-2 bg-red-950/20 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-500 hover:text-white transition-all"
                         >
                           <Trash2 size={14} />
@@ -1166,7 +1205,7 @@ export default function App() {
                   <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
                     <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
                       <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
-                      <button onClick={async () => { if (await confirm('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
+                      <button onClick={async () => { if (await confirmDialog('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
                     </div>
                   </ProfileSection>
                 </div>
@@ -1193,8 +1232,9 @@ export default function App() {
         onNavigate={setActiveTab}
         onSignOut={signOut}
       />
-    </div>
-    </MobileGuard>
+      </div>
+      </MobileGuard>
+    </ToastProvider>
   );
 }
 
@@ -1400,7 +1440,7 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: 
           ))}
           {/* Mobil Logout */}
           <button
-            onClick={async () => { if(await confirm('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
+            onClick={async () => { if(await confirmDialog('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
             className="flex flex-col items-center gap-2 group"
           >
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-rose-500/10 text-rose-500 shadow-sm border border-rose-500/20">

@@ -1,10 +1,4 @@
-/**
- * AMAÇ: İstemciden güvenli AI çağrısı (Vercel Serverless üzerinden)
- * MANTIK: Secret'lar istemcide tutulmaz; `/api/ai` orkestratörü key rotation + fallback yapar.
- * UYARI: İstemci sadece context/prompt gönderir, anahtarlar asla bundle'a gömülmez.
- */
 
-import { useAppStore } from '../store/appStore';
 
 interface OpenAIMessage {
   role: "system" | "user" | "assistant";
@@ -47,8 +41,6 @@ export async function getCoachResponse(
     userState?: any;
   }
 ): Promise<string> {
-  const store = useAppStore.getState();
-
   const payload = {
     action: options?.action || "coach",
     userMessage,
@@ -58,16 +50,10 @@ export async function getCoachResponse(
     forceJson: options?.forceJson,
     maxTokens: options?.maxTokens,
     userState: options?.userState || {
-      name: store.profile?.name,
-      track: store.profile?.track,
-      elo: store.eloScore,
-      streak: store.streakDays,
-      // TÜM DİZİLERİ ÖZETLE (Token Patlamasını Önle)
-      summary: `TYT %${Math.round((store.tytSubjects.filter(s => s.status === 'mastered').length / (store.tytSubjects.length || 1)) * 100)} bi̇tti̇, AYT %${Math.round((store.aytSubjects.filter(s => s.status === 'mastered').length / (store.aytSubjects.length || 1)) * 100)} bi̇tti̇.`,
-      lastLogs: store.logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct/l.questions)*100)} başari`),
-      lastExams: store.exams.slice(-1).map(e => `${e.type}: ${e.totalNet} net`),
-      alerts: store.activeAlerts.length,
-      target: store.profile?.targetUniversity
+      summary: "Profil verisi eksik.",
+      lastLogs: [],
+      lastExams: [],
+      alerts: 0
     }
   };
 

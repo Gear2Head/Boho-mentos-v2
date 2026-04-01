@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Target, Save, Search, Camera, User } from 'lucide-react';
 import type { StudentProfile } from '../../types';
-import { searchUniGoals, type UniGoal } from '../../data/uniGoals';
+import { searchYokAtlas, getYokAtlasById, type YokAtlasProgram } from '../../data/yokAtlasData';
 
 interface ProfileSettingsProps {
   onSubmit: (profile: StudentProfile) => void;
@@ -30,24 +30,15 @@ export function ProfileSettings({ onSubmit, initialData, isEditMode = false }: P
 
   const [uniSearchFocus, setUniSearchFocus] = useState(false);
   const [majorSearchFocus, setMajorSearchFocus] = useState(false);
-  const [uniSuggestions, setUniSuggestions] = useState<UniGoal[]>([]);
-  const [majorSuggestions, setMajorSuggestions] = useState<UniGoal[]>([]);
+  const [uniSuggestions, setUniSuggestions] = useState<YokAtlasProgram[]>([]);
 
   useEffect(() => {
     if (uniSearchFocus && targetUni.length >= 2) {
-      setUniSuggestions(searchUniGoals(targetUni));
+      setUniSuggestions(searchYokAtlas(targetUni, track));
     } else {
       setUniSuggestions([]);
     }
-  }, [targetUni, uniSearchFocus]);
-
-  useEffect(() => {
-    if (majorSearchFocus && targetMajor.length >= 2) {
-      setMajorSuggestions(searchUniGoals(targetMajor));
-    } else {
-      setMajorSuggestions([]);
-    }
-  }, [targetMajor, majorSearchFocus]);
+  }, [targetUni, uniSearchFocus, track]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,30 +80,18 @@ export function ProfileSettings({ onSubmit, initialData, isEditMode = false }: P
     } as unknown as StudentProfile);
   };
 
-  const handleSelectUni = (goal: UniGoal) => {
-    setTargetUni(goal.university);
-    setTargetMajor(goal.major);
-    if (goal.examType === 'TYT') {
-      setTytTarget(goal.lastEntrantNet);
+  const handleSelectUni = (program: YokAtlasProgram) => {
+    setTargetUni(program.university);
+    setTargetMajor(program.major);
+    if (program.examType === 'TYT') {
+      setTytTarget(program.lastEntrantNet);
       setAytTarget(0);
     } else {
-      setAytTarget(goal.lastEntrantNet);
-      setTytTarget(Math.round(goal.lastEntrantNet * 1.2));
+      setAytTarget(program.lastEntrantNet);
+      // AYT seçildiğinde TYT hedefi genelde %20-30 daha fazladır (temsili)
+      setTytTarget(Math.round(program.lastEntrantNet * 1.3));
     }
     setUniSearchFocus(false);
-  };
-
-  const handleSelectMajor = (goal: UniGoal) => {
-    setTargetMajor(goal.major);
-    setTargetUni(goal.university);
-    if (goal.examType === 'TYT') {
-      setTytTarget(goal.lastEntrantNet);
-      setAytTarget(0);
-    } else {
-      setAytTarget(goal.lastEntrantNet);
-      setTytTarget(Math.round(goal.lastEntrantNet * 1.2));
-    }
-    setMajorSearchFocus(false);
   };
 
   return (

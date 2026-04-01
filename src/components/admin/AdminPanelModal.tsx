@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2 } from 'lucide-react';
+import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText } from 'lucide-react';
 import { useAdminPanel } from '../../hooks/useAdminPanel';
 
 interface Props {
@@ -15,8 +15,16 @@ interface Props {
 
 export function AdminPanelModal({ isOpen, onClose }: Props) {
   const admin = useAdminPanel();
-  const [activeTab, setActiveTab] = useState<'users' | 'tools'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'tools' | 'system'>('users');
   const [query, setQuery] = useState('');
+  const [announcementMsg, setAnnouncementMsg] = useState('');
+
+  // Sistem verilerini yükle
+  useEffect(() => {
+    if (isOpen && activeTab === 'system') {
+      admin.loadSystemData();
+    }
+  }, [isOpen, activeTab]);
 
   // Sadece süper admin olan açabilir.
   if(!isOpen || !admin.hasAccess) return null;
@@ -48,6 +56,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
              <div className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar">
                {[
                  { id: 'users', label: 'Kullanıcı Haritası', icon: <Users size={16} /> },
+                 { id: 'system', label: 'Sistem Odası', icon: <Activity size={16} /> },
                  { id: 'tools', label: 'Güç Araçları', icon: <Database size={16} /> }
                ].map(t => (
                  <button
@@ -152,6 +161,103 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                </div>
             )}
 
+             {activeTab === 'system' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl">
+                      <p className="text-[10px] uppercase tracking-widest opacity-50 mb-1 text-ink-muted">Toplam Kayıt</p>
+                      <p className="text-2xl font-display font-bold text-[#C17767]">{admin.systemStats?.totalUsers || '...'}</p>
+                    </div>
+                    <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl">
+                      <p className="text-[10px] uppercase tracking-widest opacity-50 mb-1 text-ink-muted">Sistem Durumu</p>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full animate-pulse ${admin.systemConfig?.maintenanceMode ? 'bg-amber-500' : 'bg-green-500'}`} />
+                        <p className="text-sm font-bold dark:text-white">{admin.systemConfig?.maintenanceMode ? 'Bakım Modunda' : 'Operasyonel'}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => admin.loadSystemData()}
+                      className="p-4 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-app rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase transition-colors"
+                    >
+                      <Activity size={16} /> Verileri Tazele
+                    </button>
+                  </div>
+
+                  {/* Bakım Modu & Duyuru */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl">
+                      <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
+                        <AlertTriangle size={14} /> Global Erişim Kontrolü
+                      </h4>
+                      <p className="text-[10px] text-zinc-500 mb-4">Bakım modunu açtığınızda yetkili olmayan kullanıcıların sisteme girişi engellenir.</p>
+                      <button 
+                         onClick={() => admin.toggleMaintenance(!admin.systemConfig?.maintenanceMode)}
+                         disabled={admin.actionLoading}
+                         className={`w-full py-3 rounded-xl text-[10px] font-bold uppercase transition-all ${admin.systemConfig?.maintenanceMode ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'}`}
+                      >
+                        {admin.systemConfig?.maintenanceMode ? 'Bakım Modunu Kapat' : 'Bakım Modunu Başlat'}
+                      </button>
+                    </div>
+
+                    <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl">
+                      <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
+                        <Radio size={14} /> Global Duyuru (Broadcaster)
+                      </h4>
+                      <div className="space-y-3">
+                        <input 
+                          type="text"
+                          value={announcementMsg}
+                          onChange={e => setAnnouncementMsg(e.target.value)}
+                          placeholder="Tüm kullanıcılara gidecek mesaj..."
+                          className="w-full px-4 py-3 bg-white dark:bg-black border border-app rounded-xl text-[11px]"
+                        />
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => admin.updateAnnouncement(announcementMsg)}
+                            disabled={admin.actionLoading || !announcementMsg}
+                            className="flex-1 py-3 bg-[#C17767] text-white rounded-xl text-[10px] font-bold uppercase disabled:opacity-50"
+                          >
+                            Duyuru Yap
+                          </button>
+                          <button 
+                            onClick={() => { admin.updateAnnouncement(null); setAnnouncementMsg(''); }}
+                            disabled={admin.actionLoading}
+                            className="px-4 py-3 bg-zinc-200 dark:bg-zinc-800 rounded-xl text-[10px] font-bold uppercase"
+                          >
+                            Temizle
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Audit Logs */}
+                  <div className="bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl overflow-hidden flex flex-col h-[300px]">
+                    <div className="px-6 py-4 border-b border-app flex justify-between items-center bg-white/50 dark:bg-black/50">
+                       <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] flex items-center gap-2">
+                         <FileText size={14} /> Denetim Kayıtları (Audit Logs)
+                       </h4>
+                    </div>
+                    <div className="flex-1 overflow-auto p-4 space-y-2 font-mono text-[9px]">
+                       {admin.systemStats?.recentLogs?.map((log: any) => (
+                         <div key={log.id} className="p-2 border-b border-app/50 flex justify-between items-start gap-4">
+                            <div className="flex-1">
+                               <span className="text-[#C17767] font-bold">{log.action}</span>
+                               <span className="mx-2 opacity-50">BY</span>
+                               <span className="text-blue-500 font-bold">#{log.actorUid.slice(0, 6)}</span>
+                               <p className="text-zinc-400 mt-0.5">{JSON.stringify(log.details)}</p>
+                            </div>
+                            <span className="opacity-30 whitespace-nowrap">{new Date(log.timestamp?.seconds * 1000).toLocaleTimeString()}</span>
+                         </div>
+                       ))}
+                       {(!admin.systemStats?.recentLogs || admin.systemStats.recentLogs.length === 0) && (
+                         <div className="h-full flex items-center justify-center opacity-30 italic">Henüz bir kayıt yok.</div>
+                       )}
+                    </div>
+                  </div>
+                </div>
+             )}
+
             {activeTab === 'tools' && (
                <div className="space-y-6">
                  <h3 className="font-bold text-sm uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 mb-4">Tehlikeli Araç Kutusu</h3>
@@ -161,17 +267,21 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => { if(confirm("TÜM ADMIN LOGLARINI SİLMEK İSTEDİĞİNE EMİN MİSİN?")) admin.repairProfile(admin.selectedUser?.uid || ''); }}
+                      className="p-6 text-left bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl hover:border-red-500/50 transition-colors group"
+                    >
+                       <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2 group-hover:text-red-500">Sistem Loglarını Sıfırla</h5>
+                       <p className="text-[10px] text-zinc-500 italic">Tüm bu audit kayıtlarını tamamen temizler. Dikkatli kullanın.</p>
+                    </button>
                     <div className="p-6 bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl opacity-50 cursor-not-allowed">
-                       <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2">Sistem Loglarını Sıfırla</h5>
-                       <p className="text-[10px] text-zinc-500">Tüm kullanıcı işlemlerini /adminLogs koleksiyonundan temizler. Gelecek fazda sunulacaktır.</p>
-                    </div>
-                    <div className="p-6 bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl opacity-50 cursor-not-allowed">
-                       <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2">Global Bakım Modu</h5>
-                       <p className="text-[10px] text-zinc-500">Super admin hariç tüm kullanıcıları kickler. Gelecek fazda aktif edilecek.</p>
+                       <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2">Veri Tabanı İndeksi Zorla</h5>
+                       <p className="text-[10px] text-zinc-500">Koleksiyonları yeniden haritalandırır. Gelecek fazda aktif edilecek.</p>
                     </div>
                  </div>
                </div>
             )}
+
 
           </div>
         </motion.div>

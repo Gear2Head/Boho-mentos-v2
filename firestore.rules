@@ -29,6 +29,12 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == "9z9OAxBXsFU3oPT8AqIxnDSfzNy2";
     }
     
+    // GÜVENLİK KATI 5: SİSTEM AYARLARI (Bakım Modu, Duyuru vb.)
+    match /systemConfig/settings {
+      allow read: if true; 
+      allow write: if request.auth != null && request.auth.uid == "9z9OAxBXsFU3oPT8AqIxnDSfzNy2";
+    }
+    
     // SİSTEM META SAYAÇLARI
     match /system/{document=**} {
        allow read: if request.auth != null;

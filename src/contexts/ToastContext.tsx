@@ -264,8 +264,9 @@ function ToastItem({
   toast,
   onRemove,
 }: {
-  toast: ToastItem;
+  toast: { id: string; type: ToastType; message: string; duration: number };
   onRemove: (id: string) => void;
+  key?: string;
 }) {
   const cfg = TOAST_CONFIG[toast.type];
 
