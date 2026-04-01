@@ -388,7 +388,7 @@ export const useAppStore = create<AppState>()(
       }),
 
       addLog: (log) => set((state) => {
-        const newLogs = [...state.logs, log];
+        const newLogs = [...state.logs, log].slice(-500);
         const todayStr = new Date().toLocaleDateString('tr-TR');
         const hasLoggedToday = state.logs.some(l => l.date.includes(todayStr));
         const newStreak = hasLoggedToday ? state.streakDays : state.streakDays + 1;
@@ -582,11 +582,18 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
       merge: (persistedState: any, currentState) => ({
         ...currentState,
         ...persistedState,
+        warRoomTimeLeft: 0,
+        warRoomSession: null,
+        warRoomAnswers: {},
+        warRoomEliminated: {},
+        warRoomMode: 'setup' as const,
         activeAlerts: persistedState?.activeAlerts || [],
         focusSessions: persistedState?.focusSessions || [],
         agendaEntries: persistedState?.agendaEntries || [],
         logs: persistedState?.logs || [],
         exams: persistedState?.exams || [],
+        failedQuestions: persistedState?.failedQuestions || [],
+        chatHistory: persistedState?.chatHistory || [],
         tytSubjects: persistedState?.tytSubjects || currentState.tytSubjects,
         aytSubjects: persistedState?.aytSubjects || currentState.aytSubjects,
         trophies: persistedState?.trophies || currentState.trophies,

@@ -26,15 +26,12 @@ export function MorningBlocker({ onUnlock }: { onUnlock: () => void }) {
   };
 
   useEffect(() => {
-    // Sadece sabahları veya günün ilk girişinde çalışacak mantık
-    // Şimdilik her girişte %50 ihtimalle açılsın (mock)
-    const hasSolvedToday = localStorage.getItem('yks_solved_morning');
     const today = new Date().toLocaleDateString('tr-TR');
-    
-    if (hasSolvedToday !== today) {
-      setIsOpen(true);
-    } else {
+    const stored = sessionStorage.getItem('boho_morning_solved');
+    if (stored === today) {
       onUnlock();
+    } else {
+      setIsOpen(true);
     }
   }, [onUnlock]);
 
@@ -46,7 +43,7 @@ export function MorningBlocker({ onUnlock }: { onUnlock: () => void }) {
       setSuccess(true);
       setError(false);
       setTimeout(() => {
-        localStorage.setItem('yks_solved_morning', new Date().toLocaleDateString('tr-TR'));
+        sessionStorage.setItem('boho_morning_solved', new Date().toLocaleDateString('tr-TR'));
         setIsOpen(false);
         onUnlock();
       }, 2000);

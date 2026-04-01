@@ -31,27 +31,30 @@ const SYNC_FIELDS: Array<keyof FirestoreUserData> = [
   'isPassiveMode', 'activeAlerts',
 ];
 
-function applyCloudDataToStore(data: FirestoreUserData) {
-  const store = useAppStore.getState();
-  if (data.profile) store.setProfile(data.profile);
-  if (data.theme) store.setTheme(data.theme);
-  if (data.eloScore !== undefined) {
-    const delta = data.eloScore - useAppStore.getState().eloScore;
-    if (delta !== 0) store.addElo(delta);
+function applyCloudDataToStore(incoming: Partial<FirestoreUserData>) {
+  const current = useAppStore.getState();
+
+  if (incoming.profile) current.setProfile(incoming.profile);
+  if (incoming.theme) current.setTheme(incoming.theme);
+
+  if (incoming.eloScore !== undefined) {
+    const delta = incoming.eloScore - current.eloScore;
+    if (delta !== 0) current.addElo(delta);
   }
+
   useAppStore.setState({
-    tytSubjects: data.tytSubjects?.length ? data.tytSubjects : useAppStore.getState().tytSubjects,
-    aytSubjects: data.aytSubjects?.length ? data.aytSubjects : useAppStore.getState().aytSubjects,
-    logs: data.logs ?? useAppStore.getState().logs,
-    exams: data.exams ?? useAppStore.getState().exams,
-    failedQuestions: data.failedQuestions ?? useAppStore.getState().failedQuestions,
-    agendaEntries: data.agendaEntries ?? useAppStore.getState().agendaEntries,
-    focusSessions: data.focusSessions ?? useAppStore.getState().focusSessions,
-    trophies: data.trophies?.length ? data.trophies : useAppStore.getState().trophies,
-    streakDays: data.streakDays ?? useAppStore.getState().streakDays,
-    isPassiveMode: data.isPassiveMode ?? useAppStore.getState().isPassiveMode,
-    activeAlerts: data.activeAlerts ?? useAppStore.getState().activeAlerts,
-    chatHistory: data.chatHistory ?? useAppStore.getState().chatHistory,
+    tytSubjects: incoming.tytSubjects?.length ? incoming.tytSubjects : current.tytSubjects,
+    aytSubjects: incoming.aytSubjects?.length ? incoming.aytSubjects : current.aytSubjects,
+    logs: incoming.logs ?? current.logs,
+    exams: incoming.exams ?? current.exams,
+    failedQuestions: incoming.failedQuestions ?? current.failedQuestions,
+    agendaEntries: incoming.agendaEntries ?? current.agendaEntries,
+    focusSessions: incoming.focusSessions ?? current.focusSessions,
+    trophies: incoming.trophies?.length ? incoming.trophies : current.trophies,
+    streakDays: incoming.streakDays ?? current.streakDays,
+    isPassiveMode: incoming.isPassiveMode ?? current.isPassiveMode,
+    activeAlerts: incoming.activeAlerts ?? current.activeAlerts,
+    chatHistory: incoming.chatHistory ?? current.chatHistory,
   });
 }
 
@@ -92,7 +95,7 @@ export function useAuth() {
               }
             }
             if (Object.keys(partial).length > 0) {
-              applyCloudDataToStore(partial as FirestoreUserData);
+              applyCloudDataToStore(partial);
             }
           }
         );

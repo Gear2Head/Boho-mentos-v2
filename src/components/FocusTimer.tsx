@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Play, Pause, Square, History, Plus } from 'lucide-react';
 import { useFocusTimer } from '../hooks/useFocusTimer';
+import { useToast } from './ToastContext';
 
 export function FocusTimer() {
   const { sessionSeconds, formattedTime, isRunning, start, pause, reset, addLap } = useFocusTimer();
+  const { toast } = useToast();
   const [showToast, setShowToast] = useState(false);
 
   const handleLap = () => {
     if (sessionSeconds < 60) {
-      alert("En az 1 dakika çalışmalısın.");
+      toast.warning("En az 1 dakika çalışmalısın.");
       return;
     }
     addLap();

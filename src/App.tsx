@@ -47,6 +47,8 @@ import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
 import { debouncedPush } from './services/firestoreSync';
+import { initProcessSyncQueueListener } from './utils/syncQueue';
+import { useToast } from './components/ToastContext';
 
 // --- Helper ---
 
@@ -262,6 +264,7 @@ const markdownComponents = {
 export default function App() {
   const store = useAppStore();
   const { user, isLoading, signOut } = useAuth();
+  const { toast, confirm } = useToast();
   const [isAuthSkipped, setIsAuthSkipped] = useState(false);
   
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -306,11 +309,11 @@ export default function App() {
     setupStatusBar();
 
     // 2. Geri Tuşu Yönetimi
-    const backListener = CapApp.addListener('backButton', ({ canGoBack }) => {
+    const backListener = CapApp.addListener('backButton', async ({ canGoBack }) => {
       if (activeTab !== 'dashboard') {
         setActiveTab('dashboard');
       } else {
-        if (window.confirm('Boho Mentosluk\'tan çıkmak istediğine emin misin?')) {
+        if (await confirm('Boho Mentosluk\'tan çıkmak istediğine emin misin?')) {
           CapApp.exitApp();
         }
       }
@@ -422,16 +425,22 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // ERR-002: İlk açılış mesajı
   useEffect(() => {
-    if (activeTab === 'coach' && store.chatHistory.length === 0) {
+    return initProcessSyncQueueListener();
+  }, []);
+
+  // ERR-002: İlk açılış mesajı
+  const chatInitializedRef = useRef(false);
+  useEffect(() => {
+    if (activeTab === 'coach' && !chatInitializedRef.current && store.chatHistory.length === 0) {
+      chatInitializedRef.current = true;
       store.addChatMessage({
         role: 'coach',
         content: '📋 **Sistem Hazır.**\n\nGüne başlamak için **PLAN** yazabilir, bir çalışma seansını kaydetmek için **LOG** komutunu kullanabilirsin. Senin için buradayım.',
         timestamp: new Date().toISOString()
       });
     }
-  }, [activeTab, store.chatHistory.length]);
+  }, [activeTab]);
 
   const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string) => {
     e?.preventDefault();
@@ -582,7 +591,7 @@ export default function App() {
                      onClick={(e) => { 
                        e.stopPropagation(); 
                        navigator.clipboard.writeText(user.uid); 
-                       alert('Kullanıcı ID (UID) kopyalandı.'); 
+                       toast.success('Kullanıcı ID (UID) kopyalandı.'); 
                      }}
                      className="text-[8px] bg-zinc-200 dark:bg-zinc-800 text-zinc-500 hover:text-white hover:bg-[#C17767] px-1.5 py-0.5 rounded transition-colors"
                    >
@@ -621,15 +630,13 @@ export default function App() {
             </div>
           )}
           <button 
-            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) signOut(); }}
+            onClick={async () => { if(await confirm('Çıkış yapmak istediğine emin misin?')) signOut(); }}
             className="p-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all"
           >
             <LogOut size={14} /> ÇIKIŞ YAP
           </button>
         </div>
       </nav>
-      {/* Dev Console Modalı */}
-      <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
 
       <main className="flex-1 overflow-auto relative bg-app pb-24 md:pb-0 pt-0">
         <AnimatePresence mode="wait">
@@ -1036,7 +1043,7 @@ export default function App() {
 
                       {store.isDevMode && (
                         <button
-                          onClick={() => { if (confirm('Siliyorum?')) store.removeFailedQuestion(q.id); }}
+                          onClick={async () => { if (await confirm('Siliyorum?')) store.removeFailedQuestion(q.id); }}
                           className="px-3 py-2 bg-red-950/20 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-500 hover:text-white transition-all"
                         >
                           <Trash2 size={14} />
@@ -1159,7 +1166,7 @@ export default function App() {
                   <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
                     <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
                       <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
-                      <button onClick={() => { if (window.confirm('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
+                      <button onClick={async () => { if (await confirm('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
                     </div>
                   </ProfileSection>
                 </div>
@@ -1393,7 +1400,7 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: 
           ))}
           {/* Mobil Logout */}
           <button
-            onClick={() => { if(window.confirm('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
+            onClick={async () => { if(await confirm('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
             className="flex flex-col items-center gap-2 group"
           >
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-rose-500/10 text-rose-500 shadow-sm border border-rose-500/20">

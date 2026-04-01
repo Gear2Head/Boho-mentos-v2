@@ -8,9 +8,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '../store/appStore';
 import { generateWarRoomQuestions, scoreWarRoomSession, type GenerateQuestionsOptions } from '../services/warRoomService';
 import type { WarRoomSession, WarRoomQuestion } from '../types';
+import { useToast } from '../components/ToastContext';
 
 export function useWarRoom() {
   const store = useAppStore();
+  const { confirm } = useToast();
   const { warRoomSession, warRoomMode, warRoomTimeLeft, setWarRoomSession, setWarRoomMode, setWarRoomTimeLeft } = store;
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -24,10 +26,11 @@ export function useWarRoom() {
       store.warRoomAnswers
     );
 
+    const timeSpentSeconds = Math.max(0, Math.round((Date.now() - warRoomSession.startTime) / 1000));
     const endedSession: WarRoomSession = {
       ...warRoomSession,
       status: 'completed',
-      result: { correct, wrong, empty, net, accuracy, timeSpentSeconds: 0 }
+      result: { correct, wrong, empty, net, accuracy, timeSpentSeconds }
     };
 
     setWarRoomTimeLeft(0);
@@ -100,13 +103,13 @@ export function useWarRoom() {
     }
   }, [setWarRoomSession, setWarRoomTimeLeft, setWarRoomMode]);
 
-  const quitSession = useCallback(() => {
-    if (window.confirm('Savaştan kaçıyor musun? Geri dönüşü yok.')) {
+  const quitSession = useCallback(async () => {
+    if (await confirm('Savaştan kaçıyor musun? Geri dönüşü yok.')) {
       setWarRoomTimeLeft(0);
       setWarRoomSession(null);
       setWarRoomMode('setup');
     }
-  }, [setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
+  }, [confirm, setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
 
   return {
     isGenerating,

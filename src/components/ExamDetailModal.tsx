@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { X, Trash2, Save, Pencil } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import type { ExamResult } from '../types';
+import { useToast } from './ToastContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 interface ExamDetailModalProps {
@@ -13,6 +14,7 @@ interface ExamDetailModalProps {
 
 export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailModalProps) {
   const store = useAppStore();
+  const { confirm } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [draftScores, setDraftScores] = useState<ExamResult['scores']>({});
 
@@ -30,8 +32,8 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
     return Object.values(scores).reduce((acc: number, s: any) => acc + (s?.net || 0), 0);
   }, [scores]);
 
-  const handleDelete = () => {
-    if (window.confirm('Bu denemeyi kalıcı olarak silmek istediğinize emin misiniz?')) {
+  const handleDelete = async () => {
+    if (await confirm('Bu denemeyi kalıcı olarak silmek istediğinize emin misiniz?')) {
       store.removeExam(exam.id);
       onClose();
     }

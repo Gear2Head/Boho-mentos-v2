@@ -88,20 +88,36 @@ UYARI: Başka hiçbir metin yazma, sadece JSON formatında array döndür ve syn
     const parsedData = JSON.parse(match[0]);
     if (!Array.isArray(parsedData)) throw new Error('JSON formatı hatalı');
 
-    const questions: WarRoomQuestion[] = parsedData.map(
-      (q: Partial<WarRoomQuestion>, i: number) => ({
+    const questions: WarRoomQuestion[] = parsedData.map((q: any, i: number) => {
+      // String validation
+      const text = typeof q.text === 'string' && q.text.trim() ? q.text : `Soru metni alınamadı (Hatalı Dönüş)`;
+      
+      // Options validation
+      let options = ['A', 'B', 'C', 'D', 'E'];
+      if (Array.isArray(q.options) && q.options.length >= 2) {
+         options = q.options.map(String).slice(0, 5);
+      }
+      
+      // Answer validation
+      let correctAnswer = 'A';
+      const possibleAnswers = ['A', 'B', 'C', 'D', 'E'];
+      if (typeof q.correctAnswer === 'string' && possibleAnswers.includes(q.correctAnswer.trim().toUpperCase())) {
+         correctAnswer = q.correctAnswer.trim().toUpperCase();
+      }
+
+      return {
         id: q.id ?? `q${i + 1}_${Date.now()}`,
         subject: q.subject ?? `${examType} ${subject ?? 'Karma'}`,
         topic: q.topic ?? topic ?? 'Genel',
         difficulty: q.difficulty ?? difficulty,
         examType: q.examType ?? examType,
-        text: q.text ?? 'Soru verisi okunamadı.',
-        options: Array.isArray(q.options) ? q.options : ['A','B','C','D','E'],
-        correctAnswer: q.correctAnswer ?? 'A',
-        analysis: q.analysis ?? 'Analiz bulunamadı.',
+        text,
+        options,
+        correctAnswer,
+        analysis: typeof q.analysis === 'string' ? q.analysis : 'Analiz bulunamadı.',
         source: 'AI',
-      })
-    );
+      };
+    });
     return questions;
   } catch (error) {
     console.error("War room question gen error", error);

@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { X, Mic, Camera, BookOpen } from 'lucide-react';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../../constants';
 import type { DailyLog } from '../../types';
+import { useToast } from '../ToastContext';
 
 interface LogEntryWidgetProps {
   onSubmit: (log: DailyLog) => void;
@@ -14,6 +15,7 @@ interface LogEntryWidgetProps {
 }
 
 export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
+  const { toast } = useToast();
   const [examType, setExamType] = useState<'TYT' | 'AYT'>('TYT');
   const [subject, setSubject] = useState('');
   const [topic, setTopic] = useState('');
@@ -31,7 +33,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
 
   const handleManualSubmit = () => {
     if (!subject || !topic || correct === '' || wrong === '' || empty === '' || time === '') {
-      alert('Lütfen zorunlu alanları (Ders, Konu, Soru Dağılımı ve Süre) doldurunuz.');
+      toast.warning('Lütfen zorunlu alanları (Ders, Konu, Soru Dağılımı ve Süre) doldurunuz.');
       return;
     }
 
@@ -53,11 +55,11 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
   };
 
   const handleVoiceLog = () => {
-    alert('Sesli Log Özelliği (Whisper API Entegrasyonu) çok yakında aktif edilecek.');
+    toast.info('Sesli Log Özelliği (Whisper API Entegrasyonu) çok yakında aktif edilecek.');
   };
 
   const handleOcrLog = () => {
-    alert('Fotoğraftan Test Okuma (OCR) çok yakında aktif edilecek.');
+    toast.info('Fotoğraftan Test Okuma (OCR) çok yakında aktif edilecek.');
   };
 
   return (

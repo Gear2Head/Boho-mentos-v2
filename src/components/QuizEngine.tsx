@@ -4,6 +4,7 @@ import { getCoachResponse } from '../services/gemini';
 import { useAppStore } from '../store/appStore';
 import 'katex/dist/katex.min.css';
 import { BlockMath, InlineMath } from 'react-katex';
+import { useToast } from './ToastContext';
 
 interface QuizQuestion {
   id: string;
@@ -17,6 +18,7 @@ interface QuizQuestion {
 
 export function QuizEngine() {
   const store = useAppStore();
+  const { toast } = useToast();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -64,11 +66,11 @@ export function QuizEngine() {
         data = data.map((q: any) => ({ ...q, id: Date.now().toString() + Math.random().toString() }));
         setQuestions(data);
       } else {
-        alert("Soru üretilirken bir hata oluştu. Tekrar deneyin.");
+        toast.error("Soru üretilirken bir hata oluştu. Tekrar deneyin.");
       }
     } catch (e) {
       console.error(e);
-      alert("Bağlantı hatası.");
+      toast.error("Bağlantı hatası.");
     } finally {
       setLoading(false);
     }

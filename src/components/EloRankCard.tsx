@@ -31,9 +31,10 @@ export const RANK_CONFIG: RankConfig[] = [
 ];
 
 export function getRankDetails(elo: number) {
-  // 1. Mevcut Ligi Bul
   const currentRankIndex = [...RANK_CONFIG].reverse().findIndex(r => elo >= r.minElo);
-  const rankIndex = currentRankIndex === -1 ? 0 : (RANK_CONFIG.length - 1 - currentRankIndex);
+  const rankIndex = currentRankIndex === -1
+    ? 0
+    : Math.max(0, Math.min(RANK_CONFIG.length - 1, RANK_CONFIG.length - 1 - currentRankIndex));
   const currentRank = RANK_CONFIG[rankIndex];
   const nextRank = RANK_CONFIG[rankIndex + 1] || null;
 
