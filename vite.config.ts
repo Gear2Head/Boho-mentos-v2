@@ -43,7 +43,8 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2,ttf}'],
+        navigateFallback: null, // Force network-first or no-cache for navigation
         runtimeCaching: [
           {
             urlPattern: /^\/api\/(?!ai).*/,

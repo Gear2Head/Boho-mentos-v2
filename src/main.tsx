@@ -34,25 +34,42 @@ if (typeof window !== 'undefined') {
 const hardReset = async () => {
   if (typeof window === 'undefined') return;
   
+  // 0. Temizlik öncesi görsel geri bildirim (isteğe bağlı konsol logu)
+  console.log('NÜKLEER SIFIRLAMA BAŞLATILDI...');
+
   // 1. Service Worker'ları temizle
   if ('serviceWorker' in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    for (const reg of registrations) {
-      await reg.unregister();
-    }
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    } catch (e) { console.error('SW Unregister Error:', e); }
   }
 
   // 2. Browser Cache'i temizle
   if ('caches' in window) {
-    const keys = await caches.keys();
-    await Promise.all(keys.map(k => caches.delete(k)));
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    } catch (e) { console.error('Cache Clear Error:', e); }
   }
 
-  // 3. LocalStorage reset bayrağı (opsiyonel ama güvenli)
-  localStorage.setItem('boho_app_emergency_reset_v2', 'true');
+  // 3. LocalStorage ve SessionStorage temizle
+  localStorage.clear();
+  sessionStorage.clear();
+
+  // 4. IndexedDB temizle (Vite-PWA ve App Store için)
+  if ('indexedDB' in window) {
+    try {
+      const databases = ['yks_coach_storage', 'workbox-precache-v2']; // Bilinen DB'ler
+      databases.forEach(db => window.indexedDB.deleteDatabase(db));
+    } catch (e) { console.error('IDB Clear Error:', e); }
+  }
   
-  // 4. Sert Yenileme
-  window.location.reload();
+  // 5. Sert Yenileme (URL'e timestamp ekleyerek CDN önbelleğini bypass et)
+  const refreshUrl = window.location.origin + '/?v=' + Date.now();
+  window.location.href = refreshUrl;
 };
 
 interface ErrorBoundaryProps {

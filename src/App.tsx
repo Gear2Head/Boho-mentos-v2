@@ -738,7 +738,8 @@ export default function App() {
                   <MiniFlapClock targetDate={YKS_2026_TYT_DATE} />
 
                   {(() => {
-                    const wp = calcWorkloadRemaining(store.tytSubjects, store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)), store.logs);
+                    const track = store.profile?.track || 'SAY';
+                    const wp = calcWorkloadRemaining(store.tytSubjects, store.aytSubjects.filter(s => getAytSubjectsForTrack(track).includes(s.subject)), store.logs);
                     return (
                       <div className="w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-3 shadow-md">
                         <div className="flex justify-between items-center mb-2">
@@ -1385,7 +1386,7 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
         {Object.entries(grouped).map(([province, cities]: [string, any]) => {
           const masteredCount = cities.filter((c: any) => c.status === 'mastered').length;
           const inProgressCount = cities.filter((c: any) => c.status === 'in-progress').length;
-          const totalCount = cities.length;
+          const totalCount = cities.length || 1;
           const progressPercent = Math.round((masteredCount / totalCount) * 100);
 
           return (

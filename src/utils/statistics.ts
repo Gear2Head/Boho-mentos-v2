@@ -47,18 +47,18 @@ export function linearRegression(points: { x: number; y: number }[]): Regression
   if (points.length < 2) return { slope: 0, intercept: points[0]?.y ?? 0 };
 
   const n = points.length;
-  const sumX = points.reduce((acc, p) => acc + p.x, 0);
-  const sumY = points.reduce((acc, p) => acc + p.y, 0);
-  const sumXY = points.reduce((acc, p) => acc + p.x * p.y, 0);
-  const sumX2 = points.reduce((acc, p) => acc + p.x * p.x, 0);
+  const sumX = points.reduce((acc, p) => acc + (p.x || 0), 0);
+  const sumY = points.reduce((acc, p) => acc + (p.y || 0), 0);
+  const sumXY = points.reduce((acc, p) => acc + (p.x || 0) * (p.y || 0), 0);
+  const sumX2 = points.reduce((acc, p) => acc + (p.x || 0) * (p.x || 0), 0);
 
   const denominator = n * sumX2 - sumX * sumX;
-  if (denominator === 0) return { slope: 0, intercept: sumY / n };
+  if (Math.abs(denominator) < 0.0001) return { slope: 0, intercept: sumY / n };
 
   const slope = (n * sumXY - sumX * sumY) / denominator;
   const intercept = (sumY - slope * sumX) / n;
 
-  return { slope, intercept };
+  return { slope: slope || 0, intercept: intercept || 0 };
 }
 
 export function predictNetAtDate(
@@ -69,29 +69,34 @@ export function predictNetAtDate(
   const filtered = examType ? exams.filter(e => e.type === examType) : exams;
   const MIN_EXAMS = 3;
 
-  if (filtered.length < MIN_EXAMS) {
-    return { predictedNet: 0, hasEnoughData: false, dataPoints: filtered.length };
+  if (!filtered || filtered.length < MIN_EXAMS) {
+    return { predictedNet: 0, hasEnoughData: false, dataPoints: (filtered?.length || 0) };
   }
 
-  const baseDate = new Date(filtered[0].date).getTime();
+  const firstDate = new Date(filtered[0].date).getTime();
+  if (!Number.isFinite(firstDate)) return { predictedNet: 0, hasEnoughData: false, dataPoints: filtered.length };
+
   const points = filtered.map(e => ({
-    x: (new Date(e.date).getTime() - baseDate) / (1000 * 60 * 60 * 24),
-    y: e.totalNet,
-  }));
+    x: (new Date(e.date).getTime() - firstDate) / (1000 * 60 * 60 * 24),
+    y: e.totalNet || 0,
+  })).filter(p => Number.isFinite(p.x));
+
+  if (points.length < 2) return { predictedNet: 0, hasEnoughData: false, dataPoints: filtered.length };
 
   const { slope, intercept } = linearRegression(points);
-  const targetDays = (targetDate.getTime() - baseDate) / (1000 * 60 * 60 * 24);
+  const targetDays = (targetDate.getTime() - firstDate) / (1000 * 60 * 60 * 24);
   const predictedNet = Math.max(0, slope * targetDays + intercept);
 
   return { predictedNet: Math.round(predictedNet * 10) / 10, hasEnoughData: true, dataPoints: filtered.length };
 }
 
 export function predictTYTAndAYT(
-  exams: ExamResult[],
+  exams: ExamResult[] | undefined,
   targetDate: Date
 ): { tyt: ProjectionResult; ayt: ProjectionResult } {
-  const tytExams = exams.filter(e => e.type === 'TYT').slice(-5);
-  const aytExams = exams.filter(e => e.type === 'AYT').slice(-3);
+  const safeExams = exams || [];
+  const tytExams = safeExams.filter(e => e.type === 'TYT').slice(-5);
+  const aytExams = safeExams.filter(e => e.type === 'AYT').slice(-3);
 
   return {
     tyt: predictNetAtDate(tytExams, targetDate, 'TYT'),
