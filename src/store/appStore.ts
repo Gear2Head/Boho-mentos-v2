@@ -10,7 +10,7 @@ import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
-  HabitAlert, WarRoomMode, WarRoomSession, AuthUser, AtlasProgram
+  HabitAlert, WarRoomMode, WarRoomSession, AuthUser, AtlasProgram, AppNotification
 } from '../types';
 
 export interface QASession {
@@ -78,6 +78,17 @@ interface AppState {
   activeAlerts: HabitAlert[];
   qaSession: QASession | null;
   drawingMode: 'pointer' | 'pen' | 'eraser';
+  
+  // [SYNC-FIX]: Senkronizasyon durumu
+  isSyncing: boolean;
+  lastLocalUpdateAt: string;
+  setSyncing: (isSyncing: boolean) => void;
+
+  // [NOTIF]: Bildirim merkezi
+  notifications: AppNotification[];
+  addNotification: (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
+  markNotificationAsRead: (id: string) => void;
+  clearNotifications: () => void;
 
   setProfile: (profile: StudentProfile | null) => void;
   updateTytSubject: (index: number, updates: Partial<SubjectStatus>) => void;
@@ -188,6 +199,9 @@ const INITIAL_STATE = {
   warRoomEliminated: {},
   warRoomTimeLeft: 0,
   authUser: null,
+  isSyncing: false,
+  lastLocalUpdateAt: new Date().toISOString(),
+  notifications: [],
 };
 
 function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
@@ -578,6 +592,25 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
           targetGoals: (state.profile.targetGoals || []).filter(g => g.id !== id)
         } : null
       })),
+
+      setSyncing: (isSyncing) => set({ isSyncing }),
+      
+      addNotification: (notif) => set((state) => {
+        const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        const newNotif: AppNotification = {
+          ...notif,
+          id,
+          timestamp: new Date().toISOString(),
+          read: false
+        };
+        return { notifications: [newNotif, ...state.notifications].slice(0, 50) };
+      }),
+
+      markNotificationAsRead: (id) => set((state) => ({
+        notifications: state.notifications.map(n => n.id === id ? { ...n, read: true } : n)
+      })),
+
+      clearNotifications: () => set({ notifications: [] }),
     }),
     {
       name: 'yks_coach_storage',

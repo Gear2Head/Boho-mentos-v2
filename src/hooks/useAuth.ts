@@ -85,7 +85,11 @@ export function useAuth() {
           { includeMetadataChanges: true },
           (docSnap) => {
             if (!docSnap.exists()) return;
-            if (docSnap.metadata.hasPendingWrites) return;
+            
+            // [SYNC-FIX]: Eğer yerelde bir yazma işlemi bekliyorsa veya Firestore SDK içinden bir yazma geliyorsa
+            // gelen bulut verisini (eski olabilir) uygulama.
+            const { isSyncing } = useAppStore.getState();
+            if (isSyncing || docSnap.metadata.hasPendingWrites) return;
 
             const rtData = docSnap.data() as Partial<FirestoreUserData>;
             const partial: Partial<FirestoreUserData> = {};

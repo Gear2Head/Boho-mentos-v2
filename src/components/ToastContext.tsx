@@ -277,25 +277,32 @@ function ToastItem({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 48, scale: 0.95 }}
+      initial={{ opacity: 0, x: 100, scale: 0.9 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 48, scale: 0.9 }}
-      transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+      exit={{ opacity: 0, x: 100, scale: 0.9 }}
+      transition={{ type: 'spring', damping: 20, stiffness: 350 }}
       className={`
-        pointer-events-auto flex items-start gap-3 px-4 py-3
-        rounded-2xl border backdrop-blur-xl shadow-xl
-        min-w-[260px] max-w-[360px]
+        pointer-events-auto flex items-center gap-4 px-5 py-4
+        rounded-[1.25rem] border backdrop-blur-2xl shadow-2xl
+        min-w-[300px] max-w-[420px] relative overflow-hidden group
         ${cfg.bg} ${cfg.border}
       `}
       role="alert"
     >
-      <span className={`mt-0.5 shrink-0 ${cfg.text}`}>{cfg.icon}</span>
-      <p className={`flex-1 text-sm font-mono leading-relaxed ${cfg.text}`}>
+      {/* Accent Glow */}
+      <div className={`absolute top-0 left-0 w-1 h-full ${cfg.text.replace('text-', 'bg-')}`} />
+      
+      <div className={`shrink-0 p-2 rounded-xl bg-white/5 border border-white/10 ${cfg.text}`}>
+        {cfg.icon}
+      </div>
+      
+      <p className={`flex-1 text-xs font-bold uppercase tracking-tight leading-relaxed ${cfg.text}`}>
         {toast.message}
       </p>
+
       <button
         onClick={() => onRemove(toast.id)}
-        className="shrink-0 opacity-50 hover:opacity-100 transition-opacity mt-0.5"
+        className="shrink-0 p-1 hover:bg-white/10 rounded-lg transition-colors opacity-40 group-hover:opacity-100"
         aria-label="Kapat"
       >
         <X size={14} className={cfg.text} />

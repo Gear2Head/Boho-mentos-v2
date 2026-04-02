@@ -28,6 +28,17 @@ export interface StudentProfile {
   yokAtlasNet?: number;
   avatar?: string;
   targetGoals?: AtlasProgram[];
+  lastSyncAt?: string; // [SYNC-FIX]: Son başarılı eşitleme zamanı
+}
+
+export interface AppNotification {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info' | 'achievement';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  link?: string;
 }
 
 export interface AtlasProgram {

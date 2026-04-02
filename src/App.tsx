@@ -6,7 +6,8 @@ import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2, LogOut
+  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2, LogOut,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -17,6 +18,8 @@ import { useAppStore } from './store/appStore';
 import type {
   StudentProfile, DailyLog, ExamResult, FailedQuestion
 } from './types';
+
+import { NotificationCenter } from './components/NotificationCenter';
 
 import { FocusSidePanel } from './components/FocusSidePanel';
 import { EloRankCard } from './components/EloRankCard';
@@ -281,6 +284,9 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobil Navigasyon Menüsü
   const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi
   const [selectedExam, setSelectedExam] = useState<any>(null);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const unreadCount = store.notifications.filter(n => !n.read).length;
+  const isSyncing = store.isSyncing;
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // --- SYSTEM STATE & BROADCAST ---
@@ -427,9 +433,21 @@ export default function App() {
       'qaSession', 'drawingMode', 'authUser', 'isDevMode',
     ]);
 
-    const unsubscribe = useAppStore.subscribe((state) => {
+    const unsubscribe = useAppStore.subscribe((state, prevState) => {
       const uid = state.authUser?.uid;
       if (!uid) return;
+
+      // Sadece senkronize edilecek alanlar değiştiyse tetikle
+      const hasMeaningfulChange = Object.keys(state).some(k => 
+        !EXCLUDED.has(k) && 
+        typeof (state as any)[k] !== 'function' && 
+        (state as any)[k] !== (prevState as any)[k]
+      );
+
+      if (!hasMeaningfulChange) return;
+
+      // [SYNC-FIX]: Senkronizasyon başladı
+      if (!state.isSyncing) store.setSyncing(true);
 
       const payload: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(state)) {
@@ -438,7 +456,14 @@ export default function App() {
         }
       }
 
-      debouncedPush(uid, payload, 2000);
+      debouncedPush(uid, payload, () => {
+        store.setSyncing(false);
+        store.addNotification({
+          type: 'success',
+          title: 'Veriler Güvende',
+          message: 'Tüm ilerlemen bulutla senkronize edildi.'
+        });
+      }, 2500);
     });
 
     return () => unsubscribe();
@@ -585,6 +610,12 @@ export default function App() {
           <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+             <button onClick={() => setIsNotifOpen(true)} className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative">
+                <Bell size={20} />
+                {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#C17767] rounded-full border-2 border-[#121212] animate-pulse shadow-[0_0_8px_#C17767]" />}
+             </button>
+          </div>
           <ThemeToggle />
           <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
              {store.profile.avatar
@@ -603,7 +634,20 @@ export default function App() {
             </div>
             <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
           </div>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 mt-1 text-ink-muted">YKS Mentörlük v5</p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
+            <div className="relative">
+              <button 
+                onClick={() => setIsNotifOpen(true)} 
+                className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
+              >
+                <Bell size={16} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-[#C17767] rounded-full border border-[#121212] shadow-[0_0_8px_#C17767]" />
+                )}
+              </button>
+            </div>
+          </div>
           {store.isPassiveMode && (
             <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
@@ -1232,6 +1276,7 @@ export default function App() {
         onNavigate={setActiveTab}
         onSignOut={signOut}
       />
+      <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
       </div>
       </MobileGuard>
     </ToastProvider>
@@ -1317,6 +1362,7 @@ const ProfileField = ({ label, value }: any) => <div><p className="text-[10px] u
 
 // --- GİZLİ ADMİN PANELİ ---
 const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
+  const isSyncing = useAppStore(state => state.isSyncing);
   const grouped = subjects.reduce((acc: any, sub: any, idx: number) => {
     if (!acc[sub.subject]) acc[sub.subject] = [];
     acc[sub.subject].push({ ...sub, originalIndex: idx });
@@ -1324,7 +1370,13 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
   }, {});
 
   return (
-    <div className="space-y-8">
+    <div className={`space-y-8 relative ${isSyncing ? 'pointer-events-none opacity-50' : ''}`}>
+      {isSyncing && (
+        <div className="absolute top-0 right-0 z-50 flex items-center gap-2 bg-[#C17767]/20 text-[#C17767] border border-[#C17767]/30 px-4 py-2 rounded-xl backdrop-blur-md animate-pulse">
+           <Loader2 size={12} className="animate-spin" />
+           <span className="text-[10px] font-bold uppercase tracking-widest">Senkronize Ediliyor...</span>
+        </div>
+      )}
       <div className="flex items-center gap-4 mb-6">
         <h3 className="font-display italic text-2xl text-[#C17767] tracking-wide">{title}</h3>
         <div className="flex-1 h-px bg-zinc-800"></div>

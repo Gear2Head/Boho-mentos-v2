@@ -46,10 +46,13 @@ const EXCLUDED_KEYS = new Set([
   'subjectViewMode',
 ]);
 
-export async function pushToFirestore(uid: string, data: Partial<FirestoreUserData>): Promise<void> {
+export async function pushToFirestore(uid: string, data: Partial<FirestoreUserData>, onComplete?: () => void): Promise<void> {
   try {
     const userRef = doc(db, 'users', uid);
-    const payload: Record<string, unknown> = { updatedAt: serverTimestamp() };
+    const payload: Record<string, unknown> = { 
+      updatedAt: serverTimestamp(),
+      lastSyncAt: new Date().toISOString()
+    };
 
     for (const [key, value] of Object.entries(data)) {
       if (EXCLUDED_KEYS.has(key)) continue;
@@ -65,6 +68,7 @@ export async function pushToFirestore(uid: string, data: Partial<FirestoreUserDa
     }
 
     await setDoc(userRef, payload, { merge: true });
+    if (onComplete) onComplete();
   } catch (err) {
     console.warn('[Firestore] Push failed:', err);
   }
@@ -105,10 +109,10 @@ export async function pullFromFirestore(uid: string): Promise<FirestoreUserData 
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function debouncedPush(uid: string, data: Partial<FirestoreUserData>, delayMs = 2000): void {
+export function debouncedPush(uid: string, data: Partial<FirestoreUserData>, onComplete?: () => void, delayMs = 2500): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    pushToFirestore(uid, data);
+    pushToFirestore(uid, data, onComplete);
     debounceTimer = null;
   }, delayMs);
 }
