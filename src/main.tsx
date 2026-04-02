@@ -30,6 +30,31 @@ if (typeof window !== 'undefined') {
   }
 }
 
+// --- ACIL SIFIRLAMA FONKSIYONU (CACHE/SW) ---
+const hardReset = async () => {
+  if (typeof window === 'undefined') return;
+  
+  // 1. Service Worker'ları temizle
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (const reg of registrations) {
+      await reg.unregister();
+    }
+  }
+
+  // 2. Browser Cache'i temizle
+  if ('caches' in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  }
+
+  // 3. LocalStorage reset bayrağı (opsiyonel ama güvenli)
+  localStorage.setItem('boho_app_emergency_reset_v2', 'true');
+  
+  // 4. Sert Yenileme
+  window.location.reload();
+};
+
 interface ErrorBoundaryProps {
   children: ReactNode;
 }
@@ -39,10 +64,14 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = {
+    hasError: false
+  };
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
   }
+
   static getDerivedStateFromError() {
     return { hasError: true };
   }
@@ -53,9 +82,14 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     if (this.state.hasError) {
       return (
         <div className="fixed inset-0 bg-[#0A0A0A] flex flex-col items-center justify-center p-8 text-center">
-          <h1 className="text-4xl font-serif italic text-red-500 mb-4">SİSTEM KRİZİ</h1>
-          <p className="text-zinc-400 font-mono text-sm max-w-md">Kritik bir modül (muhtemelen Grafik) çöktü. Panik yapma, Kübra bu durumu logladı.</p>
-          <button onClick={() => window.location.reload()} className="mt-8 px-6 py-3 bg-[#C17767] text-white rounded-xl font-bold uppercase tracking-widest text-xs">YENİDEN BAŞLAT</button>
+          <h1 className="text-4xl font-serif italic text-red-500 mb-4 animate-pulse">SİSTEM KRİZİ</h1>
+          <p className="text-zinc-400 font-mono text-sm max-w-md">Kritik bir modül çöktü. Tarayıcı önbelleği veya veri uyuşmazlığı olabilir. Kübra durumu logladı, sistemi tamamen sıfırlayıp en güncel haliyle başlatabilirsin.</p>
+          <button 
+            onClick={() => hardReset()} 
+            className="mt-8 px-8 py-4 bg-[#C17767] text-white rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-[#A56253] transition-all shadow-lg shadow-[#C17767]/20"
+          >
+            SİSTEMİ SERT SIFIRLA & YENİDEN BAŞLAT
+          </button>
         </div>
       );
     }

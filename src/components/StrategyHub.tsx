@@ -64,9 +64,11 @@ export function StrategyHub() {
     });
 
     // Tahmin çizgisi
-    if (projection.tyt.hasEnoughData) {
+    if (projection.tyt.hasEnoughData && tytExams.length > 0) {
       const lastGercek = tytExams[tytExams.length - 1].totalNet;
-      data[data.length - 1].tahmin = lastGercek; // Bağlantı noktası
+      if (data.length > 0) {
+        data[data.length - 1].tahmin = lastGercek; // Bağlantı noktası
+      }
       data.push({
         name: 'Sınav 2026',
         gercek: null,
