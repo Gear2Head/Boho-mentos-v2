@@ -278,8 +278,6 @@ export default function App() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => { setIsMounted(true); }, []);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
   const [isTyping, setIsTyping] = useState(false);
