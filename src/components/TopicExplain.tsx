@@ -58,7 +58,7 @@ export function TopicExplain() {
     <div className="p-8 max-w-5xl mx-auto">
       <header className="mb-10 border-b border-[#EAE6DF] dark:border-zinc-800 pb-6">
         <h2 className="font-display italic text-4xl text-[#4A443C] dark:text-zinc-200 mb-2">Konu Anlatım</h2>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] font-bold font-mono">Gear_Head. — ANLA MODU</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] font-bold font-mono">Kübra. — ANLA MODU</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

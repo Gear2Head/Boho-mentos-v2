@@ -30,7 +30,7 @@ export function StrategyHub() {
   const [weeklyPlan, setWeeklyPlan] = useState<string | null>(null);
   const [sprintPlan, setSprintPlan] = useState<string | null>(null);
   const [warRoomPlan, setWarRoomPlan] = useState<string | null>(null);
-  
+
   const [isLoadingWeekly, setIsLoadingWeekly] = useState(false);
   const [isLoadingSprint, setIsLoadingSprint] = useState(false);
   const [isLoadingWarRoom, setIsLoadingWarRoom] = useState(false);
@@ -53,7 +53,7 @@ export function StrategyHub() {
   const projectionChartData = useMemo(() => {
     const data = [];
     const tytExams = store.exams.filter(e => e.type === 'TYT').slice(-5);
-    
+
     // Mevcut veri
     tytExams.forEach((e, i) => {
       data.push({
@@ -82,7 +82,7 @@ export function StrategyHub() {
   const buildBaseContext = () => {
     const recentLogs = store.logs.slice(-7);
     const logSummary = recentLogs.length > 0
-      ? recentLogs.map(l => `${l.subject}/${l.topic}: ${l.questions}S %${Math.round((l.correct/(l.questions||1))*100)} başarı ${l.avgTime}dk`).join(' | ')
+      ? recentLogs.map(l => `${l.subject}/${l.topic}: ${l.questions}S %${Math.round((l.correct / (l.questions || 1)) * 100)} başarı ${l.avgTime}dk`).join(' | ')
       : 'Log yok';
 
     const inProgressTyt = store.tytSubjects.filter(s => s.status === 'in-progress').map(s => `${s.subject}-${s.name}`);
@@ -181,9 +181,9 @@ Son denemeler: ${recentExams || 'Yok'}`;
 
     const currentNet = lastExam.totalNet;
     // Hedef üniversite ve bölüm eşleşmesini bul
-    const candidates = YOK_ATLAS_DATA.filter(p => 
-      (p.university.toLowerCase().includes(profile.targetUniversity.toLowerCase()) && 
-       p.major.toLowerCase().includes(profile.targetMajor.toLowerCase()))
+    const candidates = YOK_ATLAS_DATA.filter(p =>
+    (p.university.toLowerCase().includes(profile.targetUniversity.toLowerCase()) &&
+      p.major.toLowerCase().includes(profile.targetMajor.toLowerCase()))
     );
 
     const pool = candidates.length > 0 ? candidates : YOK_ATLAS_DATA.filter(p => p.track === profile.track);
@@ -191,10 +191,10 @@ Son denemeler: ${recentExams || 'Yok'}`;
       .slice()
       .sort((a, b) => Math.abs(a.lastEntrantNet - currentNet) - Math.abs(b.lastEntrantNet - currentNet))[0];
 
-    if(!next) return null;
+    if (!next) return null;
     const diff = Number((next.lastEntrantNet - currentNet).toFixed(2));
     const diffText = diff >= 0 ? `${diff} net gerisindesin` : `${Math.abs(diff)} net önündesin`;
-    
+
     // Mart Referansı Analizi
     const marchDiff = Number((next.marchReferenceNet - currentNet).toFixed(2));
     const isAheadOfMarch = marchDiff < 0;
@@ -210,11 +210,11 @@ Son denemeler: ${recentExams || 'Yok'}`;
             {diffText}
           </div>
         </div>
-        
+
         <div className="p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800">
           <p className="text-xs text-zinc-400 leading-relaxed italic">
-            "Geçen yıl bu bölüme giren son kişi Mart ayında ortalama <strong className="text-zinc-200">{next.marchReferenceNet} net</strong> yapıyordu. 
-            Sen şu an {isAheadOfMarch ? <span className="text-green-500">onun {Math.abs(marchDiff)} net önündesin.</span> : <span className="text-amber-500">o seviyenin {marchDiff} net gerisindesin.</span>} 
+            "Geçen yıl bu bölüme giren son kişi Mart ayında ortalama <strong className="text-zinc-200">{next.marchReferenceNet} net</strong> yapıyordu.
+            Sen şu an {isAheadOfMarch ? <span className="text-green-500">onun {Math.abs(marchDiff)} net önündesin.</span> : <span className="text-amber-500">o seviyenin {marchDiff} net gerisindesin.</span>}
             Saldırıya devam et!"
           </p>
         </div>
@@ -240,7 +240,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 mt-2">
             <div className="bg-[#1A1A1A]/80 backdrop-blur-md border border-[#C17767]/30 rounded-2xl p-5 shadow-[0_0_20px_rgba(193,119,103,0.05)]">
               <div className="flex justify-between items-start mb-2">
-                <h4 className="text-[#C17767] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14}/> Sınav Günü Simülasyonu (TYT)</h4>
+                <h4 className="text-[#C17767] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (TYT)</h4>
                 <span className="text-zinc-500 text-[10px] uppercase">{daysRemaining} Gün Kaldı</span>
               </div>
               <p className="text-zinc-300 text-sm leading-relaxed italic border-l-2 border-[#C17767]/50 pl-3">
@@ -249,7 +249,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
             </div>
             <div className="bg-[#1A1A1A]/80 backdrop-blur-md border border-[#E09F3E]/30 rounded-2xl p-5 shadow-[0_0_20px_rgba(224,159,62,0.05)]">
               <div className="flex justify-between items-start mb-2">
-                <h4 className="text-[#E09F3E] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14}/> Sınav Günü Simülasyonu (AYT)</h4>
+                <h4 className="text-[#E09F3E] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (AYT)</h4>
                 <span className="text-zinc-500 text-[10px] uppercase">{daysRemaining} Gün Kaldı</span>
               </div>
               <p className="text-zinc-300 text-sm leading-relaxed italic border-l-2 border-[#E09F3E]/50 pl-3">
@@ -257,36 +257,36 @@ Son denemeler: ${recentExams || 'Yok'}`;
               </p>
             </div>
           </div>
-          
+
           {projection.tyt.hasEnoughData ? (
             <div className="mt-6 w-full h-64">
               <div style={{ width: '100%', height: '100%', minHeight: '256px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
-                  <XAxis dataKey="name" stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
-                  <YAxis stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#2A2A2A', borderRadius: '8px' }}
-                    itemStyle={{ fontSize: 12, fontWeight: 'bold' }}
-                    labelStyle={{ fontSize: 10, color: '#888' }}
-                  />
-                  {store.profile?.tytTarget && <ReferenceLine y={store.profile.tytTarget} stroke="#C17767" strokeDasharray="3 3" />}
-                  <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
-                  <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
-                </LineChart>
-              </ResponsiveContainer>
-              <div className="mt-4 flex justify-between items-center text-xs">
-                 <span className="text-zinc-500">Hesaplanan sapma (Regresyon bazlı)</span>
-                 <span className="font-bold text-green-500 uppercase tracking-widest">{projection.tyt.predictedNet} NET BEKLENTİSİ</span>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
+                    <XAxis dataKey="name" stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
+                    <YAxis stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#2A2A2A', borderRadius: '8px' }}
+                      itemStyle={{ fontSize: 12, fontWeight: 'bold' }}
+                      labelStyle={{ fontSize: 10, color: '#888' }}
+                    />
+                    {store.profile?.tytTarget && <ReferenceLine y={store.profile.tytTarget} stroke="#C17767" strokeDasharray="3 3" />}
+                    <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
+                    <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+                <div className="mt-4 flex justify-between items-center text-xs">
+                  <span className="text-zinc-500">Hesaplanan sapma (Regresyon bazlı)</span>
+                  <span className="font-bold text-green-500 uppercase tracking-widest">{projection.tyt.predictedNet} NET BEKLENTİSİ</span>
+                </div>
               </div>
-            </div>
             </div>
           ) : (
             <div className="h-40 flex flex-col items-center justify-center text-zinc-600">
-               <TrendingUp size={32} className="opacity-20 mb-2" />
-               <p className="text-xs uppercase tracking-widest font-bold">YETERLİ VERİ YOK</p>
-               <p className="text-[10px] mt-1 opacity-60">Tahmin için en az 3 TYT denemesi girmelisin.</p>
+              <TrendingUp size={32} className="opacity-20 mb-2" />
+              <p className="text-xs uppercase tracking-widest font-bold">YETERLİ VERİ YOK</p>
+              <p className="text-[10px] mt-1 opacity-60">Tahmin için en az 3 TYT denemesi girmelisin.</p>
             </div>
           )}
         </div>
@@ -382,7 +382,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
             </button>
           </div>
           <div className="p-6 min-h-48">
-            {isLoadingWeekly && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50"><Loader2 size={24} className="animate-spin text-[#C17767]" /><p className="text-xs uppercase tracking-widest text-zinc-500">Gear_Head. hesaplıyor...</p></div>}
+            {isLoadingWeekly && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50"><Loader2 size={24} className="animate-spin text-[#C17767]" /><p className="text-xs uppercase tracking-widest text-zinc-500">Kübra. hesaplıyor...</p></div>}
             {!isLoadingWeekly && !weeklyPlan && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30"><Target size={32} className="text-zinc-600" /><p className="text-xs uppercase tracking-widest text-zinc-600">Plan henüz oluşturulmadı</p></div>}
             {weeklyPlan && !isLoadingWeekly && <ReactMarkdown components={markdownComponents}>{weeklyPlan}</ReactMarkdown>}
           </div>
@@ -407,7 +407,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
             {sprintPlan && !isLoadingSprint && <ReactMarkdown components={markdownComponents}>{sprintPlan}</ReactMarkdown>}
           </div>
         </div>
-        
+
         {/* WAR ROOM / ANLA KARTI */}
         <div className="bg-[#121212] border border-red-900/30 rounded-2xl overflow-hidden shadow-[0_0_15px_rgba(239,68,68,0.05)]">
           <div className="p-6 border-b border-red-900/40 flex items-center justify-between">
@@ -420,9 +420,9 @@ Son denemeler: ${recentExams || 'Yok'}`;
                 <p className="text-[10px] uppercase tracking-widest text-zinc-500 mt-0.5">Mezarlık & Log Analizi</p>
               </div>
             </div>
-            <button 
-              onClick={handleWarRoom} 
-              disabled={isLoadingWarRoom} 
+            <button
+              onClick={handleWarRoom}
+              disabled={isLoadingWarRoom}
               className="flex items-center gap-2 px-4 py-2 bg-red-900/10 text-red-500 border border-red-900/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-900/30 hover:text-white transition-all disabled:opacity-40"
             >
               {isLoadingWarRoom ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />} {warRoomPlan ? 'Yenile' : 'ANLA'}
@@ -432,7 +432,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
             {isLoadingWarRoom && (
               <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50">
                 <Loader2 size={24} className="animate-spin text-red-500" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Gear_Head analiz ediyor...</p>
+                <p className="text-xs uppercase tracking-widest text-zinc-500">Kübra analiz ediyor...</p>
               </div>
             )}
             {!isLoadingWarRoom && !warRoomPlan && (
@@ -443,7 +443,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
             )}
             {warRoomPlan && !isLoadingWarRoom && (
               <div className="border-l-2 border-red-500/50 pl-3">
-                 <ReactMarkdown components={markdownComponents}>{warRoomPlan}</ReactMarkdown>
+                <ReactMarkdown components={markdownComponents}>{warRoomPlan}</ReactMarkdown>
               </div>
             )}
           </div>

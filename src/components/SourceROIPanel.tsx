@@ -15,7 +15,7 @@ export function SourceROIPanel() {
   return (
     <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm relative overflow-hidden">
       <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-[#E09F3E]/5 to-transparent rounded-bl-full pointer-events-none" />
-      
+
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-[#E09F3E]/10 rounded-xl text-[#E09F3E]">
@@ -37,7 +37,7 @@ export function SourceROIPanel() {
       ) : (
         <div className="space-y-4">
           {roiData.map((source, index) => (
-            <div 
+            <div
               key={source.sourceName}
               className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-5 hover:border-[#E09F3E]/40 transition-all group"
             >
@@ -82,10 +82,10 @@ export function SourceROIPanel() {
 
           <div className="mt-8 p-4 bg-[#E09F3E]/5 border border-[#E09F3E]/20 rounded-2xl">
             <p className="text-[10px] text-[#E09F3E] uppercase font-bold tracking-widest mb-2 flex items-center gap-2">
-              <Target size={12} /> Gear_Head Stratejİ Tavsİyesİ
+              <Target size={12} /> Kübra Stratejİ Tavsİyesİ
             </p>
             <p className="text-xs italic text-zinc-400 leading-relaxed">
-              ROI skoru <strong className="text-red-400">40'ın altında</strong> olan kaynaklar ya senin için çok zor ya da çözüm süreleri çok uzun. 
+              ROI skoru <strong className="text-red-400">40'ın altında</strong> olan kaynaklar ya senin için çok zor ya da çözüm süreleri çok uzun.
               Bu kaynakları bir süreliğine rafa kaldırıp %70+ doğruluk yakaladığın kaynaklara odaklanarak "Net Ivmesi" oluşturmalısın.
             </p>
           </div>

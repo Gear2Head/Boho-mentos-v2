@@ -11,14 +11,14 @@ interface OpenAIMessage {
 async function safeFetch(url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
   try {
     const response = await fetch(url, options);
-    
+
     // Rate limit (429) veya Server Error (5xx) durumunda retry yap
     if ((response.status === 429 || response.status >= 500) && retries > 0) {
       console.warn(`AI API hatası (${response.status}). ${backoff}ms sonra tekrar deneniyor... Kalan deneme: ${retries}`);
       await new Promise(resolve => setTimeout(resolve, backoff));
       return safeFetch(url, options, retries - 1, backoff * 2);
     }
-    
+
     return response;
   } catch (err) {
     if (retries > 0) {
@@ -33,10 +33,10 @@ export async function getCoachResponse(
   userMessage: string,
   context: string,
   chatHistory: { role: "user" | "coach"; content: string }[] = [],
-  options?: { 
-    action?: "coach" | "qa_mode"; 
-    coachPersonality?: string; 
-    forceJson?: boolean; 
+  options?: {
+    action?: "coach" | "qa_mode";
+    coachPersonality?: string;
+    forceJson?: boolean;
     maxTokens?: number;
     userState?: any;
   }
@@ -70,13 +70,13 @@ export async function getCoachResponse(
     }
 
     const data = (await response.json()) as { text?: string; error?: string; debug?: any };
-    
+
     if (data.debug) {
-      console.warn("GEAR_HEAD DEBUG:", data.debug);
+      console.warn("Kübra DEBUG:", data.debug);
     }
 
     if (data.error === "RATE_LIMITED") {
-      return "Anlık limitlere takıldın. Gear_Head biraz dinleniyor, 30 saniye sonra tekrar yazabilirsin.";
+      return "Anlık limitlere takıldın. Kübra biraz dinleniyor, 30 saniye sonra tekrar yazabilirsin.";
     }
 
     return data.text ?? "Yanıt oluşturulurken bir hata oluştu. Lütfen tekrar dene.";

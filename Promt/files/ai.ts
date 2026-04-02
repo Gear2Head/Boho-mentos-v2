@@ -16,19 +16,19 @@ type OpenAIMessage = { role: "system" | "user" | "assistant"; content: string };
 type CoachAction = "coach" | "qa_mode";
 type AiRequestBody =
   | {
-      action?: CoachAction;
-      userMessage: string;
-      context: string;
-      chatHistory?: ChatHistoryItem[];
-      coachPersonality?: string;
-      forceJson?: boolean;
-      maxTokens?: number;
-      userState?: any;
-    }
+    action?: CoachAction;
+    userMessage: string;
+    context: string;
+    chatHistory?: ChatHistoryItem[];
+    coachPersonality?: string;
+    forceJson?: boolean;
+    maxTokens?: number;
+    userState?: any;
+  }
   | {
-      action: "parseVoiceLog";
-      transcript: string;
-    };
+    action: "parseVoiceLog";
+    transcript: string;
+  };
 
 const GEMINI_MODEL = "gemini-2.0-flash";
 const GROQ_MODEL = "llama-3.1-8b-instant";
@@ -46,7 +46,7 @@ const buildSystemInstruction = (
   const base =
     action === "qa_mode"
       ? "YKS asistani: Kisa, net cevap ver."
-      : "Gear_Head koç: Sert, analitik, kisa konuş.";
+      : "Kübra koç: Sert, analitik, kisa konuş.";
   const stateStr = userState ? `\n[Veri: ${JSON.stringify(userState)}]` : "";
   return `${base}${stateStr}${coachPersonality ? `\n[Tarz: ${coachPersonality}]` : ""}`;
 };
@@ -137,9 +137,8 @@ async function getCoachResponseServer(
     body.action,
     body.userState
   );
-  const fullPrompt = `Mevcut Durum:\n${context}\n\nMesaj:\n${userMessage}${
-    forceJson ? "\n\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR." : ""
-  }`;
+  const fullPrompt = `Mevcut Durum:\n${context}\n\nMesaj:\n${userMessage}${forceJson ? "\n\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR." : ""
+    }`;
 
   const openAIMsgs: OpenAIMessage[] = [
     { role: "system", content: systemInstruction },
@@ -230,7 +229,7 @@ async function parseVoiceLogServer(transcript: string) {
     İstenen Veriler:
     - examType, subject, topic, questions, correct, wrong, empty, avgTime
     - emotion: { fatigue (0-10), stress (0-10), motivation (0-10) }
-    - coachAdvice: Gear_Head stilinde (sert, kisa, aksiyon odakli) 1 cümlelik tavsiye.
+    - coachAdvice: Kübra stilinde (sert, kisa, aksiyon odakli) 1 cümlelik tavsiye.
     Format: {examType, subject, topic, questions, correct, wrong, empty, avgTime, emotion, coachAdvice}`;
 
   for (const key of GEMINI_KEYS()) {

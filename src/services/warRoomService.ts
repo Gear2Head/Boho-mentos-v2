@@ -181,7 +181,7 @@ ZORUNLU ÇIKTI FORMATI (SADECE SAF JSON DİZİSİ):
   }
 ]
 
-ÖNEMLİ UYARI: JSON dışında hiçbir açıklama metni ekleme. JSON yapısı tam ve hatasız olmalı.
+ÖNEMLİ UYARI: JSON DIŞINDA HİÇBİR AÇIKLAMA METNİ EKLEME. ÇIKTI SADECE [ ] İLE BAŞLAMALI VE BİTMELİDİR.
 `.trim();
 
   try {
@@ -192,18 +192,36 @@ ZORUNLU ÇIKTI FORMATI (SADECE SAF JSON DİZİSİ):
       { forceJson: true, maxTokens: 3000, coachPersonality }
     );
 
-    // JSON array'i bul
-    const match = raw.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    if (!match) {
-      console.error('[WarRoom] AI geçerli JSON array döndürmedi');
+    // 4.1 JSON array'i ayıkla (Markdown kod bloklarını ve dış metinleri temizle)
+    let jsonStr = raw.trim();
+    
+    // Markdown bloğu varsa (```json veya ```) içeriği al
+    if (jsonStr.includes('```')) {
+      const parts = jsonStr.split('```');
+      // Eğer "json" ile başlayan bir blok varsa onu al, yoksa ilk bloğu al
+      const block = parts.find(p => p.startsWith('json')) || parts[1];
+      jsonStr = block.replace(/^json/, '').trim();
+    }
+
+    // JSON array başlangıç ve bitişini bul
+    const startIdx = jsonStr.indexOf('[');
+    const endIdx = jsonStr.lastIndexOf(']');
+    
+    if (startIdx === -1 || endIdx === -1) {
+      console.error('[WarRoom] JSON array bulunamadı, Raw:', raw.slice(0, 300));
       return [buildFallbackQuestion(examType, topic || '', difficulty)];
     }
 
+    jsonStr = jsonStr.substring(startIdx, endIdx + 1);
+
+    // [BUG-FIX] Trailing commas temizleme (AI'ların sık yaptığı bir hata)
+    jsonStr = jsonStr.replace(/,\s*\]/g, ']').replace(/,\s*\}/g, '}');
+
     let parsedData: unknown[];
     try {
-      parsedData = JSON.parse(match[0]);
+      parsedData = JSON.parse(jsonStr);
     } catch (parseErr) {
-      console.error('[WarRoom] JSON parse hatası', parseErr);
+      console.error('[WarRoom] JSON parse hatası, İşlenmiş String:', jsonStr, parseErr);
       return [buildFallbackQuestion(examType, topic || '', difficulty)];
     }
 

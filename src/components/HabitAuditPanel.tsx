@@ -16,14 +16,14 @@ export function HabitAuditPanel() {
   return (
     <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm overflow-hidden relative">
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#C17767]/5 to-transparent rounded-bl-full pointer-events-none" />
-      
+
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-[#C17767]/10 rounded-xl text-[#C17767]">
           <Zap size={20} />
         </div>
         <div>
           <h3 className="font-serif italic text-xl text-zinc-200">Alışkanlık Analizi (Habit Audit)</h3>
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Gear_Head Derin Analiz Modu</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Kübra Derin Analiz Modu</p>
         </div>
       </div>
 
@@ -40,19 +40,17 @@ export function HabitAuditPanel() {
       ) : (
         <div className="space-y-4">
           {alerts.map((alert) => (
-            <motion.div 
+            <motion.div
               key={alert.id}
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              className={`p-5 rounded-2xl border flex gap-4 ${
-                alert.severity === 'high' 
-                  ? 'bg-red-500/5 border-red-500/20 text-red-400' 
+              className={`p-5 rounded-2xl border flex gap-4 ${alert.severity === 'high'
+                  ? 'bg-red-500/5 border-red-500/20 text-red-400'
                   : 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400'
-              }`}
+                }`}
             >
-              <div className={`p-2 rounded-xl shrink-0 h-fit ${
-                alert.severity === 'high' ? 'bg-red-500/20' : 'bg-yellow-500/20'
-              }`}>
+              <div className={`p-2 rounded-xl shrink-0 h-fit ${alert.severity === 'high' ? 'bg-red-500/20' : 'bg-yellow-500/20'
+                }`}>
                 <AlertTriangle size={20} />
               </div>
               <div>

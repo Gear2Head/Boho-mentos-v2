@@ -26,16 +26,15 @@ export function WarRoomResultScreen() {
   return (
     <div className="flex-1 overflow-auto bg-app p-4 md:p-8">
       <div className="max-w-4xl mx-auto mt-12">
-        
+
         <header className="mb-12 text-center">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className={`inline-flex w-20 h-20 items-center justify-center rounded-3xl mb-6 shadow-2xl ${
-              res.accuracy > 70 ? 'bg-[#22C55E] shadow-[#22C55E]/20 text-white' 
-              : res.accuracy > 40 ? 'bg-[#E09F3E] shadow-[#E09F3E]/20 text-white'
-              : 'bg-[#EF4444] shadow-[#EF4444]/20 text-white'
-            }`}
+            className={`inline-flex w-20 h-20 items-center justify-center rounded-3xl mb-6 shadow-2xl ${res.accuracy > 70 ? 'bg-[#22C55E] shadow-[#22C55E]/20 text-white'
+                : res.accuracy > 40 ? 'bg-[#E09F3E] shadow-[#E09F3E]/20 text-white'
+                  : 'bg-[#EF4444] shadow-[#EF4444]/20 text-white'
+              }`}
           >
             {res.accuracy > 70 ? <Target size={40} /> : res.accuracy > 40 ? <Clock size={40} /> : <XCircle size={40} />}
           </motion.div>
@@ -59,8 +58,8 @@ export function WarRoomResultScreen() {
           <div className="bg-[#FFFFFF] dark:bg-[#121212] border border-[#EAE6DF] dark:border-[#2A2A2A] rounded-2xl p-6 text-center">
             <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em] mb-2">Özet</div>
             <div className="text-sm font-bold text-[#4A443C] dark:text-zinc-300 mt-2 flex justify-center gap-2">
-              <span className="text-[#22C55E]">{res.correct}D</span> • 
-              <span className="text-[#EF4444]">{res.wrong}Y</span> • 
+              <span className="text-[#22C55E]">{res.correct}D</span> •
+              <span className="text-[#EF4444]">{res.wrong}Y</span> •
               <span className="text-zinc-500">{res.empty}B</span>
             </div>
           </div>
@@ -72,12 +71,12 @@ export function WarRoomResultScreen() {
             <Target size={120} />
           </div>
           <h3 className="font-display italic text-2xl mb-4 text-[#C17767] flex items-center gap-3 relative z-10">
-            <Zap size={24} /> Gear_Head Analizi
+            <Zap size={24} /> Kübra Analizi
           </h3>
           <p className="text-sm leading-relaxed text-zinc-400 font-mono relative z-10">
-            {res.accuracy > 80 ? "Savaşta keskin nişancı gibiydin. Bu bölgede ustalaşmak üzeresin. Ancak gerçek düşman (ÖSYM) sadece kolay hedefleri seçmez, hazırlıklı ol." : 
-             res.accuracy > 40 ? "Cephe hattını korudun ama kayıplarımız var. Oyalayıcı şıklara ve zaman tuzaklarına düşmemen gerekiyor. Mezarlıktan ödevlerin çıkacak." : 
-             "Ağır kayıp. Konu eksiğin bariz şekilde ortada. Bu seviyeye tekrar saldırmadan önce karargaha (Özetlere) dön ve eksiklerini kapa."}
+            {res.accuracy > 80 ? "Savaşta keskin nişancı gibiydin. Bu bölgede ustalaşmak üzeresin. Ancak gerçek düşman (ÖSYM) sadece kolay hedefleri seçmez, hazırlıklı ol." :
+              res.accuracy > 40 ? "Cephe hattını korudun ama kayıplarımız var. Oyalayıcı şıklara ve zaman tuzaklarına düşmemen gerekiyor. Mezarlıktan ödevlerin çıkacak." :
+                "Ağır kayıp. Konu eksiğin bariz şekilde ortada. Bu seviyeye tekrar saldırmadan önce karargaha (Özetlere) dön ve eksiklerini kapa."}
           </p>
         </div>
 

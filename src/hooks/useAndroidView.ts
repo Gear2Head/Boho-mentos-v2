@@ -15,10 +15,10 @@ export function useAndroidView() {
 
     const setupNativeUI = async () => {
       try {
-        // Status Bar'ı koyu temaya sabitle (Gear_Head Elit Siyah)
+        // Status Bar'ı koyu temaya sabitle (Kübra Elit Siyah)
         await StatusBar.setStyle({ style: Style.Dark });
         await StatusBar.setBackgroundColor({ color: '#121212' });
-        
+
         // Android "Geri" tuşu yönetimi (Uygulamadan çıkışı engelle/onayla)
         App.addListener('backButton', ({ canGoBack }) => {
           if (!canGoBack) {

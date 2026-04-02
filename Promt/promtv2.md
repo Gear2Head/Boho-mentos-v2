@@ -38,7 +38,7 @@ Mobil:    [ikon]               ← ikon + yazı alt alta (flex-col), 10px font
 - `store.isDevMode` toggle → herkese açık
     - `+500 ELO hile` → Kaldırıldı
         - `isMorningBlockerEnabled` → herkese açık
-            - UID kontrolü ** YOK ** — herhangi bir kullanıcı`© 2026 Gear_Head Architecture`
+            - UID kontrolü ** YOK ** — herhangi bir kullanıcı`© 2026 Kübra Architecture`
   yazısına tıklayarak açabilir
 
     ** Güvenlik seviyesi: Sıfır.**

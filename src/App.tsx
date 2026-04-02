@@ -49,7 +49,7 @@ import { NavItem } from './components/NavItem';
 import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
-import { debouncedPush } from './services/firestoreSync';
+import { debouncedPush, pushToFirestore } from './services/firestoreSync';
 import { initOfflineSync } from './utils/syncQueue';
 import { useToast } from './contexts/ToastContext';
 import { subscribeToSystemConfig, SystemConfig } from './services/systemService';
@@ -271,8 +271,15 @@ export default function App() {
   const store = useAppStore();
   const { user, isLoading, signOut } = useAuth();
   const [isAuthSkipped, setIsAuthSkipped] = useState(false);
-  
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
   const [isTyping, setIsTyping] = useState(false);
@@ -297,7 +304,7 @@ export default function App() {
   useEffect(() => {
     return subscribeToSystemConfig((config) => {
       setSystemConfig(config);
-      
+
       // Yeni bir duyuru varsa ve daha önce gösterilmemişse göster
       if (config.globalAnnouncement && config.globalAnnouncement !== lastAnnouncementRef.current) {
         lastAnnouncementRef.current = config.globalAnnouncement;
@@ -500,11 +507,11 @@ export default function App() {
     e?.preventDefault();
     const userMsg = messageOverride || inputMessage;
     if (!userMsg.trim() || isTyping) return;
-    
+
     // YENİ: Q&A Tetikleyiciler
     const upperMsg = userMsg.trim().toUpperCase();
     const isQAStarter = ['PLAN', 'LOG', 'DENEME', 'ANLA', 'ANLAT'].includes(upperMsg);
-    
+
     if (!messageOverride) setInputMessage('');
 
     // Mevcut bir Q&A seansı var mı?
@@ -517,7 +524,7 @@ export default function App() {
       const compactProfile = store.profile ? `${store.profile.name}, Alan:${store.profile.track}, Hedef:${store.profile.targetUniversity}, TYT:${store.profile.tytTarget}, AYT:${store.profile.aytTarget}` : "Bilinmiyor";
       const logsCtx = summarizeLogs(store.logs.slice(-5));
       const examsCtx = store.exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|');
-      
+
       let context = `P:${compactProfile}\nLogs:${logsCtx}\nExams:${examsCtx}`;
       let action: "coach" | "qa_mode" = "coach";
 
@@ -525,7 +532,7 @@ export default function App() {
         // Yeni Q&A Başlat
         action = "qa_mode";
         context += `\nKOMUT: ${upperMsg} SEANSI BAŞLATILIYOR. İLK SORUYU SOR.`;
-        
+
         // Store'da seansı başlat (AI yanıtına göre güncellenecek ama şimdilik placeholder)
         store.setQaSession({
           scenario: upperMsg.includes('PLAN') ? 'plan' : upperMsg.includes('LOG') ? 'log' : upperMsg.includes('DENEME') ? 'exam' : 'topic',
@@ -539,9 +546,9 @@ export default function App() {
         action = "qa_mode";
         const qIdx = activeQA.currentQuestion;
         store.updateQaAnswer(qIdx, userMsg);
-        
+
         context += `\nQA_MODU: AKTİF. Senaryo: ${activeQA.scenario}. Cevaplanan Soru: ${qIdx}/${activeQA.totalQuestions}.`;
-        
+
         if (qIdx >= activeQA.totalQuestions) {
           context += `\nQA_DURUM: TÜM SORULAR CEVAPLANDI. ANALİZİ VE SONUÇ TABLOSUNU DÖNDÜR.`;
           store.setQaSession(null);
@@ -556,13 +563,13 @@ export default function App() {
         elo: store.eloScore,
         streak: store.streakDays,
         summary: `TYT %${Math.round((store.tytSubjects.filter(s => s.status === 'mastered').length / (store.tytSubjects.length || 1)) * 100)} bitti, AYT %${Math.round((store.aytSubjects.filter(s => s.status === 'mastered').length / (store.aytSubjects.length || 1)) * 100)} bitti.`,
-        lastLogs: store.logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct/(l.questions||1))*100)} başarı`),
+        lastLogs: store.logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct / (l.questions || 1)) * 100)} başarı`),
         lastExams: store.exams.slice(-1).map(e => `${e.type}: ${e.totalNet} net`),
         alerts: store.activeAlerts.length,
         target: store.profile?.targetUniversity
       };
 
-      const response = await getCoachResponse(userMsg, context, store.chatHistory, { 
+      const response = await getCoachResponse(userMsg, context, store.chatHistory, {
         coachPersonality: store.profile?.coachPersonality,
         action: action,
         userState
@@ -611,58 +618,58 @@ export default function App() {
     <MobileGuard className="h-[100dvh]">
       <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
 
-      <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-[#1F2A36] border border-white/10">
-            <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
-          </div>
-          <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => syncWithCloud()} 
-            disabled={isSyncing}
-            className={`p-2 rounded-lg transition-all ${isSyncing ? 'text-[#C17767] animate-spin' : 'text-zinc-400 hover:text-[#C17767]'}`}
-            title="Bulutla Eşitle"
-          >
-            <RefreshCcw size={20} className={isSyncing ? 'animate-spin' : ''} />
-          </button>
-          <div className="relative">
-             <button onClick={() => setIsNotifOpen(true)} className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative">
-                <Bell size={20} />
-                {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#C17767] rounded-full border-2 border-[#121212] animate-pulse shadow-[0_0_8px_#C17767]" />}
-             </button>
-          </div>
-          <ThemeToggle />
-          <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
-             {store.profile.avatar
-               ? <img src={store.profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />
-               : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
-             }
-          </div>
-        </div>
-      </header>
-
-      <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-lg md:shadow-none">
-        <div className="hidden md:block p-4 border-b border-app">
+        <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/20">
+            <div className="w-8 h-8 rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-[#1F2A36] border border-white/10">
               <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
             </div>
-            <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
+            <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
           </div>
-          <div className="flex items-center justify-between mt-1">
-            <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
-              <button 
-                onClick={() => syncWithCloud()} 
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => syncWithCloud()}
+              disabled={isSyncing}
+              className={`p-2 rounded-lg transition-all ${isSyncing ? 'text-[#C17767] animate-spin' : 'text-zinc-400 hover:text-[#C17767]'}`}
+              title="Bulutla Eşitle"
+            >
+              <RefreshCcw size={20} className={isSyncing ? 'animate-spin' : ''} />
+            </button>
+            <div className="relative">
+              <button onClick={() => setIsNotifOpen(true)} className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative">
+                <Bell size={20} />
+                {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#C17767] rounded-full border-2 border-[#121212] animate-pulse shadow-[0_0_8px_#C17767]" />}
+              </button>
+            </div>
+            <ThemeToggle />
+            <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
+              {store.profile.avatar
+                ? <img src={store.profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />
+                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
+              }
+            </div>
+          </div>
+        </header>
+
+        <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-lg md:shadow-none">
+          <div className="hidden md:block p-4 border-b border-app">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/20">
+                <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
+              </div>
+              <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
+              <button
+                onClick={() => syncWithCloud()}
                 disabled={isSyncing}
                 className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
                 title="Bulutla Eşitle"
               >
                 <RefreshCcw size={16} className={isSyncing ? 'animate-spin text-[#C17767]' : ''} />
               </button>
-              <button 
-                onClick={() => setIsNotifOpen(true)} 
+              <button
+                onClick={() => setIsNotifOpen(true)}
                 className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
               >
                 <Bell size={16} />
@@ -670,636 +677,676 @@ export default function App() {
                   <span className="absolute top-1 right-1 w-2 h-2 bg-[#C17767] rounded-full border border-[#121212] shadow-[0_0_8px_#C17767]" />
                 )}
               </button>
+            </div>
+            {store.isPassiveMode && (
+              <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span className="text-xs font-bold text-rose-600 dark:text-rose-400">PASİF MOD AKTİF</span>
+              </div>
+            )}
           </div>
-          {store.isPassiveMode && (
-            <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              <span className="text-xs font-bold text-rose-600 dark:text-rose-400">PASİF MOD AKTİF</span>
-            </div>
-          )}
-        </div>
-        {/* Desktop: Avatar Mini Profil Kartı */}
-        <div className="hidden md:block p-4 border-b border-app cursor-pointer group" onClick={() => setActiveTab('profile')}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-[#C17767]/30 shrink-0 group-hover:border-[#C17767]/70 transition-colors">
-              {store.profile.avatar
-                ? <img src={store.profile.avatar} alt={store.profile.name} className="w-full h-full object-cover" />
-                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full bg-surface" />
-              }
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{store.profile.name}</p>
-              <div className="flex items-center gap-1 mt-0.5">
-                 <p className="text-[9px] uppercase tracking-widest text-ink-muted truncate">{store.profile.track}</p>
-                 {user?.uid && (
-                   <span 
-                     title="Tıkla ve Tam UID Kopyala" 
-                     onClick={(e) => { 
-                       e.stopPropagation(); 
-                       navigator.clipboard.writeText(user.uid); 
-                       toast.success('Kullanıcı ID (UID) kopyalandı.'); 
-                     }}
-                     className="text-[8px] bg-zinc-200 dark:bg-zinc-800 text-zinc-500 hover:text-white hover:bg-[#C17767] px-1.5 py-0.5 rounded transition-colors"
-                   >
-                     #{user.uid.slice(0, 5)}
-                   </span>
-                 )}
+          {/* Desktop: Avatar Mini Profil Kartı */}
+          <div className="hidden md:block p-4 border-b border-app cursor-pointer group" onClick={() => setActiveTab('profile')}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-[#C17767]/30 shrink-0 group-hover:border-[#C17767]/70 transition-colors">
+                {store.profile.avatar
+                  ? <img src={store.profile.avatar} alt={store.profile.name} className="w-full h-full object-cover" />
+                  : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full bg-surface" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{store.profile.name}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <p className="text-[9px] uppercase tracking-widest text-ink-muted truncate">{store.profile.track}</p>
+                  {user?.uid && (
+                    <span
+                      title="Tıkla ve Tam UID Kopyala"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(user.uid);
+                        toast.success('Kullanıcı ID (UID) kopyalandı.');
+                      }}
+                      className="text-[8px] bg-zinc-200 dark:bg-zinc-800 text-zinc-500 hover:text-white hover:bg-[#C17767] px-1.5 py-0.5 rounded transition-colors"
+                    >
+                      #{user.uid.slice(0, 5)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
-          {NAV_ITEMS.map((item) => (
-             <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full md:mb-0.5`}>
-               <NavItem 
-                 icon={item.icon} 
-                 label={item.label} 
-                 active={activeTab === item.id} 
-                 onClick={() => setActiveTab(item.id)} 
-               />
-             </div>
-          ))}
-          {/* Mobil Menü (Daha fazla sekmesi) */}
-          <div className="md:hidden block w-full">
-             <NavItem icon={<Menu size={18} />} label="Daha Fazla" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
+          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
+            {NAV_ITEMS.map((item) => (
+              <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full md:mb-0.5`}>
+                <NavItem
+                  icon={item.icon}
+                  label={item.label}
+                  active={activeTab === item.id}
+                  onClick={() => setActiveTab(item.id)}
+                />
+              </div>
+            ))}
+            {/* Mobil Menü (Daha fazla sekmesi) */}
+            <div className="md:hidden block w-full">
+              <NavItem icon={<Menu size={18} />} label="Daha Fazla" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
+            </div>
           </div>
-        </div>
-        
-        {/* Nav Alt İşlemler */}
-        <div className="hidden md:flex flex-col border-t border-app">
-          {isSuperAdmin(user?.uid) && (
-            <div
-              className="p-4 text-[9px] uppercase tracking-[0.3em] text-[#C17767] opacity-60 hover:opacity-100 transition-opacity cursor-pointer font-bold text-center border-b border-app/50"
-              onClick={() => setIsAdminPanelOpen(true)}
+
+          {/* Nav Alt İşlemler */}
+          <div className="hidden md:flex flex-col border-t border-app">
+            {isSuperAdmin(user?.uid) && (
+              <div
+                className="p-4 text-[9px] uppercase tracking-[0.3em] text-[#C17767] opacity-60 hover:opacity-100 transition-opacity cursor-pointer font-bold text-center border-b border-app/50"
+                onClick={() => setIsAdminPanelOpen(true)}
+              >
+                ⬡ DEV CONSOLE
+              </div>
+            )}
+            <button
+              onClick={async () => { if (await confirmDialog('Çıkış yapmak istediğine emin misin?')) signOut(); }}
+              className="p-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all"
             >
-              ⬡ DEV CONSOLE
-            </div>
-          )}
-          <button 
-            onClick={async () => { if(await confirmDialog('Çıkış yapmak istediğine emin misin?')) signOut(); }}
-            className="p-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all"
-          >
-            <LogOut size={14} /> ÇIKIŞ YAP
-          </button>
-        </div>
-      </nav>
+              <LogOut size={14} /> ÇIKIŞ YAP
+            </button>
+          </div>
+        </nav>
 
-      <main className="flex-1 overflow-auto relative bg-app pb-24 md:pb-0 pt-0">
-        <AnimatePresence mode="wait">
-          {activeTab === 'dashboard' && (
-            <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-4 md:p-8 max-w-5xl mx-auto">
-              <header className="mb-12 flex flex-col md:flex-row md:justify-between items-start md:items-end gap-6">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h2 className="font-display italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {store.profile.name}</h2>
+        <main className="flex-1 overflow-auto relative bg-app pb-24 md:pb-0 pt-0">
+          <AnimatePresence mode="wait">
+            {activeTab === 'dashboard' && (
+              <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-4 md:p-8 max-w-5xl mx-auto">
+                <header className="mb-12 flex flex-col md:flex-row md:justify-between items-start md:items-end gap-6">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h2 className="font-display italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {store.profile.name}</h2>
+                    </div>
+                    <div className="flex gap-4 text-xs uppercase tracking-widest opacity-60 text-[#4A443C] dark:text-zinc-400">
+                      <span>TYT: {store.profile.tytTarget} Net</span><span>•</span><span>AYT: {store.profile.aytTarget} Net</span>
+                    </div>
                   </div>
-                  <div className="flex gap-4 text-xs uppercase tracking-widest opacity-60 text-[#4A443C] dark:text-zinc-400">
-                    <span>TYT: {store.profile.tytTarget} Net</span><span>•</span><span>AYT: {store.profile.aytTarget} Net</span>
-                  </div>
-                </div>
-                <div className="w-full md:w-auto flex flex-col items-end gap-4 scale-90 md:scale-100 origin-right">
-                  <MiniFlapClock targetDate={YKS_2026_TYT_DATE} />
+                  <div className="w-full md:w-auto flex flex-col items-end gap-4 scale-90 md:scale-100 origin-right">
+                    <MiniFlapClock targetDate={YKS_2026_TYT_DATE} />
 
-                  {(() => {
-                    const track = store.profile?.track || 'SAY';
-                    const wp = calcWorkloadRemaining(store.tytSubjects, store.aytSubjects.filter(s => getAytSubjectsForTrack(track).includes(s.subject)), store.logs);
-                    return (
-                      <div className="w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-3 shadow-md">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">MÜFREDAT YÜKÜ</span>
-                          <span className="text-xs font-mono font-bold text-zinc-300">%{wp.completedPercent}</span>
+                    {(() => {
+                      const track = store.profile?.track || 'SAY';
+                      const wp = calcWorkloadRemaining(store.tytSubjects, store.aytSubjects.filter(s => getAytSubjectsForTrack(track).includes(s.subject)), store.logs);
+                      return (
+                        <div className="w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-3 shadow-md">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">MÜFREDAT YÜKÜ</span>
+                            <span className="text-xs font-mono font-bold text-zinc-300">%{wp.completedPercent}</span>
+                          </div>
+                          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#C17767] transition-all" style={{ width: `${wp.completedPercent}%` }} />
+                          </div>
+                          <div className="text-[10px] text-zinc-500 uppercase tracking-widest mt-2">{wp.completedTopics} Bitti / {wp.remainingTopics} Kaldı</div>
                         </div>
-                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-[#C17767] transition-all" style={{ width: `${wp.completedPercent}%` }} />
-                        </div>
-                        <div className="text-[10px] text-zinc-500 uppercase tracking-widest mt-2">{wp.completedTopics} Bitti / {wp.remainingTopics} Kaldı</div>
+                      );
+                    })()}
+
+                    <button
+                      onClick={() => store.setFocusSidePanelOpen(true)}
+                      className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group w-full md:w-auto justify-center"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                        <Clock size={16} />
                       </div>
-                    );
-                  })()}
-
-                  <button
-                    onClick={() => store.setFocusSidePanelOpen(true)}
-                    className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group w-full md:w-auto justify-center"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
-                      <Clock size={16} />
-                    </div>
-                    <div className="text-left">
-                      <div className="text-[10px] uppercase font-bold tracking-widest opacity-70 leading-none">SEFERBERLİK</div>
-                      <div className="text-sm font-bold leading-none mt-1">ODAK MODUNU AÇ</div>
-                    </div>
-                  </button>
-                </div>
-              </header>
-
-              <div className="mb-12">
-                <EloRankCard />
-              </div>
-
-              <div className="mb-12">
-                <AchievementsPanel />
-              </div>
-
-              {(() => {
-                const todayStr = new Date().toLocaleDateString('tr-TR');
-                const todayLogs = store.logs.filter(l => l.date.includes(todayStr));
-                const todayHours = (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1);
-                return (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-                      <StatCard title="Tamamlanan" value={store.tytSubjects.filter(s => s.status === 'mastered').length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject) && s.status === 'mastered').length} total={store.tytSubjects.length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)).length} icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />} />
-                      <StatCard title="Günlük Çalışma" value={todayHours} total={store.profile.dailyGoalHours || store.profile.minHours} unit="Saat" icon={<Calendar className="text-blue-400" />} />
-                      <StatCard title="Kritik Sorunlar" value={store.logs.filter(l => l.wrong > l.correct).length} unit="Aktif" icon={<AlertTriangle className="text-orange-500" />} />
-                      <StatCard
-                        title="ROI Kaynak"
-                        value={(() => {
-                          const roi = calcSourceROI(store.logs).slice(0, 1)[0];
-                          return roi ? roi.sourceName.split(' ')[0] : 'YOK';
-                        })()}
-                        unit={(() => {
-                          const roi = calcSourceROI(store.logs).slice(0, 1)[0];
-                          return roi ? `ROI:${roi.roiScore}` : '';
-                        })()}
-                        icon={<BookOpen className="text-green-500" />}
-                      />
-                    </div>
-                    {activeHabitAlerts[0] && (
-                      <div className="mb-8 rounded-2xl border border-red-800/50 bg-red-950/30 p-5">
-                        <div className="text-[10px] uppercase tracking-widest text-red-300 font-bold mb-2">KIRMIZI ALARM</div>
-                        <p className="text-sm text-red-100">{activeHabitAlerts[0].message}</p>
+                      <div className="text-left">
+                        <div className="text-[10px] uppercase font-bold tracking-widest opacity-70 leading-none">SEFERBERLİK</div>
+                        <div className="text-sm font-bold leading-none mt-1">ODAK MODUNU AÇ</div>
                       </div>
-                    )}
-                  </>
-                );
-              })()}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                <section className="md:col-span-2 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
-                  <h3 className="font-display italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
-                  <div className="prose prose-invert prose-sm max-w-none">
-                    {store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
-                      <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
-                        <ReactMarkdown components={markdownComponents}>{store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 opacity-50 text-[#4A443C] dark:text-zinc-400">Henüz bir direktif yok. Koç ile konuşmaya başla.</div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="flex flex-col gap-4">
-                  {/* Yeni Koç Yönlendirme Kartı */}
-                  <div 
-                    onClick={() => setActiveTab('coach')}
-                    className="flex-1 bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 shadow-lg shadow-green-900/10 hover:border-[#C17767]/50 transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 mb-4">
-                       <div className="p-2 bg-green-500/10 rounded-lg text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all">
-                          <MessageSquare size={20} />
-                       </div>
-                       <h3 className="font-bold tracking-tight text-sm text-zinc-200">Geleceğini İnşa Et</h3>
-                    </div>
-                    <p className="text-xs text-zinc-500 mb-4 leading-relaxed font-mono">Gear_Head. seni bekliyor. Bugün neyi fethedeceksin?</p>
-                    <button className="text-[10px] font-bold uppercase tracking-widest text-[#C17767] flex items-center gap-2 group-hover:translate-x-1 transition-transform">
-                       KOÇA DANIŞ <ChevronRight size={14} />
                     </button>
                   </div>
+                </header>
 
-                  <div className="h-px bg-zinc-800 my-2" />
+                <div className="mb-12">
+                  <EloRankCard />
+                </div>
 
-                  <section className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm flex flex-col flex-1">
-                    <h3 className="font-display italic text-xl mb-4 border-b border-[#2A2A2A] pb-2 uppercase tracking-tight text-[#C17767] flex items-center justify-between">
-                      <span>Konu Borcu</span><span className="text-[10px] bg-red-900/30 text-red-500 border border-red-500/20 px-2 py-1 rounded font-bold uppercase tracking-widest">FAİZ İŞLİYOR</span>
+                <div className="mb-12">
+                  <AchievementsPanel />
+                </div>
+
+                {(() => {
+                  const todayStr = new Date().toLocaleDateString('tr-TR');
+                  const todayLogs = store.logs.filter(l => l.date.includes(todayStr));
+                  const todayHours = (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1);
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+                        <StatCard title="Tamamlanan" value={store.tytSubjects.filter(s => s.status === 'mastered').length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject) && s.status === 'mastered').length} total={store.tytSubjects.length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)).length} icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />} />
+                        <StatCard title="Günlük Çalışma" value={todayHours} total={store.profile.dailyGoalHours || store.profile.minHours} unit="Saat" icon={<Calendar className="text-blue-400" />} />
+                        <StatCard title="Kritik Sorunlar" value={store.logs.filter(l => l.wrong > l.correct).length} unit="Aktif" icon={<AlertTriangle className="text-orange-500" />} />
+                        <StatCard
+                          title="ROI Kaynak"
+                          value={(() => {
+                            const roi = calcSourceROI(store.logs).slice(0, 1)[0];
+                            return roi ? roi.sourceName.split(' ')[0] : 'YOK';
+                          })()}
+                          unit={(() => {
+                            const roi = calcSourceROI(store.logs).slice(0, 1)[0];
+                            return roi ? `ROI:${roi.roiScore}` : '';
+                          })()}
+                          icon={<BookOpen className="text-green-500" />}
+                        />
+                      </div>
+                      {activeHabitAlerts[0] && (
+                        <div className="mb-8 rounded-2xl border border-red-800/50 bg-red-950/30 p-5">
+                          <div className="text-[10px] uppercase tracking-widest text-red-300 font-bold mb-2">KIRMIZI ALARM</div>
+                          <p className="text-sm text-red-100">{activeHabitAlerts[0].message}</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                <section className="md:col-span-2 space-y-6">
+                  {/* Günün Direktifi */}
+                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
+                    <h3 className="font-display italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
+                    <div className="prose prose-invert prose-sm max-w-none">
+                      {store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
+                        <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
+                          <ReactMarkdown components={markdownComponents}>{store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 opacity-50 text-[#4A443C] dark:text-zinc-400">Henüz bir direktif yok. Koç ile konuşmaya başla.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Matematik Seri Takibi (RESTORED) */}
+                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm h-60">
+                    <h3 className="font-display italic text-lg mb-4 uppercase tracking-tight text-[#C17767] flex justify-between items-center">
+                      <span>Matematik Seri Takibi</span>
+                      <span className="text-[10px] opacity-40 font-bold uppercase">Son 7 Gün</span>
                     </h3>
-                  <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-                    {(() => {
-                      const candidates = store.logs
-                        .slice(-30)
-                        .map((log) => {
-                          const accuracy = log.correct / (log.questions || 1);
-                          const secondsPerQuestion = ((log.avgTime || 0) * 60) / (log.questions || 1);
-                          const isLowAccuracy = accuracy < 0.65;
-                          const isSlow = secondsPerQuestion > 120;
-                          if (!isLowAccuracy && !isSlow) return null;
+                    <div className="h-40 w-full">
+                      {isMounted && (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={mathSpeedData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} opacity={0.1} />
+                            <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#888' }} />
+                            <YAxis hide domain={['auto', 'auto']} />
+                            <Tooltip
+                              contentStyle={{ 
+                                backgroundColor: '#1A1A1A', 
+                                border: '1px solid #2A2A2A', 
+                                borderRadius: '12px',
+                                fontSize: '10px'
+                              }}
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="actual" 
+                              stroke="#C17767" 
+                              strokeWidth={3} 
+                              dot={{ fill: '#C17767', r: 4 }} 
+                              activeDot={{ r: 6, stroke: '#FFF', strokeWidth: 2 }}
+                              connectNulls
+                            />
+                            <ReferenceLine y={45} stroke="#22C55E" strokeDasharray="5 5" label={{ value: 'Hedef', position: 'right', fill: '#22C55E', fontSize: 8 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+                </section>
 
-                          let interest = 0;
-                          if (accuracy < 0.5) interest += 15;
-                          else if (accuracy < 0.65) interest += 10;
-                          if (isSlow) interest += 5;
+                  <section className="flex flex-col gap-4">
+                    {/* Yeni Koç Yönlendirme Kartı */}
+                    <div
+                      onClick={() => setActiveTab('coach')}
+                      className="flex-1 bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 shadow-lg shadow-green-900/10 hover:border-[#C17767]/50 transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-green-500/10 rounded-lg text-green-500 groKübrabg-green-500 group-hover:text-white transition-all">
+                          <MessageSquare size={20} />
+                        </div>
+                        <h3 className="font-bold tracking-tight text-sm text-zinc-200">Geleceğini İnşa Et</h3>
+                      </div>
+                      <p className="text-xs text-zinc-500 mb-4 leading-relaxed font-mono">Gear_Head. seni bekliyor. Bugün neyi fethedeceksin?</p>
+                      <button className="text-[10px] font-bold uppercase tracking-widest text-[#C17767] flex items-center gap-2 group-hover:translate-x-1 transition-transform">
+                        KOÇA DANIŞ <ChevronRight size={14} />
+                      </button>
+                    </div>
 
-                          return {
-                            subject: log.subject,
-                            topic: log.topic,
-                            date: log.date,
-                            accuracy: Math.round(accuracy * 100),
-                            secondsPerQuestion: Math.round(secondsPerQuestion),
-                            interest,
-                          };
-                        })
-                        .filter(Boolean) as Array<{ subject: string; topic: string; date: string; accuracy: number; secondsPerQuestion: number; interest: number }>;
+                    <div className="h-px bg-zinc-800 my-2" />
 
-                      const debts = candidates
-                        .sort((a, b) => b.interest - a.interest)
-                        .slice(0, 5);
+                    <section className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm flex flex-col flex-1">
+                      <h3 className="font-display italic text-xl mb-4 border-b border-[#2A2A2A] pb-2 uppercase tracking-tight text-[#C17767] flex items-center justify-between">
+                        <span>Konu Borcu</span><span className="text-[10px] bg-red-900/30 text-red-500 border border-red-500/20 px-2 py-1 rounded font-bold uppercase tracking-widest">FAİZ İŞLİYOR</span>
+                      </h3>
+                      <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                        {(() => {
+                          const candidates = store.logs
+                            .slice(-30)
+                            .map((log) => {
+                              const accuracy = log.correct / (log.questions || 1);
+                              const secondsPerQuestion = ((log.avgTime || 0) * 60) / (log.questions || 1);
+                              const isLowAccuracy = accuracy < 0.65;
+                              const isSlow = secondsPerQuestion > 120;
+                              if (!isLowAccuracy && !isSlow) return null;
 
-                      if (debts.length === 0) {
+                              let interest = 0;
+                              if (accuracy < 0.5) interest += 15;
+                              else if (accuracy < 0.65) interest += 10;
+                              if (isSlow) interest += 5;
+
+                              return {
+                                subject: log.subject,
+                                topic: log.topic,
+                                date: log.date,
+                                accuracy: Math.round(accuracy * 100),
+                                secondsPerQuestion: Math.round(secondsPerQuestion),
+                                interest,
+                              };
+                            })
+                            .filter(Boolean) as Array<{ subject: string; topic: string; date: string; accuracy: number; secondsPerQuestion: number; interest: number }>;
+
+                          const debts = candidates
+                            .sort((a, b) => b.interest - a.interest)
+                            .slice(0, 5);
+
+                          if (debts.length === 0) {
+                            return (
+                              <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-60">
+                                <CheckCircle2 size={32} className="mb-3 text-green-500/50" />
+                                <p className="text-xs uppercase tracking-widest font-bold">Borç Yok</p>
+                              </div>
+                            );
+                          }
+
+                          return debts.map((d, idx) => (
+                            <div key={`${d.subject}-${d.topic}-${idx}`} className="p-3 bg-[#121212] border border-[#2A2A2A] rounded-lg">
+                              <div className="flex justify-between items-start mb-1 gap-4">
+                                <div>
+                                  <div className="font-bold text-xs text-zinc-300">{d.subject}</div>
+                                  <div className="text-[10px] uppercase tracking-widest opacity-60 text-zinc-500 mt-1">{d.topic}</div>
+                                </div>
+                                <span className="text-xs font-mono text-red-500 font-bold">+{d.interest} Soru</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Doğruluk: %{d.accuracy}</span>
+                                <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Hız: {d.secondsPerQuestion} sn/soru</span>
+                                <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Tarih: {new Date(d.date).toLocaleDateString('tr-TR')}</span>
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                      {(() => {
+                        const candidates = store.logs
+                          .slice(-30)
+                          .map((log) => {
+                            const accuracy = log.correct / (log.questions || 1);
+                            const secondsPerQuestion = ((log.avgTime || 0) * 60) / (log.questions || 1);
+                            const isLowAccuracy = accuracy < 0.65;
+                            const isSlow = secondsPerQuestion > 120;
+                            if (!isLowAccuracy && !isSlow) return null;
+
+                            let interest = 0;
+                            if (accuracy < 0.5) interest += 15;
+                            else if (accuracy < 0.65) interest += 10;
+                            if (isSlow) interest += 5;
+                            return interest;
+                          })
+                          .filter((x): x is number => typeof x === 'number');
+
+                        const totalInterest = candidates.reduce((a, b) => a + b, 0);
+                        if (totalInterest <= 0) return null;
                         return (
-                          <div className="h-full flex flex-col items-center justify-center text-zinc-500 opacity-60">
-                            <CheckCircle2 size={32} className="mb-3 text-green-500/50" />
-                            <p className="text-xs uppercase tracking-widest font-bold">Borç Yok</p>
+                          <div className="mt-4 pt-4 border-t border-[#2A2A2A] text-center">
+                            <p className="text-[10px] font-mono uppercase tracking-widest text-[#C17767]">
+                              Toplam Faiz: <span className="font-bold text-base text-red-500">{totalInterest}</span> Soru
+                            </p>
                           </div>
                         );
-                      }
+                      })()}
+                    </section>
+                  </section>
+                </div>
 
-                      return debts.map((d, idx) => (
-                        <div key={`${d.subject}-${d.topic}-${idx}`} className="p-3 bg-[#121212] border border-[#2A2A2A] rounded-lg">
-                          <div className="flex justify-between items-start mb-1 gap-4">
-                            <div>
-                              <div className="font-bold text-xs text-zinc-300">{d.subject}</div>
-                              <div className="text-[10px] uppercase tracking-widest opacity-60 text-zinc-500 mt-1">{d.topic}</div>
-                            </div>
-                            <span className="text-xs font-mono text-red-500 font-bold">+{d.interest} Soru</span>
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Doğruluk: %{d.accuracy}</span>
-                            <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Hız: {d.secondsPerQuestion} sn/soru</span>
-                            <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Tarih: {new Date(d.date).toLocaleDateString('tr-TR')}</span>
-                          </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'war_room' && (
+              <motion.div key="war_room" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="w-full min-h-screen">
+                <MebiWarRoom />
+              </motion.div>
+            )}
+
+            {activeTab === 'questions' && (
+              <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 w-full min-h-full">
+                <QuizEngine />
+              </motion.div>
+            )}
+
+            {activeTab === 'explain' && (
+              <motion.div key="explain" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <TopicExplain />
+              </motion.div>
+            )}
+
+            {activeTab === 'agenda' && (
+              <motion.div key="agenda" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <AgendaPage />
+              </motion.div>
+            )}
+
+            {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-display italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={store.logs} /></div>}
+
+            {activeTab === 'exams' && (
+              <motion.div key="exams" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-5xl mx-auto">
+                <div className="flex justify-between items-end mb-8">
+                  <h2 className="font-display italic text-4xl text-zinc-200">Deneme Analizi</h2>
+                  <button onClick={() => setIsExamModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#C17767] text-[#FDFBF7] text-xs uppercase tracking-widest font-bold hover:opacity-90 transition-opacity rounded-xl shadow-lg shadow-[#C17767]/20"><Plus size={16} /> Yeni Deneme Gir</button>
+                </div>
+                <div className="grid grid-cols-1 gap-8">
+                  <div className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm">
+                    <h3 className="font-display italic text-xl mb-6 uppercase tracking-tight text-zinc-300">Deneme Takvimi</h3>
+                    {store.exams.length === 0 ? <p className="text-center opacity-40 text-xs text-zinc-500 font-bold uppercase tracking-widest">Henüz deneme girilmedi.</p> : store.exams.map(e => (
+                      <div
+                        key={e.id}
+                        onClick={() => setSelectedExam(e)}
+                        className="p-4 mb-3 border border-[#2A2A2A] rounded-xl bg-[#121212] flex justify-between items-center group hover:border-[#C17767]/50 transition-colors cursor-pointer"
+                      >
+                        <div>
+                          <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] group-hover:text-[#E09F3E] transition-colors">{e.type} DENEMESİ</span>
+                          <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{new Date(e.date).toLocaleDateString('tr-TR')}</span>
                         </div>
-                      ));
-                    })()}
+                        <div className="text-right">
+                          <span className="font-display italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  {(() => {
-                    const candidates = store.logs
-                      .slice(-30)
-                      .map((log) => {
-                        const accuracy = log.correct / (log.questions || 1);
-                        const secondsPerQuestion = ((log.avgTime || 0) * 60) / (log.questions || 1);
-                        const isLowAccuracy = accuracy < 0.65;
-                        const isSlow = secondsPerQuestion > 120;
-                        if (!isLowAccuracy && !isSlow) return null;
+                </div>
+              </motion.div>
+            )}
 
-                        let interest = 0;
-                        if (accuracy < 0.5) interest += 15;
-                        else if (accuracy < 0.65) interest += 10;
-                        if (isSlow) interest += 5;
-                        return interest;
-                      })
-                      .filter((x): x is number => typeof x === 'number');
-
-                    const totalInterest = candidates.reduce((a, b) => a + b, 0);
-                    if (totalInterest <= 0) return null;
-                    return (
-                      <div className="mt-4 pt-4 border-t border-[#2A2A2A] text-center">
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-[#C17767]">
-                          Toplam Faiz: <span className="font-bold text-base text-red-500">{totalInterest}</span> Soru
-                        </p>
-                      </div>
-                    );
-                  })()}
-                </section>
-              </section>
-            </div>
-
-            </motion.div>
-          )}
-
-          {activeTab === 'war_room' && (
-            <motion.div key="war_room" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="w-full min-h-screen">
-              <MebiWarRoom />
-            </motion.div>
-          )}
-
-          {activeTab === 'questions' && (
-            <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 w-full min-h-full">
-              <QuizEngine />
-            </motion.div>
-          )}
-
-          {activeTab === 'explain' && (
-            <motion.div key="explain" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-              <TopicExplain />
-            </motion.div>
-          )}
-
-          {activeTab === 'agenda' && (
-            <motion.div key="agenda" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-              <AgendaPage />
-            </motion.div>
-          )}
-
-          {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-display italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={store.logs} /></div>}
-
-          {activeTab === 'exams' && (
-            <motion.div key="exams" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-5xl mx-auto">
-              <div className="flex justify-between items-end mb-8">
-                <h2 className="font-display italic text-4xl text-zinc-200">Deneme Analizi</h2>
-                <button onClick={() => setIsExamModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#C17767] text-[#FDFBF7] text-xs uppercase tracking-widest font-bold hover:opacity-90 transition-opacity rounded-xl shadow-lg shadow-[#C17767]/20"><Plus size={16} /> Yeni Deneme Gir</button>
-              </div>
-              <div className="grid grid-cols-1 gap-8">
-                <div className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm">
-                  <h3 className="font-display italic text-xl mb-6 uppercase tracking-tight text-zinc-300">Deneme Takvimi</h3>
-                  {store.exams.length === 0 ? <p className="text-center opacity-40 text-xs text-zinc-500 font-bold uppercase tracking-widest">Henüz deneme girilmedi.</p> : store.exams.map(e => (
-                    <div
-                      key={e.id}
-                      onClick={() => setSelectedExam(e)}
-                      className="p-4 mb-3 border border-[#2A2A2A] rounded-xl bg-[#121212] flex justify-between items-center group hover:border-[#C17767]/50 transition-colors cursor-pointer"
+            {activeTab === 'subjects' && (
+              <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-6xl mx-auto">
+                <div className="flex justify-between items-end mb-8">
+                  <div>
+                    <h2 className="font-display italic text-4xl text-zinc-200">Müfredat Haritası</h2>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Topraklarını Genişlet ve Konuları Fethet</p>
+                  </div>
+                  <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A]">
+                    <button
+                      onClick={() => store.setSubjectViewMode('list')}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
-                      <div>
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] group-hover:text-[#E09F3E] transition-colors">{e.type} DENEMESİ</span>
-                        <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{new Date(e.date).toLocaleDateString('tr-TR')}</span>
+                      <LayoutList size={14} /> Liste
+                    </button>
+                    <button
+                      onClick={() => store.setSubjectViewMode('map')}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      <MapIcon size={14} /> Harita
+                    </button>
+                  </div>
+                </div>
+
+                {store.subjectViewMode === 'list' ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                    <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onNotesChange={(idx, notes) => store.updateTytSubject(idx, { notes })} />
+                    <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, { notes }); }} />
+                  </div>
+                ) : (
+                  <div className="space-y-12">
+                    <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} />
+                    <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} />
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'strategy' && (
+              <motion.div key="strategy" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }}>
+                <StrategyHub />
+              </motion.div>
+            )}
+
+            {activeTab === 'coach' && (
+              <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
+                <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">Kübra
+                  {store.chatHistory.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
+                        <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
+                          {msg.role === 'user' ? `${store.profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : 'Gear_Head.'}
+                        </div>Kübra
+                        <div className="text-sm font-mono leading-relaxed opacity-90 tracking-wide"><ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown></div>
                       </div>
-                      <div className="text-right">
-                        <span className="font-display italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>
+                    </div>
+                  ))}
+                  {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500" /><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Gear_Head. analiz ediyor...</span></div>}
+                  <div ref={chatEndRef} />
+                </div>
+
+                <div className="p-4 md:p-8 border-t border-[#2A2A2A] bg-[#1A1A1A]">
+                  {/* Hızlı Butonlar */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button onClick={() => setIsLogWidgetOpen(true)} className="px-3 py-1.5 border border-[#C17767] text-[#C17767] bg-[#C17767]/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-[#C17767] hover:text-white transition-colors">+ LOG</button>
+                    <button onClick={() => handleSendMessage(undefined, "ANALİZ ET")} className="px-3 py-1.5 border border-amber-600 text-amber-500 bg-amber-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-amber-600 hover:text-white transition-colors">+ ANALİZ ET</button>
+                    <button onClick={() => setIsExamModalOpen(true)} className="px-3 py-1.5 border border-red-600 text-red-500 bg-red-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-red-600 hover:text-white transition-colors">- DENEME</button>
+                    <button onClick={() => handleSendMessage(undefined, "ANLA")} className="px-3 py-1.5 border border-zinc-600 text-zinc-400 bg-zinc-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-zinc-600 hover:text-white transition-colors">+ ANLA</button>
+                  </div>
+
+                  {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
+
+                  <form onSubmit={handleSendMessage} className="flex gap-4 items-center">
+                    <input value={inputMessage} onChange={e => setInputMessage(e.target.value)} placeholder="Komut gir veya mesaj yaz..." className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-4 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors" />
+                    <button type="submit" disabled={isTyping} className="w-12 h-12 bg-[#2A2A2A] text-zinc-400 hover:text-[#C17767] border border-[#333] flex justify-center items-center rounded-xl transition-colors shrink-0 disabled:opacity-50"><Send size={18} className="transform -translate-y-px translate-x-px" /></button>
+                  </form>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'profile' && (
+              <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-full">
+                <ProfileShowcase />
+              </motion.div>
+            )}
+
+            {activeTab === 'archive' && (
+              <div className="p-4 md:p-8 max-w-6xl mx-auto">
+                <header className="mb-12 flex justify-between items-end border-b border-[#2A2A2A] pb-6">
+                  <div>
+                    <h2 className="font-display italic text-4xl text-zinc-200">Soru Bankası Mezarlığı</h2>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Unutulanların ve Hataların Arşivi</p>
+                  </div>
+                  <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-6 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center shadow-lg shadow-[#C17767]/20 transition-all active:scale-95"><Plus size={16} /> Mezar Kaz</button>
+                </header>
+
+                {isArchiveWidgetOpen && <ArchiveWidget subjects={Object.keys(TYT_SUBJECTS)} onCancel={() => setIsArchiveWidgetOpen(false)} onSubmit={(q) => { store.addFailedQuestion(q); setIsArchiveWidgetOpen(false); }} />}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {store.failedQuestions.filter(q => q.status === 'active' || store.isDevMode).length === 0 ? (
+                    <div className="col-span-full py-20 text-center opacity-20 uppercase tracking-[0.5em] font-display italic text-2xl">Burası şimdilik sessiz...</div>
+                  ) : store.failedQuestions.map(q => (
+                    <div key={q.id} className={`group relative bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 transition-all hover:border-[#C17767]/50 ${q.status === 'solved' ? 'opacity-50 grayscale' : ''}`}>
+                      <div className="absolute top-0 left-0 w-1 h-full bg-[#C17767] group-hover:bg-[#E09F3E] transition-colors"></div>
+
+                      <div className="flex justify-between items-start mb-4">
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">{q.subject}</span>
+                        <div className="flex gap-1">
+                          {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className={`w-2 h-2 rounded-full ${i < q.solveCount ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <h4 className="font-display italic text-xl text-zinc-200 mb-2 truncate">{q.topic}</h4>
+                      <p className="text-[10px] uppercase font-bold text-zinc-500 mb-4">{q.book} • S:{q.page}</p>
+
+                      <div className="bg-black/40 rounded-xl p-4 mb-6 border border-[#222]">
+                        <p className="text-xs italic text-zinc-400 leading-relaxed font-mono">"{q.reason}"</p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => store.solveFailedQuestion(q.id)}
+                          disabled={q.status === 'solved'}
+                          className={`flex-1 py-2 text-[10px] uppercase font-bold tracking-widest rounded-lg transition-all ${q.status === 'solved' ? 'bg-zinc-800 text-zinc-500' : 'bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 hover:bg-[#C17767] hover:text-white'}`}
+                        >
+                          {q.status === 'solved' ? 'HUZUR İÇİNDE' : 'HORTLAT (ÇÖZÜLDÜ)'}
+                        </button>
+
+                        {store.isDevMode && (
+                          <button
+                            onClick={async () => { if (await confirmDialog('Siliyorum?')) store.removeFailedQuestion(q.id); }}
+                            className="px-3 py-2 bg-red-950/20 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-500 hover:text-white transition-all"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </motion.div>
-          )}
+            )}
 
-          {activeTab === 'subjects' && (
-            <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-6xl mx-auto">
-              <div className="flex justify-between items-end mb-8">
-                <div>
-                  <h2 className="font-display italic text-4xl text-zinc-200">Müfredat Haritası</h2>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Topraklarını Genişlet ve Konuları Fethet</p>
-                </div>
-                <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A]">
-                  <button
-                    onClick={() => store.setSubjectViewMode('list')}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-                  >
-                    <LayoutList size={14} /> Liste
-                  </button>
-                  <button
-                    onClick={() => store.setSubjectViewMode('map')}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-                  >
-                    <MapIcon size={14} /> Harita
-                  </button>
-                </div>
-              </div>
-
-              {store.subjectViewMode === 'list' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onNotesChange={(idx, notes) => store.updateTytSubject(idx, { notes })} />
-                  <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, { notes }); }} />
-                </div>
-              ) : (
-                <div className="space-y-12">
-                  <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} />
-                  <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} />
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {activeTab === 'strategy' && (
-            <motion.div key="strategy" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }}>
-              <StrategyHub />
-            </motion.div>
-          )}
-
-          {activeTab === 'coach' && (
-            <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
-              <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">
-                {store.chatHistory.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
-                      <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
-                        {msg.role === 'user' ? `${store.profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : 'Gear_Head.'}
-                      </div>
-                      <div className="text-sm font-mono leading-relaxed opacity-90 tracking-wide"><ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown></div>
-                    </div>
-                  </div>
-                ))}
-                {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500" /><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Gear_Head. analiz ediyor...</span></div>}
-                <div ref={chatEndRef} />
-              </div>
-
-              <div className="p-4 md:p-8 border-t border-[#2A2A2A] bg-[#1A1A1A]">
-                {/* Hızlı Butonlar */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <button onClick={() => setIsLogWidgetOpen(true)} className="px-3 py-1.5 border border-[#C17767] text-[#C17767] bg-[#C17767]/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-[#C17767] hover:text-white transition-colors">+ LOG</button>
-                  <button onClick={() => handleSendMessage(undefined, "ANALİZ ET")} className="px-3 py-1.5 border border-amber-600 text-amber-500 bg-amber-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-amber-600 hover:text-white transition-colors">+ ANALİZ ET</button>
-                  <button onClick={() => setIsExamModalOpen(true)} className="px-3 py-1.5 border border-red-600 text-red-500 bg-red-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-red-600 hover:text-white transition-colors">- DENEME</button>
-                  <button onClick={() => handleSendMessage(undefined, "ANLA")} className="px-3 py-1.5 border border-zinc-600 text-zinc-400 bg-zinc-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-zinc-600 hover:text-white transition-colors">+ ANLA</button>
-                </div>
-
-                {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
-
-                <form onSubmit={handleSendMessage} className="flex gap-4 items-center">
-                  <input value={inputMessage} onChange={e => setInputMessage(e.target.value)} placeholder="Komut gir veya mesaj yaz..." className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-4 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors" />
-                  <button type="submit" disabled={isTyping} className="w-12 h-12 bg-[#2A2A2A] text-zinc-400 hover:text-[#C17767] border border-[#333] flex justify-center items-center rounded-xl transition-colors shrink-0 disabled:opacity-50"><Send size={18} className="transform -translate-y-px translate-x-px" /></button>
-                </form>
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'profile' && (
-            <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-full">
-              <ProfileShowcase />
-            </motion.div>
-          )}
-
-          {activeTab === 'archive' && (
-            <div className="p-4 md:p-8 max-w-6xl mx-auto">
-              <header className="mb-12 flex justify-between items-end border-b border-[#2A2A2A] pb-6">
-                <div>
-                  <h2 className="font-display italic text-4xl text-zinc-200">Soru Bankası Mezarlığı</h2>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] mt-2 font-bold font-mono">Unutulanların ve Hataların Arşivi</p>
-                </div>
-                <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-6 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center shadow-lg shadow-[#C17767]/20 transition-all active:scale-95"><Plus size={16} /> Mezar Kaz</button>
-              </header>
-
-              {isArchiveWidgetOpen && <ArchiveWidget subjects={Object.keys(TYT_SUBJECTS)} onCancel={() => setIsArchiveWidgetOpen(false)} onSubmit={(q) => { store.addFailedQuestion(q); setIsArchiveWidgetOpen(false); }} />}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {store.failedQuestions.filter(q => q.status === 'active' || store.isDevMode).length === 0 ? (
-                  <div className="col-span-full py-20 text-center opacity-20 uppercase tracking-[0.5em] font-display italic text-2xl">Burası şimdilik sessiz...</div>
-                ) : store.failedQuestions.map(q => (
-                  <div key={q.id} className={`group relative bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 transition-all hover:border-[#C17767]/50 ${q.status === 'solved' ? 'opacity-50 grayscale' : ''}`}>
-                    <div className="absolute top-0 left-0 w-1 h-full bg-[#C17767] group-hover:bg-[#E09F3E] transition-colors"></div>
-
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">{q.subject}</span>
-                      <div className="flex gap-1">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className={`w-2 h-2 rounded-full ${i < q.solveCount ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-zinc-800'}`}></div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <h4 className="font-display italic text-xl text-zinc-200 mb-2 truncate">{q.topic}</h4>
-                    <p className="text-[10px] uppercase font-bold text-zinc-500 mb-4">{q.book} • S:{q.page}</p>
-
-                    <div className="bg-black/40 rounded-xl p-4 mb-6 border border-[#222]">
-                      <p className="text-xs italic text-zinc-400 leading-relaxed font-mono">"{q.reason}"</p>
-                    </div>
-
-                    <div className="flex gap-2">
+            {activeTab === 'countdown' && (
+              <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
+                <div className="text-center mb-12">
+                  <h2 className="font-display italic text-4xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="flex bg-black/30 p-1 rounded-xl border border-white/10">
                       <button
-                        onClick={() => store.solveFailedQuestion(q.id)}
-                        disabled={q.status === 'solved'}
-                        className={`flex-1 py-2 text-[10px] uppercase font-bold tracking-widest rounded-lg transition-all ${q.status === 'solved' ? 'bg-zinc-800 text-zinc-500' : 'bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 hover:bg-[#C17767] hover:text-white'}`}
+                        onClick={() => setCountdownSession('TYT')}
+                        className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'TYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
                       >
-                        {q.status === 'solved' ? 'HUZUR İÇİNDE' : 'HORTLAT (ÇÖZÜLDÜ)'}
+                        2026 TYT
                       </button>
-
-                      {store.isDevMode && (
-                        <button
-                          onClick={async () => { if (await confirmDialog('Siliyorum?')) store.removeFailedQuestion(q.id); }}
-                          className="px-3 py-2 bg-red-950/20 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-500 hover:text-white transition-all"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setCountdownSession('AYT')}
+                        className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'AYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
+                      >
+                        2026 AYT
+                      </button>
                     </div>
+                    <p className="text-[10px] md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">
+                      {(countdownSession === 'TYT' ? "20 HAZİRAN 2026, 10:15 (İSTANBUL)" : "21 HAZİRAN 2026, 10:15 (İSTANBUL)") + "'E KALAN SÜRE"}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'countdown' && (
-            <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
-              <div className="text-center mb-12">
-                <h2 className="font-display italic text-4xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex bg-black/30 p-1 rounded-xl border border-white/10">
-                    <button
-                      onClick={() => setCountdownSession('TYT')}
-                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'TYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
-                    >
-                      2026 TYT
-                    </button>
-                    <button
-                      onClick={() => setCountdownSession('AYT')}
-                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'AYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
-                    >
-                      2026 AYT
-                    </button>
-                  </div>
-                  <p className="text-[10px] md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">
-                    {(countdownSession === 'TYT' ? "20 HAZİRAN 2026, 10:15 (İSTANBUL)" : "21 HAZİRAN 2026, 10:15 (İSTANBUL)") + "'E KALAN SÜRE"}
+                </div>
+                <FlapClock targetDate={countdownSession === 'TYT' ? YKS_2026_TYT_DATE : YKS_2026_AYT_DATE} />
+                <div className="mt-8 text-center space-y-2">
+                  <p className="text-sm text-zinc-300">
+                    Bu tempoda devam edersen TYT beklenen net: <span className="font-bold text-[#C17767]">{tytProjection.predictedNet}</span>
+                  </p>
+                  <p className="text-sm text-zinc-300">
+                    Bu tempoda devam edersen AYT beklenen net: <span className="font-bold text-[#E09F3E]">{aytProjection.predictedNet}</span>
                   </p>
                 </div>
-              </div>
-              <FlapClock targetDate={countdownSession === 'TYT' ? YKS_2026_TYT_DATE : YKS_2026_AYT_DATE} />
-              <div className="mt-8 text-center space-y-2">
-                <p className="text-sm text-zinc-300">
-                  Bu tempoda devam edersen TYT beklenen net: <span className="font-bold text-[#C17767]">{tytProjection.predictedNet}</span>
+                <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-display">
+                  "Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin. Harcadığın her saniye hedefine yaklaşmak için bir fırsattır."
                 </p>
-                <p className="text-sm text-zinc-300">
-                  Bu tempoda devam edersen AYT beklenen net: <span className="font-bold text-[#E09F3E]">{aytProjection.predictedNet}</span>
-                </p>
-              </div>
-              <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-display">
-                "Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin. Harcadığın her saniye hedefine yaklaşmak için bir fırsattır."
-              </p>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
-          {activeTab === 'settings' && (
-            <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8 max-w-3xl mx-auto space-y-12">
-              <div>
-                <h2 className="font-display italic text-4xl mb-8">Ayarlar & Profil</h2>
-                <div className="space-y-8">
-                  <ProfileSection title="Görünüm Ayarları">
-                    <div className="col-span-2 flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
-                      <div>
-                        <p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#EAE6DF]">Müfredat Görünümü</p>
-                        <p className="text-sm text-zinc-500">Konu listesinin varsayılan gösterim biçimi</p>
+            {activeTab === 'settings' && (
+              <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8 max-w-3xl mx-auto space-y-12">
+                <div>
+                  <h2 className="font-display italic text-4xl mb-8">Ayarlar & Profil</h2>
+                  <div className="space-y-8">
+                    <ProfileSection title="Görünüm Ayarları">
+                      <div className="col-span-2 flex justify-between items-center mb-4 border-b border-zinc-800 pb-4">
+                        <div>
+                          <p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#EAE6DF]">Müfredat Görünümü</p>
+                          <p className="text-sm text-zinc-500">Konu listesinin varsayılan gösterim biçimi</p>
+                        </div>
+                        <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
+                          <button
+                            onClick={() => store.setSubjectViewMode('list')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                          >
+                            Liste
+                          </button>
+                          <button
+                            onClick={() => store.setSubjectViewMode('map')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                          >
+                            Harita
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
-                        <button
-                          onClick={() => store.setSubjectViewMode('list')}
-                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                        >
-                          Liste
-                        </button>
-                        <button
-                          onClick={() => store.setSubjectViewMode('map')}
-                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                        >
-                          Harita
-                        </button>
+                      <div className="col-span-2 flex justify-between items-center opacity-100">
+                        <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#C17767]">Arayüz Teması</p><p className="text-sm text-zinc-500">Karanlık veya Aydınlık mod arasında geçiş yap</p></div>
+                        <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
+                          <button
+                            onClick={() => store.setTheme('dark')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'dark' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                          >
+                            Dark
+                          </button>
+                          <button
+                            onClick={() => store.setTheme('light')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'light' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
+                          >
+                            Light
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="col-span-2 flex justify-between items-center opacity-100">
-                      <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#C17767]">Arayüz Teması</p><p className="text-sm text-zinc-500">Karanlık veya Aydınlık mod arasında geçiş yap</p></div>
-                      <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
-                        <button
-                          onClick={() => store.setTheme('dark')}
-                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'dark' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                        >
-                          Dark
-                        </button>
-                        <button
-                          onClick={() => store.setTheme('light')}
-                          className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.theme === 'light' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                        >
-                          Light
-                        </button>
-                      </div>
-                    </div>
-                  </ProfileSection>
+                    </ProfileSection>
 
-                  <ProfileSection title="Soru Hedeflerİ">
-                    <div className="grid grid-cols-2 gap-4 col-span-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MİN. GÜNLÜK SORU</label>
-                        <input
-                          type="number"
-                          value={store.profile?.minDailyQuestions || 100}
-                          onChange={e => store.setProfile({ ...store.profile!, minDailyQuestions: parseInt(e.target.value) })}
-                          className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
-                        />
+                    <ProfileSection title="Soru Hedeflerİ">
+                      <div className="grid grid-cols-2 gap-4 col-span-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MİN. GÜNLÜK SORU</label>
+                          <input
+                            type="number"
+                            value={store.profile?.minDailyQuestions || 100}
+                            onChange={e => store.setProfile({ ...store.profile!, minDailyQuestions: parseInt(e.target.value) })}
+                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MAKS. GÜNLÜK SORU</label>
+                          <input
+                            type="number"
+                            value={store.profile?.maxDailyQuestions || 300}
+                            onChange={e => store.setProfile({ ...store.profile!, maxDailyQuestions: parseInt(e.target.value) })}
+                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MAKS. GÜNLÜK SORU</label>
-                        <input
-                          type="number"
-                          value={store.profile?.maxDailyQuestions || 300}
-                          onChange={e => store.setProfile({ ...store.profile!, maxDailyQuestions: parseInt(e.target.value) })}
-                          className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
-                        />
-                      </div>
-                    </div>
-                  </ProfileSection>
+                    </ProfileSection>
 
-                  <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
-                    <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
-                      <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
-                      <button onClick={async () => { if (await confirmDialog('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
-                    </div>
-                  </ProfileSection>
+                    <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
+                      <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
+                        <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
+                        <button onClick={async () => { if (await confirmDialog('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
+                      </div>
+                    </ProfileSection>
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Profil Yönetimi</h3>
-                <ProfileSettings onSubmit={(p) => store.setProfile(p)} initialData={store.profile} isEditMode={true} />
-              </div>
-            </motion.div>
-          )}
+                <div>
+                  <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Profil Yönetimi</h3>
+                  <ProfileSettings onSubmit={(p) => store.setProfile(p)} initialData={store.profile} isEditMode={true} />
+                </div>
+              </motion.div>
+            )}
 
-        </AnimatePresence>
-      </main>
-      <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={store.profile!.track} onSave={(exam) => { store.addExam(exam); setIsExamModalOpen(false); store.unlockTrophy('first_blood'); }} />
-      <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={store.isDevMode} />
-      <FocusSidePanel />
-      <CoachInterventionModal />
-      <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
-      <MobileMenuModal 
-        isOpen={isMobileMenuOpen} 
-        onClose={() => setIsMobileMenuOpen(false)} 
-        activeTab={activeTab}
-        onNavigate={setActiveTab}
-        onSignOut={signOut}
-      />
+          </AnimatePresence>
+        </main>
+        <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={store.profile!.track} onSave={(exam) => { store.addExam(exam); setIsExamModalOpen(false); store.unlockTrophy('first_blood'); }} />
+        <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={store.isDevMode} />
+        <FocusSidePanel />
+        <CoachInterventionModal />
+        <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
+        <MobileMenuModal
+          isOpen={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
+          activeTab={activeTab}
+          onNavigate={setActiveTab}
+          onSignOut={signOut}
+        />
         <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
       </div>
     </MobileGuard>
@@ -1396,8 +1443,8 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
     <div className={`space-y-8 relative ${isSyncing ? 'pointer-events-none opacity-50' : ''}`}>
       {isSyncing && (
         <div className="absolute top-0 right-0 z-50 flex items-center gap-2 bg-[#C17767]/20 text-[#C17767] border border-[#C17767]/30 px-4 py-2 rounded-xl backdrop-blur-md animate-pulse">
-           <Loader2 size={12} className="animate-spin" />
-           <span className="text-[10px] font-bold uppercase tracking-widest">Senkronize Ediliyor...</span>
+          <Loader2 size={12} className="animate-spin" />
+          <span className="text-[10px] font-bold uppercase tracking-widest">Senkronize Ediliyor...</span>
         </div>
       )}
       <div className="flex items-center gap-4 mb-6">
@@ -1478,26 +1525,26 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: 
   ];
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }} 
-      animate={{ opacity: 1 }} 
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end md:hidden"
       onClick={onClose}
     >
-      <motion.div 
-        initial={{ y: "100%" }} 
-        animate={{ y: 0 }} 
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
         className="w-full bg-[#FDFBF7] dark:bg-zinc-950 rounded-t-[2.5rem] border-t border-[#EAE6DF] dark:border-zinc-800 p-8 pt-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         <div className="w-12 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-8 cursor-pointer" onClick={onClose} />
-        
+
         <header className="mb-8 pl-2">
-           <h3 className="font-display italic text-2xl text-[#C17767] dark:text-rose-400">Tüm Üniteler</h3>
-           <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold font-mono">Sistem Haritası v5.6</p>
+          <h3 className="font-display italic text-2xl text-[#C17767] dark:text-rose-400">Tüm Üniteler</h3>
+          <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold font-mono">Sistem Haritası v5.6</p>
         </header>
 
         <div className="grid grid-cols-3 gap-y-6 gap-x-3 pb-8">
@@ -1515,7 +1562,7 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: 
           ))}
           {/* Mobil Logout */}
           <button
-            onClick={async () => { if(await confirmDialog('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
+            onClick={async () => { if (await confirmDialog('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
             className="flex flex-col items-center gap-2 group"
           >
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-rose-500/10 text-rose-500 shadow-sm border border-rose-500/20">
@@ -1525,7 +1572,7 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: 
           </button>
         </div>
 
-        <button 
+        <button
           onClick={onClose}
           className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-[#FDFBF7] dark:text-zinc-950 border border-transparent dark:border-zinc-200 rounded-2xl text-xs font-bold uppercase tracking-widest shadow-lg"
         >

@@ -406,7 +406,7 @@ const getPasswordStrength = (password: string) => {
 // Özellik kartları
 const FEATURES = [
   { icon: <Target size={18} />, text: 'YKS hedef takibi & net analizi' },
-  { icon: <Zap size={18} />, text: 'AI koç — Gear_Head direktifleri' },
+  { icon: <Zap size={18} />, text: 'AI koç — Kübra direktifleri' },
   { icon: <BookOpen size={18} />, text: 'Müfredat haritası & soru bankası' },
   { icon: <Shield size={18} />, text: 'Veriler cihazlar arası senkron' },
 ];

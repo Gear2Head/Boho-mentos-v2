@@ -5,9 +5,9 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  X, Bell, CheckCircle2, AlertTriangle, Info, 
-  Trophy, Trash2, Calendar, LayoutList 
+import {
+  X, Bell, CheckCircle2, AlertTriangle, Info,
+  Trophy, Trash2, Calendar, LayoutList
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { formatDistanceToNow } from 'date-fns';
@@ -64,7 +64,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
             </div>
             <div className="flex items-center gap-2">
               {notifications.length > 0 && (
-                <button 
+                <button
                   onClick={clearNotifications}
                   className="p-2 hover:bg-white/5 rounded-xl text-zinc-500 hover:text-red-400 transition-colors"
                   title="Tümünü Temizle"
@@ -72,7 +72,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                   <Trash2 size={16} />
                 </button>
               )}
-              <button 
+              <button
                 onClick={onClose}
                 className="p-2 hover:bg-white/5 rounded-xl text-zinc-400 transition-colors"
               >
@@ -87,7 +87,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
               <div className="flex flex-col items-center justify-center py-20 text-center opacity-30">
                 <Bell size={48} className="text-zinc-600 mb-4" />
                 <p className="text-sm font-bold uppercase tracking-widest">Henüz bildirim yok</p>
-                <p className="text-[10px] mt-1">Gear_Head seni takip etmeye devam ediyor.</p>
+                <p className="text-[10px] mt-1">Kübra seni takip etmeye devam ediyor.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -134,13 +134,13 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
 
           {/* Footer (Sync Status Indicator) */}
           <div className="p-4 bg-black/40 border-t border-white/5 backdrop-blur-xl">
-             <div className="flex items-center justify-between text-[10px] font-bold tracking-widest text-zinc-600 uppercase">
-                <span>Versiyon 4.2 Elite</span>
-                <span className="flex items-center gap-1.5">
-                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                   Sİstem Aktİf
-                </span>
-             </div>
+            <div className="flex items-center justify-between text-[10px] font-bold tracking-widest text-zinc-600 uppercase">
+              <span>Versiyon 4.2 Elite</span>
+              <span className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                Sİstem Aktİf
+              </span>
+            </div>
           </div>
         </motion.div>
       </motion.div>

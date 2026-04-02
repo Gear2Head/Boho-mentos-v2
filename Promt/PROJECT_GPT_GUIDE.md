@@ -6,7 +6,7 @@ Bu döküman, projenin mimarisini, teknoloji yığınını ve geliştirme standa
 
 ## 1. PROJE ÖZETİ
 **Amaç:** YKS (Türkiye Üniversite Sınavı) hazırlık sürecini oyunlaştıran, liyakat (ELO) tabanlı bir mentorluk ve aktif soru çözüm platformu.
-**Felsefe:** "Gear_Head" mimarisi — Otonom, güvenli, estetik ve modüler.
+**Felsefe:** "Kübra" mimarisi — Otonom, güvenli, estetik ve modüler.
 **Marka:** Boho Mentosluk (Bohemian + Mentorship).
 
 ---
