@@ -54,8 +54,8 @@ export function ProfileShowcase() {
   const primaryGoal = targetGoals[0];
 
 
-  const tytProgress = primaryGoal ? Math.min(100, Math.round((lastTyt / (primaryGoal.baseScore || profile.tytTarget)) * 100)) : Math.min(100, Math.round((lastTyt / profile.tytTarget) * 100));
-  const aytProgress = primaryGoal ? Math.min(100, Math.round((lastAyt / (primaryGoal.baseScore || profile.aytTarget)) * 100)) : Math.min(100, Math.round((lastAyt / profile.aytTarget) * 100));
+  const tytProgress = Math.min(100, Math.round((lastTyt / (profile.tytTarget || 120)) * 100));
+  const aytProgress = Math.min(100, Math.round((lastAyt / (profile.aytTarget || 80)) * 100));
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 md:space-y-8">
@@ -106,7 +106,7 @@ export function ProfileShowcase() {
         </div>
       </div>
 
-      {/* YÖK Atlas Hedef Progress (Faz 5) */}
+      {/* YÖK Atlas Hedef Progress (Faz 5) - Real Data Fix */}
       <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <Target size={24} className="text-[#C17767]" />
@@ -122,7 +122,7 @@ export function ProfileShowcase() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs uppercase font-bold tracking-widest text-zinc-400">TYT — Temel Yeterlilik</span>
-              <span className="text-sm font-mono font-bold text-[#C17767]">{lastTyt} / {primaryGoal?.baseScore || profile.tytTarget}</span>
+              <span className="text-sm font-mono font-bold text-[#C17767]">{lastTyt} / 120</span>
             </div>
             <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div className="h-full bg-[#C17767] transition-all duration-1000" style={{ width: `${tytProgress}%` }} />
@@ -131,7 +131,7 @@ export function ProfileShowcase() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs uppercase font-bold tracking-widest text-zinc-400">AYT — Alan Yeterlilik</span>
-              <span className="text-sm font-mono font-bold text-[#E09F3E]">{lastAyt} / {primaryGoal?.baseScore || profile.aytTarget}</span>
+              <span className="text-sm font-mono font-bold text-[#E09F3E]">{lastAyt} / 80</span>
             </div>
             <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div className="h-full bg-[#E09F3E] transition-all duration-1000" style={{ width: `${aytProgress}%` }} />
