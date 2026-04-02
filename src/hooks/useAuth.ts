@@ -75,9 +75,13 @@ export function useAuth() {
           photoURL: firebaseUser.photoURL,
         });
 
-        const cloudData = await pullFromFirestore(firebaseUser.uid);
-        if (cloudData) {
-          applyCloudDataToStore(cloudData);
+        try {
+          const cloudData = await pullFromFirestore(firebaseUser.uid);
+          if (cloudData) {
+            applyCloudDataToStore(cloudData);
+          }
+        } catch (e) {
+          console.warn('[Auth] Initial pull failed:', e);
         }
 
         unsubscribeSnapshot = onSnapshot(
@@ -85,22 +89,15 @@ export function useAuth() {
           { includeMetadataChanges: true },
           (docSnap) => {
             if (!docSnap.exists()) return;
-            
-            // [SYNC-FIX]: Eğer yerelde bir yazma işlemi bekliyorsa veya Firestore SDK içinden bir yazma geliyorsa
-            // gelen bulut verisini (eski olabilir) uygulama.
             const { isSyncing } = useAppStore.getState();
             if (isSyncing || docSnap.metadata.hasPendingWrites) return;
 
             const rtData = docSnap.data() as Partial<FirestoreUserData>;
             const partial: Partial<FirestoreUserData> = {};
             for (const key of SYNC_FIELDS) {
-              if (rtData[key] !== undefined) {
-                (partial as Record<string, unknown>)[key] = rtData[key];
-              }
+              if (rtData[key] !== undefined) (partial as any)[key] = rtData[key];
             }
-            if (Object.keys(partial).length > 0) {
-              applyCloudDataToStore(partial);
-            }
+            if (Object.keys(partial).length > 0) applyCloudDataToStore(partial);
           }
         );
 
@@ -122,7 +119,8 @@ export function useAuth() {
           unsubscribeSnapshot();
           unsubscribeSnapshot = null;
         }
-        store.resetStore();
+        // [PHASE 5]: Kaldırıldı -> store.resetStore()
+        // Bu işlem sadece manuel signOut'ta yapılmalı.
         store.setAuthUser(null);
       }
       setIsLoading(false);

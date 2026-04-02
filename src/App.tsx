@@ -588,11 +588,18 @@ export default function App() {
     return <MaintenanceBlocker />;
   }
 
-  // 1. Durum: Auth kontrolü yapılıyor
-  if (isLoading) {
+  // 1. Durum: Auth kontrolü veya Yerel Kayıt Yüklemesi yapılıyor
+  if (isLoading || !store.hasHydrated) {
     return (
-      <div className="flex items-center justify-center h-screen bg-app">
-        <div className="w-8 h-8 border-2 border-[#C17767]/30 border-t-[#C17767] rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center h-screen bg-[#FDFBF7] dark:bg-[#0A0A0A]">
+        <div className="relative mb-8">
+           <div className="w-16 h-16 border-4 border-[#C17767]/20 border-t-[#C17767] rounded-full animate-spin" />
+           <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-8 h-8 bg-[#C17767] rounded-lg animate-pulse" />
+           </div>
+        </div>
+        <h1 className="font-display italic text-2xl text-[#C17767] animate-pulse">Boho Mentosluk</h1>
+        <p className="text-[10px] uppercase tracking-[0.3em] opacity-40 mt-4 font-bold">Veriler Senkronize Ediliyor...</p>
       </div>
     );
   }

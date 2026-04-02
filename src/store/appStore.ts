@@ -144,6 +144,9 @@ interface AppState {
 
   addTargetGoal: (goal: AtlasProgram) => void;
   removeTargetGoal: (id: string) => void;
+  
+  hasHydrated: boolean;
+  setHasHydrated: (val: boolean) => void;
 }
 
 const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
@@ -202,6 +205,7 @@ const INITIAL_STATE = {
   isSyncing: false,
   lastLocalUpdateAt: new Date().toISOString(),
   notifications: [],
+  hasHydrated: false,
 };
 
 function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
@@ -611,6 +615,8 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
       })),
 
       clearNotifications: () => set({ notifications: [] }),
+      
+      setHasHydrated: (val) => set({ hasHydrated: val }),
     }),
     {
       name: 'yks_coach_storage',
@@ -633,7 +639,10 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
         tytSubjects: persistedState?.tytSubjects || currentState.tytSubjects,
         aytSubjects: persistedState?.aytSubjects || currentState.aytSubjects,
         trophies: persistedState?.trophies || currentState.trophies,
-      })
+      }),
+      onRehydrateStorage: (state) => {
+        return () => state.setHasHydrated(true);
+      }
     }
   )
 );
