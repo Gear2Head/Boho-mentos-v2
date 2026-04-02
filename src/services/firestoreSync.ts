@@ -44,6 +44,8 @@ const EXCLUDED_KEYS = new Set([
   'authUser',
   'isDevMode',
   'subjectViewMode',
+  'isSyncing',
+  'lastSyncAt',
 ]);
 
 export async function pushToFirestore(uid: string, data: Partial<FirestoreUserData>, onComplete?: () => void): Promise<void> {

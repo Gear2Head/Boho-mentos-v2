@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { X, Mic, Camera, BookOpen } from 'lucide-react';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../../constants';
 import type { DailyLog } from '../../types';
-import { useToast } from '../ToastContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface LogEntryWidgetProps {
   onSubmit: (log: DailyLog) => void;

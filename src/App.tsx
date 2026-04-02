@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
@@ -7,7 +7,7 @@ import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
   Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2, LogOut,
-  Bell
+  Bell, RefreshCcw, CloudOff, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -425,49 +425,59 @@ export default function App() {
     }
   }, [store.theme]);
 
-  // Global store -> Firestore sync (her değişiklikte debounced push)
-  useEffect(() => {
+  // [PHASE 3]: Stratejik Senkronizasyon (Manual + Strategic Auto)
+  const syncWithCloud = useCallback(async (showNotif = true) => {
+    const state = useAppStore.getState();
+    const uid = state.authUser?.uid;
+    if (!uid) return;
+
     const EXCLUDED = new Set([
       'warRoomSession', 'warRoomAnswers', 'warRoomEliminated',
       'warRoomTimeLeft', 'warRoomMode', 'isFocusSidePanelOpen',
       'qaSession', 'drawingMode', 'authUser', 'isDevMode',
+      'isSyncing', 'showGreeting', 'activeSidebarTab', 'notifications'
     ]);
 
-    const unsubscribe = useAppStore.subscribe((state, prevState) => {
-      const uid = state.authUser?.uid;
-      if (!uid) return;
+    store.setSyncing(true);
 
-      // Sadece senkronize edilecek alanlar değiştiyse tetikle
-      const hasMeaningfulChange = Object.keys(state).some(k => 
-        !EXCLUDED.has(k) && 
-        typeof (state as any)[k] !== 'function' && 
-        (state as any)[k] !== (prevState as any)[k]
-      );
-
-      if (!hasMeaningfulChange) return;
-
-      // [SYNC-FIX]: Senkronizasyon başladı
-      if (!state.isSyncing) store.setSyncing(true);
-
-      const payload: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(state)) {
-        if (!EXCLUDED.has(k) && typeof v !== 'function') {
-          payload[k] = v;
-        }
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(state)) {
+      if (!EXCLUDED.has(k) && typeof v !== 'function') {
+        payload[k] = v;
       }
+    }
 
-      debouncedPush(uid, payload, () => {
-        store.setSyncing(false);
+    try {
+      await pushToFirestore(uid, payload);
+      store.setSyncing(false);
+      if (showNotif) {
         store.addNotification({
           type: 'success',
-          title: 'Veriler Güvende',
-          message: 'Tüm ilerlemen bulutla senkronize edildi.'
+          title: 'Senkronizasyon Başarılı',
+          message: 'Tüm ilerlemen buluta güvenle yedeklendi.'
         });
-      }, 2500);
-    });
+      }
+    } catch (err) {
+      store.setSyncing(false);
+      console.error('Manual sync failed:', err);
+    }
+  }, [store]);
 
-    return () => unsubscribe();
-  }, []);
+  // Sayfa kapanırken veya yenilenirken son bir kez kaydet
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      syncWithCloud(false);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [syncWithCloud]);
+
+  // Her oturum başlangıcında ve internet gelince verileri buluttan çek
+  useEffect(() => {
+    if (user?.uid) {
+      syncWithCloud(false); // Mount sırasında son durumu push/sync et
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     return initOfflineSync();
@@ -598,9 +608,8 @@ export default function App() {
   }
 
   return (
-    <ToastProvider>
-      <MobileGuard className="h-[100dvh]">
-        <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
+    <MobileGuard className="h-[100dvh]">
+      <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
 
       <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
         <div className="flex items-center gap-2">
@@ -610,6 +619,14 @@ export default function App() {
           <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
         </div>
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => syncWithCloud()} 
+            disabled={isSyncing}
+            className={`p-2 rounded-lg transition-all ${isSyncing ? 'text-[#C17767] animate-spin' : 'text-zinc-400 hover:text-[#C17767]'}`}
+            title="Bulutla Eşitle"
+          >
+            <RefreshCcw size={20} className={isSyncing ? 'animate-spin' : ''} />
+          </button>
           <div className="relative">
              <button onClick={() => setIsNotifOpen(true)} className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative">
                 <Bell size={20} />
@@ -636,7 +653,14 @@ export default function App() {
           </div>
           <div className="flex items-center justify-between mt-1">
             <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
-            <div className="relative">
+              <button 
+                onClick={() => syncWithCloud()} 
+                disabled={isSyncing}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
+                title="Bulutla Eşitle"
+              >
+                <RefreshCcw size={16} className={isSyncing ? 'animate-spin text-[#C17767]' : ''} />
+              </button>
               <button 
                 onClick={() => setIsNotifOpen(true)} 
                 className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
@@ -646,7 +670,6 @@ export default function App() {
                   <span className="absolute top-1 right-1 w-2 h-2 bg-[#C17767] rounded-full border border-[#121212] shadow-[0_0_8px_#C17767]" />
                 )}
               </button>
-            </div>
           </div>
           {store.isPassiveMode && (
             <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
@@ -1277,10 +1300,9 @@ export default function App() {
         onNavigate={setActiveTab}
         onSignOut={signOut}
       />
-      <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+        <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
       </div>
-      </MobileGuard>
-    </ToastProvider>
+    </MobileGuard>
   );
 }
 

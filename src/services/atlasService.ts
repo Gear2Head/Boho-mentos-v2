@@ -4,9 +4,10 @@
  * Not: Build güvenilirliği için native 'fetch' kullanılmıştır.
  */
 
-const ATLAS_API_URL = (typeof process !== 'undefined' && process.env.VITE_ATLAS_API_URL) 
-  || (import.meta.env?.VITE_ATLAS_API_URL)
-  || 'http://localhost:3002/api/atlas';
+const ATLAS_API_URL = 
+  (typeof process !== 'undefined' && process.env.VITE_ATLAS_API_URL) ||
+  (import.meta.env?.VITE_ATLAS_API_URL) ||
+  '/api/atlas'; // Default to relative path for production proxy
 
 export interface AtlasProgram {
   id: string;
@@ -24,7 +25,7 @@ export const atlasService = {
    */
   async search(query: string): Promise<AtlasProgram[]> {
     try {
-      const url = new URL(`${ATLAS_API_URL}/search`);
+      const url = new URL(`${ATLAS_API_URL}/search`, window.location.origin);
       url.searchParams.append('q', query);
       
       const response = await fetch(url.toString());
