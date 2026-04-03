@@ -40,19 +40,25 @@ function applyCloudDataToStore(incoming: Partial<FirestoreUserData>) {
     if (delta !== 0) current.addElo(delta);
   }
 
+  // [BUG-016 FIX]: Boş array da geçerli cloud durumudur. `?.length` guard'ı kaldırıldı.
+  // tytSubjects/aytSubjects için default local tutulur (kullanıcı hiç kaydetmediyse)
   useAppStore.setState({
-    tytSubjects: incoming.tytSubjects?.length ? incoming.tytSubjects : current.tytSubjects,
-    aytSubjects: incoming.aytSubjects?.length ? incoming.aytSubjects : current.aytSubjects,
-    logs: incoming.logs ?? current.logs,
-    exams: incoming.exams ?? current.exams,
-    failedQuestions: incoming.failedQuestions ?? current.failedQuestions,
-    agendaEntries: incoming.agendaEntries ?? current.agendaEntries,
-    focusSessions: incoming.focusSessions ?? current.focusSessions,
-    trophies: incoming.trophies?.length ? incoming.trophies : current.trophies,
+    tytSubjects: incoming.tytSubjects !== undefined
+      ? (incoming.tytSubjects.length > 0 ? incoming.tytSubjects : current.tytSubjects)
+      : current.tytSubjects,
+    aytSubjects: incoming.aytSubjects !== undefined
+      ? (incoming.aytSubjects.length > 0 ? incoming.aytSubjects : current.aytSubjects)
+      : current.aytSubjects,
+    logs: Array.isArray(incoming.logs) ? incoming.logs : current.logs,
+    exams: Array.isArray(incoming.exams) ? incoming.exams : current.exams,
+    failedQuestions: Array.isArray(incoming.failedQuestions) ? incoming.failedQuestions : current.failedQuestions,
+    agendaEntries: Array.isArray(incoming.agendaEntries) ? incoming.agendaEntries : current.agendaEntries,
+    focusSessions: Array.isArray(incoming.focusSessions) ? incoming.focusSessions : current.focusSessions,
+    trophies: Array.isArray(incoming.trophies) ? incoming.trophies : current.trophies,
     streakDays: incoming.streakDays ?? current.streakDays,
     isPassiveMode: incoming.isPassiveMode ?? current.isPassiveMode,
-    activeAlerts: incoming.activeAlerts ?? current.activeAlerts,
-    chatHistory: incoming.chatHistory ?? current.chatHistory,
+    activeAlerts: Array.isArray(incoming.activeAlerts) ? incoming.activeAlerts : current.activeAlerts,
+    chatHistory: Array.isArray(incoming.chatHistory) ? incoming.chatHistory : current.chatHistory,
     subjectViewMode: incoming.subjectViewMode ?? current.subjectViewMode,
   });
 }
@@ -82,13 +88,18 @@ function applyRootCloudDataToStore(incoming: Partial<FirestoreUserData>) {
     if (delta !== 0) current.addElo(delta);
   }
 
+  // [BUG-016 FIX]: Realtime root listener — boş array geçerli cloud durumu.
   useAppStore.setState({
-    tytSubjects: incoming.tytSubjects?.length ? incoming.tytSubjects : current.tytSubjects,
-    aytSubjects: incoming.aytSubjects?.length ? incoming.aytSubjects : current.aytSubjects,
-    trophies: incoming.trophies?.length ? incoming.trophies : current.trophies,
+    tytSubjects: incoming.tytSubjects !== undefined
+      ? (incoming.tytSubjects.length > 0 ? incoming.tytSubjects : current.tytSubjects)
+      : current.tytSubjects,
+    aytSubjects: incoming.aytSubjects !== undefined
+      ? (incoming.aytSubjects.length > 0 ? incoming.aytSubjects : current.aytSubjects)
+      : current.aytSubjects,
+    trophies: Array.isArray(incoming.trophies) ? incoming.trophies : current.trophies,
     streakDays: incoming.streakDays ?? current.streakDays,
     isPassiveMode: incoming.isPassiveMode ?? current.isPassiveMode,
-    activeAlerts: incoming.activeAlerts ?? current.activeAlerts,
+    activeAlerts: Array.isArray(incoming.activeAlerts) ? incoming.activeAlerts : current.activeAlerts,
     subjectViewMode: incoming.subjectViewMode ?? current.subjectViewMode,
   });
 }

@@ -14,7 +14,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 import { getCoachResponse } from './services/gemini';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from './constants';
-import { useAppStore } from './store/appStore';
+import { useAppStore, COACH_NAME, COACH_SYSTEM_NAME } from './store/appStore';
 import type {
   StudentProfile, DailyLog, ExamResult, FailedQuestion
 } from './types';
@@ -49,6 +49,7 @@ import { NavItem } from './components/NavItem';
 import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
+import { useVisualViewportHeight } from './hooks/useViewport';
 import { debouncedPush, pushToFirestore } from './services/firestoreSync';
 import { initOfflineSync } from './utils/syncQueue';
 import { useToast } from './contexts/ToastContext';
@@ -275,6 +276,9 @@ export default function App() {
   const { user, isLoading, signOut } = useAuth();
   const [isAuthSkipped, setIsAuthSkipped] = useState(false);
 
+  // [UX-003 FIX]: Mobil klavye --vh senkronizasyonu
+  useVisualViewportHeight();
+
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
     setIsMounted(true);
@@ -289,8 +293,11 @@ export default function App() {
   const [isLogWidgetOpen, setIsLogWidgetOpen] = useState(false);
   const [isArchiveWidgetOpen, setIsArchiveWidgetOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobil Navigasyon Menüsü
-  const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi (legacy, TODO: store'a taşınacak)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // [BUG-010 FIX]: Morning Blocker kilidi artık persist'e bağlı — aynı gün refresh'te kapanmaz
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isMorningUnlocked = store.morningUnlockedDate === todayIso;
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const unreadCount = store.notifications.filter(n => !n.read).length;
@@ -472,12 +479,35 @@ export default function App() {
     }
   }, [store]);
 
-  // Sayfa kapanırken veya yenilenirken son bir kez kaydet
+  // [BUG-006 FIX]: beforeunload → sendBeacon ile güvenli son-kayıt
+  // sendBeacon browser tarafından sayfa kapansa bile gönderilmeyi garantiler.
   useEffect(() => {
     const handleBeforeUnload = () => {
-      // beforeunload içinde async network çağrısı güvenilir değil (browser beklemez).
-      // Bu yüzden burada bulut sync tetiklemiyoruz.
+      const state = useAppStore.getState();
+      const uid = state.authUser?.uid;
+      if (!uid) return;
+
+      // Güvenli meta root sync — büyük array'ler dahil değil (beacon boyut limiti)
+      const rootSnapshot = {
+        eloScore: state.eloScore,
+        streakDays: state.streakDays,
+        theme: state.theme,
+        subjectViewMode: state.subjectViewMode,
+        isPassiveMode: state.isPassiveMode,
+        lastSeenAt: new Date().toISOString(),
+      };
+
+      try {
+        const blob = new Blob(
+          [JSON.stringify({ uid, rootData: rootSnapshot })],
+          { type: 'application/json' }
+        );
+        navigator.sendBeacon('/api/sync', blob);
+      } catch {
+        // sendBeacon mevcut değil veya bloklanmış — sessizce geç
+      }
     };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
@@ -619,9 +649,9 @@ export default function App() {
     return <ProfileSettings onSubmit={(p) => store.setProfile(p)} />;
   }
 
-  // Morning Blocker (Sabah Sorusu Kilidi)
-  if (store.isMorningBlockerEnabled && !unlockStatus) {
-    return <MorningBlocker onUnlock={() => setUnlockStatus(true)} />;
+  // Morning Blocker (Sabah Sorusu Kilidi) — [BUG-010 FIX]: persist store tabanlı
+  if (store.isMorningBlockerEnabled && !isMorningUnlocked) {
+    return <MorningBlocker onUnlock={() => store.setMorningUnlockedDate(todayIso)} />;
   }
 
   return (
@@ -1125,18 +1155,19 @@ export default function App() {
 
             {activeTab === 'coach' && (
               <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
-                <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">Kübra
+                <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">
                   {store.chatHistory.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
                         <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
-                          {msg.role === 'user' ? `${store.profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : 'Gear_Head.'}
-                        </div>Kübra
+                          {/* [BUG-018 FIX]: COACH_NAME sabiti */}
+                          {msg.role === 'user' ? `${store.profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : COACH_SYSTEM_NAME}
+                        </div>
                         <div className="text-sm font-mono leading-relaxed opacity-90 tracking-wide"><ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown></div>
                       </div>
                     </div>
                   ))}
-                  {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500" /><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">Gear_Head. analiz ediyor...</span></div>}
+                  {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500" /><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">{COACH_SYSTEM_NAME} analiz ediyor...</span></div>}
                   <div ref={chatEndRef} />
                 </div>
 

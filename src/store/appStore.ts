@@ -8,12 +8,17 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { openDB } from 'idb';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import { toISODateOnly, toISODateTime, toDateMs } from '../utils/date';
-import { tombstoneEntity } from '../services/firestoreSync';
+import { tombstoneEntity, pushSingleEntity } from '../services/firestoreSync';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
   HabitAlert, WarRoomMode, WarRoomSession, AuthUser, AtlasProgram, AppNotification
 } from '../types';
+
+/** [BUG-018 FIX]: Tek merkezi isim sabitleri — UI'da tutarsız etiket kalmaması için */
+export const COACH_NAME = 'Kübra';
+export const COACH_SYSTEM_NAME = 'Gear_Head.Kübra';
+
 
 export interface QASession {
   scenario: 'plan' | 'log' | 'exam' | 'topic';
@@ -116,6 +121,10 @@ interface AppState {
   markNotificationAsRead: (id: string) => void;
   clearNotifications: () => void;
 
+  /** [BUG-010 FIX]: MorningBlocker kilit tarihi — sessionStorage yerine persist store */
+  morningUnlockedDate: string;
+  setMorningUnlockedDate: (date: string) => void;
+
   setProfile: (profile: StudentProfile | null) => void;
   updateTytSubject: (index: number, updates: Partial<SubjectStatus>) => void;
   updateAytSubject: (originalIndex: number, updates: Partial<SubjectStatus>) => void;
@@ -213,6 +222,7 @@ const INITIAL_STATE = {
   lastEloUpdateDate: toISODateOnly(),
   streakDays: 0,
   isMorningBlockerEnabled: true,
+  morningUnlockedDate: '', // [BUG-010 FIX]: Persist edilen kilit tarihi
   focusSessions: [],
   agendaEntries: [],
   activeAlerts: [],
@@ -496,6 +506,10 @@ export const useAppStore = create<AppState>()(
 
         const newAlerts = newLogs.length >= 5 ? detectHabitsFromLogs(newLogs) : state.activeAlerts;
 
+        // [SYNC-009 FIX]: Incrementı cloud write-through
+        const uid = get().authUser?.uid;
+        if (uid) void pushSingleEntity(uid, 'logs', logWithId as unknown as Record<string, unknown>);
+
         return { logs: newLogs, streakDays: newStreak, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies, activeAlerts: newAlerts };
       }),
 
@@ -527,6 +541,10 @@ export const useAppStore = create<AppState>()(
           }
           return t;
         });
+
+        // [SYNC-009 FIX]: Incrementı cloud write-through
+        const uid = get().authUser?.uid;
+        if (uid) void pushSingleEntity(uid, 'exams', normalizedExam as unknown as Record<string, unknown>);
 
         return { exams: newExams.slice(-200), eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies };
       }),
@@ -568,20 +586,25 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
         eloScore: state.eloScore + amount
       })),
 
-      addChatMessage: (message) =>
+      addChatMessage: (message) => {
+        const newMessage: ChatMessage = {
+          ...message,
+          id:
+            message.id ??
+            (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID()
+              : `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+        };
+        // [SYNC-009 FIX]: Incrementı cloud write-through
+        const uid = get().authUser?.uid;
+        if (uid) void pushSingleEntity(uid, 'chatHistory', newMessage as unknown as Record<string, unknown>);
         set((state) => ({
           chatHistory: [
             ...state.chatHistory,
-            {
-              ...message,
-              id:
-                message.id ??
-                (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-                  ? crypto.randomUUID()
-                  : `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
-            },
+            newMessage,
           ].slice(-100),
-        })),
+        }));
+      },
 
       setPassiveMode: (isPassiveMode) => set({ isPassiveMode }),
 
@@ -626,13 +649,23 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
 
       setMorningBlockerEnabled: (isMorningBlockerEnabled) => set({ isMorningBlockerEnabled }),
 
-      addFocusSession: (record) => set((state) => ({
-        focusSessions: [...state.focusSessions, record],
-      })),
+      addFocusSession: (record) => {
+        // [SYNC-009 FIX]: Incrementı cloud write-through
+        const uid = get().authUser?.uid;
+        if (uid) void pushSingleEntity(uid, 'focusSessions', record as unknown as Record<string, unknown>);
+        set((state) => ({
+          focusSessions: [...state.focusSessions, record],
+        }));
+      },
 
-      addAgendaEntry: (entry) => set((state) => ({
-        agendaEntries: [...state.agendaEntries, entry],
-      })),
+      addAgendaEntry: (entry) => {
+        // [SYNC-009 FIX]: Incrementı cloud write-through
+        const uid = get().authUser?.uid;
+        if (uid) void pushSingleEntity(uid, 'agendaEntries', entry as unknown as Record<string, unknown>);
+        set((state) => ({
+          agendaEntries: [...state.agendaEntries, entry],
+        }));
+      },
 
       updateAgendaEntry: (id, updates) => set((state) => ({
         agendaEntries: state.agendaEntries.map(e => e.id === id ? { ...e, ...updates } : e),
@@ -665,6 +698,9 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
       })),
 
       setSyncing: (isSyncing) => set({ isSyncing }),
+
+      /** [BUG-010 FIX]: MorningBlocker kilidi artık persist'e bağlı */
+      setMorningUnlockedDate: (date) => set({ morningUnlockedDate: date }),
       
       addNotification: (notif) => set((state) => {
         const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;

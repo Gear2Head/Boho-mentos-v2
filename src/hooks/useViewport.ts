@@ -72,3 +72,32 @@ export function useViewport(): ViewportInfo {
   return info;
 }
 
+/**
+ * [UX-003 FIX]: VisualViewport API ile mobil klavye açılınca --vh CSS senkronizasyonu.
+ * Kullanım: App.tsx veya herhangi bir layout bileşeninde bir kez çağır.
+ */
+export function useVisualViewportHeight(): void {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    function syncHeight() {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--vh", `${height * 0.01}px`);
+    }
+
+    syncHeight();
+
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener("resize", syncHeight);
+      vv.addEventListener("scroll", syncHeight);
+      return () => {
+        vv.removeEventListener("resize", syncHeight);
+        vv.removeEventListener("scroll", syncHeight);
+      };
+    } else {
+      window.addEventListener("resize", syncHeight, { passive: true });
+      return () => window.removeEventListener("resize", syncHeight);
+    }
+  }, []);
+}

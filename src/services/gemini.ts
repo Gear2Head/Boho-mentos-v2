@@ -1,4 +1,11 @@
+/**
+ * AMAÇ: Koç AI servis istemcisi — /api/ai endpoint'ine güvenli çağrı.
+ * MANTIK: safeFetch retry + Türkçe hata mesajı çözümleyicisi.
+ * [UX-005 FIX]: resolveAiError ile raw hata kodları/status kullanıcıya gösterilmez.
+ */
 
+import { resolveAiError, resolveErrorMessage } from '../utils/errorMessages';
+import type { CoachApiRequest } from '../types/coach';
 
 interface OpenAIMessage {
   role: "system" | "user" | "assistant";
@@ -6,19 +13,17 @@ interface OpenAIMessage {
 }
 
 /**
- * safeFetch: Hata yönetimi ve retry mekanizmalı fetch sarmalayıcısı
+ * safeFetch: Hata yönetimi ve exponential backoff retry mekanizmalı fetch sarmalayıcısı
  */
 async function safeFetch(url: string, options: RequestInit, retries = 3, backoff = 1000): Promise<Response> {
   try {
     const response = await fetch(url, options);
-
     // Rate limit (429) veya Server Error (5xx) durumunda retry yap
     if ((response.status === 429 || response.status >= 500) && retries > 0) {
       console.warn(`AI API hatası (${response.status}). ${backoff}ms sonra tekrar deneniyor... Kalan deneme: ${retries}`);
       await new Promise(resolve => setTimeout(resolve, backoff));
       return safeFetch(url, options, retries - 1, backoff * 2);
     }
-
     return response;
   } catch (err) {
     if (retries > 0) {
@@ -38,22 +43,29 @@ export async function getCoachResponse(
     coachPersonality?: string;
     forceJson?: boolean;
     maxTokens?: number;
-    userState?: any;
+    userState?: Record<string, unknown>;
   }
 ): Promise<string> {
-  const payload = {
-    action: options?.action || "coach",
+  const payload: Partial<CoachApiRequest> = {
+    action: options?.action === "qa_mode" ? "qa_mode" : "coach",
     userMessage,
     context,
     chatHistory: chatHistory.slice(-6),
     coachPersonality: options?.coachPersonality,
     forceJson: options?.forceJson,
     maxTokens: options?.maxTokens,
-    userState: options?.userState || {
-      summary: "Profil verisi eksik.",
+    userState: options?.userState ?? {
+      name: '',
+      track: '',
+      tytTarget: 0,
+      aytTarget: 0,
+      eloScore: 0,
+      streakDays: 0,
       lastLogs: [],
       lastExams: [],
-      alerts: 0
+      alertCount: 0,
+      tytProgressPercent: 0,
+      aytProgressPercent: 0,
     }
   };
 
@@ -65,28 +77,29 @@ export async function getCoachResponse(
     });
 
     if (!response.ok) {
-      const txt = await response.text();
-      return `Sistem yoğunluğu nedeniyle yanıt alınamadı (${response.status}). Lütfen biraz bekleyip tekrar dene.`;
+      // [UX-005 FIX]: HTTP status raw kodu yerine Türkçe hata
+      return resolveErrorMessage({ status: response.status });
     }
 
-    const data = (await response.json()) as { text?: string; error?: string; debug?: any };
+    const data = (await response.json()) as { text?: string; error?: string; debug?: unknown };
 
     if (data.debug) {
       console.warn("Kübra DEBUG:", data.debug);
     }
 
-    if (data.error === "RATE_LIMITED") {
-      return "Anlık limitlere takıldın. Kübra biraz dinleniyor, 30 saniye sonra tekrar yazabilirsin.";
+    if (data.error) {
+      // [UX-005 FIX]: AI hata kodu → TR mesaj
+      return resolveAiError(data.error);
     }
 
-    return data.text ?? "Yanıt oluşturulurken bir hata oluştu. Lütfen tekrar dene.";
+    return data.text ?? 'Yanıt oluşturulurken bir hata oluştu. Lütfen tekrar dene.';
   } catch (err) {
     console.error("AI Fetch Error:", err);
-    return "Bağlantı hatası oluştu. Lütfen internetini kontrol et veya biraz sonra tekrar dene.";
+    return resolveErrorMessage(err);
   }
 }
 
-export async function parseVoiceLog(transcript: string): Promise<Record<string, any> | null> {
+export async function parseVoiceLog(transcript: string): Promise<Record<string, unknown> | null> {
   const response = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,6 +107,6 @@ export async function parseVoiceLog(transcript: string): Promise<Record<string, 
   });
 
   if (!response.ok) return null;
-  const data = (await response.json()) as { data?: Record<string, any> | null };
+  const data = (await response.json()) as { data?: Record<string, unknown> | null };
   return data.data ?? null;
 }

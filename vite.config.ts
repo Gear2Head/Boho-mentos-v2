@@ -78,6 +78,10 @@ export default defineConfig(({ mode }) => ({
           markdown: ['react-markdown'],
           motion: ['motion'],
           firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          // [PERF-002 FIX]: Ağır AI ve native paketleri ayrı chunk
+          genai: ['@google/genai'],
+          capacitor: ['@capacitor/core', '@capacitor/app', '@capacitor/status-bar'],
+          idb: ['idb'],
         },
       },
     },

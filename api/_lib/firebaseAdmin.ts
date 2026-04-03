@@ -1,5 +1,6 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
 type ServiceAccountShape = {
   project_id: string;
@@ -26,12 +27,12 @@ function parseServiceAccount(): ServiceAccountShape | null {
   }
 }
 
-function getAdminAuth() {
+function ensureAdminApp() {
   if (!getApps().length) {
     const sa = parseServiceAccount();
     if (!sa) {
       throw new Error(
-        "Missing FIREBASE_SERVICE_ACCOUNT_JSON for server token verification."
+        "Missing FIREBASE_SERVICE_ACCOUNT_JSON for server-side operations."
       );
     }
     const serviceAccount: ServiceAccount = {
@@ -43,7 +44,17 @@ function getAdminAuth() {
       credential: cert(serviceAccount),
     });
   }
+}
+
+function getAdminAuth() {
+  ensureAdminApp();
   return getAuth();
+}
+
+/** [SEC-005 FIX]: Sunucu tarafı Firestore Admin referansı — tüm write endpoint'lerinde ortak kullanım */
+export function getAdminFirestore() {
+  ensureAdminApp();
+  return getFirestore();
 }
 
 export async function verifyBearerToken(
@@ -60,3 +71,4 @@ export async function verifyBearerToken(
   const decoded = await getAdminAuth().verifyIdToken(token, true);
   return { uid: decoded.uid };
 }
+
