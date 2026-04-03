@@ -4,6 +4,7 @@
  */
 
 import type { ExamResult, DailyLog, SubjectStatus } from '../types';
+import { toDateMs, toISODateOnly } from './date';
 
 export interface RegressionResult {
   slope: number;
@@ -73,11 +74,11 @@ export function predictNetAtDate(
     return { predictedNet: 0, hasEnoughData: false, dataPoints: (filtered?.length || 0) };
   }
 
-  const firstDate = new Date(filtered[0].date).getTime();
+  const firstDate = toDateMs(filtered[0].date);
   if (!Number.isFinite(firstDate)) return { predictedNet: 0, hasEnoughData: false, dataPoints: filtered.length };
 
   const points = filtered.map(e => ({
-    x: (new Date(e.date).getTime() - firstDate) / (1000 * 60 * 60 * 24),
+    x: (((toDateMs(e.date) ?? 0) - firstDate) / (1000 * 60 * 60 * 24)),
     y: e.totalNet || 0,
   })).filter(p => Number.isFinite(p.x));
 
@@ -147,11 +148,23 @@ export function estimateCompletionDate(
 
 export function calcDailyTopicRate(logs: DailyLog[], windowDays = 14): number {
   const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-  const recentLogs = logs.filter(l => new Date(l.date).getTime() >= cutoff);
+  const recentLogs = logs.filter((l) => {
+    const ms = toDateMs(l.date);
+    if (ms === null) return false;
+    return ms >= cutoff;
+  });
 
   if (recentLogs.length === 0) return 0;
 
-  const uniqueTopicDays = new Set(recentLogs.map(l => `${l.topic}__${new Date(l.date).toLocaleDateString('tr-TR')}`));
+  const uniqueTopicDays = new Set(
+    recentLogs
+      .map((l) => {
+        const ms = toDateMs(l.date);
+        if (ms === null) return null;
+        return `${l.topic}__${toISODateOnly(new Date(ms))}`;
+      })
+      .filter((x): x is string => typeof x === 'string')
+  );
   return uniqueTopicDays.size / windowDays;
 }
 
@@ -209,9 +222,9 @@ export function calculatePredictedNet(
     return { predictedNet: Math.round(basePred), confidence: 30 }; 
   }
 
-  const baseDate = new Date(filteredExams[0].date).getTime();
+  const baseDate = toDateMs(filteredExams[0].date) ?? 0;
   const points = filteredExams.map(e => ({
-    x: (new Date(e.date).getTime() - baseDate) / (1000 * 60 * 60 * 24),
+    x: (((toDateMs(e.date) ?? 0) - baseDate) / (1000 * 60 * 60 * 24)),
     y: e.totalNet,
   }));
 
@@ -242,7 +255,11 @@ export function detectHabitAlerts(logs: DailyLog[]): HabitAuditAlert[] {
   if (logs.length === 0) return [];
   const alerts: HabitAuditAlert[] = [];
   const now = Date.now();
-  const last3Days = logs.filter((l) => now - new Date(l.date).getTime() <= 3 * 24 * 60 * 60 * 1000);
+  const last3Days = logs.filter((l) => {
+    const ms = toDateMs(l.date);
+    if (ms === null) return false;
+    return now - ms <= 3 * 24 * 60 * 60 * 1000;
+  });
   const hasMath = last3Days.some((l) => l.subject.toLowerCase().includes('matematik'));
   if (!hasMath) {
     alerts.push({
@@ -252,7 +269,11 @@ export function detectHabitAlerts(logs: DailyLog[]): HabitAuditAlert[] {
     });
   }
 
-  const last7Days = logs.filter((l) => now - new Date(l.date).getTime() <= 7 * 24 * 60 * 60 * 1000);
+  const last7Days = logs.filter((l) => {
+    const ms = toDateMs(l.date);
+    if (ms === null) return false;
+    return now - ms <= 7 * 24 * 60 * 60 * 1000;
+  });
   const bySubject = new Map<string, number>();
   last7Days.forEach((l) => bySubject.set(l.subject, (bySubject.get(l.subject) ?? 0) + 1));
   const total = last7Days.length || 1;

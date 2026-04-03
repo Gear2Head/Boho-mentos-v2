@@ -9,6 +9,7 @@ import { Plus, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import type { AgendaEntry, ExamResult } from '../types';
 import { getCoachResponse } from '../services/gemini';
+import { toDateMs, parseFlexibleDate } from '../utils/date';
 
 const markdownComponents = {
   p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 text-[#4A443C] dark:text-zinc-200 text-sm" {...props} />,
@@ -51,7 +52,7 @@ export function AgendaPage() {
   const entries = useMemo(() => {
     return store.agendaEntries
       .slice()
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => (toDateMs(b.date) ?? 0) - (toDateMs(a.date) ?? 0));
   }, [store.agendaEntries]);
 
   const addEntry = () => {
@@ -135,7 +136,7 @@ export function AgendaPage() {
               <div className="flex items-start justify-between gap-6 mb-3">
                 <div>
                   <div className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400">
-                    {new Date(e.date).toLocaleString('tr-TR')}
+                    {(parseFlexibleDate(e.date) ?? new Date()).toLocaleString('tr-TR')}
                   </div>
                   {e.parsedExam && (
                     <div className="mt-2 text-[10px] uppercase tracking-widest font-bold text-[#C17767] dark:text-rose-400">

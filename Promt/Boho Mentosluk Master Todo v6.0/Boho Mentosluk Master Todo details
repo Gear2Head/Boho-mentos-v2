@@ -1,0 +1,210 @@
+## Boho Mentosluk Kapsamlı Todo Listesi
+
+### Özet
+- Öncelik sırası: `stabilite -> Koç çekirdeği -> Koç UI/UX -> tüm AI yüzeyleri -> War Room -> veri/senkron -> kalite`.
+- Amaç: önce gerçekten derlenebilen ve güvenilir bir taban oluşturmak, sonra `Koç`u bayat sohbet ekranından çıkarıp veri-temelli çalışma komutanına dönüştürmek.
+- Bu todo listesi ilk büyük toparlama sprintini karar-tam şekilde tanımlar.
+
+### P0 — Bloke Eden Teknik Sorunlar
+- [ ] Root TypeScript kapsamını düzelt.
+- [ ] `tsconfig` içine `include/exclude` ekleyip shipping app dışı klasörleri root kontrolden çıkar.
+- [ ] `Promt/`, `dist/`, gerekirse `atlas-data-engine/` için ayrı doğrulama stratejisi tanımla.
+- [ ] `src/main.tsx` içindeki `ErrorBoundary` tiplemesini React 19 ile uyumlu hale getir.
+- [ ] `War Room` tip çatışmasını çöz.
+- [ ] `warRoomMode` değerlerini sadece `setup | solve | result` olarak sabitle.
+- [ ] `TopBar.tsx` içindeki `draw` ve `analysis` mod akışını kaldır veya `drawingMode` mantığına taşı.
+- [ ] `QuestionPanel.tsx` içindeki `warRoomMode === 'draw'` kontrolünü temizle.
+- [ ] Çift canvas mimarisini kapat.
+- [ ] `src/components/warroom/CanvasLayer.tsx` ile `QuestionPanel.tsx` içindeki ikinci canvas yaklaşımından yalnızca birini bırak.
+- [ ] Root `lint` komutunu uygulamanın gerçek durumunu gösterecek hale getir.
+- [ ] Değişiklik sonrası `npm.cmd run lint` temiz geçecek hedefe getir.
+- [ ] Build doğrulama adımını ayrı ele al.
+- [ ] Yerel makinede `npm.cmd run build` tekrar çalıştırıp `EPERM`in ortam kaynaklı mı repo kaynaklı mı olduğunu doğrula.
+
+### P1 — Koç Çekirdeği Yeniden Tasarım
+- [ ] Tek bir tipli koç veri kontratı oluştur.
+- [ ] `CoachSystemContext` tipi ekle.
+- [ ] İçine `profile`, `stats`, `curriculum`, `recentLogs`, `recentExams`, `failedTopics`, `activeAlerts` alanlarını sabitle.
+- [ ] `getCoachResponse` istemcisini string-ağırlıklı yapıdan tipli context tabanına geçir.
+- [ ] `context` string birleştirme mantığını kaldır.
+- [ ] `userState: any` kullanımını kaldır.
+- [ ] Ortak `CoachIntent` tanımla.
+- [ ] En az şu intentler olsun: `daily_plan`, `log_analysis`, `exam_analysis`, `topic_explain`, `warroom_analysis`, `intervention`, `general_chat`.
+- [ ] `/api/ai` içinde prompt üretimini ayrı modüle taşı.
+- [ ] Koç davranışını mevcut `Master koç` dökümanına göre sistematik hale getir.
+- [ ] Prompt içinde serbest motivasyon yerine görev, darboğaz, kaynak ve takip sorusu üretimini zorunlu kıl.
+- [ ] Ders-konu-kaynak matrisi oluştur.
+- [ ] İlk fazda statik veri tabanlı olsun.
+- [ ] AI’ın uydurma kaynak üretmesine izin verme.
+- [ ] Çıkış formatını genişlet.
+- [ ] `text` alanını koru.
+- [ ] Buna ek olarak structured `directive` objesi döndür.
+- [ ] `directive` için sabit şema tanımla: `headline`, `summary`, `tasks`, `warnings`, `followUpQuestion`, `surface`.
+- [ ] `tasks` içinde `subject`, `topic`, `resource`, `scope`, `durationMin`, `reason` alanlarını zorunlu yap.
+- [ ] Sağlayıcı fallback davranışını koru ama debug bilgisini standardize et.
+- [ ] Rate limit ve provider fail durumlarını UI’nın yorumlayabileceği sabit hata kodlarına bağla.
+
+### P1 — Koç Deneyimi: Ürün Mantığı
+- [ ] Koçu “sadece sohbet” olmaktan çıkar.
+- [ ] Her cevapta mümkünse somut görev listesi üret.
+- [ ] Görev sayısını öğrencinin kapasitesine göre 1-3 ile sınırla.
+- [ ] `fatigue`, `dailyGoal`, `streak`, `activeAlerts` kurallarını prompt seviyesinde gerçek iş mantığına bağla.
+- [ ] Koçun veri toplama akışını netleştir.
+- [ ] Q&A modu kalacaksa intent tabanlı çalışsın.
+- [ ] Komut algılama sadece büyük harf eşleşmesiyle sınırlı kalmasın.
+- [ ] “Plan yap”, “bugün ne çalışayım”, “şu logu analiz et”, “şu konuyu anlat” gibi doğal dil girdilerini intent eşleyicisine bağla.
+- [ ] Koç her durumda bir sonraki adımı sorsun veya önersin.
+- [ ] Boş, genel, motivasyonel cevapları reddeden guard ekle.
+- [ ] Gerekirse düşük kaliteli cevapları istemci tarafında fallback mesajıyla işaretle.
+
+### P1 — Koç Arayüzü ve UX
+- [ ] `Koç` ekranını directive-first hale getir.
+- [ ] Son AI cevabını kartlı görev paneli olarak göster.
+- [ ] Chat geçmişini altta ikincil katman olarak bırak.
+- [ ] Başlangıç ekranını yenile.
+- [ ] İlk açılışta boş siyah ekran hissini tamamen kaldır.
+- [ ] Kullanıcıya örnek komutlar değil, örnek hedef aksiyonlar göster.
+- [ ] Mesaj alanını ürün mantığına göre güncelle.
+- [ ] Placeholder daha yönlendirici olsun.
+- [ ] Hızlı aksiyon butonlarını yeni intent sistemine bağla.
+- [ ] Mevcut UI’daki artık/sızıntı metinleri temizle.
+- [ ] `App.tsx` içindeki sabit `Kübra` ve `Gear_Head.` sızıntılarını kaldır.
+- [ ] Mesaj başlıklarını tutarlı hale getir.
+- [ ] Son koç cevabından “bugünün direktifi” özeti üret.
+- [ ] Koç ekranında “chat temizle” ve “son planı tekrar üret” aksiyonları ekle.
+- [ ] Uzun cevaplar için section render kullan.
+- [ ] `tasks`, `warnings`, `followUpQuestion` ayrı görsel bloklarda gösterilsin.
+- [ ] Hata durumlarını insan gibi açıklayan UI ekle.
+- [ ] 404, rate limit, provider failure, invalid JSON gibi durumlar kullanıcıya farklı metinlerle yansısın.
+
+### P1 — Tüm AI Yüzeylerini Tekleştirme
+- [ ] `AgendaPage` koç çekirdeğini yeni intent ile kullansın.
+- [ ] `StrategyHub` prompt kopyalamayı bıraksın.
+- [ ] `TopicExplain` yeni context sözleşmesini kullansın.
+- [ ] `QuizEngine` aynı AI client katmanını kullansın.
+- [ ] `CoachInterventionModal` yeni `intervention` intentine bağlansın.
+- [ ] `War Room` sonuç analizi yeni `warroom_analysis` intentine bağlansın.
+- [ ] Her yüzeyin kendi promptunu gömmesi yerine merkezi servis kullan.
+- [ ] Koç çıktılarında surface bilgisi tutulup UI buna göre render etsin.
+
+### P2 — War Room Toparlama
+- [ ] `War Room` bileşenlerini tek akışta sadeleştir.
+- [ ] Setup, solve, result ekranları arasında temiz state geçişi sağla.
+- [ ] Çizim modu ile cevap işaretleme modunu tamamen ayır.
+- [ ] `drawingMode` tek kaynak olsun.
+- [ ] `QuestionPanel` veri alanlarını normalize et.
+- [ ] `question.text` ve `question.questionText` karışıklığını temizle.
+- [ ] Sağ paneli canlı koç paneline çevir.
+- [ ] Sabit yardım metni yerine oturum analizini göster.
+- [ ] Soru üretim servisinde mevcut guard’ları koru ve structured analiz ekle.
+- [ ] AI sorusu başarısız olursa fallback davranışını kullanıcıya görünür ama düzgün göster.
+- [ ] Session sonunda otomatik log/özet akışını koç sistemine bağla.
+
+### P2 — Veri Modeli ve Store Borcu
+- [ ] `appStore` içindeki koçla ilgili state’i ayrıştır.
+- [ ] `chatHistory`, `qaSession`, `activeAlerts`, `analysisUserData` gibi parçaları daha net slice mantığına taşı.
+- [ ] `analyzeUserData()` string üreticisini kaldır veya structured selector’a çevir.
+- [ ] Koç için selector/helper katmanı ekle.
+- [ ] Son loglar, son denemeler, müfredat ilerleme oranı ve zayıf konular tek yerden üretilebilsin.
+- [ ] `chatHistory` büyümesini sınırla.
+- [ ] Gerekirse özetlenmiş context mantığı ekle.
+- [ ] Koç geçmişi ile UI geçmişini ayır.
+- [ ] Persist edilen state içinde transient alanları daralt.
+- [ ] Rehydrate sonrası koç ekranı tutarsız başlangıç üretmemeli.
+
+### P2 — Senkronizasyon ve Dayanıklılık
+- [ ] Firestore sync payload’ını gözden geçir.
+- [ ] Koç için gereksiz büyük state alanlarını sync dışı bırak.
+- [ ] Offline senkron kuyruğu ile koç etkileşimleri çakışıyorsa ayrıştır.
+- [ ] `beforeunload` içindeki async sync yaklaşımını gözden geçir.
+- [ ] Son başarılı AI/koç directive kaydını lokal olarak sakla.
+- [ ] Ağ yoksa kullanıcı son direktifi görebilsin.
+- [ ] Provider debug/log verisini geliştirici moduna bağla.
+
+### P2 — İçerik ve Koç Kalitesi
+- [ ] Kaynak matrisi ilk sürümünü hazırla.
+- [ ] TYT ve AYT için ders bazlı öneri seti oluştur.
+- [ ] Koç cevabında kaynak + sayfa aralığı zorunlu kuralını işle.
+- [ ] Darboğaz sınıflandırması ekle.
+- [ ] Hız problemi, kavram eksiği, dikkat hatası, tekrar eksikliği gibi etiketler üret.
+- [ ] Günlük plan üretim kural seti ekle.
+- [ ] Hedefe göre ders ağırlığı ayarlansın.
+- [ ] Son log/trend yoksa koç veri eksikliğini açıkça söylesin.
+- [ ] Takip soruları azaltılsın.
+- [ ] Her cevapta en fazla 1 takip sorusu olsun.
+- [ ] Koç kişiliği desteğini koru ama sadece ton değişsin; içerik standardı değişmesin.
+
+### P3 — Kod Kalitesi ve Bakım
+- [ ] `api/ai.ts` dosyasını modülerleştir.
+- [ ] provider client’ları, prompt builder, request validation ve response shaping ayrı dosyalara böl.
+- [ ] İstemci AI servis katmanını sadeleştir.
+- [ ] `safeFetch` retry mantığını sabit bir yardımcıya taşı.
+- [ ] Hata kodları için merkezi tip tanımla.
+- [ ] `any` kullanımını azalt.
+- [ ] `CoachPanel` ve ilgili render alanlarını tipli hale getir.
+- [ ] Uygulama içinde prompt/doküman artıkları ile production kodunu ayır.
+- [ ] `Promt/` klasörü geliştirme referansı olarak kalsın ama build/lint akışını etkilemesin.
+
+### Test Senaryoları
+- [ ] Yeni kullanıcı ilk kez `Koç` sekmesini açtığında boş ekran görmemeli.
+- [ ] `PLAN` veya doğal dil eşdeğeri girildiğinde 1-3 somut görev dönmeli.
+- [ ] `LOG` analizi darboğaz + ertesi adım içermeli.
+- [ ] `DENEME` analizi hedef farkı ve konu önceliği üretmeli.
+- [ ] `ANLA` veya konu anlatım isteği kısa açıklama + mini çalışma görevi üretmeli.
+- [ ] `CoachInterventionModal` alert değişince eski stratejiyi taşımamalı.
+- [ ] `War Room` içinde çizim açıkken şık seçimi bloklanmamalı; pointer modda sorunsuz seçim yapılmalı.
+- [ ] Root `lint` temiz geçmeli.
+- [ ] Build en az bir yerel doğrulamada başarıyla alınmalı.
+- [ ] `/api/ai` provider hata verdiğinde kullanıcı tarafı kontrollü fallback göstermeli.
+
+### Varsayımlar
+- İlk sprintte `atlas-data-engine` uygulama dışı tutulur.
+- İlk sprintte streaming yok; önce kaliteli structured cevaplar gelir.
+- İlk sprintte veritabanı migrasyonu yapılmaz; kaynak matrisi statik kod verisi olur.
+- Kullanıcı için öncelikli ürün değeri: koçun hangi konuya hangi kaynaktan nasıl saldıracağını net söylemesi.
+
+
+=============================
+
+Evet, birkaç kritik madde daha eklerdim. Özellikle sync tarafında bunlar eksik kalmış:
+
+SYNC-001 users ve userData split-brain problemi.
+
+Uygulamanın ana sync hattı users/{uid} üzerinden çalışıyor, ama admin servisleri hâlâ userData/{uid} yazıyor.
+Sonuç: bazı veriler bir yerde güncelleniyor, ana uygulama başka yerden okuyor.
+SYNC-002 YÖK hedefleri şu an gerçekten sync edilmiyor.
+
+targetGoals store/profile içinde var ama FirestoreUserData, buildFullSnapshot, pullFromFirestore, applyCloudDataToStore hattında açık ve güvenli şekilde ele alınmıyor.
+Senin “diğer cihazda YÖK bilgilerini göreyim” isteğin için bunu ayrı madde yap.
+SYNC-003 Cloud’daki boş dizi local’i temizleyemiyor.
+
+useAuth.ts içinde:
+incoming.tytSubjects?.length ? incoming.tytSubjects : current.tytSubjects
+incoming.trophies?.length ? incoming.trophies : current.trophies
+Bu yüzden cloud’da alan boşalsa bile local eski veri kalabiliyor.
+SYNC-004 subjectViewMode yarım sync.
+
+FirestoreUserData içinde var, pullFromFirestore okuyor ama applyCloudDataToStore bunu store’a basmıyor.
+Çok cihazda görünüm modu drift yaratır.
+SYNC-005 lastSyncAt/updatedAt conflict resolution’da kullanılmıyor.
+
+Veri yazılıyor ama merge kararı timestamp bazlı değil.
+İki cihaz eşzamanlı değişiklikte son yazan rastgele kazanıyor.
+SYNC-006 Tek dokümanda büyük array biriktirme Firestore 1MB limit riski.
+
+logs, chatHistory, exams, failedQuestions aynı user doc’ta büyürse sync patlar.
+Bunu ayrı “ölçeklenebilir veri modeli” maddesi olarak tut.
+SYNC-007 Realtime listener tüm alanları güvenli merge etmiyor.
+
+onSnapshot geldiğinde entity bazlı diff yok; kısmi overwrite ile lokal değişiklik ezilebilir.
+SYNC-008 Offline queue şu an gerçek kaynak sisteme bağlı değil.
+
+api/sync.ts sadece payload logluyor.
+Queue temizleniyor gibi görünse de veri aslında kalıcı store’a işlenmiyor olabilir.
+AUTH-001 Süper admin kontrolü hem rules hem client config’te hardcoded.
+
+Sadece rules değil, useAuth.ts ve config/admin.ts de aynı riski taşıyor.
+DATA-001 Reset/hard reset akışı cloud veriyi yetim bırakabilir.
+
+Local reset sonrası cloud temizliği stratejisi net değil.
+“Bu cihazı sıfırla” ve “hesap verisini sil” ayrımı lazım.

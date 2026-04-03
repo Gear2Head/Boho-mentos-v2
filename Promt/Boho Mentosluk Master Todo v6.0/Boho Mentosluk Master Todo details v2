@@ -1,0 +1,763 @@
+# Boho Mentosluk — Master Geliştirme Prompt'u
+> Versiyon: v5.x → v6.0 Sprint Planı  
+> Kapsam: Mevcut todo listesi **dışında** tespit edilen bug'lar, güvenlik açıkları, eksik özellikler ve teknik borçlar.  
+> Kullanım: Bu dosyayı AI asistanına bağlam olarak ver, ardından ilgili bölümü görevlendirme olarak kullan.
+
+---
+
+## 0. Proje Bağlamı
+
+Boho Mentosluk, YKS 2026 hazırlık sürecini yöneten bir React + TypeScript PWA + Capacitor uygulamasıdır.  
+Stack: Vite 6, React 19, Zustand 5, Tailwind 4, Firebase/Firestore, Vercel serverless, Capacitor Android.  
+AI katmanı: Cerebras → Gemini → Groq → OpenRouter provider zinciri, `/api/ai` Vercel fonksiyonu üzerinden.
+
+---
+
+## 1. KRİTİK BUGLAR (Hemen Düzeltilmesi Gereken)
+
+### BUG-001 — IDB Storage Sessiz Veri Kaybı
+**Dosya:** `src/store/appStore.ts`  
+**Sorun:** `idbStorage.getItem / setItem / removeItem` içindeki `catch` blokları sadece `console.warn` yapıyor. IDB yazma başarısız olursa kullanıcı bunu hiç fark etmiyor; bir sonraki oturumda veri yok.  
+**Çözüm:**
+```typescript
+// Mevcut (YANLIŞ):
+} catch (err) {
+  console.warn('IDB write failed', err);
+}
+
+// Olması gereken:
+} catch (err) {
+  console.error('IDB write failed', err);
+  // Zustand state'ine idb_error flag'i set et
+  // UI'da "Verin yerel olarak kaydedilemedi, bulut yedekleme aktif" toast göster
+  useAppStore.getState().addNotification({
+    type: 'error',
+    title: 'Depolama Hatası',
+    message: 'Veriler yerel olarak kaydedilemedi. İnternet bağlantını kontrol et.'
+  });
+}
+```
+
+---
+
+### BUG-002 — addLog İçinde Log Kesme Sırası Yanlış
+**Dosya:** `src/store/appStore.ts`, `addLog` fonksiyonu  
+**Sorun:** `const newLogs = [...state.logs, log].slice(-500)` ile log eklendikten sonra 500'den fazlası kesilip Firestore'a push ediliyor. Ancak `debouncedPush` Zustand state değişikliğini dinliyor — kesilen loglar Firestore'a hiç gitmeden düşüyor.  
+**Çözüm:** Push işlemi `slice` öncesi orijinal array üzerinden yapılmalı, ya da Firestore'a sadece yeni log gönderilmeli (incremental write):
+```typescript
+// addLog içinde, state update'ten ÖNCE Firestore'a sadece yeni logu yaz:
+pushToFirestore(uid, { newLog: log }); // incremental endpoint
+const newLogs = [...state.logs, log].slice(-500);
+```
+
+---
+
+### BUG-003 — Rate Limiter Cold Start Sıfırlanma (BUG-007 Devamı)
+**Dosya:** `api/ai.ts`  
+**Sorun:** `rateLimitBucket` in-memory Map. Vercel serverless her cold-start'ta bunu sıfırlıyor. Kullanıcı 30 saniyede 30 istek limiti görüyor ama farklı instance'larda bu tamamen bypass edilebiliyor.  
+**Çözüm (Kısa Vadeli):** Vercel Edge Config veya KV Store ile basit rate limit. KV yoksa en azından IP + timestamp hash'i cookie/header'da tut.  
+**Çözüm (Uzun Vadeli):** Upstash Redis entegrasyonu:
+```typescript
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(30, "30 s"),
+});
+```
+
+---
+
+### BUG-004 — Firestore Super Admin UID Plaintext Güvenlik Açığı
+**Dosya:** `firestore.rules`  
+**Sorun:** `request.auth.uid == "9z9OAxBXsFU3oPT8AqIxnDSfzNy2"` şeklinde UID hardcode edilmiş. Bu UID public repo'ya giderse, Firestore rules ile tam erişim sağlanabilir.  
+**Çözüm:** Firebase Custom Claims kullan:
+```javascript
+// Firebase Admin SDK ile (server-side):
+await admin.auth().setCustomUserClaims(uid, { superAdmin: true });
+
+// firestore.rules içinde:
+match /{document=**} {
+  allow read, write: if request.auth.token.superAdmin == true;
+}
+```
+
+---
+
+### BUG-005 — warRoomMode Tip Uyumsuzluğu Runtime Crash
+**Dosya:** `src/store/appStore.ts` + ilgili War Room bileşenleri  
+**Sorun:** `WarRoomMode` tipi `types/index.ts`'de `'setup' | 'solve' | 'result'` olarak tanımlı. Ancak `TopBar.tsx` ve `QuestionPanel.tsx` içinde `'draw'` ve `'analysis'` değerleri kullanılıyor. TypeScript strict modda derlenmez, runtime'da switch/case'ler çöker.  
+**Çözüm:**
+```typescript
+// types/index.ts
+export type WarRoomMode = 'setup' | 'solve' | 'result'; // 'draw' ve 'analysis' KALDIRILDI
+
+// drawingMode ayrı state olarak kalsın:
+drawingMode: 'pointer' | 'pen' | 'eraser'; // Bu zaten var, War Room'a bağlanacak
+```
+
+---
+
+### BUG-006 — beforeunload İçinde Async Sync Güvensiz
+**Dosya:** `src/App.tsx`  
+**Sorun:** `window.addEventListener('beforeunload', handleBeforeUnload)` içinde `syncWithCloud(false)` çağrısı async. Browser, async işlemin tamamlanmasını beklemez; kullanıcı veri kaybedebilir.  
+**Çözüm:** `navigator.sendBeacon` veya Firestore offline persistence kullan:
+```typescript
+const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+  // sendBeacon ile sync payload gönder (browser bunu tamamlar)
+  const payload = JSON.stringify(buildSyncPayload());
+  navigator.sendBeacon('/api/sync-beacon', payload);
+};
+```
+
+---
+
+### BUG-007 — summarizeLogs Locale Tarihi String Karşılaştırması Hatalı
+**Dosya:** `src/App.tsx`, `mathSpeedData` hesaplaması  
+**Sorun:**
+```typescript
+const dayLogs = store.logs.filter(log => {
+  const logDate = new Date(log.date);
+  return logDate.getDate() === d.getDate() && ...
+```
+`log.date` formatı `toLocaleDateString('tr-TR')` ile kaydediliyor (örn. `"3.7.2025"`). `new Date("3.7.2025")` geçersiz tarih üretiyor — `NaN`. Filtre her zaman boş dönüyor, grafik hiç veri göstermiyor.  
+**Çözüm:** Log kaydederken ISO 8601 formatı kullan:
+```typescript
+date: new Date().toISOString(), // "2025-07-03T..." — evrensel parse edilebilir
+```
+Store'daki mevcut `toLocaleDateString` çağrılarını toplu değiştir.
+
+---
+
+### BUG-008 — EloScore Sonsuz/NaN Exam Ekleme
+**Dosya:** `src/store/appStore.ts`, `addExam`  
+**Sorun:** `exam.totalNet` için `isFinite` kontrolü var ama `exam.scores` içindeki sub-score'lar normalize edilmiyor. `Object.values(scores).reduce((a, b) => a + b.net, 0)` gibi bir işlem `undefined.net`'e çarpabilir.  
+**Çözüm:**
+```typescript
+const safeScores = Object.fromEntries(
+  Object.entries(exam.scores ?? {}).map(([k, v]) => [
+    k,
+    {
+      correct: Number(v?.correct) || 0,
+      wrong: Number(v?.wrong) || 0,
+      net: Number(v?.net) || 0,
+    }
+  ])
+);
+```
+
+---
+
+### BUG-009 — chatHistory Slice Yanlış Yerde
+**Dosya:** `src/store/appStore.ts`, `addChatMessage`  
+**Sorun:** `chatHistory: [...state.chatHistory.slice(-100), message]` — her mesajda son 100 tutulmak isteniyor ama slice önce alınıyor, yeni mesaj sonra ekleniyor. 101. mesajda 101 eleman gidebilir. Küçük ama birikimli sorun.  
+**Çözüm:**
+```typescript
+chatHistory: [...state.chatHistory, message].slice(-100)
+```
+
+---
+
+### BUG-010 — MorningBlocker State Persistence Problemi
+**Dosya:** `src/App.tsx`  
+**Sorun:** `unlockStatus` sadece component state'inde (`useState(false)`). Sayfa yenilenince Morning Blocker yeniden kapıya çıkıyor — aynı gün içinde. Bu kullanıcı için aşırı rahatsız edici.  
+**Çözüm:** Son unlock tarihini store'a kaydet:
+```typescript
+// Store'a ekle:
+lastMorningUnlockDate: string; // "2025-07-03"
+setMorningUnlocked: () => set({ lastMorningUnlockDate: new Date().toISOString().split('T')[0] });
+
+// App.tsx'de:
+const isUnlockedToday = store.lastMorningUnlockDate === new Date().toISOString().split('T')[0];
+if (store.isMorningBlockerEnabled && !isUnlockedToday) {
+  return <MorningBlocker onUnlock={() => store.setMorningUnlocked()} />;
+}
+```
+
+---
+
+## 2. GÜVENLİK AÇIKLARI
+
+### SEC-001 — API Key Client-Side Exposure Riski
+**Dosya:** `src/services/spotifyService.ts`  
+**Sorun:** `SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID` — bu Vite'ta `VITE_` prefix olmadan tanımlı. Eğer `VITE_SPOTIFY_CLIENT_ID` yapılırsa client bundle'a girer, herkes görebilir.  
+**Çözüm:** Spotify auth flow tamamen backend'de yapılmalı. Client ID public olabilir ama secret asla frontend'e gelmemeli. Implicit flow yerine PKCE + server-side token exchange.
+
+### SEC-002 — Firestore Rules Subcollection Açığı
+**Dosya:** `firestore.rules`  
+**Sorun:** `userData/{userId}` match'i var ama `users/{userId}` altındaki subcollection'lar (`match /{subcollections=**}`) sadece `userData` altında kısıtlı. `users/{userId}/logs`, `users/{userId}/exams` gibi alt koleksiyonlar için açık kural yok — default deny mı, açık mı belirsiz.  
+**Çözüm:** Her koleksiyon için explicit kural yaz, wildcard subcollection kullanımını minimize et.
+
+### SEC-003 — OGM Scraper Hukuki ve Teknik Risk
+**Dosya:** `scripts/ogmScraper.cjs`  
+**Sorun:** MEB/OGM'nin içeriği otomatik çekilmek için açık değil. ToS ihlali olabilir. Ayrıca `--disable-web-security` flag'i ile çalışıyor — bu production'da güvenlik açığı yaratır.  
+**Çözüm:** MEB açık veri API'si araştırılmalı. Yoksa içerik lisansı netleştirilene kadar scraper devre dışı bırakılmalı.
+
+---
+
+## 3. EKSİK ÖZELLİKLER (Ürün Açısından Kritik)
+
+### FEAT-001 — Günlük Hatırlatma Push Notification (PWA)
+**Mevcut Durum:** PWA manifest ve service worker var ama push notification yok.  
+**Gereksinim:** Kullanıcı günlük log girmemişse öğleden sonra 16:00'da "Bugün henüz çalışma kaydetmedin" bildirimi.  
+**Uygulama:**
+```typescript
+// service worker içinde:
+self.addEventListener('push', (event) => {
+  const data = event.data?.json();
+  self.registration.showNotification(data.title, {
+    body: data.body,
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    data: { url: '/coach' }
+  });
+});
+
+// Uygulama içinde:
+async function scheduleDailyReminder() {
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: VAPID_PUBLIC_KEY
+  });
+  // Sub'ı backend'e kaydet
+}
+```
+
+---
+
+### FEAT-002 — Offline AI Koç (Son Direktif Cache)
+**Mevcut Durum:** İnternet yoksa koç tamamen çalışmıyor, kullanıcı boş ekran görüyor.  
+**Gereksinim:** Son başarılı koç direktifi `IndexedDB`'ye kaydedilsin. Offline'da "Bu direktif [tarih] itibarıyla önbelleğe alındı" badge'iyle gösterilsin.  
+**Uygulama:**
+```typescript
+// Store'a ekle:
+lastCachedDirective: {
+  text: string;
+  timestamp: string;
+  tasks: CoachTask[];
+} | null;
+
+// getCoachResponse başarılı dönünce:
+store.setLastCachedDirective({ text: response, timestamp: new Date().toISOString() });
+
+// Offline durumda:
+if (!navigator.onLine && store.lastCachedDirective) {
+  return <CachedDirectiveView directive={store.lastCachedDirective} />;
+}
+```
+
+---
+
+### FEAT-003 — Çalışma Seansı Otomatik Bölünme (Anti-Ghost Session)
+**Mevcut Durum:** `FocusSidePanel` sayaç çalıştırıyor ama kullanıcı tarayıcıyı kapatırsa seans kayboluyor.  
+**Gereksinim:** Sayaç başladığında `sessionStorage`'a checkpoint kaydet. Uygulama yeniden açılınca "Yarım kalan seans bulundu, devam etmek ister misin?" sor.  
+**Uygulama:**
+```typescript
+// FocusSidePanel içinde:
+useEffect(() => {
+  if (isRunning) {
+    sessionStorage.setItem('focus_checkpoint', JSON.stringify({
+      startTime: sessionStart,
+      label: currentLabel,
+      elapsed: elapsedSeconds
+    }));
+  }
+}, [elapsedSeconds]);
+
+// App mount'ta:
+const checkpoint = sessionStorage.getItem('focus_checkpoint');
+if (checkpoint) {
+  const data = JSON.parse(checkpoint);
+  // Toast ile kullanıcıya sor
+}
+```
+
+---
+
+### FEAT-004 — Konu Borcu Akıllı Sıralama (ROI Tabanlı)
+**Mevcut Durum:** Dashboard'daki "Konu Borcu" sadece accuracy ve hıza bakıyor. Sıralama anlık.  
+**Gereksinim:** Borç hesaplamasına YKS sınavına kalan gün sayısı ve konunun sınav ağırlığı da girmeli. Az zamanla yüksek ağırlıklı konuları önce göster.  
+**Uygulama:**
+```typescript
+interface DebtScore {
+  urgency: number;    // Sınava yakınlık çarpanı
+  weight: number;     // Konunun sınav ağırlığı (sabit tablo)
+  errorRate: number;  // Hata oranı
+  finalScore: number; // urgency * weight * errorRate
+}
+
+const SUBJECT_WEIGHTS: Record<string, number> = {
+  'TYT Matematik': 40,
+  'TYT Türkçe': 40,
+  'Fizik': 30,
+  // ...
+};
+```
+
+---
+
+### FEAT-005 — Deneme Karşılaştırma Modu
+**Mevcut Durum:** Denemeler liste görünümünde sadece toplam net gösteriyor. Detay modalı var ama karşılaştırma yok.  
+**Gereksinim:** İki deneme seçilip yan yana konu bazlı karşılaştırma yapılabilmeli. Delta (artış/azalış) renkli gösterilmeli.  
+**Uygulama:**
+```typescript
+// ExamDetailModal yerine yeni ExamCompareModal:
+interface ExamCompareProps {
+  examA: ExamResult;
+  examB: ExamResult;
+}
+
+// Her konu için:
+const delta = examB.scores[subject].net - examA.scores[subject].net;
+// Pozitif → yeşil ok, negatif → kırmızı ok
+```
+
+---
+
+### FEAT-006 — Ses ile Log Girişi (Voice-to-Log) Düzeltme
+**Mevcut Durum:** `parseVoiceLog` fonksiyonu var ama UI'da bağlantısı belirsiz. `LogEntryWidget` içinde voice input yok.  
+**Gereksinim:** `LogEntryWidget` içine mikrofon butonu ekle. Kullanıcı "Matematik integralden 50 soru çözdüm, 40 doğru 10 yanlış, 45 dakika" deyince form otomatik dolsun.  
+**Uygulama:**
+```typescript
+// LogEntryWidget içine:
+const startVoiceInput = () => {
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = 'tr-TR';
+  recognition.onresult = async (event) => {
+    const transcript = event.results[0][0].transcript;
+    const parsed = await parseVoiceLog(transcript);
+    if (parsed) fillFormFromParsed(parsed);
+  };
+  recognition.start();
+};
+```
+
+---
+
+### FEAT-007 — Haftalık Özet E-postası / Rapor
+**Mevcut Durum:** Hiç yok.  
+**Gereksinim:** Her Pazar akşamı haftalık özet: çözülen soru sayısı, elo değişimi, en iyi/kötü ders, streaks.  
+**Uygulama:** Vercel Cron + Resend/SendGrid entegrasyonu. Kullanıcı profil ayarlarından opt-in/opt-out yapabilmeli.
+
+---
+
+### FEAT-008 — Hatalı Soru Fotoğrafı Çekme (Kamera Entegrasyonu)
+**Mevcut Durum:** `FailedQuestion` interface'inde `imageUrl?: string` var ama `ArchiveWidget`'ta fotoğraf ekleme yok.  
+**Gereksinim:** Mobil'de kamera, desktop'ta dosya yükleme ile hatalı sorunun fotoğrafı `FailedQuestion` kaydına eklenebilmeli.  
+**Uygulama:**
+```typescript
+// ArchiveWidget içine:
+<input
+  type="file"
+  accept="image/*"
+  capture="environment" // Mobilde kamera açar
+  onChange={handleImageUpload}
+/>
+
+// Upload: Firebase Storage veya base64 (küçük resimler için)
+const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const base64 = await fileToBase64(file);
+  setImageUrl(base64);
+};
+```
+
+---
+
+### FEAT-009 — YÖK Atlas Hedef Program Net Karşılaştırması
+**Mevcut Durum:** `AtlasProgram` tipi var, `targetGoals` store'da var ama dashboard'da hiç gösterilmiyor.  
+**Gereksinim:** Dashboard'da hedef program taban puanı ile mevcut ELO/predicted net karşılaştırması. "Hedefe X net kaldı" bar'ı.  
+**Uygulama:**
+```typescript
+// Dashboard'da yeni kart:
+const gap = targetProgram.baseScore - predictedNet;
+<div className={gap <= 0 ? 'text-green-500' : 'text-red-500'}>
+  {gap <= 0 ? `Hedefe ${Math.abs(gap)} net ÖNDESIN` : `Hedefe ${gap} net KALDI`}
+</div>
+```
+
+---
+
+### FEAT-010 — Capacitor Android Bildirim Kanalı
+**Mevcut Durum:** `@capacitor/app` ve `@capacitor/status-bar` var ama local notification plugin yok.  
+**Gereksinim:** Pomodoro bitince, streak kırılacaksa, günlük hedef tamamlanınca native Android bildirimi.  
+**Uygulama:**
+```bash
+npm install @capacitor/local-notifications
+npx cap sync
+```
+```typescript
+import { LocalNotifications } from '@capacitor/local-notifications';
+
+await LocalNotifications.schedule({
+  notifications: [{
+    title: "Seans Tamamlandı",
+    body: "25 dakika tamamlandı. Mola zamanı!",
+    id: 1,
+    schedule: { at: new Date(Date.now() + 1500000) }
+  }]
+});
+```
+
+---
+
+## 4. PERFORMANS BORÇLARI
+
+### PERF-001 — App.tsx Kod Bölme (Code Splitting)
+**Sorun:** Tüm sekmeler tek dosyada, eager-loaded. İlk render ~800KB JS parse ediyor.  
+**Çözüm:**
+```typescript
+// Mevcut (YANLIŞ — hepsi eager):
+import { MebiWarRoom } from './components/MebiWarRoom';
+import { QuizEngine } from './components/QuizEngine';
+
+// Olması gereken (lazy):
+const MebiWarRoom = lazy(() => import('./components/MebiWarRoom'));
+const QuizEngine = lazy(() => import('./components/QuizEngine'));
+const StrategyHub = lazy(() => import('./components/StrategyHub'));
+const AgendaPage = lazy(() => import('./components/AgendaPage'));
+
+// Suspense wrapper:
+<Suspense fallback={<TabLoader />}>
+  {activeTab === 'war_room' && <MebiWarRoom />}
+</Suspense>
+```
+
+---
+
+### PERF-002 — manualChunks Eksik Paketler
+**Dosya:** `vite.config.ts`  
+**Sorun:** `react-markdown`, `motion`, `@google/genai` manualChunks'ta yok, ana bundle'a giriyor.  
+**Çözüm:**
+```typescript
+manualChunks: {
+  react: ['react', 'react-dom'],
+  charts: ['recharts'],
+  markdown: ['react-markdown'],
+  motion: ['motion'],
+  firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+  genai: ['@google/genai'],  // EKLENDI
+  capacitor: ['@capacitor/core', '@capacitor/app', '@capacitor/status-bar'], // EKLENDI
+}
+```
+
+---
+
+### PERF-003 — Zustand Store Selector Kullanımı Yok
+**Sorun:** `const store = useAppStore()` ile tüm store subscribe ediliyor. Herhangi bir state değiştiğinde bu hook'u kullanan tüm componentler re-render oluyor.  
+**Çözüm:** Granüler selector kullan:
+```typescript
+// Mevcut (YANLIŞ):
+const store = useAppStore();
+const logs = store.logs;
+
+// Olması gereken:
+const logs = useAppStore(state => state.logs);
+const profile = useAppStore(state => state.profile);
+// Veya shallow ile:
+const { logs, profile } = useAppStore(
+  useShallow(state => ({ logs: state.logs, profile: state.profile }))
+);
+```
+
+---
+
+### PERF-004 — mathSpeedData Her Render'da Hesaplanıyor
+**Dosya:** `src/App.tsx`  
+**Sorun:** `mathSpeedData` array'i component body'de tanımlı, her render'da from scratch hesaplanıyor. 500 log varsa her render'da 500 × 7 filtre işlemi.  
+**Çözüm:**
+```typescript
+const mathSpeedData = useMemo(() => 
+  Array.from({ length: 7 }, (_, i) => {
+    // mevcut hesaplama
+  }),
+  [store.logs] // sadece logs değişince yeniden hesapla
+);
+```
+
+---
+
+### PERF-005 — IDB Her İşlemde Bağlantı Açıyor
+**Dosya:** `src/store/appStore.ts`, `idbStorage`  
+**Sorun:** Her `getItem`/`setItem` çağrısında `openDB` çağrılıyor. IDB bağlantısı pahalı — bir kez açılıp cache'lenmeli.  
+**Çözüm:**
+```typescript
+let dbPromise: ReturnType<typeof openDB> | null = null;
+
+const getDb = () => {
+  if (!dbPromise) {
+    dbPromise = openDB('yks-store', 1, {
+      upgrade(db) { db.createObjectStore('keyval'); },
+    });
+  }
+  return dbPromise;
+};
+
+// Her işlemde:
+const db = await getDb(); // Tekrar bağlantı açmaz
+```
+
+---
+
+## 5. KOD KALİTESİ VE TEMİZLİK
+
+### CLEAN-001 — spotifyService.ts Atık Dosya
+**Dosya:** `src/services/spotifyService.ts`  
+**Sorun:** `App.tsx`'de `// Kapsam Dışı` yorumuyla devre dışı bırakılmış. Ama dosya repo'da duruyor, TypeScript bunu derliyor, lint çalışıyor.  
+**Çözüm:** Ya feature branch'e taşı ya sil. Eğer gelecekte kullanılacaksa:
+```typescript
+// SPOTIFY_INTEGRATION_PLANNED — bkz. FEAT-XXX
+// Bu dosya şimdilik pasif. Aktif etmek için FocusSidePanel'e entegre edilecek.
+```
+
+---
+
+### CLEAN-002 — App.tsx İçinde "Kübra" Metni Sızıntısı
+**Dosya:** `src/App.tsx`, satır ~460 ve ~470 civarı  
+**Sorun:**
+```typescript
+// Koç sekmesi render'ında:
+<div className="...">Kübra
+  {store.chatHistory.map(...)}
+```
+Ve
+```typescript
+// Mesaj başlığında:
+{msg.role === 'coach' ? `${store.profile.name}` : 'Gear_Head.'}Kübra
+```
+Koç adı hem "Gear_Head." hem "Kübra" olarak karışık kullanılıyor.  
+**Çözüm:** Tek bir `COACH_NAME` sabiti:
+```typescript
+// config/constants.ts
+export const COACH_NAME = 'Gear_Head.';
+export const COACH_SYSTEM_NAME = 'Kübra'; // sistem prompt için
+```
+
+---
+
+### CLEAN-003 — Tekrarlayan Tarih Hesaplamaları
+**Sorun:** `new Date().toLocaleDateString('tr-TR')` ve `new Date().toISOString().split('T')[0]` en az 8 farklı yerde kullanılıyor. Format tutarsız (bazı yerlerde locale, bazılarında ISO).  
+**Çözüm:**
+```typescript
+// utils/date.ts
+export const todayISO = () => new Date().toISOString().split('T')[0];
+export const todayLocale = () => new Date().toLocaleDateString('tr-TR');
+export const parseLogDate = (date: string): Date => {
+  // "3.7.2025" veya "2025-07-03" her ikisini de parse et
+  if (date.includes('-')) return new Date(date);
+  const [d, m, y] = date.split('.');
+  return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`);
+};
+```
+
+---
+
+### CLEAN-004 — SubjectList İçinde Yanlış Index Hesabı
+**Dosya:** `src/App.tsx`, `SubjectList` → `onStatusChange` callback  
+**Sorun:**
+```typescript
+onStatusChange={(idx, status) => { 
+  const si = store.aytSubjects.findIndex(
+    a => a.name === store.aytSubjects.filter(...)[idx].name 
+      && a.subject === store.aytSubjects.filter(...)[idx].subject
+  ); 
+```
+`filter()` iki kez çağrılıyor, `findIndex` ile karmaşık eşleştirme. Track değişince yanlış index bulunabilir.  
+**Çözüm:** `originalIndex` prop'u kullan (zaten SubjectMap'te var):
+```typescript
+// SubjectList'te de originalIndex sakla:
+acc[sub.subject].push({ ...sub, originalIndex: globalIdx });
+// globalIdx: tüm aytSubjects array'indeki gerçek index
+```
+
+---
+
+### CLEAN-005 — analyzeUserData() String Builder Tip Güvensizliği
+**Dosya:** `src/store/appStore.ts`  
+**Sorun:** `analyzeUserData()` büyük bir template string döndürüyor, doğrudan AI'a gönderiliyor. İçeriği test edilemiyor, format değişince sessizce bozuluyor.  
+**Çözüm:** Typed context builder'a dönüştür:
+```typescript
+interface AnalysisContext {
+  target: string;
+  currentNets: { tyt: number; ayt: number };
+  targetNets: { tyt: number; ayt: number };
+  elo: number;
+  streak: number;
+  recentLogs: Array<{ subject: string; topic: string; accuracy: number }>;
+  weakAreas: string[];
+}
+
+const buildAnalysisContext = (): AnalysisContext => { ... };
+// Sonra prompt builder'da bu tipi kullan
+```
+
+---
+
+## 6. EKSİK TEST SENARYOLARI
+
+### TEST-001 — IDB Yazma Başarısız Senaryosu
+Tarayıcı private modda veya disk dolu olduğunda IDB yazmayı reddettiğinde uygulama ne yapıyor? Manuel test + unit test.
+
+### TEST-002 — Tüm Provider'lar Başarısız Senaryosu
+`api/ai.ts`'deki 4 provider (Cerebras, Gemini, Groq, OpenRouter) hepsi 500 döndürünce kullanıcı hangi mesajı görüyor? Debug alanı production'da görünüyor mu?
+
+### TEST-003 — 500 Log Sınırı Aşıldığında Firestore Tutarlılığı
+500. log'dan sonra ekleme yapılınca `slice(-500)` devreye giriyor. Bu anda Firestore push'u ne yapıyor? Eski loglar siliniyor mu?
+
+### TEST-004 — PWA Offline → Online Geçiş
+Kullanıcı offline'da log girip online olduğunda `initOfflineSync()` bu logu Firestore'a yazıyor mu? Çift yazma oluyor mu?
+
+### TEST-005 — Capacitor Android Geri Tuşu
+`backButton` listener'da `setActiveTab('dashboard')` çağrılıyor. War Room'da aktif seans varken geri tuşuna basılınca seans kaydediliyor mu?
+
+---
+
+## 7. BAĞIMLILIK VE ALTYAPI BORÇLARI
+
+### INFRA-001 — puppeteer Production'da
+`package.json`'da `puppeteer: ^24.40.0` bağımlılık olarak var. Puppeteer ~300MB Chromium indiriyor. Bu `devDependencies`'e taşınmalı, Vercel build'i aşırı yavaşlatıyor.
+
+### INFRA-002 — firebase v12 + React 19 Uyumluluk
+`firebase: ^12.11.0` React 19 ile resmi test edilmemiş. `firebase/compat` API yerine modüler API kullanıldığı doğrulanmalı.
+
+### INFRA-003 — @capacitor/android v8 Gradle Uyumu
+`@capacitor/android: ^8.3.0` Gradle 8.x gerektirebilir. `scripts/mobile-sync.ps1` bunu kontrol etmiyor. Build hatası sessizce geçilebilir.
+
+### INFRA-004 — Vite PWA workbox navigateFallback null
+`vite.config.ts`'de `navigateFallback: null` ayarlanmış. Bu SPA routing'ini kırar — deep link'e gidilince (örn. `/callback` Spotify redirect) service worker 404 dönebilir.  
+**Çözüm:**
+```typescript
+workbox: {
+  navigateFallback: '/index.html',
+  navigateFallbackDenylist: [/^\/api\//], // API isteklerini exclude et
+}
+```
+
+### INFRA-005 — GitHub Actions CI/CD Yok
+Her deploy manüel. En azından:
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+```
+
+---
+
+## 8. KULLANICI DENEYİMİ BORÇLARI
+
+### UX-001 — Profil Fotoğrafı Upload Akışı Eksik
+`StudentProfile.avatar?: string` var ama `ProfileSettings` içinde fotoğraf yükleme yok. DiceBear fallback her zaman kullanılıyor.
+
+### UX-002 — Streak Kırılma Uyarısı Yok
+Kullanıcı gece 23:00'da hala log girmemişse streak kırılacak. Buna dair bildirim/uyarı yok.
+
+### UX-003 — Koç Ekranı Mobilde Klavye Açılınca Layout Bozuluyor
+`h-full` ve `flex flex-col` kullanımı, mobil klavye açılınca input alanını ekranın altına itiyor. `100dvh` kullanılıyor ama `dvh` desteği eski Android'de yok.  
+**Çözüm:**
+```typescript
+// VisualViewport API ile:
+useEffect(() => {
+  const handleResize = () => {
+    const vh = window.visualViewport?.height || window.innerHeight;
+    document.documentElement.style.setProperty('--real-vh', `${vh}px`);
+  };
+  window.visualViewport?.addEventListener('resize', handleResize);
+  return () => window.visualViewport?.removeEventListener('resize', handleResize);
+}, []);
+```
+
+### UX-004 — Dark/Light Geçişinde FOUC (Flash of Unstyled Content)
+Tema `useEffect` içinde uygulanıyor, ilk render'da sistem temasına göre flash olabiliyor. `index.html`'de inline script ile çözülmeli:
+```html
+<script>
+  (function() {
+    const theme = localStorage.getItem('theme') || 
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.classList.add(theme);
+  })();
+</script>
+```
+
+### UX-005 — Hata Mesajları Teknik, Kullanıcı Dostu Değil
+`"ALL_PROVIDERS_FAILED"`, `"AI_SERVER_ERROR"` gibi string'ler kullanıcıya gösteriliyor. Bunlar Türkçe, anlaşılır mesajlara dönüştürülmeli:
+```typescript
+const ERROR_MESSAGES: Record<string, string> = {
+  ALL_PROVIDERS_FAILED: "Koç şu an çok meşgul. 1 dakika sonra tekrar dene.",
+  RATE_LIMITED: "Çok hızlı mesaj attın. 30 saniye bekle.",
+  AI_SERVER_ERROR: "Beklenmedik bir hata oluştu. Sayfayı yenile.",
+  NETWORK_ERROR: "İnternet bağlantın yok. Bağlantını kontrol et."
+};
+```
+
+---
+
+## 9. ERİŞİLEBİLİRLİK (A11Y) BORÇLARI
+
+### A11Y-001 — Tüm İkon Butonlarda aria-label Eksik
+`<button>` içinde sadece `<Bell />`, `<RefreshCcw />` gibi ikonlar var, aria-label yok. Ekran okuyucular "button" dışında bir şey söyleyemiyor.
+
+### A11Y-002 — Renk Kontrast Oranı
+`text-zinc-500 on bg-zinc-900` kombinasyonu WCAG AA standardını karşılamıyor. Özellikle small text'lerde (10px tracking-widest) oran 3:1'in altına düşüyor.
+
+### A11Y-003 — Klavye Navigasyonu Eksik
+Tab order belirsiz. War Room'da soru şıkları Enter ile seçilemiyor. Focus trap modal'larda uygulanmamış.
+
+---
+
+## 10. ÖNCE YAPILACAKLAR — KESİN SIRALAMA
+
+```
+BUG-007 (Tarih parse hatası)       → Tüm log verisini etkiliyor, HEMEN
+BUG-001 (IDB sessiz kayıp)         → Veri güvenilirliği, HEMEN  
+BUG-010 (MorningBlocker persist)   → Kullanıcı deneyimini doğrudan kırıyor
+BUG-006 (beforeunload async)       → Veri kaybı riski
+PERF-005 (IDB bağlantı cache)      → Her state değişiminde açılıyor
+PERF-003 (Selector kullanımı)      → Re-render tsunami, ciddi performans
+SEC-004 (Firestore UID hardcode)   → Güvenlik, production öncesi zorunlu
+CLEAN-002 (Kübra sızıntısı)        → Basit ama görünür hata
+PERF-001 (Code splitting)          → Bundle size, FCP iyileştirmesi
+FEAT-002 (Offline direktif cache)  → Core ürün değeri
+FEAT-001 (Push notification PWA)   → Retention
+INFRA-001 (puppeteer dependencies) → Build süresi
+```
+
+---
+
+## 11. KULLANILACAK KOMUTLAR
+
+```bash
+# Tip kontrolü (atlas-data-engine hariç):
+npx tsc --noEmit --project tsconfig.app.json
+
+# Bundle analizi:
+npx vite-bundle-analyzer
+
+# IDB test (browser console'da):
+indexedDB.open('yks-store').onsuccess = (e) => console.log(e.target.result.objectStoreNames)
+
+# Firestore rules test:
+firebase emulators:start --only firestore
+firebase emulators:exec --only firestore "npx jest firestore.rules.test.js"
+
+# Puppeteer'ı devDependencies'e taşı:
+npm uninstall puppeteer
+npm install --save-dev puppeteer
+```
+
+---
+
+*Son güncelleme: Proje kaynak analizi sonrası oluşturuldu.*  
+*Kapsam: Yalnızca mevcut todo listesinde yer ALMAYAN konular.*

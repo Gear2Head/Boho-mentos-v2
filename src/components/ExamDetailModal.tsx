@@ -9,6 +9,7 @@ import { useAppStore } from '../store/appStore';
 import type { ExamResult } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { confirmDialog } from '../contexts/ToastContext';
+import { parseFlexibleDate } from '../utils/date';
 
 interface ExamDetailModalProps {
   exam: ExamResult | null;
@@ -105,7 +106,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
             </span>
             <h2 className="font-serif italic text-3xl text-zinc-200">Deneme Raporu</h2>
             <p className="text-xs uppercase tracking-widest opacity-40 mt-1 font-mono text-zinc-400">
-              {new Date(exam.date).toLocaleDateString('tr-TR')} Tarihli Kayıt
+              {(parseFlexibleDate(exam.date) ?? new Date()).toLocaleDateString('tr-TR')} Tarihli Kayıt
             </p>
           </div>
           <div className="text-right">

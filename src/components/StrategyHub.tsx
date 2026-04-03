@@ -12,6 +12,7 @@ import { YOK_ATLAS_DATA, type YokAtlasProgram } from '../data/yokAtlasData';
 import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet } from '../utils/statistics';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { SourceROIPanel } from './SourceROIPanel';
+import { toDateMs } from '../utils/date';
 
 const markdownComponents = {
   p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 text-zinc-300 text-sm" {...props} />,
@@ -143,7 +144,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
     const last14Days = Date.now() - 14 * 24 * 60 * 60 * 1000;
 
     store.logs.forEach((l) => {
-      const ts = new Date(l.date).getTime();
+      const ts = toDateMs(l.date);
       if (!Number.isFinite(ts) || ts < last14Days) return;
       const key = `${l.subject}__${l.topic}`;
       const cur = topicStats.get(key) ?? { subject: l.subject, topic: l.topic, wrong: 0, total: 0 };

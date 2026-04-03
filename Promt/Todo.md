@@ -3,6 +3,19 @@ Bohibo9150Kübra
 
 İşte tüm projeni kapsayan interaktif master TODO listesi. Görevlere tıklayarak tamamlandı olarak işaretleyebilir, filtreleri kullanarak sadece belirli kategorilere odaklanabilirsin.
 
+## Yeni Todo Backlog (v6.1 - Güncel)
+
+- [ ] P0/SYNC-001 — Firestore'u tek gerçek kaynak yap, Zustand/IDB'yi sadece cache + offline queue olarak konumlandır.
+- [ ] P0/SYNC-002 — `users/{uid}` altında normalized subcollection modeline geç (`logs`, `exams`, `failedQuestions`, `chatMessages`, `agendaEntries`, `focusSessions`, `targets`).
+- [ ] P0/SYNC-003 — Full snapshot push yaklaşımını kapat, entity bazlı incremental write + replay queue uygula.
+- [ ] P0/SYNC-004 — Çok cihaz merge stratejisini netleştir: `updatedAt`, `deviceId`, `deletedAt` (tombstone) zorunlu alanları ekle.
+- [ ] P0/SEC-001 — `/api/sync` ve tüm write endpoint'lerinde auth zorunluluğu + sunucu tarafı yetki doğrulaması uygula.
+- [ ] P0/SEC-002 — `api/ai` in-memory rate limiter'ı KV/Redis tabanlı kalıcı limiter ile değiştir.
+- [ ] P1/COACH-001 — Koç çıktısını structured directive modeline geçir (`headline`, `summary`, `tasks`, `warnings`, `followUpQuestion`).
+- [ ] P1/PERF-001 — `useAppStore()` toplu aboneliklerini selector/shallow modele taşıyarak gereksiz re-render'ları azalt.
+- [ ] P1/PERF-002 — `App.tsx` sekmelerini lazy-load + Suspense ile code split et.
+- [ ] P1/TEST-001 — Çok cihaz sync test matrisi oluştur: log/deneme/chat/agenda ekleme-silme-merge senaryolarını doğrula.
+
 **Öne çıkan kararlar:**
 
 Faz 0 (Kritik Stabilizasyon) kesinlikle ilk — "Rendered fewer hooks" hatası `FocusSidePanel` içinde hook'ların conditional `return null` sonrasına kaymasından geliyor. Bu düzelmeden diğer fazlar üzerine inşa etmek riskli.

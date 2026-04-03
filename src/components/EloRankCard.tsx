@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trophy, Star, Shield, Medal, Target, Crown } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
+import { toISODateOnly } from '../utils/date';
 
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';
 
@@ -68,7 +69,7 @@ export function EloRankCard() {
   const dailyEloDelta = useAppStore(state => state.dailyEloDelta);
   const lastEloUpdateDate = useAppStore(state => state.lastEloUpdateDate);
   
-  const isToday = lastEloUpdateDate === new Date().toLocaleDateString('tr-TR');
+  const isToday = lastEloUpdateDate === toISODateOnly();
   const delta = isToday ? dailyEloDelta : 0;
   
   const { title, division, color, progress, nextElo, iconName } = getRankDetails(eloScore);

@@ -55,6 +55,7 @@ import { useToast } from './contexts/ToastContext';
 import { subscribeToSystemConfig, SystemConfig } from './services/systemService';
 import { MaintenanceBlocker } from './components/MaintenanceBlocker';
 import { ToastProvider, toast, confirmDialog } from './contexts/ToastContext';
+import { isSameLocalDay, parseFlexibleDate, toISODateOnly } from './utils/date';
 
 // --- Helper ---
 
@@ -81,7 +82,9 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
   const allSubjects = Array.from(new Set(logs.map(log => log.subject)));
 
   const parseDateMs = (d: string) => {
-    const ms = new Date(d).getTime();
+    const parsed = parseFlexibleDate(d);
+    if (!parsed) return null;
+    const ms = parsed.getTime();
     return Number.isFinite(ms) ? ms : null;
   };
 
@@ -95,7 +98,7 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
     if (fromMs !== null && ms !== null && ms < fromMs) return false;
     if (toMs !== null && ms !== null && ms > toMs) return false;
     return true;
-  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }).sort((a, b) => (parseDateMs(b.date) ?? 0) - (parseDateMs(a.date) ?? 0));
 
   const tagDistribution = (() => {
     const map: Map<string, number> = new Map();
@@ -240,7 +243,7 @@ function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQ
           if (subject && topic && book) {
             onSubmit({
               id: Date.now().toString(),
-              date: new Date().toLocaleDateString('tr-TR'),
+              date: new Date().toISOString(),
               subject, topic, book, page, questionNumber, reason,
               difficulty,
               status: 'active',
@@ -287,7 +290,7 @@ export default function App() {
   const [isArchiveWidgetOpen, setIsArchiveWidgetOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobil Navigasyon Menüsü
-  const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi
+  const [unlockStatus, setUnlockStatus] = useState(false); // Morning Blocker kilidi (legacy, TODO: store'a taşınacak)
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const unreadCount = store.notifications.filter(n => !n.read).length;
@@ -387,8 +390,9 @@ export default function App() {
     const dateStr = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 
     const dayLogs = store.logs.filter(log => {
-      const logDate = new Date(log.date);
-      return logDate.getDate() === d.getDate() && logDate.getMonth() === d.getMonth() && logDate.getFullYear() === d.getFullYear();
+      const logDate = parseFlexibleDate(log.date);
+      if (!logDate) return false;
+      return isSameLocalDay(logDate, d);
     }).filter(log => log.subject.includes('TYT Matematik'));
 
     const avgTime = dayLogs.length > 0 ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length) : null;
@@ -471,11 +475,12 @@ export default function App() {
   // Sayfa kapanırken veya yenilenirken son bir kez kaydet
   useEffect(() => {
     const handleBeforeUnload = () => {
-      syncWithCloud(false);
+      // beforeunload içinde async network çağrısı güvenilir değil (browser beklemez).
+      // Bu yüzden burada bulut sync tetiklemiyoruz.
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [syncWithCloud]);
+  }, []);
 
   // Her oturum başlangıcında ve internet gelince verileri buluttan çek
   useEffect(() => {
@@ -813,8 +818,12 @@ export default function App() {
                 </div>
 
                 {(() => {
-                  const todayStr = new Date().toLocaleDateString('tr-TR');
-                  const todayLogs = store.logs.filter(l => l.date.includes(todayStr));
+                  const todayStr = toISODateOnly();
+                  const todayLogs = store.logs.filter((l) => {
+                    const dt = parseFlexibleDate(l.date);
+                    if (!dt) return false;
+                    return toISODateOnly(dt) === todayStr;
+                  });
                   const todayHours = (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1);
                   return (
                     <>
@@ -975,7 +984,7 @@ export default function App() {
                               <div className="flex flex-wrap gap-2 mt-2">
                                 <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Doğruluk: %{d.accuracy}</span>
                                 <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Hız: {d.secondsPerQuestion} sn/soru</span>
-                                <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Tarih: {new Date(d.date).toLocaleDateString('tr-TR')}</span>
+                                <span className="text-[10px] uppercase tracking-widest opacity-40 text-zinc-500">Tarih: {(parseFlexibleDate(d.date) ?? new Date()).toLocaleDateString('tr-TR')}</span>
                               </div>
                             </div>
                           ));
@@ -1059,7 +1068,7 @@ export default function App() {
                       >
                         <div>
                           <span className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] group-hover:text-[#E09F3E] transition-colors">{e.type} DENEMESİ</span>
-                          <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{new Date(e.date).toLocaleDateString('tr-TR')}</span>
+                          <span className="block text-xs uppercase opacity-40 text-zinc-400 mt-1">{(parseFlexibleDate(e.date) ?? new Date()).toLocaleDateString('tr-TR')}</span>
                         </div>
                         <div className="text-right">
                           <span className="font-display italic text-2xl text-zinc-200">{e.totalNet.toFixed(2)} <span className="text-[10px] font-sans opacity-50 uppercase tracking-widest">NET</span></span>

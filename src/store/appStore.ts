@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { openDB } from 'idb';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
+import { toISODateOnly, toISODateTime, toDateMs } from '../utils/date';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
@@ -21,35 +22,59 @@ export interface QASession {
   isComplete: boolean;
 }
 
+let dbPromise: ReturnType<typeof openDB> | null = null;
+const getDb = () => {
+  if (!dbPromise) {
+    dbPromise = openDB('yks-store', 1, {
+      upgrade(db) { db.createObjectStore('keyval'); },
+    });
+  }
+  return dbPromise;
+};
+
 const idbStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     try {
-      const db = await openDB('yks-store', 1, {
-        upgrade(db) { db.createObjectStore('keyval'); },
-      });
+      const db = await getDb();
       return (await db.get('keyval', name)) || null;
-    } catch {
+    } catch (err) {
+      console.error('IDB read failed', err);
       return null;
     }
   },
   setItem: async (name: string, value: string): Promise<void> => {
     try {
-      const db = await openDB('yks-store', 1, {
-        upgrade(db) { db.createObjectStore('keyval'); },
-      });
+      const db = await getDb();
       await db.put('keyval', value, name);
     } catch (err) {
-      console.warn('IDB write failed', err);
+      console.error('IDB write failed', err);
+      // Kullanıcıya görünür hata üret (persist başarısızsa veri kaybı riski var)
+      try {
+        useAppStore.getState().addNotification({
+          type: 'error',
+          title: 'Depolama Hatası',
+          message: 'Veriler yerel olarak kaydedilemedi. Tarayıcı depolaması engellenmiş olabilir.'
+        });
+      } catch {
+        // rehydrate öncesi gibi durumlarda sessizce geç
+      }
     }
   },
   removeItem: async (name: string): Promise<void> => {
     try {
-      const db = await openDB('yks-store', 1, {
-        upgrade(db) { db.createObjectStore('keyval'); },
-      });
+      const db = await getDb();
       await db.delete('keyval', name);
     } catch (err) {
-      console.warn('IDB remove failed', err);
+      console.error('IDB remove failed', err);
+      try {
+        useAppStore.getState().addNotification({
+          type: 'warning',
+          title: 'Depolama Uyarısı',
+          message: 'Yerel depolamada silme işlemi başarısız oldu.'
+        });
+      } catch {
+        // ignore
+      }
     }
   },
 };
@@ -184,7 +209,7 @@ const INITIAL_STATE = {
   trophies: INITIAL_TROPHIES,
   eloScore: 0,
   dailyEloDelta: 0,
-  lastEloUpdateDate: new Date().toLocaleDateString('tr-TR'),
+  lastEloUpdateDate: toISODateOnly(),
   streakDays: 0,
   isMorningBlockerEnabled: true,
   focusSessions: [],
@@ -203,7 +228,7 @@ const INITIAL_STATE = {
   warRoomTimeLeft: 0,
   authUser: null,
   isSyncing: false,
-  lastLocalUpdateAt: new Date().toISOString(),
+  lastLocalUpdateAt: toISODateTime(),
   notifications: [],
   hasHydrated: false,
 };
@@ -212,19 +237,25 @@ function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
   const alerts: HabitAlert[] = [];
   const now = new Date();
 
-  const last3Days = logs.filter(l => {
-    const diff = (now.getTime() - new Date(l.date).getTime()) / (1000 * 60 * 60 * 24);
+  const last3Days = logs.filter((l) => {
+    const ms = toDateMs(l.date);
+    if (ms === null) return false;
+    const diff = (now.getTime() - ms) / (1000 * 60 * 60 * 24);
     return diff <= 3;
   });
 
-  const last5Days = logs.filter(l => {
-    const diff = (now.getTime() - new Date(l.date).getTime()) / (1000 * 60 * 60 * 24);
+  const last5Days = logs.filter((l) => {
+    const ms = toDateMs(l.date);
+    if (ms === null) return false;
+    const diff = (now.getTime() - ms) / (1000 * 60 * 60 * 24);
     return diff <= 5;
   });
 
   const subjectDays = new Map<string, Set<string>>();
-  logs.slice(-30).forEach(l => {
-    const day = new Date(l.date).toLocaleDateString('tr-TR');
+  logs.slice(-30).forEach((l) => {
+    const ms = toDateMs(l.date);
+    if (ms === null) return;
+    const day = toISODateOnly(new Date(ms));
     if (!subjectDays.has(l.subject)) subjectDays.set(l.subject, new Set());
     subjectDays.get(l.subject)!.add(day);
   });
@@ -233,7 +264,7 @@ function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
   for (let i = 0; i < 3; i++) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    last3DaySet.add(d.toLocaleDateString('tr-TR'));
+    last3DaySet.add(toISODateOnly(d));
   }
 
   subjectDays.forEach((days, subject) => {
@@ -410,8 +441,12 @@ export const useAppStore = create<AppState>()(
 
       addLog: (log) => set((state) => {
         const newLogs = [...state.logs, log].slice(-500);
-        const todayStr = new Date().toLocaleDateString('tr-TR');
-        const hasLoggedToday = state.logs.some(l => l.date.includes(todayStr));
+        const todayStr = toISODateOnly();
+        const hasLoggedToday = state.logs.some((l) => {
+          const ms = toDateMs(l.date);
+          if (ms === null) return false;
+          return toISODateOnly(new Date(ms)) === todayStr;
+        });
         const newStreak = hasLoggedToday ? state.streakDays : state.streakDays + 1;
         
         let K = 30; 
@@ -456,7 +491,7 @@ export const useAppStore = create<AppState>()(
       }),
 
       addExam: (exam) => set((state) => {
-        const todayStr = new Date().toLocaleDateString('tr-TR');
+        const todayStr = toISODateOnly();
         const safeTotalNet = !isFinite(exam.totalNet) || isNaN(exam.totalNet) ? 0 : exam.totalNet;
         const safeScores = exam.scores ?? {};
         const normalizedExam = { ...exam, totalNet: safeTotalNet, scores: safeScores };

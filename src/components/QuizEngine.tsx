@@ -5,6 +5,7 @@ import { useAppStore } from '../store/appStore';
 import 'katex/dist/katex.min.css';
 import { BlockMath, InlineMath } from 'react-katex';
 import { useToast } from './ToastContext';
+import { toISODateTime } from '../utils/date';
 
 interface QuizQuestion {
   id: string;
@@ -88,7 +89,7 @@ export function QuizEngine() {
       // Hatalıları mezarlığa ekle (otomatik)
       store.addFailedQuestion({
         id: Date.now().toString(),
-        date: new Date().toLocaleDateString('tr-TR'),
+        date: toISODateTime(),
         subject: currentQ.topic,
         topic: 'AI Quiz',
         book: 'AI Sınav Sistemi',
