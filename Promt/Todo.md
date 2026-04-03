@@ -5,10 +5,10 @@ Bohibo9150Kübra
 
 ## Yeni Todo Backlog (v6.1 - Güncel)
 
-- [ ] P0/SYNC-001 — Firestore'u tek gerçek kaynak yap, Zustand/IDB'yi sadece cache + offline queue olarak konumlandır.
-- [ ] P0/SYNC-002 — `users/{uid}` altında normalized subcollection modeline geç (`logs`, `exams`, `failedQuestions`, `chatMessages`, `agendaEntries`, `focusSessions`, `targets`).
-- [ ] P0/SYNC-003 — Full snapshot push yaklaşımını kapat, entity bazlı incremental write + replay queue uygula.
-- [ ] P0/SYNC-004 — Çok cihaz merge stratejisini netleştir: `updatedAt`, `deviceId`, `deletedAt` (tombstone) zorunlu alanları ekle.
+- [x] P0/SYNC-001 — Firestore'u tek gerçek kaynak yap, Zustand/IDB'yi sadece cache + offline queue olarak konumlandır.
+- [x] P0/SYNC-002 — `users/{uid}` altında normalized subcollection modeline geç (`logs`, `exams`, `failedQuestions`, `chatMessages`, `agendaEntries`, `focusSessions`, `targets`).
+- [x] P0/SYNC-003 — Full snapshot push yaklaşımını kapat, entity bazlı incremental write + replay queue uygula.
+- [x] P0/SYNC-004 — Çok cihaz merge stratejisini netleştir: `updatedAt`, `deviceId`, `deletedAt` (tombstone) zorunlu alanları ekle.
 - [ ] P0/SEC-001 — `/api/sync` ve tüm write endpoint'lerinde auth zorunluluğu + sunucu tarafı yetki doğrulaması uygula.
 - [ ] P0/SEC-002 — `api/ai` in-memory rate limiter'ı KV/Redis tabanlı kalıcı limiter ile değiştir.
 - [ ] P1/COACH-001 — Koç çıktısını structured directive modeline geçir (`headline`, `summary`, `tasks`, `warnings`, `followUpQuestion`).
@@ -33,11 +33,11 @@ Bohibo9150Kübra
 - [x] `SEC-002` Firestore rules subcollection yetkilendirmesini explicit ve dar kapsamlı hale getir.
 
 ### P0 — Çok Cihazlı Veri Tutarlılığı (Sync Mimarisi)
-- [ ] `SYNC-001` Firestore’u source-of-truth yap; Zustand/IDB’yi cache + queue ile sınırla.
-- [ ] `SYNC-002` `users/{uid}` altında normalize subcollection şemasına geç.
-- [ ] `SYNC-003` Full snapshot push modelini kapat; incremental writer + replay queue uygula.
-- [ ] `SYNC-004` `updatedAt/deviceId/deletedAt` zorunlu metadata ve tombstone merge stratejisi uygula.
-- [ ] `SYNC-005` `useAuth` pull/listener akışını entity bazlı realtime listener modeline böl.
+- [x] `SYNC-001` Firestore’u source-of-truth yap; Zustand/IDB’yi cache + queue ile sınırla.
+- [x] `SYNC-002` `users/{uid}` altında normalize subcollection şemasına geç.
+- [x] `SYNC-003` Full snapshot push modelini kapat; incremental writer + replay queue uygula.
+- [x] `SYNC-004` `updatedAt/deviceId/deletedAt` zorunlu metadata ve tombstone merge stratejisi uygula.
+- [x] `SYNC-005` `useAuth` pull/listener akışını entity bazlı realtime listener modeline böl.
 - [ ] `SYNC-006` Offline queue replay’de duplicate write ve overwrite riskini önle.
 - [ ] `SYNC-007` Cihazlar arası veri bütünlüğü smoke testlerini (A/B) geçir.
 

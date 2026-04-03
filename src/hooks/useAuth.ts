@@ -16,21 +16,19 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider, db } from '../services/firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection } from 'firebase/firestore';
 import { useAppStore } from '../store/appStore';
-import { pullFromFirestore, pushToFirestore } from '../services/firestoreSync';
+import {
+  pullFromFirestore,
+  pushToFirestore,
+  mergeRemoteDocsWithLocal,
+} from '../services/firestoreSync';
 import { parseAuthError } from '../utils/parseAuthError';
 import type { FirestoreUserData } from '../services/firestoreSync';
 
 type AuthMode = 'login' | 'register';
 
-const SYNC_FIELDS: Array<keyof FirestoreUserData> = [
-  'profile', 'tytSubjects', 'aytSubjects', 'logs', 'exams',
-  'failedQuestions', 'agendaEntries', 'focusSessions', 'trophies',
-  'eloScore', 'streakDays', 'theme', 'chatHistory',
-  'isPassiveMode', 'activeAlerts',
-];
-
+/** Full pull from pullFromFirestore (includes subcollections + legacy root arrays). */
 function applyCloudDataToStore(incoming: Partial<FirestoreUserData>) {
   const current = useAppStore.getState();
 
@@ -55,8 +53,65 @@ function applyCloudDataToStore(incoming: Partial<FirestoreUserData>) {
     isPassiveMode: incoming.isPassiveMode ?? current.isPassiveMode,
     activeAlerts: incoming.activeAlerts ?? current.activeAlerts,
     chatHistory: incoming.chatHistory ?? current.chatHistory,
+    subjectViewMode: incoming.subjectViewMode ?? current.subjectViewMode,
   });
 }
+
+/** Realtime root doc only — entity arrays live in subcollections. */
+const ROOT_RT_FIELDS: Array<keyof FirestoreUserData> = [
+  'profile',
+  'tytSubjects',
+  'aytSubjects',
+  'trophies',
+  'eloScore',
+  'streakDays',
+  'theme',
+  'isPassiveMode',
+  'activeAlerts',
+  'subjectViewMode',
+];
+
+function applyRootCloudDataToStore(incoming: Partial<FirestoreUserData>) {
+  const current = useAppStore.getState();
+
+  if (incoming.profile) current.setProfile(incoming.profile);
+  if (incoming.theme) current.setTheme(incoming.theme);
+
+  if (incoming.eloScore !== undefined) {
+    const delta = incoming.eloScore - current.eloScore;
+    if (delta !== 0) current.addElo(delta);
+  }
+
+  useAppStore.setState({
+    tytSubjects: incoming.tytSubjects?.length ? incoming.tytSubjects : current.tytSubjects,
+    aytSubjects: incoming.aytSubjects?.length ? incoming.aytSubjects : current.aytSubjects,
+    trophies: incoming.trophies?.length ? incoming.trophies : current.trophies,
+    streakDays: incoming.streakDays ?? current.streakDays,
+    isPassiveMode: incoming.isPassiveMode ?? current.isPassiveMode,
+    activeAlerts: incoming.activeAlerts ?? current.activeAlerts,
+    subjectViewMode: incoming.subjectViewMode ?? current.subjectViewMode,
+  });
+}
+
+const ENTITY_SUB_LISTENERS: Array<{
+  collectionName: string;
+  storeKey: keyof Pick<
+    FirestoreUserData,
+    | 'logs'
+    | 'exams'
+    | 'failedQuestions'
+    | 'agendaEntries'
+    | 'focusSessions'
+    | 'chatHistory'
+  >;
+}> = [
+  { collectionName: 'logs', storeKey: 'logs' },
+  { collectionName: 'exams', storeKey: 'exams' },
+  { collectionName: 'failedQuestions', storeKey: 'failedQuestions' },
+  { collectionName: 'agendaEntries', storeKey: 'agendaEntries' },
+  { collectionName: 'focusSessions', storeKey: 'focusSessions' },
+  { collectionName: 'chatMessages', storeKey: 'chatHistory' },
+];
 
 export function useAuth() {
   const store = useAppStore();
@@ -64,10 +119,13 @@ export function useAuth() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    let unsubscribeSnapshot: (() => void) | null = null;
+    const unsubscribeFns: Array<() => void> = [];
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        unsubscribeFns.forEach((u) => u());
+        unsubscribeFns.length = 0;
+
         store.setAuthUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
@@ -84,43 +142,67 @@ export function useAuth() {
           console.warn('[Auth] Initial pull failed:', e);
         }
 
-        unsubscribeSnapshot = onSnapshot(
-          doc(db, 'users', firebaseUser.uid),
-          { includeMetadataChanges: true },
-          (docSnap) => {
-            if (!docSnap.exists()) return;
-            const { isSyncing } = useAppStore.getState();
-            if (isSyncing || docSnap.metadata.hasPendingWrites) return;
+        unsubscribeFns.push(
+          onSnapshot(
+            doc(db, 'users', firebaseUser.uid),
+            { includeMetadataChanges: true },
+            (docSnap) => {
+              if (!docSnap.exists()) return;
+              const { isSyncing } = useAppStore.getState();
+              if (isSyncing || docSnap.metadata.hasPendingWrites) return;
 
-            const rtData = docSnap.data() as Partial<FirestoreUserData>;
-            const partial: Partial<FirestoreUserData> = {};
-            for (const key of SYNC_FIELDS) {
-              if (rtData[key] !== undefined) (partial as any)[key] = rtData[key];
+              const rtData = docSnap.data() as Partial<FirestoreUserData>;
+              const partial: Partial<FirestoreUserData> = {};
+              for (const key of ROOT_RT_FIELDS) {
+                if (rtData[key] !== undefined) (partial as Record<string, unknown>)[key as string] = rtData[key];
+              }
+              if (Object.keys(partial).length > 0) applyRootCloudDataToStore(partial);
             }
-            if (Object.keys(partial).length > 0) applyCloudDataToStore(partial);
-          }
+          )
         );
 
+        for (const { collectionName, storeKey } of ENTITY_SUB_LISTENERS) {
+          unsubscribeFns.push(
+            onSnapshot(
+              collection(db, 'users', firebaseUser.uid, collectionName),
+              { includeMetadataChanges: true },
+              (snap) => {
+                if (snap.metadata.hasPendingWrites) return;
+                const { isSyncing } = useAppStore.getState();
+                if (isSyncing) return;
+                const local = useAppStore.getState()[storeKey] as unknown[];
+                const merged = mergeRemoteDocsWithLocal(
+                  local as Parameters<typeof mergeRemoteDocsWithLocal>[0],
+                  snap.docs
+                );
+                useAppStore.setState({ [storeKey]: merged } as Record<string, unknown>);
+              }
+            )
+          );
+        }
+
         try {
-          const isSuperAdmin = firebaseUser.uid === '9z9OAxBXsFU3oPT8AqIxnDSfzNy2';
-          await setDoc(doc(db, 'users', firebaseUser.uid), {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName || '',
-            photoURL: firebaseUser.photoURL || '',
-            role: isSuperAdmin ? 'super_admin' : 'standard',
-            lastSignedInAt: new Date().toISOString()
-          }, { merge: true });
+          const token = await firebaseUser.getIdTokenResult();
+          const claims = token.claims as Record<string, unknown>;
+          const isSuperAdmin = claims.superAdmin === true;
+          await setDoc(
+            doc(db, 'users', firebaseUser.uid),
+            {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || '',
+              photoURL: firebaseUser.photoURL || '',
+              role: isSuperAdmin ? 'super_admin' : 'standard',
+              lastSignedInAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
         } catch (e) {
           console.warn('[Auth] User doc sync error:', e);
         }
       } else {
-        if (unsubscribeSnapshot) {
-          unsubscribeSnapshot();
-          unsubscribeSnapshot = null;
-        }
-        // [PHASE 5]: Kaldırıldı -> store.resetStore()
-        // Bu işlem sadece manuel signOut'ta yapılmalı.
+        unsubscribeFns.forEach((u) => u());
+        unsubscribeFns.length = 0;
         store.setAuthUser(null);
       }
       setIsLoading(false);
@@ -128,7 +210,7 @@ export function useAuth() {
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeSnapshot) unsubscribeSnapshot();
+      unsubscribeFns.forEach((u) => u());
     };
   }, []);
 
@@ -147,6 +229,7 @@ export function useAuth() {
       eloScore: s.eloScore,
       streakDays: s.streakDays,
       theme: s.theme,
+      subjectViewMode: s.subjectViewMode,
       chatHistory: s.chatHistory,
       isPassiveMode: s.isPassiveMode,
       activeAlerts: s.activeAlerts,

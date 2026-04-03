@@ -15,6 +15,11 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   banned: 0,
 };
 
+/** Prefer Firebase Auth custom claims (`superAdmin`) in production. */
+export function isSuperAdminClaims(claims: Record<string, unknown> | undefined | null): boolean {
+  return claims?.superAdmin === true;
+}
+
 export function isSuperAdmin(uid?: string | null): boolean {
   if (!uid) return false;
   return uid === SUPER_ADMIN_UID;

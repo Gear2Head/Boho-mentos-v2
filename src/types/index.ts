@@ -122,6 +122,7 @@ export interface FailedQuestion {
 }
 
 export interface ChatMessage {
+  id?: string;
   role: 'user' | 'coach';
   content: string;
   timestamp: string;

@@ -8,6 +8,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { openDB } from 'idb';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import { toISODateOnly, toISODateTime, toDateMs } from '../utils/date';
+import { tombstoneEntity } from '../services/firestoreSync';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
@@ -440,7 +441,15 @@ export const useAppStore = create<AppState>()(
       }),
 
       addLog: (log) => set((state) => {
-        const newLogs = [...state.logs, log].slice(-500);
+        const logWithId: DailyLog = {
+          ...log,
+          id:
+            log.id ??
+            (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+              ? crypto.randomUUID()
+              : `log_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`),
+        };
+        const newLogs = [...state.logs, logWithId].slice(-500);
         const todayStr = toISODateOnly();
         const hasLoggedToday = state.logs.some((l) => {
           const ms = toDateMs(l.date);
@@ -522,9 +531,13 @@ export const useAppStore = create<AppState>()(
         return { exams: newExams.slice(-200), eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies };
       }),
 
-      removeExam: (id) => set((state) => ({
-        exams: state.exams.filter(e => e.id !== id)
-      })),
+      removeExam: (id) => {
+        const uid = get().authUser?.uid;
+        if (uid) void tombstoneEntity(uid, 'exams', id);
+        set((state) => ({
+          exams: state.exams.filter((e) => e.id !== id),
+        }));
+      },
 
       analyzeUserData: () => {
          const state = get();
@@ -555,9 +568,20 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
         eloScore: state.eloScore + amount
       })),
 
-      addChatMessage: (message) => set((state) => ({ 
-        chatHistory: [...state.chatHistory.slice(-100), message] 
-      })),
+      addChatMessage: (message) =>
+        set((state) => ({
+          chatHistory: [
+            ...state.chatHistory,
+            {
+              ...message,
+              id:
+                message.id ??
+                (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                  ? crypto.randomUUID()
+                  : `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+            },
+          ].slice(-100),
+        })),
 
       setPassiveMode: (isPassiveMode) => set({ isPassiveMode }),
 
@@ -585,9 +609,13 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
         return { failedQuestions: newQuestions };
       }),
 
-      removeFailedQuestion: (id) => set((state) => ({
-        failedQuestions: state.failedQuestions.filter(q => q.id !== id)
-      })),
+      removeFailedQuestion: (id) => {
+        const uid = get().authUser?.uid;
+        if (uid) void tombstoneEntity(uid, 'failedQuestions', id);
+        set((state) => ({
+          failedQuestions: state.failedQuestions.filter((q) => q.id !== id),
+        }));
+      },
 
       unlockTrophy: (trophyId) => set((state) => {
         const newTrophies = state.trophies.map(t => 
@@ -610,9 +638,13 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
         agendaEntries: state.agendaEntries.map(e => e.id === id ? { ...e, ...updates } : e),
       })),
 
-      removeAgendaEntry: (id) => set((state) => ({
-        agendaEntries: state.agendaEntries.filter(e => e.id !== id),
-      })),
+      removeAgendaEntry: (id) => {
+        const uid = get().authUser?.uid;
+        if (uid) void tombstoneEntity(uid, 'agendaEntries', id);
+        set((state) => ({
+          agendaEntries: state.agendaEntries.filter((e) => e.id !== id),
+        }));
+      },
 
       addTargetGoal: (goal) => set((state) => {
         const currentGoals = state.profile?.targetGoals || [];
