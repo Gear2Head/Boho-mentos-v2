@@ -41,9 +41,9 @@ export function ModeSwitcher() {
   const store = useAppStore();
   
   const modes = [
-    { id: 'solve', label: 'Çöz', icon: <MousePointer2 size={16} />, dMode: 'pointer' },
-    { id: 'draw', label: 'Çiz', icon: <PenTool size={16} />, dMode: 'pen' },
-    { id: 'analysis', label: 'Analiz', icon: <BrainCircuit size={16} />, dMode: 'pointer' },
+    { id: 'solve', label: 'Çöz', icon: <MousePointer2 size={16} />, dMode: 'pointer' as const },
+    { id: 'draw', label: 'Çiz', icon: <PenTool size={16} />, dMode: 'pen' as const },
+    { id: 'analysis', label: 'Analiz', icon: <BrainCircuit size={16} />, dMode: 'pointer' as const },
   ] as const;
 
   return (
@@ -52,12 +52,15 @@ export function ModeSwitcher() {
          <button
            key={m.id}
            onClick={() => {
-             store.setWarRoomMode(m.id);
+             // WarRoomMode sadece setup|solve|result olarak kalır.
+             if (store.warRoomMode === 'setup') {
+               store.setWarRoomMode('solve');
+             }
              store.setDrawingMode(m.dMode);
            }}
            className={`
              flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] uppercase font-bold tracking-widest transition-all
-             ${store.warRoomMode === m.id 
+             ${((m.id === 'solve' || m.id === 'analysis') && store.drawingMode === 'pointer') || (m.id === 'draw' && store.drawingMode !== 'pointer')
                 ? 'bg-accent text-white shadow-xl shadow-accent/20 scale-105' 
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
              }

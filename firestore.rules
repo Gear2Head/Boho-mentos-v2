@@ -2,42 +2,68 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // GÜVENLİK KATI 1: GOD MODE (Süper Karargah)
-    match /{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == "9z9OAxBXsFU3oPT8AqIxnDSfzNy2";
+
+    function isSignedIn() {
+      return request.auth != null;
     }
-    
-    // GÜVENLİK KATI 2: KULLANICI PROFİLLERİ VE METADATALARI (Aranan Liste)
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.superAdmin == true;
+    }
+
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.uid == "9z9OAxBXsFU3oPT8AqIxnDSfzNy2");
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // GÜVENLİK KATI 3: KULLANICI ÖZEL VERİLERİ VE ELO PUANLARI (userData)
-    match /userData/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Sınavlar ve başarımlar
-      match /{subcollections=**} {
-         allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId) || isSuperAdmin();
+
+      match /logs/{logId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /exams/{examId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /failedQuestions/{questionId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /chatMessages/{messageId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /agendaEntries/{entryId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /focusSessions/{sessionId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /targets/{targetId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /system/{docId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
       }
     }
 
-    // GÜVENLİK KATI 4: YÖNETİCİ LOGLARI (Sadece Super Admin)
-    match /adminLogs/{logId} {
-      allow read, write: if request.auth != null && request.auth.uid == "9z9OAxBXsFU3oPT8AqIxnDSfzNy2";
+    match /userData/{userId} {
+      allow read, write: if isOwner(userId) || isSuperAdmin();
+
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
     }
-    
-    // GÜVENLİK KATI 5: SİSTEM AYARLARI (Bakım Modu, Duyuru vb.)
+
+    match /adminLogs/{logId} {
+      allow read, write: if isSuperAdmin();
+    }
+
     match /systemConfig/settings {
       allow read: if true; 
-      allow write: if request.auth != null && request.auth.uid == "9z9OAxBXsFU3oPT8AqIxnDSfzNy2";
+      allow write: if isSuperAdmin();
     }
-    
-    // SİSTEM META SAYAÇLARI
+
     match /system/{document=**} {
-       allow read: if request.auth != null;
+       allow read: if isSignedIn();
+       allow write: if isSuperAdmin();
     }
   }
 }

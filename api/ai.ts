@@ -9,6 +9,8 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { GoogleGenAI } from "@google/genai";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 type ChatHistoryItem = { role: "user" | "coach"; content: string };
 type OpenAIMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -270,13 +272,24 @@ const RATE_LIMIT_WINDOW_MS = 30_000;
 const RATE_LIMIT_MAX = 30;
 
 const rateLimitBucket = new Map<string, { count: number; windowStart: number }>();
+const redis =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? Redis.fromEnv()
+    : null;
+const persistentRatelimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(RATE_LIMIT_MAX, `${RATE_LIMIT_WINDOW_MS} ms`),
+      prefix: "ai_rate_limit",
+    })
+  : null;
 
 function getClientIp(req: any) {
   const xf = (req.headers?.["x-forwarded-for"] as string | undefined) ?? "";
   return xf.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
 }
 
-function checkRateLimit(ip: string) {
+function checkRateLimitInMemory(ip: string) {
   const now = Date.now();
   const cur = rateLimitBucket.get(ip);
   if (!cur || now - cur.windowStart > RATE_LIMIT_WINDOW_MS) {
@@ -293,6 +306,19 @@ function checkRateLimit(ip: string) {
   return { ok: true };
 }
 
+async function checkRateLimit(ip: string) {
+  if (persistentRatelimit) {
+    const result = await persistentRatelimit.limit(ip);
+    if (!result.success) {
+      const resetMs =
+        typeof result.reset === "number" ? Math.max(result.reset - Date.now(), 0) : 1000;
+      return { ok: false, retryAfterMs: resetMs };
+    }
+    return { ok: true };
+  }
+  return checkRateLimitInMemory(ip);
+}
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req: any, res: any) {
@@ -303,7 +329,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const rl = checkRateLimit(getClientIp(req));
+  const rl = await checkRateLimit(getClientIp(req));
   if (!rl.ok) {
     res.statusCode = 429;
     res.setHeader(

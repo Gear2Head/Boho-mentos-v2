@@ -46,7 +46,7 @@ export function QuestionPanel({ question, children }: { question: any, children?
 
 export function CanvasLayer({ canvasRef }: { canvasRef: React.RefObject<any> }) {
   const store = useAppStore();
-  const isDrawing = store.warRoomMode === 'draw';
+  const isDrawing = store.drawingMode !== 'pointer';
 
   return (
     <div 

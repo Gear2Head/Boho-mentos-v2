@@ -16,6 +16,75 @@ Bohibo9150Kübra
 - [ ] P1/PERF-002 — `App.tsx` sekmelerini lazy-load + Suspense ile code split et.
 - [ ] P1/TEST-001 — Çok cihaz sync test matrisi oluştur: log/deneme/chat/agenda ekleme-silme-merge senaryolarını doğrula.
 
+## Master Todo (Eksiksiz Kapsam - Tek Kaynak)
+
+### P0 — Kritik Stabilizasyon ve Güvenlik
+- [x] `BUG-007` Tarih formatını ISO + geriye uyumlu parse katmanına taşı.
+- [x] `BUG-001` IDB hata görünürlüğünü sessiz uyarıdan notification modeline geçir.
+- [x] `BUG-010` MorningBlocker unlock bilgisini store/persist katmanına taşı.
+- [x] `BUG-006` beforeunload async sync yaklaşımını kaldırıp güvenli davranışa geçir.
+- [x] `BUG-005` WarRoom mode tip çatışmasını drawingMode ayrımıyla kapat.
+- [x] `BUG-009` chatHistory kesme sırasını düzelt.
+- [x] `BUG-008` addExam score normalize (NaN/undefined guard) uygula.
+- [x] `BUG-002` addLog kesme/sync sırası için yeni-log güvenli akış düzeltmesini uygula.
+- [x] `SEC-004` Hardcoded admin UID modelini claims tabanına geçir.
+- [x] `BUG-003` `api/ai` rate limit’i in-memory modelden KV/Redis’e taşı.
+- [x] `SEC-001` `/api/sync` ve write endpoint’lerinde zorunlu auth + yetki doğrulaması ekle.
+- [x] `SEC-002` Firestore rules subcollection yetkilendirmesini explicit ve dar kapsamlı hale getir.
+
+### P0 — Çok Cihazlı Veri Tutarlılığı (Sync Mimarisi)
+- [ ] `SYNC-001` Firestore’u source-of-truth yap; Zustand/IDB’yi cache + queue ile sınırla.
+- [ ] `SYNC-002` `users/{uid}` altında normalize subcollection şemasına geç.
+- [ ] `SYNC-003` Full snapshot push modelini kapat; incremental writer + replay queue uygula.
+- [ ] `SYNC-004` `updatedAt/deviceId/deletedAt` zorunlu metadata ve tombstone merge stratejisi uygula.
+- [ ] `SYNC-005` `useAuth` pull/listener akışını entity bazlı realtime listener modeline böl.
+- [ ] `SYNC-006` Offline queue replay’de duplicate write ve overwrite riskini önle.
+- [ ] `SYNC-007` Cihazlar arası veri bütünlüğü smoke testlerini (A/B) geçir.
+
+### P1 — Performans ve Dayanıklılık
+- [ ] `PERF-003` `useAppStore()` toplu aboneliklerini selector/shallow kullanımına taşı.
+- [ ] `PERF-001` `App.tsx` büyük sekmeleri lazy-load + `Suspense` ile code split et.
+- [ ] `PERF-004` `mathSpeedData` ve ağır türetilmiş hesapları memoize et.
+- [ ] `PERF-002` Vite `manualChunks` içinde `@google/genai` ve Capacitor paketlerini ayır.
+- [ ] `INFRA-001` `puppeteer` bağımlılığını `devDependencies`’e taşı.
+- [ ] `INFRA-004` PWA `navigateFallback` ayarını SPA routing güvenliğine çek.
+
+### P1 — Koç V2 (Yapısal)
+- [ ] `COACH-001` Koç çıktısını structured directive modeline taşı.
+- [ ] `COACH-002` `CoachSystemContext` ve `CoachIntent` tipli çekirdek katmanını ekle.
+- [ ] `COACH-003` Koç/Agenda/StrategyHub/WarRoom/Intervention yüzeylerinde tek çekirdek prompt akışına geç.
+- [ ] `FEAT-002` Son başarılı koç direktifini offline cache gösterimiyle destekle.
+
+### P1 — Test ve Kalite Kapıları
+- [ ] `TEST-001` Çok cihaz sync test matrisi (log/exam/chat/agenda/target/progress) yaz.
+- [ ] `TEST-002` Tüm provider fail senaryosunda kontrollü fallback çıktısını doğrula.
+- [ ] `TEST-003` 500+ log senaryosunda veri kaybı/duplikasyon regresyon testi ekle.
+- [ ] `TEST-004` Offline -> online replay akışında idempotency kontrolü ekle.
+- [x] `QUALITY-001` Shipping app için `tsc --noEmit` + lint + build geçişini zorunlu kapı yap.
+
+### P2 — Ürün ve UX Backlog
+- [ ] `FEAT-001` Günlük PWA push hatırlatma.
+- [ ] `FEAT-003` Focus checkpoint/restore.
+- [ ] `FEAT-004` Konu borcu akıllı sıralama (ROI + ağırlık + zaman baskısı).
+- [ ] `FEAT-005` Deneme karşılaştırma modu.
+- [ ] `FEAT-006` Sesle log girişi.
+- [ ] `FEAT-007` Haftalık e-posta raporu.
+- [ ] `FEAT-008` Hatalı soru fotoğrafı ekleme.
+- [ ] `FEAT-009` YÖK hedef-net fark kartları.
+- [ ] `FEAT-010` Capacitor local notification.
+- [ ] `UX-001` Profil fotoğrafı yükleme.
+- [ ] `UX-002` Streak kırılma uyarısı.
+- [ ] `UX-003` Mobil klavye/layout stabilizasyonu.
+- [ ] `UX-004` Tema FOUC düzeltmesi.
+- [ ] `UX-005` Teknik hata kodlarını kullanıcı dostu mesajlara eşleme.
+- [ ] `A11Y-001` İkon butonlarda aria-label standardı.
+- [ ] `A11Y-002` Düşük kontrast metinleri WCAG AA seviyesine çek.
+- [ ] `A11Y-003` Klavye navigasyonu + modal focus trap.
+
+### Not
+- Bu bölüm, dağınık todo maddelerini tek çatıya toplayan **master referans**tır.
+- Bundan sonra yeni iş eklenecekse yalnızca bu section altına ID ile eklenmelidir.
+
 **Öne çıkan kararlar:**
 
 Faz 0 (Kritik Stabilizasyon) kesinlikle ilk — "Rendered fewer hooks" hatası `FocusSidePanel` içinde hook'ların conditional `return null` sonrasına kaymasından geliyor. Bu düzelmeden diğer fazlar üzerine inşa etmek riskli.
