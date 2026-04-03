@@ -125,7 +125,9 @@ const ENTITY_SUB_LISTENERS: Array<{
 ];
 
 export function useAuth() {
-  const store = useAppStore();
+  const authUser = useAppStore(s => s.authUser);
+  const profile = useAppStore(s => s.profile);
+  const setAuthUser = useAppStore(s => s.setAuthUser);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -137,7 +139,7 @@ export function useAuth() {
         unsubscribeFns.forEach((u) => u());
         unsubscribeFns.length = 0;
 
-        store.setAuthUser({
+        setAuthUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
@@ -158,7 +160,10 @@ export function useAuth() {
             doc(db, 'users', firebaseUser.uid),
             { includeMetadataChanges: true },
             (docSnap) => {
-              if (!docSnap.exists()) return;
+              if (!docSnap.exists()) {
+                console.warn('[Auth] No user doc found in Firestore for UID:', firebaseUser.uid);
+                return;
+              }
               const { isSyncing } = useAppStore.getState();
               if (isSyncing || docSnap.metadata.hasPendingWrites) return;
 
@@ -168,6 +173,12 @@ export function useAuth() {
                 if (rtData[key] !== undefined) (partial as Record<string, unknown>)[key as string] = rtData[key];
               }
               if (Object.keys(partial).length > 0) applyRootCloudDataToStore(partial);
+            },
+            (error) => {
+              console.error('[Auth] Root doc listener error:', error);
+              if (error.code === 'permission-denied') {
+                console.warn('[Auth] Critcal: Permission denied for user root doc. Check Firestore Rules.');
+              }
             }
           )
         );
@@ -187,6 +198,9 @@ export function useAuth() {
                   snap.docs
                 );
                 useAppStore.setState({ [storeKey]: merged } as Record<string, unknown>);
+              },
+              (error) => {
+                console.error(`[Auth] Sub-collection listener error (${collectionName}):`, error);
               }
             )
           );
@@ -214,7 +228,7 @@ export function useAuth() {
       } else {
         unsubscribeFns.forEach((u) => u());
         unsubscribeFns.length = 0;
-        store.setAuthUser(null);
+        setAuthUser(null);
       }
       setIsLoading(false);
     });
@@ -254,7 +268,7 @@ export function useAuth() {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       const cloudData = await pullFromFirestore(user.uid);
-      if (!cloudData?.profile && store.profile) {
+      if (!cloudData?.profile && profile) {
         await pushToFirestore(user.uid, buildFullSnapshot());
       }
     } catch (err: unknown) {
@@ -263,7 +277,7 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [store, buildFullSnapshot]);
+  }, [profile, buildFullSnapshot]);
 
   const signInWithEmail = useCallback(async (email: string, password: string, mode: AuthMode, displayName?: string) => {
     setAuthError(null);
@@ -272,7 +286,7 @@ export function useAuth() {
       if (mode === 'register') {
         const result = await createUserWithEmailAndPassword(auth, email, password);
         if (displayName) await updateProfile(result.user, { displayName });
-        if (store.profile) {
+        if (profile) {
           await pushToFirestore(result.user.uid, buildFullSnapshot());
         }
       } else {
@@ -284,7 +298,7 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [store, buildFullSnapshot]);
+  }, [profile, buildFullSnapshot]);
 
   const signOut = useCallback(async () => {
     try {
@@ -308,7 +322,7 @@ export function useAuth() {
   }, []);
 
   return {
-    user: store.authUser,
+    user: authUser,
     isLoading,
     authError,
     setAuthError,

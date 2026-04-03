@@ -45,15 +45,22 @@ const buildExamFromParsed = (p: NonNullable<AgendaEntry['parsedExam']>): ExamRes
 };
 
 export function AgendaPage() {
-  const store = useAppStore();
+  const agendaEntries = useAppStore(s => s.agendaEntries);
+  const addAgendaEntry = useAppStore(s => s.addAgendaEntry);
+  const addExam = useAppStore(s => s.addExam);
+  const profile = useAppStore(s => s.profile);
+  const chatHistory = useAppStore(s => s.chatHistory);
+  const updateAgendaEntry = useAppStore(s => s.updateAgendaEntry);
+  const removeAgendaEntry = useAppStore(s => s.removeAgendaEntry);
+
   const [draft, setDraft] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const entries = useMemo(() => {
-    return store.agendaEntries
+    return agendaEntries
       .slice()
       .sort((a, b) => (toDateMs(b.date) ?? 0) - (toDateMs(a.date) ?? 0));
-  }, [store.agendaEntries]);
+  }, [agendaEntries]);
 
   const addEntry = () => {
     const content = draft.trim();
@@ -67,30 +74,30 @@ export function AgendaPage() {
       tags: [],
       aiAnalysis: undefined,
     };
-    store.addAgendaEntry(entry);
+    addAgendaEntry(entry);
     setDraft('');
     if (parsedExam) {
-      store.addExam(buildExamFromParsed(parsedExam));
+      addExam(buildExamFromParsed(parsedExam));
     }
   };
 
   const analyzeEntry = async (entry: AgendaEntry) => {
     setIsAnalyzing(true);
     try {
-      const ctx = `Öğrenci: ${store.profile?.name} | Alan: ${store.profile?.track}\nHedef: TYT ${store.profile?.tytTarget}, AYT ${store.profile?.aytTarget}\n`;
+      const ctx = `Öğrenci: ${profile?.name} | Alan: ${profile?.track}\nHedef: TYT ${profile?.tytTarget}, AYT ${profile?.aytTarget}\n`;
       const prompt = `Aşağıdaki ajanda girişinden YKS ile ilgili verileri çıkar.\n\nAJANDA:\n${entry.content}\n\nKURAL: SADECE JSON DÖNDÜR.\nŞema:\n{ "summary": string, "tags": string[], "parsedExam": { "type": "TYT"|"AYT", "totalNet": number } | null }`;
-      const res = await getCoachResponse(prompt, ctx, store.chatHistory, { coachPersonality: store.profile?.coachPersonality, forceJson: true, maxTokens: 900 });
+      const res = await getCoachResponse(prompt, ctx, chatHistory, { coachPersonality: profile?.coachPersonality, forceJson: true, maxTokens: 900 });
       const jsonMatch = res.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return;
       const data = JSON.parse(jsonMatch[0]) as { summary?: string; tags?: string[]; parsedExam?: { type: 'TYT' | 'AYT'; totalNet: number } | null };
       const parsedExam = data.parsedExam ?? null;
-      store.updateAgendaEntry(entry.id, {
+      updateAgendaEntry(entry.id, {
         aiAnalysis: data.summary ?? undefined,
         tags: Array.isArray(data.tags) ? data.tags : entry.tags,
         parsedExam: parsedExam ?? undefined,
       });
       if (parsedExam) {
-        store.addExam(buildExamFromParsed(parsedExam));
+        addExam(buildExamFromParsed(parsedExam));
       }
     } finally {
       setIsAnalyzing(false);
@@ -119,6 +126,7 @@ export function AgendaPage() {
           <button
             onClick={addEntry}
             className="flex items-center gap-2 px-5 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] transition-colors"
+            aria-label="Ajanda Girişini Kaydet"
           >
             <Plus size={16} /> Kaydet
           </button>
@@ -149,14 +157,15 @@ export function AgendaPage() {
                     onClick={() => analyzeEntry(e)}
                     disabled={isAnalyzing}
                     className="flex items-center gap-2 px-3 py-2 bg-blue-900/10 text-blue-400 border border-blue-900/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-900/20 transition-colors disabled:opacity-40"
+                    aria-label="AI ile Girişi Analiz Et"
                   >
                     {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                     AI Analiz
                   </button>
                   <button
-                    onClick={() => store.removeAgendaEntry(e.id)}
+                    onClick={() => removeAgendaEntry(e.id)}
                     className="p-2 bg-red-900/10 text-red-400 border border-red-900/30 rounded-xl hover:bg-red-900/20 transition-colors"
-                    title="Sil"
+                    aria-label="Girişi Sil"
                   >
                     <Trash2 size={16} />
                   </button>

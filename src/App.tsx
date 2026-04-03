@@ -274,7 +274,50 @@ const markdownComponents = {
 // --- Main App ---
 
 export default function App() {
-  const store = useAppStore();
+  // --- STORE SELECTORS (PERF-003) ---
+  const morningUnlockedDate = useAppStore(s => s.morningUnlockedDate);
+  const notifications = useAppStore(s => s.notifications);
+  const isSyncing = useAppStore(s => s.isSyncing);
+  const theme = useAppStore(s => s.theme);
+  const addLog = useAppStore(s => s.addLog);
+  const isPassiveMode = useAppStore(s => s.isPassiveMode);
+  const setPassiveMode = useAppStore(s => s.setPassiveMode);
+  const logs = useAppStore(s => s.logs);
+  const trophies = useAppStore(s => s.trophies);
+  const unlockTrophy = useAppStore(s => s.unlockTrophy);
+  const addChatMessage = useAppStore(s => s.addChatMessage);
+  const profile = useAppStore(s => s.profile);
+  const chatHistory = useAppStore(s => s.chatHistory);
+  const setSyncing = useAppStore(s => s.setSyncing);
+  const activeAlerts = useAppStore(s => s.activeAlerts);
+  const qaSession = useAppStore(s => s.qaSession);
+  const setQaSession = useAppStore(s => s.setQaSession);
+  const updateQaAnswer = useAppStore(s => s.updateQaAnswer);
+  const tytSubjects = useAppStore(s => s.tytSubjects);
+  const aytSubjects = useAppStore(s => s.aytSubjects);
+  const lastCoachDirective = useAppStore(s => s.lastCoachDirective);
+  const setLastCoachDirective = useAppStore(s => s.setLastCoachDirective);
+  const hasHydrated = useAppStore(s => s.hasHydrated);
+  const setProfile = useAppStore(s => s.setProfile);
+  const isMorningBlockerEnabled = useAppStore(s => s.isMorningBlockerEnabled);
+  const setMorningUnlockedDate = useAppStore(s => s.setMorningUnlockedDate);
+  const exams = useAppStore(s => s.exams);
+  const eloScore = useAppStore(s => s.eloScore);
+  const streakDays = useAppStore(s => s.streakDays);
+  const addNotification = useAppStore(s => s.addNotification);
+  const setFocusSidePanelOpen = useAppStore(s => s.setFocusSidePanelOpen);
+  const subjectViewMode = useAppStore(s => s.subjectViewMode);
+  const setSubjectViewMode = useAppStore(s => s.setSubjectViewMode);
+  const updateTytSubject = useAppStore(s => s.updateTytSubject);
+  const updateAytSubject = useAppStore(s => s.updateAytSubject);
+  const bulkMasterTytSubjectsByName = useAppStore(s => s.bulkMasterTytSubjectsByName);
+  const bulkMasterAytSubjectsByName = useAppStore(s => s.bulkMasterAytSubjectsByName);
+  const addFailedQuestion = useAppStore(s => s.addFailedQuestion);
+  const solveFailedQuestion = useAppStore(s => s.solveFailedQuestion);
+  const removeFailedQuestion = useAppStore(s => s.removeFailedQuestion);
+  const isDevMode = useAppStore(s => s.isDevMode);
+  const failedQuestions = useAppStore(s => s.failedQuestions);
+
   const { user, isLoading, signOut } = useAuth();
   const [isAuthSkipped, setIsAuthSkipped] = useState(false);
 
@@ -299,11 +342,11 @@ export default function App() {
 
   // [BUG-010 FIX]: Morning Blocker kilidi artık persist'e bağlı — aynı gün refresh'te kapanmaz
   const todayIso = new Date().toISOString().slice(0, 10);
-  const isMorningUnlocked = store.morningUnlockedDate === todayIso;
+  const isMorningUnlocked = morningUnlockedDate === todayIso;
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const unreadCount = store.notifications.filter(n => !n.read).length;
-  const isSyncing = store.isSyncing;
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const isCurrentlySyncing = isSyncing;
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // --- SYSTEM STATE & BROADCAST ---
@@ -326,14 +369,14 @@ export default function App() {
   // --- TEMA FLASHBANG ENGELLEYİCİ ---
   useEffect(() => {
     const root = window.document.documentElement;
-    if (store.theme === 'dark') {
+    if (theme === 'dark') {
       root.classList.add('dark');
       root.style.colorScheme = 'dark';
     } else {
       root.classList.remove('dark');
       root.style.colorScheme = 'light';
     }
-  }, [store.theme]);
+  }, [theme]);
 
   // --- CAPACITOR NATIVE INTEGRATION ---
   useEffect(() => {
@@ -342,8 +385,8 @@ export default function App() {
     // 1. Status Bar Kurulumu
     const setupStatusBar = async () => {
       try {
-        await StatusBar.setStyle({ style: store.theme === 'dark' ? Style.Dark : Style.Light });
-        await StatusBar.setBackgroundColor({ color: store.theme === 'dark' ? '#0A0A0A' : '#FDFBF7' });
+        await StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light });
+        await StatusBar.setBackgroundColor({ color: theme === 'dark' ? '#0A0A0A' : '#FDFBF7' });
       } catch (e) {
         console.warn('StatusBar Plugin not loaded', e);
       }
@@ -364,32 +407,32 @@ export default function App() {
     return () => {
       backListener.then(l => l.remove());
     };
-  }, [store.theme, activeTab]);
+  }, [theme, activeTab]);
 
   const handleLogSubmit = async (log: DailyLog) => {
     setIsLogWidgetOpen(false);
     const isPassive = log.fatigue >= 8;
 
-    store.addLog(log);
-    if (isPassive && !store.isPassiveMode) store.setPassiveMode(true);
+    addLog(log);
+    if (isPassive && !isPassiveMode) setPassiveMode(true);
 
     // Unlock Trophy
-    if (store.logs.length >= 2 && !store.trophies.find(t => t.id === 'streak_3')?.unlockedAt) {
-      store.unlockTrophy('streak_3');
+    if (logs.length >= 2 && !trophies.find(t => t.id === 'streak_3')?.unlockedAt) {
+      unlockTrophy('streak_3');
     }
 
     const logMessage = `LOG GİRİŞİ:\nDers: ${log.subject}\nKonu: ${log.topic}\nSoru: ${log.questions} (D:${log.correct} Y:${log.wrong} B:${log.empty})\nToplam Süre: ${log.avgTime}dk\nYorgunluk: ${log.fatigue}/10\nHatalar: ${log.tags.join(', ') || 'Yok'}${isPassive ? '\nSİSTEM NOTU: Öğrencinin zihinsel yorgunluğu 8 veya üzerinde. Sistemi otomatik olarak PASİF MODA geçir. Sadece video izleme, formül okuma gibi yorucu olmayan görevler ver.' : ''}`;
 
-    store.addChatMessage({ role: 'user', content: logMessage, timestamp: new Date().toISOString() });
+    addChatMessage({ role: 'user', content: logMessage, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
     const successRate = Math.round((log.correct / (log.questions || 1)) * 100);
     const logSummary = `${log.subject} (${log.topic}): ${log.questions} soru, %${successRate} başarı, ${log.avgTime}dk. Yorgunluk: ${log.fatigue}/10.`;
 
-    const context = `Öğrenci Profili: ${JSON.stringify(store.profile)}\nYeni Log (Özet): ${logSummary}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
-    const response = await getCoachResponse("LOG ANALİZİ YAP", context, store.chatHistory, { coachPersonality: store.profile?.coachPersonality });
+    const context = `Öğrenci Profili: ${JSON.stringify(profile)}\nYeni Log (Özet): ${logSummary}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
+    const response = await getCoachResponse("LOG ANALİZİ YAP", context, chatHistory, { coachPersonality: profile?.coachPersonality });
 
-    store.addChatMessage({ role: 'coach', content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() });
+    addChatMessage({ role: 'coach', content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() });
     setIsTyping(false);
   };
 
@@ -398,18 +441,18 @@ export default function App() {
     d.setDate(d.getDate() - (6 - i));
     const dateStr = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 
-    const dayLogs = store.logs.filter(log => {
+    const dayLogs = logs.filter(log => {
       const logDate = parseFlexibleDate(log.date);
       if (!logDate) return false;
       return isSameLocalDay(logDate, d);
     }).filter(log => log.subject.includes('TYT Matematik'));
 
-    const avgTime = dayLogs.length > 0 ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length) : null;
-    return { day: dateStr, actual: avgTime, target: 45 };
+    const avgTimeValue = dayLogs.length > 0 ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length) : null;
+    return { day: dateStr, actual: avgTimeValue, target: 45 };
   });
-  const tytProjection = calculatePredictedNet(store.exams, store.logs, new Date(YKS_2026_TYT_DATE), 'TYT', store.eloScore);
-  const aytProjection = calculatePredictedNet(store.exams, store.logs, new Date(YKS_2026_AYT_DATE), 'AYT', store.eloScore);
-  const activeHabitAlerts = detectHabitAlerts(store.logs);
+  const tytProjection = calculatePredictedNet(exams, logs, new Date(YKS_2026_TYT_DATE), 'TYT', eloScore);
+  const aytProjection = calculatePredictedNet(exams, logs, new Date(YKS_2026_AYT_DATE), 'AYT', eloScore);
+  const activeHabitAlertsValue = detectHabitAlerts(logs);
 
   const summarizeLogs = (logs: DailyLog[]) => {
     if (logs.length === 0) return "Henüz log girilmedi.";
@@ -424,7 +467,7 @@ export default function App() {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     });
     return () => cancelAnimationFrame(timer);
-  }, [store.chatHistory, isTyping]);
+  }, [chatHistory, isTyping]);
 
   useEffect(() => {
     if (activeTab !== 'coach') return;
@@ -436,12 +479,12 @@ export default function App() {
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      const isDark = store.theme === 'dark';
+      const isDark = theme === 'dark';
       document.documentElement.classList.toggle('dark', isDark);
       document.documentElement.classList.toggle('light', !isDark);
       document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
     }
-  }, [store.theme]);
+  }, [theme]);
 
   // [PHASE 3]: Stratejik Senkronizasyon (Manual + Strategic Auto)
   const syncWithCloud = useCallback(async (showNotif = true) => {
@@ -456,7 +499,7 @@ export default function App() {
       'isSyncing', 'showGreeting', 'activeSidebarTab', 'notifications'
     ]);
 
-    store.setSyncing(true);
+    setSyncing(true);
 
     const payload: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(state)) {
@@ -467,19 +510,19 @@ export default function App() {
 
     try {
       await pushToFirestore(uid, payload);
-      store.setSyncing(false);
+      setSyncing(false);
       if (showNotif) {
-        store.addNotification({
+        addNotification({
           type: 'success',
           title: 'Senkronizasyon Başarılı',
           message: 'Tüm ilerlemen buluta güvenle yedeklendi.'
         });
       }
     } catch (err) {
-      store.setSyncing(false);
+      setSyncing(false);
       console.error('Manual sync failed:', err);
     }
-  }, [store]);
+  }, [setSyncing, addNotification]);
 
   // [BUG-006 FIX]: beforeunload → sendBeacon ile güvenli son-kayıt
   // sendBeacon browser tarafından sayfa kapansa bile gönderilmeyi garantiler.
@@ -528,15 +571,15 @@ export default function App() {
   // ERR-002: İlk açılış mesajı
   const chatInitializedRef = useRef(false);
   useEffect(() => {
-    if (activeTab === 'coach' && !chatInitializedRef.current && store.chatHistory.length === 0) {
+    if (activeTab === 'coach' && !chatInitializedRef.current && chatHistory.length === 0) {
       chatInitializedRef.current = true;
-      store.addChatMessage({
+      addChatMessage({
         role: 'coach',
         content: '📋 **Sistem Hazır.**\n\nGüne başlamak için **PLAN** yazabilir, bir çalışma seansını kaydetmek için **LOG** komutunu kullanabilirsin. Senin için buradayım.',
         timestamp: new Date().toISOString()
       });
     }
-  }, [activeTab]);
+  }, [activeTab, chatHistory.length, addChatMessage]);
 
   const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string) => {
     e?.preventDefault();
@@ -550,15 +593,15 @@ export default function App() {
     if (!messageOverride) setInputMessage('');
 
     // Mevcut bir Q&A seansı var mı?
-    const activeQA = store.qaSession;
+    const activeQA = qaSession;
 
-    store.addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
+    addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
     setIsTyping(true);
 
     try {
-      const compactProfile = store.profile ? `${store.profile.name}, Alan:${store.profile.track}, Hedef:${store.profile.targetUniversity}, TYT:${store.profile.tytTarget}, AYT:${store.profile.aytTarget}` : "Bilinmiyor";
-      const logsCtx = summarizeLogs(store.logs.slice(-5));
-      const examsCtx = store.exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|');
+      const compactProfile = profile ? `${profile.name}, Alan:${profile.track}, Hedef:${profile.targetUniversity}, TYT:${profile.tytTarget}, AYT:${profile.aytTarget}` : "Bilinmiyor";
+      const logsCtx = summarizeLogs(logs.slice(-5));
+      const examsCtx = exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|');
 
       let context = `P:${compactProfile}\nLogs:${logsCtx}\nExams:${examsCtx}`;
       let action: "coach" | "qa_mode" = "coach";
@@ -569,7 +612,7 @@ export default function App() {
         context += `\nKOMUT: ${upperMsg} SEANSI BAŞLATILIYOR. İLK SORUYU SOR.`;
 
         // Store'da seansı başlat (AI yanıtına göre güncellenecek ama şimdilik placeholder)
-        store.setQaSession({
+        setQaSession({
           scenario: upperMsg.includes('PLAN') ? 'plan' : upperMsg.includes('LOG') ? 'log' : upperMsg.includes('DENEME') ? 'exam' : 'topic',
           currentQuestion: 1,
           totalQuestions: upperMsg.includes('PLAN') ? 6 : upperMsg.includes('LOG') ? 7 : upperMsg.includes('DENEME') ? 8 : 5,
@@ -580,32 +623,32 @@ export default function App() {
         // Devam eden Q&A
         action = "qa_mode";
         const qIdx = activeQA.currentQuestion;
-        store.updateQaAnswer(qIdx, userMsg);
+        updateQaAnswer(qIdx, userMsg);
 
         context += `\nQA_MODU: AKTİF. Senaryo: ${activeQA.scenario}. Cevaplanan Soru: ${qIdx}/${activeQA.totalQuestions}.`;
 
         if (qIdx >= activeQA.totalQuestions) {
           context += `\nQA_DURUM: TÜM SORULAR CEVAPLANDI. ANALİZİ VE SONUÇ TABLOSUNU DÖNDÜR.`;
-          store.setQaSession(null);
+          setQaSession(null);
         } else {
-          store.setQaSession({ ...activeQA, currentQuestion: qIdx + 1 });
+          setQaSession({ ...activeQA, currentQuestion: qIdx + 1 });
         }
       }
 
       const userState = {
-        name: store.profile?.name,
-        track: store.profile?.track,
-        elo: store.eloScore,
-        streak: store.streakDays,
-        summary: `TYT %${Math.round((store.tytSubjects.filter(s => s.status === 'mastered').length / (store.tytSubjects.length || 1)) * 100)} bitti, AYT %${Math.round((store.aytSubjects.filter(s => s.status === 'mastered').length / (store.aytSubjects.length || 1)) * 100)} bitti.`,
-        lastLogs: store.logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct / (l.questions || 1)) * 100)} başarı`),
-        lastExams: store.exams.slice(-1).map(e => `${e.type}: ${e.totalNet} net`),
-        alerts: store.activeAlerts.length,
-        target: store.profile?.targetUniversity
+        name: profile?.name,
+        track: profile?.track,
+        elo: eloScore,
+        streak: streakDays,
+        summary: `TYT %${Math.round((tytSubjects.filter(s => s.status === 'mastered').length / (tytSubjects.length || 1)) * 100)} bitti, AYT %${Math.round((aytSubjects.filter(s => s.status === 'mastered').length / (aytSubjects.length || 1)) * 100)} bitti.`,
+        lastLogs: logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct / (l.questions || 1)) * 100)} başarı`),
+        lastExams: exams.slice(-1).map(e => `${e.type}: ${e.totalNet} net`),
+        alerts: activeAlerts.length,
+        target: profile?.targetUniversity
       };
 
-      const response = await getCoachResponse(userMsg, context, store.chatHistory, {
-        coachPersonality: store.profile?.coachPersonality,
+      const response = await getCoachResponse(userMsg, context, chatHistory, {
+        coachPersonality: profile?.coachPersonality,
         action: action,
         userState
       });
@@ -615,15 +658,15 @@ export default function App() {
       
       // Her durumda son mesaja raw text olarak atıyoruz (UI chat history için)
       const cleanContent = parsed.isStructured && parsed.directive.text ? parsed.directive.text.replace(/```json[\s\S]*?```/g, '').trim() : response;
-      store.addChatMessage({ role: 'coach', content: cleanContent || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
+      addChatMessage({ role: 'coach', content: cleanContent || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
       
       // Sadece Structured Directive ise ön yüz için (Günün Direktifi) kaydet
       if (parsed.isStructured) {
-        store.setLastCoachDirective(parsed.directive);
+        setLastCoachDirective(parsed.directive);
       }
     } catch (err) {
       console.error("AI Error:", err);
-      store.addChatMessage({ role: 'coach', content: "Bağlantı hatası oluştu.", timestamp: new Date().toISOString() });
+      addChatMessage({ role: 'coach', content: "Bağlantı hatası oluştu.", timestamp: new Date().toISOString() });
     } finally {
       setIsTyping(false);
     }
@@ -636,7 +679,7 @@ export default function App() {
   }
 
   // 1. Durum: Auth kontrolü veya Yerel Kayıt Yüklemesi yapılıyor
-  if (isLoading || !store.hasHydrated) {
+  if (isLoading || !hasHydrated) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#FDFBF7] dark:bg-[#0A0A0A]">
         <div className="relative mb-8">
@@ -657,13 +700,13 @@ export default function App() {
   }
 
   // 3. Durum: Profil kurulumu eksik
-  if (!store.profile) {
-    return <ProfileSettings onSubmit={(p) => store.setProfile(p)} />;
+  if (!profile) {
+    return <ProfileSettings onSubmit={(p) => setProfile(p)} />;
   }
 
   // Morning Blocker (Sabah Sorusu Kilidi) — [BUG-010 FIX]: persist store tabanlı
-  if (store.isMorningBlockerEnabled && !isMorningUnlocked) {
-    return <MorningBlocker onUnlock={() => store.setMorningUnlockedDate(todayIso)} />;
+  if (isMorningBlockerEnabled && !isMorningUnlocked) {
+    return <MorningBlocker onUnlock={() => setMorningUnlockedDate(todayIso)} />;
   }
 
   return (
@@ -680,23 +723,33 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => syncWithCloud()}
-              disabled={isSyncing}
-              className={`p-2 rounded-lg transition-all ${isSyncing ? 'text-[#C17767] animate-spin' : 'text-zinc-400 hover:text-[#C17767]'}`}
+              disabled={isCurrentlySyncing}
+              className={`p-2 rounded-lg transition-all ${isCurrentlySyncing ? 'text-[#C17767] animate-spin' : 'text-zinc-400 hover:text-[#C17767]'}`}
               title="Bulutla Eşitle"
+              aria-label="Bulutla Eşitle"
             >
-              <RefreshCcw size={20} className={isSyncing ? 'animate-spin' : ''} />
+              <RefreshCcw size={20} className={isCurrentlySyncing ? 'animate-spin' : ''} />
             </button>
             <div className="relative">
-              <button onClick={() => setIsNotifOpen(true)} className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative">
+              <button 
+                onClick={() => setIsNotifOpen(true)} 
+                className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative"
+                aria-label={`Bildirimler (${unreadCount} okunmamış)`}
+              >
                 <Bell size={20} />
                 {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#C17767] rounded-full border-2 border-[#121212] animate-pulse shadow-[0_0_8px_#C17767]" />}
               </button>
             </div>
             <ThemeToggle />
-            <div className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" onClick={() => setActiveTab('profile')}>
-              {store.profile.avatar
-                ? <img src={store.profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />
-                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
+            <div 
+              className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" 
+              onClick={() => setActiveTab('profile')}
+              role="button"
+              aria-label="Profil Git"
+            >
+              {profile.avatar
+                ? <img src={profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />
+                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
               }
             </div>
           </div>
@@ -714,15 +767,17 @@ export default function App() {
               <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
               <button
                 onClick={() => syncWithCloud()}
-                disabled={isSyncing}
+                disabled={isCurrentlySyncing}
                 className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
                 title="Bulutla Eşitle"
+                aria-label="Bulutla Eşitle"
               >
-                <RefreshCcw size={16} className={isSyncing ? 'animate-spin text-[#C17767]' : ''} />
+                <RefreshCcw size={16} className={isCurrentlySyncing ? 'animate-spin text-[#C17767]' : ''} />
               </button>
               <button
                 onClick={() => setIsNotifOpen(true)}
                 className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
+                aria-label={`Bildirimler (${unreadCount} okunmamış)`}
               >
                 <Bell size={16} />
                 {unreadCount > 0 && (
@@ -730,7 +785,7 @@ export default function App() {
                 )}
               </button>
             </div>
-            {store.isPassiveMode && (
+            {isPassiveMode && (
               <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                 <span className="text-xs font-bold text-rose-600 dark:text-rose-400">PASİF MOD AKTİF</span>
@@ -741,15 +796,15 @@ export default function App() {
           <div className="hidden md:block p-4 border-b border-app cursor-pointer group" onClick={() => setActiveTab('profile')}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-[#C17767]/30 shrink-0 group-hover:border-[#C17767]/70 transition-colors">
-                {store.profile.avatar
-                  ? <img src={store.profile.avatar} alt={store.profile.name} className="w-full h-full object-cover" />
-                  : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${store.profile.name}`} alt="P" className="w-full h-full bg-surface" />
+                {profile.avatar
+                  ? <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
+                  : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full bg-surface" />
                 }
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{store.profile.name}</p>
+                <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{profile.name}</p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <p className="text-[9px] uppercase tracking-widest text-ink-muted truncate">{store.profile.track}</p>
+                  <p className="text-[9px] uppercase tracking-widest text-ink-muted truncate">{profile.track}</p>
                   {user?.uid && (
                     <span
                       title="Tıkla ve Tam UID Kopyala"
@@ -810,18 +865,18 @@ export default function App() {
                 <header className="mb-12 flex flex-col md:flex-row md:justify-between items-start md:items-end gap-6">
                   <div>
                     <div className="flex items-center gap-3 mb-2">
-                      <h2 className="font-display italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {store.profile.name}</h2>
+                      <h2 className="font-display italic text-4xl text-[#4A443C] dark:text-zinc-200">Hoş geldin, {profile?.name}</h2>
                     </div>
                     <div className="flex gap-4 text-xs uppercase tracking-widest opacity-60 text-[#4A443C] dark:text-zinc-400">
-                      <span>TYT: {store.profile.tytTarget} Net</span><span>•</span><span>AYT: {store.profile.aytTarget} Net</span>
+                      <span>TYT: {profile?.tytTarget} Net</span><span>•</span><span>AYT: {profile?.aytTarget} Net</span>
                     </div>
                   </div>
                   <div className="w-full md:w-auto flex flex-col items-end gap-4 scale-90 md:scale-100 origin-right">
                     <MiniFlapClock targetDate={YKS_2026_TYT_DATE} />
 
                     {(() => {
-                      const track = store.profile?.track || 'SAY';
-                      const wp = calcWorkloadRemaining(store.tytSubjects, store.aytSubjects.filter(s => getAytSubjectsForTrack(track).includes(s.subject)), store.logs);
+                      const track = profile?.track || 'SAY';
+                      const wp = calcWorkloadRemaining(tytSubjects, aytSubjects.filter(s => getAytSubjectsForTrack(track).includes(s.subject)), logs);
                       return (
                         <div className="w-full bg-[#121212] border border-[#2A2A2A] rounded-xl p-3 shadow-md">
                           <div className="flex justify-between items-center mb-2">
@@ -837,7 +892,7 @@ export default function App() {
                     })()}
 
                     <button
-                      onClick={() => store.setFocusSidePanelOpen(true)}
+                      onClick={() => setFocusSidePanelOpen(true)}
                       className="flex items-center gap-3 px-6 py-3 bg-[#C17767] text-white rounded-xl shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-all group w-full md:w-auto justify-center"
                     >
                       <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
@@ -861,7 +916,7 @@ export default function App() {
 
                 {(() => {
                   const todayStr = toISODateOnly();
-                  const todayLogs = store.logs.filter((l) => {
+                  const todayLogs = logs.filter((l) => {
                     const dt = parseFlexibleDate(l.date);
                     if (!dt) return false;
                     return toISODateOnly(dt) === todayStr;
@@ -870,17 +925,17 @@ export default function App() {
                   return (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-                        <StatCard title="Tamamlanan" value={store.tytSubjects.filter(s => s.status === 'mastered').length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject) && s.status === 'mastered').length} total={store.tytSubjects.length + store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject)).length} icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />} />
-                        <StatCard title="Günlük Çalışma" value={todayHours} total={store.profile.dailyGoalHours || store.profile.minHours} unit="Saat" icon={<Calendar className="text-blue-400" />} />
-                        <StatCard title="Kritik Sorunlar" value={store.logs.filter(l => l.wrong > l.correct).length} unit="Aktif" icon={<AlertTriangle className="text-orange-500" />} />
+                        <StatCard title="Tamamlanan" value={tytSubjects.filter(s => s.status === 'mastered').length + aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject) && s.status === 'mastered').length} total={tytSubjects.length + aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject)).length} icon={<CheckCircle2 className="text-[#C17767] dark:text-rose-400" />} />
+                        <StatCard title="Günlük Çalışma" value={todayHours} total={profile?.dailyGoalHours || profile?.minHours} unit="Saat" icon={<Calendar className="text-blue-400" />} />
+                        <StatCard title="Kritik Sorunlar" value={logs.filter(l => l.wrong > l.correct).length} unit="Aktif" icon={<AlertTriangle className="text-orange-500" />} />
                         <StatCard
                           title="ROI Kaynak"
                           value={(() => {
-                            const roi = calcSourceROI(store.logs).slice(0, 1)[0];
+                            const roi = calcSourceROI(logs).slice(0, 1)[0];
                             return roi ? roi.sourceName.split(' ')[0] : 'YOK';
                           })()}
                           unit={(() => {
-                            const roi = calcSourceROI(store.logs).slice(0, 1)[0];
+                            const roi = calcSourceROI(logs).slice(0, 1)[0];
                             return roi ? `ROI:${roi.roiScore}` : '';
                           })()}
                           icon={<BookOpen className="text-green-500" />}
@@ -902,16 +957,16 @@ export default function App() {
                   <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
                     <h3 className="font-display italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
                     <div className="prose prose-invert prose-sm max-w-none">
-                      {store.lastCoachDirective ? (
+                      {lastCoachDirective ? (
                         <div className="space-y-4">
-                          <h4 className="text-zinc-200 font-bold text-lg leading-snug">{store.lastCoachDirective.headline}</h4>
-                          <p className="text-zinc-400 text-sm leading-relaxed">{store.lastCoachDirective.summary}</p>
+                          <h4 className="text-zinc-200 font-bold text-lg leading-snug">{lastCoachDirective.headline}</h4>
+                          <p className="text-zinc-400 text-sm leading-relaxed">{lastCoachDirective.summary}</p>
                           
-                          {store.lastCoachDirective.tasks && store.lastCoachDirective.tasks.length > 0 && (
+                          {lastCoachDirective.tasks && lastCoachDirective.tasks.length > 0 && (
                             <div className="mt-4">
                               <h5 className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] mb-2 border-b border-[#2A2A2A] pb-1">Görevler</h5>
                               <ul className="space-y-2 m-0 p-0 list-none">
-                                {store.lastCoachDirective.tasks.map((t, idx) => (
+                                {lastCoachDirective.tasks.map((t, idx) => (
                                   <li key={idx} className="flex gap-3 items-start bg-[#121212] p-3 rounded-lg border border-[#2A2A2A]">
                                     <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-amber-500' : 'bg-blue-500'}`} />
                                     <div>
@@ -928,16 +983,16 @@ export default function App() {
                             </div>
                           )}
 
-                          {store.lastCoachDirective.warnings && store.lastCoachDirective.warnings.length > 0 && (
+                          {lastCoachDirective.warnings && lastCoachDirective.warnings.length > 0 && (
                              <div className="mt-4 bg-red-950/20 border border-red-900/30 p-3 rounded-lg">
                                <h5 className="text-[10px] uppercase font-bold tracking-widest text-red-500 mb-1">Uyarı</h5>
-                               <p className="text-xs text-red-200/70">{store.lastCoachDirective.warnings[0].message}</p>
+                               <p className="text-xs text-red-200/70">{lastCoachDirective.warnings[0].message}</p>
                              </div>
                           )}
                         </div>
-                      ) : store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
+                      ) : chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
                         <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
-                          <ReactMarkdown components={markdownComponents}>{store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
+                          <ReactMarkdown components={markdownComponents}>{chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
                         </div>
                       ) : (
                         <div className="text-center py-8 opacity-50 text-[#4A443C] dark:text-zinc-400">Henüz bir direktif yok. Koç ile konuşmaya başla.</div>
@@ -1009,7 +1064,7 @@ export default function App() {
                       </h3>
                       <div className="flex-1 overflow-y-auto pr-2 space-y-3">
                         {(() => {
-                          const candidates = store.logs
+                          const candidates = logs
                             .slice(-30)
                             .map((log) => {
                               const accuracy = log.correct / (log.questions || 1);
@@ -1066,7 +1121,7 @@ export default function App() {
                         })()}
                       </div>
                       {(() => {
-                        const candidates = store.logs
+                        const candidates = logs
                           .slice(-30)
                           .map((log) => {
                             const accuracy = log.correct / (log.questions || 1);
@@ -1132,7 +1187,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-display italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={store.logs} /></div>}
+            {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-display italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={logs} /></div>}
 
             {activeTab === 'exams' && (
               <motion.div key="exams" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-5xl mx-auto">
@@ -1143,7 +1198,7 @@ export default function App() {
                 <div className="grid grid-cols-1 gap-8">
                   <div className="border border-[#2A2A2A] rounded-xl bg-[#1A1A1A] p-6 shadow-sm">
                     <h3 className="font-display italic text-xl mb-6 uppercase tracking-tight text-zinc-300">Deneme Takvimi</h3>
-                    {store.exams.length === 0 ? <p className="text-center opacity-40 text-xs text-zinc-500 font-bold uppercase tracking-widest">Henüz deneme girilmedi.</p> : store.exams.map(e => (
+                    {exams.length === 0 ? <p className="text-center opacity-40 text-xs text-zinc-500 font-bold uppercase tracking-widest">Henüz deneme girilmedi.</p> : exams.map(e => (
                       <div
                         key={e.id}
                         onClick={() => setSelectedExam(e)}
@@ -1172,29 +1227,29 @@ export default function App() {
                   </div>
                   <div className="flex bg-[#121212] p-1 rounded-xl border border-[#2A2A2A]">
                     <button
-                      onClick={() => store.setSubjectViewMode('list')}
-                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'list' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      onClick={() => setSubjectViewMode('list')}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${subjectViewMode === 'list' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
                       <LayoutList size={14} /> Liste
                     </button>
                     <button
-                      onClick={() => store.setSubjectViewMode('map')}
-                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                      onClick={() => setSubjectViewMode('map')}
+                      className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
                       <MapIcon size={14} /> Harita
                     </button>
                   </div>
                 </div>
 
-                {store.subjectViewMode === 'list' ? (
+                {subjectViewMode === 'list' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                    <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onNotesChange={(idx, notes) => store.updateTytSubject(idx, { notes })} onBulkMaster={(subject) => store.bulkMasterTytSubjectsByName(subject)} />
-                    <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, { notes }); }} onBulkMaster={(subject) => store.bulkMasterAytSubjectsByName(subject)} />
+                    <SubjectList title="TYT Müfredatı" subjects={tytSubjects} onStatusChange={(idx, status) => updateTytSubject(idx, { status })} onNotesChange={(idx, notes) => updateTytSubject(idx, { notes })} onBulkMaster={(subject) => bulkMasterTytSubjectsByName(subject)} />
+                    <SubjectList title="AYT Müfredatı" subjects={aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = aytSubjects.findIndex(a => a.name === aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))[idx].name && a.subject === aytSubjects.filter(ss => getAytSubjectsForTrack(profile!.track).includes(ss.subject))[idx].subject); updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = aytSubjects.findIndex(a => a.name === aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))[idx].name); updateAytSubject(si, { notes }); }} onBulkMaster={(subject) => bulkMasterAytSubjectsByName(subject)} />
                   </div>
                 ) : (
                   <div className="space-y-12">
-                    <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onBulkMaster={(subject) => store.bulkMasterTytSubjectsByName(subject)} />
-                    <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onBulkMaster={(subject) => store.bulkMasterAytSubjectsByName(subject)} />
+                    <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={tytSubjects} onStatusChange={(idx, status) => updateTytSubject(idx, { status })} onBulkMaster={(subject) => bulkMasterTytSubjectsByName(subject)} />
+                    <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = aytSubjects.findIndex(a => a.name === aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))[idx].name && a.subject === aytSubjects.filter(ss => getAytSubjectsForTrack(profile!.track).includes(ss.subject))[idx].subject); updateAytSubject(si, { status }); }} onBulkMaster={(subject) => bulkMasterAytSubjectsByName(subject)} />
                   </div>
                 )}
               </motion.div>
@@ -1211,12 +1266,12 @@ export default function App() {
             {activeTab === 'coach' && (
               <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
                 <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">
-                  {store.chatHistory.slice().sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((msg, i) => (
+                  {chatHistory.slice().sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
                         <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
                           {/* [BUG-018 FIX]: COACH_NAME sabiti */}
-                          {msg.role === 'user' ? `${store.profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : COACH_SYSTEM_NAME}
+                          {msg.role === 'user' ? `${profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : COACH_SYSTEM_NAME}
                         </div>
                         <div className="text-sm font-mono leading-relaxed opacity-90 tracking-wide"><ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown></div>
                       </div>
@@ -1261,12 +1316,12 @@ export default function App() {
                   <button onClick={() => setIsArchiveWidgetOpen(true)} className="px-6 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] flex gap-2 items-center shadow-lg shadow-[#C17767]/20 transition-all active:scale-95"><Plus size={16} /> Mezar Kaz</button>
                 </header>
 
-                {isArchiveWidgetOpen && <ArchiveWidget subjects={Object.keys(TYT_SUBJECTS)} onCancel={() => setIsArchiveWidgetOpen(false)} onSubmit={(q) => { store.addFailedQuestion(q); setIsArchiveWidgetOpen(false); }} />}
+                {isArchiveWidgetOpen && <ArchiveWidget subjects={Object.keys(TYT_SUBJECTS)} onCancel={() => setIsArchiveWidgetOpen(false)} onSubmit={(q) => { addFailedQuestion(q); setIsArchiveWidgetOpen(false); }} />}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {store.failedQuestions.filter(q => q.status === 'active' || store.isDevMode).length === 0 ? (
+                  {failedQuestions.filter(q => q.status === 'active' || isDevMode).length === 0 ? (
                     <div className="col-span-full py-20 text-center opacity-20 uppercase tracking-[0.5em] font-display italic text-2xl">Burası şimdilik sessiz...</div>
-                  ) : store.failedQuestions.map(q => (
+                  ) : failedQuestions.map(q => (
                     <div key={q.id} className={`group relative bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 transition-all hover:border-[#C17767]/50 ${q.status === 'solved' ? 'opacity-50 grayscale' : ''}`}>
                       <div className="absolute top-0 left-0 w-1 h-full bg-[#C17767] group-hover:bg-[#E09F3E] transition-colors"></div>
 
@@ -1288,16 +1343,16 @@ export default function App() {
 
                       <div className="flex gap-2">
                         <button
-                          onClick={() => store.solveFailedQuestion(q.id)}
+                          onClick={() => solveFailedQuestion(q.id)}
                           disabled={q.status === 'solved'}
                           className={`flex-1 py-2 text-[10px] uppercase font-bold tracking-widest rounded-lg transition-all ${q.status === 'solved' ? 'bg-zinc-800 text-zinc-500' : 'bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 hover:bg-[#C17767] hover:text-white'}`}
                         >
                           {q.status === 'solved' ? 'HUZUR İÇİNDE' : 'HORTLAT (ÇÖZÜLDÜ)'}
                         </button>
 
-                        {store.isDevMode && (
+                        {isDevMode && (
                           <button
-                            onClick={async () => { if (await confirmDialog('Siliyorum?')) store.removeFailedQuestion(q.id); }}
+                            onClick={async () => { if (await confirmDialog('Siliyorum?')) removeFailedQuestion(q.id); }}
                             className="px-3 py-2 bg-red-950/20 text-red-500 border border-red-900/30 rounded-lg hover:bg-red-500 hover:text-white transition-all"
                           >
                             <Trash2 size={14} />

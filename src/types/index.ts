@@ -49,6 +49,8 @@ export interface AtlasProgram {
   scoreType: string;
   baseScore?: number;
   successRank?: number;
+  tytNet?: number;
+  aytNet?: number;
   year?: number;
 }
 

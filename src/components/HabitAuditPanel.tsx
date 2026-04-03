@@ -10,8 +10,8 @@ import { detectHabitAlerts } from '../utils/statistics';
 import { motion } from 'motion/react';
 
 export function HabitAuditPanel() {
-  const store = useAppStore();
-  const alerts = detectHabitAlerts(store.logs);
+  const logs = useAppStore(s => s.logs);
+  const alerts = detectHabitAlerts(logs);
 
   return (
     <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm overflow-hidden relative">
@@ -71,7 +71,7 @@ export function HabitAuditPanel() {
             <Clock size={12} /> Odak Süresi
           </div>
           <div className="text-lg font-serif italic text-zinc-200">
-            {Math.round(store.logs.reduce((acc, l) => acc + (l.avgTime || 0), 0) / 60)} <span className="text-xs non-italic opacity-40 uppercase">Saat</span>
+            {Math.round(logs.reduce((acc, l) => acc + (l.avgTime || 0), 0) / 60)} <span className="text-xs non-italic opacity-40 uppercase">Saat</span>
           </div>
         </div>
         <div className="p-4 bg-[#1A1A1A] rounded-2xl border border-zinc-800/50 group hover:border-[#C17767]/30 transition-colors">
@@ -79,7 +79,7 @@ export function HabitAuditPanel() {
             <BookOpen size={12} /> Soru Hacmi
           </div>
           <div className="text-lg font-serif italic text-zinc-200">
-            {store.logs.reduce((acc, l) => acc + (l.questions || 0), 0).toLocaleString()} <span className="text-xs non-italic opacity-40 uppercase">Soru</span>
+            {logs.reduce((acc, l) => acc + (l.questions || 0), 0).toLocaleString()} <span className="text-xs non-italic opacity-40 uppercase">Soru</span>
           </div>
         </div>
       </div>

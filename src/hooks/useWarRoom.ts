@@ -16,15 +16,14 @@ import {
 import type { WarRoomSession, WarRoomQuestion } from '../types';
 
 export function useWarRoom() {
-  const store = useAppStore();
-  const {
-    warRoomSession,
-    warRoomMode,
-    warRoomTimeLeft,
-    setWarRoomSession,
-    setWarRoomMode,
-    setWarRoomTimeLeft,
-  } = store;
+  const warRoomSession = useAppStore(s => s.warRoomSession);
+  const warRoomMode = useAppStore(s => s.warRoomMode);
+  const warRoomTimeLeft = useAppStore(s => s.warRoomTimeLeft);
+  const warRoomAnswers = useAppStore(s => s.warRoomAnswers);
+  const addLog = useAppStore(s => s.addLog);
+  const setWarRoomSession = useAppStore(s => s.setWarRoomSession);
+  const setWarRoomMode = useAppStore(s => s.setWarRoomMode);
+  const setWarRoomTimeLeft = useAppStore(s => s.setWarRoomTimeLeft);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +35,7 @@ export function useWarRoom() {
 
     const { correct, wrong, empty, net, accuracy } = scoreWarRoomSession(
       warRoomSession.questions,
-      store.warRoomAnswers
+      warRoomAnswers
     );
 
     // [BUG-012 FIX]: Gerçek geçen süreyi hesapla
@@ -62,7 +61,7 @@ export function useWarRoom() {
     setWarRoomMode('result');
 
     // Log olarak kaydet
-    store.addLog({
+    addLog({
       id: `warroom_${Date.now()}`,
       date: new Date().toISOString(),
       subject: warRoomSession.examType + ' Savaş Odası',
@@ -77,7 +76,7 @@ export function useWarRoom() {
       notes: `War Room simülasyonu. Süre: ${Math.floor(timeSpentSeconds / 60)}dk ${timeSpentSeconds % 60}sn`,
       sourceName: 'War Room',
     });
-  }, [warRoomSession, store, setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
+  }, [warRoomSession, warRoomAnswers, addLog, setWarRoomTimeLeft, setWarRoomSession, setWarRoomMode]);
 
   // ─── Timer tick ───────────────────────────────────────────────────────────
 

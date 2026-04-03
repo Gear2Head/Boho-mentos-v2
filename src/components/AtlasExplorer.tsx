@@ -17,7 +17,8 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AtlasProgram[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const store = useAppStore();
+  const profile = useAppStore(s => s.profile);
+  const addTargetGoal = useAppStore(s => s.addTargetGoal);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +36,7 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
   };
 
   const isAlreadyAdded = (id: string) => {
-    return store.profile?.targetGoals?.some(g => g.id === id);
+    return profile?.targetGoals?.some(g => g.id === id);
   };
 
   return (
@@ -64,6 +65,7 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
           <button 
             onClick={onClose}
             className="p-2 hover:bg-zinc-800 rounded-full transition-colors text-zinc-500"
+            aria-label="Modalı Kapat"
           >
             <X size={20} />
           </button>
@@ -84,6 +86,7 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
               type="submit"
               disabled={isLoading}
               className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#C17767] text-white px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] transition-colors disabled:opacity-50 flex items-center gap-2"
+              aria-label="Üniversite veya Bölüm Ara"
             >
               {isLoading ? <Loader2 size={14} className="animate-spin" /> : 'ARA'}
             </button>
@@ -113,22 +116,27 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
                       <p className="text-xs text-zinc-400 mt-0.5">{program.programName}</p>
                     </div>
                     <button 
-                      onClick={() => !isAlreadyAdded(program.id) && store.addTargetGoal(program)}
+                      onClick={() => !isAlreadyAdded(program.id) && addTargetGoal(program)}
                       disabled={isAlreadyAdded(program.id)}
                       className={`p-2 rounded-xl transition-all ${isAlreadyAdded(program.id) ? 'bg-green-500/10 text-green-500' : 'bg-white/5 text-zinc-400 hover:bg-[#C17767] hover:text-white'}`}
+                      aria-label={`${program.universityName} Programını Hedeflere Ekle`}
                     >
                       {isAlreadyAdded(program.id) ? <CheckCircle2 size={20} /> : <Plus size={20} />}
                     </button>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-zinc-800/50">
+                  <div className="grid grid-cols-3 gap-3 pt-3 border-t border-zinc-800/50">
                     <div>
-                      <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold block">Taban Puan</span>
-                      <span className="text-xs font-mono text-zinc-300">{program.baseScore || '—'}</span>
+                      <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold block">Sıralama</span>
+                      <span className="text-xs font-mono text-zinc-300">#{program.successRank?.toLocaleString() || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold block">Başarı Sırası</span>
-                      <span className="text-xs font-mono text-zinc-300">{program.successRank?.toLocaleString() || '—'}</span>
+                      <span className="text-[9px] uppercase tracking-widest text-green-500/70 font-bold block">TYT NET</span>
+                      <span className="text-xs font-mono text-green-400">{program.tytNet || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase tracking-widest text-blue-500/70 font-bold block">AYT NET</span>
+                      <span className="text-xs font-mono text-blue-400">{program.aytNet || '—'}</span>
                     </div>
                   </div>
                 </div>

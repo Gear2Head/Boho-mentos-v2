@@ -9,14 +9,17 @@ import { Target, CheckCircle2, XCircle, Clock, Home, ArrowRight, Zap } from 'luc
 import { useAppStore } from '../../store/appStore';
 
 export function WarRoomResultScreen() {
-  const store = useAppStore();
-  const session = store.warRoomSession;
+  const warRoomSession = useAppStore(s => s.warRoomSession);
+  const setWarRoomSession = useAppStore(s => s.setWarRoomSession);
+  const setWarRoomMode = useAppStore(s => s.setWarRoomMode);
+  
+  const session = warRoomSession;
 
   if (!session || !session.result) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 bg-app">
         <p className="text-zinc-500 font-mono text-sm uppercase">Oturum Bulunamadı.</p>
-        <button onClick={() => store.setWarRoomMode('setup')} className="mt-4 px-6 py-2 bg-[#C17767] text-white rounded-lgtext-xs font-bold uppercase tracking-widest">Geri Dön</button>
+        <button onClick={() => setWarRoomMode('setup')} className="mt-4 px-6 py-2 bg-[#C17767] text-white rounded-lg text-xs font-bold uppercase tracking-widest">Geri Dön</button>
       </div>
     );
   }
@@ -83,8 +86,8 @@ export function WarRoomResultScreen() {
         <div className="flex justify-center gap-4">
           <button
             onClick={() => {
-              store.setWarRoomSession(null);
-              store.setWarRoomMode('setup');
+              setWarRoomSession(null);
+              setWarRoomMode('setup');
             }}
             className="px-8 py-4 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-[#C17767]/20 hover:scale-105 transition-transform flex items-center gap-3"
           >

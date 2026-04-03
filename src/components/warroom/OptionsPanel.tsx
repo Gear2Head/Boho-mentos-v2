@@ -23,9 +23,13 @@ const LaTeXRenderer = ({ text }: { text: string }) => {
 };
 
 export function OptionsPanel({ options, currentQuestionId }: { options: string[]; currentQuestionId: string }) {
-  const store = useAppStore();
-  const selectedAnswer = store.warRoomAnswers[currentQuestionId] ?? '';
-  const eliminatedOptions = store.warRoomEliminated[currentQuestionId] ?? [];
+  const warRoomAnswers = useAppStore(s => s.warRoomAnswers);
+  const warRoomEliminated = useAppStore(s => s.warRoomEliminated);
+  const toggleEliminatedOption = useAppStore(s => s.toggleEliminatedOption);
+  const updateWarRoomAnswer = useAppStore(s => s.updateWarRoomAnswer);
+
+  const selectedAnswer = warRoomAnswers[currentQuestionId] ?? '';
+  const eliminatedOptions = warRoomEliminated[currentQuestionId] ?? [];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-12 w-full max-w-4xl mx-auto pb-24">
@@ -39,9 +43,10 @@ export function OptionsPanel({ options, currentQuestionId }: { options: string[]
             key={i}
             onContextMenu={(e) => {
               e.preventDefault();
-              store.toggleEliminatedOption(currentQuestionId, i);
+              toggleEliminatedOption(currentQuestionId, i);
             }}
-            onClick={() => !isEliminated && store.updateWarRoomAnswer(currentQuestionId, letter)}
+            onClick={() => !isEliminated && updateWarRoomAnswer(currentQuestionId, letter)}
+            aria-label={`${letter} Şıkkı - ${isSelected ? 'Seçili' : isEliminated ? 'Elenmiş' : 'Seçmek için tıkla, elemek için sağ tıkla'}`}
             className={`
               relative p-5 text-left border rounded-2xl flex gap-4 transition-all duration-300 group
               hover:scale-[1.02] active:scale-95 overflow-hidden

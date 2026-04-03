@@ -9,8 +9,8 @@ import { useAppStore } from '../store/appStore';
 import { calcSourceROI } from '../utils/statistics';
 
 export function SourceROIPanel() {
-  const store = useAppStore();
-  const roiData = calcSourceROI(store.logs);
+  const logs = useAppStore(s => s.logs);
+  const roiData = calcSourceROI(logs);
 
   return (
     <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm relative overflow-hidden">

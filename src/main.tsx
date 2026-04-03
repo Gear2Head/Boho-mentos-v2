@@ -62,7 +62,7 @@ const hardReset = async () => {
   // 4. IndexedDB temizle (Vite-PWA ve App Store için)
   if ('indexedDB' in window) {
     try {
-      const databases = ['yks_coach_storage', 'workbox-precache-v2']; // Bilinen DB'ler
+      const databases = ['yks-store', 'workbox-precache-v2']; // Bilinen DB'ler
       databases.forEach(db => window.indexedDB.deleteDatabase(db));
     } catch (e) { console.error('IDB Clear Error:', e); }
   }

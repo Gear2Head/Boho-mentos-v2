@@ -16,16 +16,22 @@ interface QuestionNavProps {
 }
 
 export function QuestionNav({ currentIdx, totalCount, onNavigate }: QuestionNavProps) {
-  const store = useAppStore();
+  const warRoomSession = useAppStore(s => s.warRoomSession);
+  const warRoomAnswers = useAppStore(s => s.warRoomAnswers);
+  const warRoomEliminated = useAppStore(s => s.warRoomEliminated);
+  const drawingMode = useAppStore(s => s.drawingMode);
+  const updateWarRoomAnswer = useAppStore(s => s.updateWarRoomAnswer);
+  const toggleEliminatedOption = useAppStore(s => s.toggleEliminatedOption);
+
   const { finishSession } = useWarRoom();
-  const session = store.warRoomSession;
+  const session = warRoomSession;
 
   if (!session) return null;
 
   const currentQId = session.questions[currentIdx]?.id;
   if (!currentQId) return null;
-  const currentAnswer = store.warRoomAnswers[currentQId];
-  const eliminated = store.warRoomEliminated[currentQId] || [];
+  const currentAnswer = warRoomAnswers[currentQId];
+  const eliminated = warRoomEliminated[currentQId] || [];
 
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 bg-app/80 backdrop-blur-xl border border-[#EAE6DF] dark:border-[#2A2A2A] rounded-[2rem] p-2 shadow-2xl">
@@ -40,20 +46,21 @@ export function QuestionNav({ currentIdx, totalCount, onNavigate }: QuestionNavP
             <button
               key={opt}
               onClick={(e) => {
-                if (store.drawingMode !== 'pointer') return; // Sadece imleçleysek çalış
+                if (drawingMode !== 'pointer') return; // Sadece imleçleysek çalış
                 // Shift veya Sağ tık benzeri bir şey basıldıysa ele. Biz bunu çift tık veya sağ tık ile yapabilirdik ama en basit: Seç tuşudur. Eşit ise iptal et.
                 if (isSelected) {
-                   store.updateWarRoomAnswer(currentQId, ''); // İptal
+                   updateWarRoomAnswer(currentQId, ''); // İptal
                 } else {
-                   store.updateWarRoomAnswer(currentQId, opt);
+                   updateWarRoomAnswer(currentQId, opt);
                 }
               }}
               onContextMenu={(e) => {
                  e.preventDefault();
-                 if (store.drawingMode === 'pointer') {
-                    store.toggleEliminatedOption(currentQId, i);
+                 if (drawingMode === 'pointer') {
+                    toggleEliminatedOption(currentQId, i);
                  }
               }}
+              aria-label={`Seçenek ${opt}`}
               className={`
                 relative w-10 h-10 flex items-center justify-center rounded-[1.2rem] text-sm font-bold font-mono transition-all duration-300 select-none
                 ${isSelected ? 'bg-[#C17767] text-white shadow-lg scale-110 z-10' : 'text-[#4A443C] dark:text-zinc-500 hover:bg-[#EAE6DF] dark:hover:bg-[#2A2A2A]'}
@@ -81,6 +88,7 @@ export function QuestionNav({ currentIdx, totalCount, onNavigate }: QuestionNavP
           onClick={() => onNavigate(Math.max(0, currentIdx - 1))}
           disabled={currentIdx === 0}
           className="w-10 h-10 flex items-center justify-center rounded-[1.2rem] bg-[#F5F2EB] dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 disabled:opacity-30 transition-colors"
+          aria-label="Önceki Soru"
         >
           <ChevronLeft size={20} />
         </button>
@@ -89,6 +97,7 @@ export function QuestionNav({ currentIdx, totalCount, onNavigate }: QuestionNavP
           <button
             onClick={finishSession}
             className="px-6 h-10 flex items-center justify-center gap-2 rounded-[1.2rem] bg-[#22C55E] text-white hover:bg-[#16A34A] transition-colors shadow-lg shadow-[#22C55E]/20"
+            aria-label="Sınavı Bitir ve Sonuçları Gör"
           >
             <Check size={16} /> <span className="font-bold text-xs uppercase tracking-widest hidden sm:inline">BİTİR</span>
           </button>
@@ -96,6 +105,7 @@ export function QuestionNav({ currentIdx, totalCount, onNavigate }: QuestionNavP
           <button
             onClick={() => onNavigate(Math.min(totalCount - 1, currentIdx + 1))}
             className="w-10 h-10 flex items-center justify-center rounded-[1.2rem] bg-[#F5F2EB] dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
+            aria-label="Sonraki Soru"
           >
             <ChevronRight size={20} />
           </button>

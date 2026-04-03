@@ -13,18 +13,25 @@ const ICON_MAP: Record<string, React.FC<any>> = {
 };
 
 export function ProfileShowcase() {
-  const store = useAppStore();
+  const profile = useAppStore(s => s.profile);
+  const eloScore = useAppStore(s => s.eloScore);
+  const tytSubjects = useAppStore(s => s.tytSubjects);
+  const aytSubjects = useAppStore(s => s.aytSubjects);
+  const exams = useAppStore(s => s.exams);
+  const streakDays = useAppStore(s => s.streakDays);
+  const trophies = useAppStore(s => s.trophies);
+  const removeTargetGoal = useAppStore(s => s.removeTargetGoal);
+
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
-  const profile = store.profile;
-  const rank = getRankDetails(store.eloScore);
+  const rank = getRankDetails(eloScore);
   const RankIcon = ICON_MAP[rank.iconName] || Trophy;
 
   if (!profile) return null;
 
-  const tytMastered = store.tytSubjects.filter(s => s.status === 'mastered').length;
-  const tytTotal = store.tytSubjects.length;
+  const tytMastered = tytSubjects.filter(s => s.status === 'mastered').length;
+  const tytTotal = tytSubjects.length;
   
-  const aytSubjectsForTrack = store.aytSubjects.filter(s => {
+  const aytSubjectsForTrack = aytSubjects.filter(s => {
     if (profile.track === 'Sayısal') return ['Matematik', 'Fizik', 'Kimya', 'Biyoloji'].includes(s.subject);
     if (profile.track === 'Eşit Ağırlık') return ['Matematik', 'Edebiyat', 'Tarih', 'Coğrafya'].includes(s.subject);
     if (profile.track === 'Sözel') return ['Edebiyat', 'Tarih', 'Coğrafya', 'Felsefe Grubu'].includes(s.subject);
@@ -45,8 +52,8 @@ export function ProfileShowcase() {
     { name: 'Kalan', value: aytTotal - aytMastered, color: '#EAE6DF' }
   ];
 
-  const tytExams = store.exams.filter((e: ExamResult) => e.type === 'TYT');
-  const aytExams = store.exams.filter((e: ExamResult) => e.type === 'AYT');
+  const tytExams = exams.filter((e: ExamResult) => e.type === 'TYT');
+  const aytExams = exams.filter((e: ExamResult) => e.type === 'AYT');
   const lastTyt = tytExams.length > 0 ? tytExams[tytExams.length - 1].totalNet : 0;
   const lastAyt = aytExams.length > 0 ? aytExams[aytExams.length - 1].totalNet : 0;
 
@@ -88,8 +95,8 @@ export function ProfileShowcase() {
             <div className="flex flex-wrap justify-center md:justify-start gap-4 text-xs font-bold uppercase tracking-widest text-[#C17767]/70">
               <span className="bg-[#121212] border border-[#2A2A2A] px-3 py-1 rounded-full">{profile.track}</span>
               {profile.examYear && <span className="bg-[#121212] border border-[#2A2A2A] px-3 py-1 rounded-full text-zinc-300">🎯 YKS {profile.examYear}</span>}
-              <span className="bg-[#C17767]/10 text-[#C17767] px-3 py-1 rounded-full border border-[#C17767]/20">🔥 {store.streakDays} GÜN SERİ</span>
-              <span className="bg-[#121212] border border-[#2A2A2A] px-3 py-1 rounded-full text-blue-400">🏅 {store.eloScore} Puan</span>
+              <span className="bg-[#C17767]/10 text-[#C17767] px-3 py-1 rounded-full border border-[#C17767]/20">🔥 {streakDays} GÜN SERİ</span>
+              <span className="bg-[#121212] border border-[#2A2A2A] px-3 py-1 rounded-full text-blue-400">🏅 {eloScore} Puan</span>
             </div>
 
             {profile.motivationQuote && (
@@ -146,6 +153,7 @@ export function ProfileShowcase() {
           <button 
             className="text-[10px] font-bold uppercase tracking-widest text-[#C17767] border border-[#C17767]/30 px-3 py-1.5 rounded-xl hover:bg-[#C17767]/10 transition-colors"
             onClick={() => setIsExplorerOpen(true)}
+            aria-label="YÖK Atlas'tan Yeni Hedef Ekle"
           >
             Yenİ Hedef Ekle
           </button>
@@ -164,8 +172,9 @@ export function ProfileShowcase() {
               return (
                 <div key={item.id} className="rounded-2xl border border-[#2A2A2A] bg-[#1A1A1A] p-5 hover:border-[#C17767]/50 transition-all group relative">
                   <button 
-                    onClick={() => store.removeTargetGoal(item.id)}
+                    onClick={() => removeTargetGoal(item.id)}
                     className="absolute top-4 right-4 p-1 rounded-full bg-red-500/10 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white"
+                    aria-label={`${item.programName} Hedefini Kaldır`}
                   >
                     <X size={12} />
                   </button>
@@ -173,18 +182,25 @@ export function ProfileShowcase() {
                   <div className="text-sm font-bold text-zinc-200 leading-tight mb-0.5">{item.universityName}</div>
                   <div className="text-xs text-[#C17767] italic mb-4">{item.programName}</div>
                   
-                  <div className="space-y-2 pt-2 border-t border-zinc-800/50">
-                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-80">
-                      <span className="text-zinc-400">Taban Puan:</span>
-                      <span className="text-zinc-200 font-mono">{item.baseScore?.toFixed(2) || '---'}</span>
+                  <div className="grid grid-cols-2 gap-4 pt-3 border-t border-zinc-800/50">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Sıralama</span>
+                      <span className="text-sm font-mono text-zinc-200">#{hasRank ? new Intl.NumberFormat('tr-TR').format(item.successRank!) : '---'}</span>
                     </div>
-                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-80">
-                      <span className="text-zinc-400">Başarı Sırası:</span>
-                      <span className="text-zinc-200 font-mono">{hasRank ? new Intl.NumberFormat('tr-TR').format(item.successRank!) : '---'}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">TYT/AYT Hedef</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-mono text-green-400">{item.tytNet || '—'}</span>
+                        <span className="text-[10px] opacity-30">/</span>
+                        <span className="text-sm font-mono text-blue-400">{item.aytNet || '—'}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-80 pt-1 border-t border-zinc-800/30">
-                      <span className="text-[#C17767] opacity-80">Mevcut {item.scoreType} Net:</span>
-                      <span className="text-[#C17767] font-mono">{currentNet}</span>
+                  </div>
+                  
+                  <div className="mt-4 pt-3 border-t border-zinc-800/30">
+                    <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest">
+                      <span className="text-[#C17767] opacity-80">Mevcut Durum:</span>
+                      <span className="text-[#C17767] font-mono">{currentNet} Net</span>
                     </div>
                   </div>
                 </div>
@@ -236,7 +252,7 @@ export function ProfileShowcase() {
         <div className="md:col-span-2 border border-[#2A2A2A] bg-[#1A1A1A] rounded-3xl p-6 shadow-sm">
           <h3 className="font-serif italic text-xl mb-6 text-[#C17767] uppercase tracking-widest border-b border-[#2A2A2A] pb-2">Başarımlar Kupası</h3>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {store.trophies.map((trophy) => {
+            {trophies.map((trophy) => {
               const Icon = ICON_MAP[trophy.icon] || Trophy;
               const isUnlocked = !!trophy.unlockedAt;
               

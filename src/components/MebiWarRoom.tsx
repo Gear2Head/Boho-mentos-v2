@@ -16,8 +16,11 @@ import { QuestionNav } from './warroom/QuestionNav';
 import { OptionsPanel } from './warroom/OptionsPanel';
 
 export function MebiWarRoom() {
-  const store = useAppStore();
-  const { warRoomMode, warRoomSession, warRoomTimeLeft } = store;
+  const warRoomMode = useAppStore(s => s.warRoomMode);
+  const warRoomSession = useAppStore(s => s.warRoomSession);
+  const warRoomTimeLeft = useAppStore(s => s.warRoomTimeLeft);
+  const drawingMode = useAppStore(s => s.drawingMode);
+  const setDrawingMode = useAppStore(s => s.setDrawingMode);
 
   // [UX-001 FIX]: confirm hook'tan alındı
   const { confirm } = useToast();
@@ -46,6 +49,7 @@ export function MebiWarRoom() {
           <button
             onClick={() => quitSession(confirm)}
             className="p-3 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors text-[#4A443C] dark:text-zinc-400"
+            aria-label="Savaş Odasından Çık"
           >
             <X size={24} />
           </button>
@@ -95,28 +99,30 @@ export function MebiWarRoom() {
           <div className="absolute top-4 right-4 z-40 flex gap-2">
             <button
               onClick={() =>
-                store.setDrawingMode(store.drawingMode === 'eraser' ? 'pointer' : 'eraser')
+                setDrawingMode(drawingMode === 'eraser' ? 'pointer' : 'eraser')
               }
               className={`px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-widest uppercase transition-all shadow-sm ${
-                store.drawingMode === 'eraser'
+                drawingMode === 'eraser'
                   ? 'bg-[#C17767] text-white scale-105'
                   : 'bg-white dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-300 border border-[#EAE6DF] dark:border-zinc-800'
               }`}
+              aria-label="Silgi Modu"
             >
               Silgi
             </button>
             <button
               onClick={() =>
-                store.setDrawingMode(store.drawingMode === 'pen' ? 'pointer' : 'pen')
+                setDrawingMode(drawingMode === 'pen' ? 'pointer' : 'pen')
               }
               className={`px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-widest uppercase flex items-center gap-2 transition-all shadow-sm ${
-                store.drawingMode === 'pen'
+                drawingMode === 'pen'
                   ? 'bg-[#C17767] text-white scale-105'
                   : 'bg-white dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-300 border border-[#EAE6DF] dark:border-zinc-800'
               }`}
+              aria-label={drawingMode === 'pen' ? "Kalem Modu Aktif" : "Kalem Moduna Geç"}
             >
-              {store.drawingMode === 'pen' ? <PenTool size={16} /> : <MousePointer2 size={16} />}
-              {store.drawingMode === 'pen' ? 'Kalem' : 'İmleç'}
+              {drawingMode === 'pen' ? <PenTool size={16} /> : <MousePointer2 size={16} />}
+              {drawingMode === 'pen' ? 'Kalem' : 'İmleç'}
             </button>
           </div>
 

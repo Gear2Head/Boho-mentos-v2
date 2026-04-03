@@ -18,7 +18,8 @@ interface QuizQuestion {
 }
 
 export function QuizEngine() {
-  const store = useAppStore();
+  const profile = useAppStore(s => s.profile);
+  const addFailedQuestion = useAppStore(s => s.addFailedQuestion);
   const { toast } = useToast();
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,7 +39,7 @@ export function QuizEngine() {
     setQuizFinished(false);
 
     try {
-      const weakSubjects = store.profile?.weakSubjects || 'Matematik';
+      const weakSubjects = profile?.weakSubjects || 'Matematik';
       const prompt = `Lütfen öğrencinin zayıf olduğu '${weakSubjects}' konularından 3 adet zorlayıcı YKS tarzı çoktan seçmeli soru hazırla.
       Çıktı FORMATI KESİNLİKLE JSON DİZİSİ olmalıdır. 
       Örnek Format:
@@ -58,7 +59,7 @@ export function QuizEngine() {
         prompt,
         "Sen YKS soru yazarı bir yapay zekasın. Yalnızca geçerli JSON döndürürsün.",
         [],
-        { coachPersonality: store.profile?.coachPersonality, forceJson: true, maxTokens: 1200 }
+        { coachPersonality: profile?.coachPersonality, forceJson: true, maxTokens: 1200 }
       );
       
       const jsonMatch = response.match(/\[[\s\S]*\]/);
@@ -87,7 +88,7 @@ export function QuizEngine() {
       setScore(s => s + 1);
     } else {
       // Hatalıları mezarlığa ekle (otomatik)
-      store.addFailedQuestion({
+      addFailedQuestion({
         id: Date.now().toString(),
         date: toISODateTime(),
         subject: currentQ.topic,
@@ -124,10 +125,11 @@ export function QuizEngine() {
       <div className="border border-[#EAE6DF] dark:border-zinc-800 bg-[#FFFFFF] dark:bg-zinc-900 rounded-3xl p-12 text-center shadow-sm max-w-2xl mx-auto">
         <Play size={48} className="mx-auto mb-6 text-[#C17767] dark:text-rose-400 opacity-80" />
         <h2 className="font-serif italic text-3xl mb-4 text-[#4A443C] dark:text-zinc-200">Sınırsız Soru Motoru</h2>
-        <p className="opacity-60 text-sm mb-8 text-[#4A443C] dark:text-zinc-400">Yapay zeka analizlerine göre en zayıf olduğun konulardan (<b>{store.profile?.weakSubjects}</b>) özel bir test oluştur.</p>
+        <p className="opacity-60 text-sm mb-8 text-[#4A443C] dark:text-zinc-400">Yapay zeka analizlerine göre en zayıf olduğun konulardan (<b>{profile?.weakSubjects}</b>) özel bir test oluştur.</p>
         <button 
           onClick={generateQuiz}
           className="px-8 py-4 bg-[#C17767] text-[#FDFBF7] font-bold uppercase tracking-widest text-xs rounded-xl hover:bg-[#A56253] transition-colors shadow-lg shadow-[#C17767]/20"
+          aria-label="Özel Testi Başlat"
         >
           Teste Başla
         </button>
@@ -144,6 +146,7 @@ export function QuizEngine() {
         <button 
           onClick={() => { setQuestions([]); }}
           className="px-8 py-4 border border-[#EAE6DF] dark:border-zinc-800 bg-[#F5F2EB] dark:bg-zinc-950 font-bold uppercase tracking-widest text-xs rounded-xl hover:bg-[#EAE6DF] transition-colors text-[#4A443C] dark:text-zinc-200"
+          aria-label="Sonuçları Sıfırla ve Yeni Test Oluştur"
         >
           Yeni Test Oluştur
         </button>
@@ -183,6 +186,7 @@ export function QuizEngine() {
                 onClick={() => handleAnswer(idx)}
                 disabled={showExplanation}
                 className={`w-full text-left px-6 py-4 rounded-xl border-2 transition-all ${btnClass}`}
+                aria-label={`Seçenek ${String.fromCharCode(65 + idx)}`}
               >
                 <div className="flex items-center gap-4">
                   <span className="w-8 h-8 rounded-full border border-current flex items-center justify-center text-xs font-bold opacity-60">
@@ -208,6 +212,7 @@ export function QuizEngine() {
           <button 
             onClick={handleNext}
             className="flex items-center justify-center gap-2 w-full py-4 bg-[#C17767] text-[#FDFBF7] font-bold rounded-xl hover:bg-[#A56253] transition-colors tracking-widest uppercase text-xs shadow-md"
+            aria-label="Sonraki Soruya Geç"
           >
             Sonraki Soru <ChevronRight size={16} />
           </button>

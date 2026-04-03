@@ -8,7 +8,6 @@ import { Clock, X, CheckCircle2, PenTool, MousePointer2, BrainCircuit } from 'lu
 import { useAppStore } from '../../store/appStore';
 
 export function TopBar({ timeLeft, onExit }: { timeLeft: number, onExit: () => void }) {
-  const store = useAppStore();
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
@@ -17,6 +16,7 @@ export function TopBar({ timeLeft, onExit }: { timeLeft: number, onExit: () => v
         <button 
           onClick={onExit}
           className="p-2 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 rounded-xl transition-all"
+          aria-label="Savaş Odasından Çık"
         >
           <X size={20} />
         </button>
@@ -38,7 +38,10 @@ export function TopBar({ timeLeft, onExit }: { timeLeft: number, onExit: () => v
 }
 
 export function ModeSwitcher() {
-  const store = useAppStore();
+  const warRoomMode = useAppStore(s => s.warRoomMode);
+  const drawingMode = useAppStore(s => s.drawingMode);
+  const setWarRoomMode = useAppStore(s => s.setWarRoomMode);
+  const setDrawingMode = useAppStore(s => s.setDrawingMode);
   
   const modes = [
     { id: 'solve', label: 'Çöz', icon: <MousePointer2 size={16} />, dMode: 'pointer' as const },
@@ -53,18 +56,19 @@ export function ModeSwitcher() {
            key={m.id}
            onClick={() => {
              // WarRoomMode sadece setup|solve|result olarak kalır.
-             if (store.warRoomMode === 'setup') {
-               store.setWarRoomMode('solve');
+             if (warRoomMode === 'setup') {
+               setWarRoomMode('solve');
              }
-             store.setDrawingMode(m.dMode);
+             setDrawingMode(m.dMode);
            }}
            className={`
              flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] uppercase font-bold tracking-widest transition-all
-             ${((m.id === 'solve' || m.id === 'analysis') && store.drawingMode === 'pointer') || (m.id === 'draw' && store.drawingMode !== 'pointer')
+             ${((m.id === 'solve' || m.id === 'analysis') && drawingMode === 'pointer') || (m.id === 'draw' && drawingMode !== 'pointer')
                 ? 'bg-accent text-white shadow-xl shadow-accent/20 scale-105' 
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
              }
            `}
+           aria-label={`${m.label} Moduna Geç`}
          >
            {m.icon}
            <span className="hidden sm:inline">{m.label}</span>

@@ -27,7 +27,13 @@ const markdownComponents = {
 };
 
 export function StrategyHub() {
-  const store = useAppStore();
+  const logs = useAppStore(s => s.logs);
+  const exams = useAppStore(s => s.exams);
+  const eloScore = useAppStore(s => s.eloScore);
+  const tytSubjects = useAppStore(s => s.tytSubjects);
+  const aytSubjects = useAppStore(s => s.aytSubjects);
+  const profile = useAppStore(s => s.profile);
+  const analyzeUserData = useAppStore(s => s.analyzeUserData);
   const [weeklyPlan, setWeeklyPlan] = useState<string | null>(null);
   const [sprintPlan, setSprintPlan] = useState<string | null>(null);
   const [warRoomPlan, setWarRoomPlan] = useState<string | null>(null);
@@ -37,23 +43,23 @@ export function StrategyHub() {
   const [isLoadingWarRoom, setIsLoadingWarRoom] = useState(false);
 
   // --- FAZ 1: KAYNAK ROI ---
-  const sourceROIs = useMemo(() => calcSourceROI(store.logs), [store.logs]);
+  const sourceROIs = useMemo(() => calcSourceROI(logs), [logs]);
   const bestSources = sourceROIs.slice(0, 3);
   const avgROI = sourceROIs.length > 0 ? sourceROIs.reduce((a, b) => a + b.roiScore, 0) / sourceROIs.length : 0;
   const badSources = sourceROIs.filter(s => s.roiScore < avgROI * 0.6); // Ortanın %40 altı
-
+  
   // --- FAZ 2: NET PROJEKSİYONU ---
   const examDate = new Date('2026-06-20T10:15:00+03:00');
-  const projection = useMemo(() => predictTYTAndAYT(store.exams, examDate), [store.exams]);
-
+  const projection = useMemo(() => predictTYTAndAYT(exams, examDate), [exams]);
+  
   const now = new Date();
   const daysRemaining = Math.max(0, Math.ceil((examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-  const aiPredTyt = useMemo(() => calculatePredictedNet(store.exams, store.logs, examDate, 'TYT', store.eloScore), [store.exams, store.logs, store.eloScore]);
-  const aiPredAyt = useMemo(() => calculatePredictedNet(store.exams, store.logs, examDate, 'AYT', store.eloScore), [store.exams, store.logs, store.eloScore]);
-
+  const aiPredTyt = useMemo(() => calculatePredictedNet(exams, logs, examDate, 'TYT', eloScore), [exams, logs, eloScore]);
+  const aiPredAyt = useMemo(() => calculatePredictedNet(exams, logs, examDate, 'AYT', eloScore), [exams, logs, eloScore]);
+  
   const projectionChartData = useMemo(() => {
     const data = [];
-    const tytExams = store.exams.filter(e => e.type === 'TYT').slice(-5);
+    const tytExams = exams.filter(e => e.type === 'TYT').slice(-5);
 
     // Mevcut veri
     tytExams.forEach((e, i) => {
@@ -78,20 +84,20 @@ export function StrategyHub() {
     }
 
     return data;
-  }, [store.exams, projection]);
+  }, [exams, projection]);
 
   const buildBaseContext = () => {
-    const recentLogs = store.logs.slice(-7);
+    const recentLogs = logs.slice(-7);
     const logSummary = recentLogs.length > 0
       ? recentLogs.map(l => `${l.subject}/${l.topic}: ${l.questions}S %${Math.round((l.correct / (l.questions || 1)) * 100)} başarı ${l.avgTime}dk`).join(' | ')
       : 'Log yok';
 
-    const inProgressTyt = store.tytSubjects.filter(s => s.status === 'in-progress').map(s => `${s.subject}-${s.name}`);
-    const inProgressAyt = store.aytSubjects.filter(s => s.status === 'in-progress').map(s => `${s.subject}-${s.name}`);
-    const recentExams = store.exams.slice(-3).map(e => `${e.type}: ${e.totalNet.toFixed(1)} net`).join(', ');
+    const inProgressTyt = tytSubjects.filter(s => s.status === 'in-progress').map(s => `${s.subject}-${s.name}`);
+    const inProgressAyt = aytSubjects.filter(s => s.status === 'in-progress').map(s => `${s.subject}-${s.name}`);
+    const recentExams = exams.slice(-3).map(e => `${e.type}: ${e.totalNet.toFixed(1)} net`).join(', ');
 
-    return `Öğrenci: ${store.profile?.name} | Hedef: ${store.profile?.targetUniversity} ${store.profile?.targetMajor} | Sınav yılı: ${store.profile?.examYear || '2025'}
-TYT hedef: ${store.profile?.tytTarget} | AYT hedef: ${store.profile?.aytTarget} | Alan: ${store.profile?.track}
+    return `Öğrenci: ${profile?.name} | Hedef: ${profile?.targetUniversity} ${profile?.targetMajor} | Sınav yılı: ${profile?.examYear || '2025'}
+TYT hedef: ${profile?.tytTarget} | AYT hedef: ${profile?.aytTarget} | Alan: ${profile?.track}
 Son 7 gün log özeti: ${logSummary}
 Çalışılan TYT konuları: ${inProgressTyt.join(', ') || 'Yok'}
 Çalışılan AYT konuları: ${inProgressAyt.join(', ') || 'Yok'}
@@ -102,7 +108,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
     setIsLoadingWeekly(true);
     const ctx = buildBaseContext();
     const prompt = `HAFTALIK KUŞATMA PLANI ÜRETİYORUM. Bu öğrencinin tüm verisini analiz et ve bugünden itibaren 7 günlük çalışma planı yaz. Formatı kesinlikle şu şekilde kullan: Her gün için "**Gün X (Tarih):**" başlığı altında 2-3 madde. Her madde: Ders | Konu | Hedef soru | Tahmini süre. Sonunda 1 satır "Haftalık Öncelik" yaz.`;
-    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
+    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: profile?.coachPersonality });
     setWeeklyPlan(response || 'Yanıt alınamadı.');
     setIsLoadingWeekly(false);
   };
@@ -111,7 +117,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
     setIsLoadingSprint(true);
     const ctx = buildBaseContext();
     const prompt = `24 SAATLİK SPRINT PLANI. Bu öğrencinin verilerine bakarak SADECE bugün için 3 kritik görev belirle. Format: **Görev 1:** [Ders] - [Konu] - [Kaç soru] - [Süre]. Sonunda motivasyona gerek yok, sadece emirler.`;
-    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
+    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: profile?.coachPersonality });
     setSprintPlan(response || 'Yanıt alınamadı.');
     setIsLoadingSprint(false);
   };
@@ -119,15 +125,15 @@ Son denemeler: ${recentExams || 'Yok'}`;
   const handleWarRoom = async () => {
     setIsLoadingWarRoom(true);
     const ctx = "GERÇEK BİR ANALİZ CANAVARI (MF-WARRIOR)";
-    const prompt = store.analyzeUserData();
-    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: store.profile?.coachPersonality });
+    const prompt = analyzeUserData();
+    const response = await getCoachResponse(prompt, ctx, [], { coachPersonality: profile?.coachPersonality });
     setWarRoomPlan(response || 'Savaş planı elde edilemedi.');
     setIsLoadingWarRoom(false);
   };
 
   const criticalSubjects = (() => {
     const subjectStats: Record<string, { correct: number; total: number }> = {};
-    store.logs.forEach(l => {
+    logs.forEach(l => {
       if (!subjectStats[l.subject]) subjectStats[l.subject] = { correct: 0, total: 0 };
       subjectStats[l.subject].correct += l.correct;
       subjectStats[l.subject].total += l.questions;
@@ -143,7 +149,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
     const topicStats = new Map<string, { subject: string; topic: string; wrong: number; total: number }>();
     const last14Days = Date.now() - 14 * 24 * 60 * 60 * 1000;
 
-    store.logs.forEach((l) => {
+    logs.forEach((l) => {
       const ts = toDateMs(l.date);
       if (!Number.isFinite(ts) || ts < last14Days) return;
       const key = `${l.subject}__${l.topic}`;
@@ -176,8 +182,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
   })();
 
   const yokAtlasChase = (() => {
-    const profile = store.profile;
-    const lastExam = store.exams.slice(-1)[0];
+    const lastExam = exams.slice(-1)[0];
     if (!profile || !lastExam) return null;
 
     const currentNet = lastExam.totalNet;
@@ -190,10 +195,15 @@ Son denemeler: ${recentExams || 'Yok'}`;
     const pool = candidates.length > 0 ? candidates : YOK_ATLAS_DATA.filter(p => p.track === profile.track);
     const next = pool
       .slice()
-      .sort((a, b) => Math.abs(a.lastEntrantNet - currentNet) - Math.abs(b.lastEntrantNet - currentNet))[0];
+      .sort((a, b) => {
+        const aTarget = lastExam.type === 'TYT' ? a.tytNet : a.aytNet;
+        const bTarget = lastExam.type === 'TYT' ? b.tytNet : b.aytNet;
+        return Math.abs(aTarget - currentNet) - Math.abs(bTarget - currentNet);
+      })[0];
 
     if (!next) return null;
-    const diff = Number((next.lastEntrantNet - currentNet).toFixed(2));
+    const targetNet = lastExam.type === 'TYT' ? next.tytNet : next.aytNet;
+    const diff = Number((targetNet - currentNet).toFixed(2));
     const diffText = diff >= 0 ? `${diff} net gerisindesin` : `${Math.abs(diff)} net önündesin`;
 
     // Mart Referansı Analizi
@@ -245,7 +255,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
                 <span className="text-zinc-500 text-[10px] uppercase">{daysRemaining} Gün Kaldı</span>
               </div>
               <p className="text-zinc-300 text-sm leading-relaxed italic border-l-2 border-[#C17767]/50 pl-3">
-                "{store.profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-[#C17767] text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-zinc-100 font-mono">%{aiPredTyt.confidence}</strong>."
+                "{profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-[#C17767] text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-zinc-100 font-mono">%{aiPredTyt.confidence}</strong>."
               </p>
             </div>
             <div className="bg-[#1A1A1A]/80 backdrop-blur-md border border-[#E09F3E]/30 rounded-2xl p-5 shadow-[0_0_20px_rgba(224,159,62,0.05)]">
@@ -272,7 +282,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
                       itemStyle={{ fontSize: 12, fontWeight: 'bold' }}
                       labelStyle={{ fontSize: 10, color: '#888' }}
                     />
-                    {store.profile?.tytTarget && <ReferenceLine y={store.profile.tytTarget} stroke="#C17767" strokeDasharray="3 3" />}
+                    {profile?.tytTarget && <ReferenceLine y={profile.tytTarget} stroke="#C17767" strokeDasharray="3 3" />}
                     <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
                     <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
                   </LineChart>
@@ -378,7 +388,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
                 <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">7 günlük saldırı planı</p>
               </div>
             </div>
-            <button onClick={handleWeeklyPlan} disabled={isLoadingWeekly} className="flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#C17767] hover:text-white transition-all disabled:opacity-40">
+            <button onClick={handleWeeklyPlan} disabled={isLoadingWeekly} className="flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#C17767] hover:text-white transition-all disabled:opacity-40" aria-label="Haftalık Plan Oluştur">
               {isLoadingWeekly ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {weeklyPlan ? 'Yenile' : 'Oluştur'}
             </button>
           </div>
@@ -398,7 +408,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
                 <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Bugünün 3 kritik görevi</p>
               </div>
             </div>
-            <button onClick={handleSprintPlan} disabled={isLoadingSprint} className="flex items-center gap-2 px-4 py-2 bg-[#E09F3E]/10 text-[#E09F3E] border border-[#E09F3E]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#E09F3E] hover:text-black transition-all disabled:opacity-40">
+            <button onClick={handleSprintPlan} disabled={isLoadingSprint} className="flex items-center gap-2 px-4 py-2 bg-[#E09F3E]/10 text-[#E09F3E] border border-[#E09F3E]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#E09F3E] hover:text-black transition-all disabled:opacity-40" aria-label="Bugün İçin Sprint Başlat">
               {isLoadingSprint ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />} {sprintPlan ? 'Yenile' : 'Başlat'}
             </button>
           </div>
@@ -425,6 +435,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
               onClick={handleWarRoom}
               disabled={isLoadingWarRoom}
               className="flex items-center gap-2 px-4 py-2 bg-red-900/10 text-red-500 border border-red-900/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-900/30 hover:text-white transition-all disabled:opacity-40"
+              aria-label="Kübra Analizini Başlat"
             >
               {isLoadingWarRoom ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />} {warRoomPlan ? 'Yenile' : 'ANLA'}
             </button>

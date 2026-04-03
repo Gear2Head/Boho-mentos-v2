@@ -19,7 +19,8 @@ interface ExamDetailModalProps {
 }
 
 export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailModalProps) {
-  const store = useAppStore();
+  const removeExam = useAppStore(s => s.removeExam);
+  const updateExam = useAppStore(s => s.updateExam);
   const [isEditing, setIsEditing] = useState(false);
   const [draftScores, setDraftScores] = useState<ExamResult['scores']>({});
 
@@ -47,7 +48,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
       variant: 'danger',
     });
     if (ok) {
-      store.removeExam(exam.id);
+      removeExam(exam.id);
       onClose();
     }
   };
@@ -85,7 +86,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
       })
     );
     const newTotalNet = Object.values(normalized).reduce((acc, s) => acc + s.net, 0);
-    store.updateExam(exam.id, { scores: normalized, totalNet: newTotalNet });
+    updateExam(exam.id, { scores: normalized, totalNet: newTotalNet });
     setIsEditing(false);
   };
 
@@ -95,6 +96,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
         <button
           onClick={onClose}
           className="absolute top-6 right-6 opacity-50 hover:opacity-100 transition-opacity"
+          aria-label="Modalı Kapat"
         >
           <X size={24} className="text-zinc-400 hover:text-white" />
         </button>
@@ -125,6 +127,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
               <button
                 onClick={startEdit}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-900/20 text-blue-300 border border-blue-900/40 rounded-xl hover:bg-blue-900/35 transition-colors text-xs font-bold uppercase tracking-widest"
+                aria-label="Deneme Verilerini Düzenle"
               >
                 <Pencil size={16} /> Ders Bazlı Düzenle
               </button>
@@ -133,12 +136,14 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
                 <button
                   onClick={cancelEdit}
                   className="px-4 py-2 bg-zinc-900/40 text-zinc-200 border border-zinc-700/50 rounded-xl hover:bg-zinc-900/70 transition-colors text-xs font-bold uppercase tracking-widest"
+                  aria-label="Düzenlemeyi İptal Et"
                 >
                   İptal
                 </button>
                 <button
                   onClick={saveEdit}
                   className="flex items-center gap-2 px-4 py-2 bg-green-900/20 text-green-300 border border-green-900/40 rounded-xl hover:bg-green-900/35 transition-colors text-xs font-bold uppercase tracking-widest"
+                  aria-label="Değişiklikleri Kaydet"
                 >
                   <Save size={16} /> Kaydet
                 </button>
@@ -258,6 +263,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
             <button
               onClick={handleDelete}
               className="flex items-center gap-2 px-4 py-2 bg-red-950/30 text-red-500 border border-red-900/50 rounded-xl hover:bg-red-900/50 transition-colors text-xs font-bold uppercase tracking-widest"
+              aria-label="Bu Denemeyi Tamamen Sil"
             >
               <Trash2 size={16} /> Denemeyi Sil
             </button>

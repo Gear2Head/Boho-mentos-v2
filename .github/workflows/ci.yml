@@ -16,16 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Run TypeScript check
         run: npx tsc --noEmit
 
@@ -34,29 +31,45 @@ jobs:
     runs-on: ubuntu-latest
     needs: type-check
     env:
-      # Public keys — secret değil, build ortamı için gerekli
-      VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-      VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-      VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-      VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-      VITE_SPOTIFY_ENABLED: 'false'
+      # Firebase Frontend
+      VITE_FIREBASE_API_KEY: "${{ secrets['VITE_FIREBASE_API_KEY'] }}"
+      VITE_FIREBASE_AUTH_DOMAIN: "${{ secrets['VITE_FIREBASE_AUTH_DOMAIN'] }}"
+      VITE_FIREBASE_PROJECT_ID: "${{ secrets['VITE_FIREBASE_PROJECT_ID'] }}"
+      VITE_FIREBASE_STORAGE_BUCKET: "${{ secrets['VITE_FIREBASE_STORAGE_BUCKET'] }}"
+      VITE_FIREBASE_MESSAGING_SENDER_ID: "${{ secrets['VITE_FIREBASE_MESSAGING_SENDER_ID'] }}"
+      VITE_FIREBASE_APP_ID: "${{ secrets['VITE_FIREBASE_APP_ID'] }}"
+      VITE_SPOTIFY_ENABLED: "false"
+      
+      # Gemini API Rotation
+      GEMINI_API_KEY: "${{ secrets['GEMINI_API_KEY'] }}"
+      GEMINI_API_KEY_2: "${{ secrets['GEMINI_API_KEY_2'] }}"
+      GEMINI_API_KEY_3: "${{ secrets['GEMINI_API_KEY_3'] }}"
+      GEMINI_API_KEY_4: "${{ secrets['GEMINI_API_KEY_4'] }}"
+      
+      # Groq API Rotation
+      GROQ_API_KEY: "${{ secrets['GROQ_API_KEY'] }}"
+      GROQ_API_KEY_2: "${{ secrets['GROQ_API_KEY_2'] }}"
+      GROQ_API_KEY_3: "${{ secrets['GROQ_API_KEY_3'] }}"
+      GROQ_API_KEY_4: "${{ secrets['GROQ_API_KEY_4'] }}"
+      
+      # Other AI Providers
+      OPENROUTER_API_KEY: "${{ secrets['OPENROUTER_API_KEY'] }}"
+      CEREBRAS_API_KEY: "${{ secrets['CEREBRAS_API_KEY'] }}"
+      
+      # Infrastructure & Backend
+      APP_URL: "${{ secrets['APP_URL'] }}"
+      FIREBASE_SERVICE_ACCOUNT_JSON: "${{ secrets['FIREBASE_SERVICE_ACCOUNT_JSON'] }}"
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Build
         run: npm run build
-
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -69,16 +82,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Run ESLint
         run: npx eslint src --ext .ts,.tsx --max-warnings 50
         continue-on-error: true

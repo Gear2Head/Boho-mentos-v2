@@ -9,8 +9,7 @@ import { Brain, Star, Target, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 export function CoachPanel() {
-  const store = useAppStore();
-  const { chatHistory, profile } = store;
+  const chatHistory = useAppStore(s => s.chatHistory);
 
   // Soru özelinde yapılmış analizleri filtreleyip gösterir
   const coachMessages = chatHistory.filter(m => m.role === 'coach').slice(-3);

@@ -18,6 +18,8 @@ export interface AtlasProgram {
   scoreType: string;
   baseScore?: number;
   successRank?: number;
+  tytNet?: number;
+  aytNet?: number;
 }
 
 export const atlasService = {
@@ -38,16 +40,27 @@ export const atlasService = {
       console.warn('Atlas Search Error (Redirecting to Mock):', err);
       
       // [FALLBACK]: Backend kapalıysa (ERR_CONNECTION_REFUSED) mock verilerle devam et
-      const mockPrograms: AtlasProgram[] = [
-        { id: 'm1', universityName: 'Boho Üniversitesi (Offline)', programName: 'Yazılım Mühendisliği', faculty: 'Mühendislik Fakültesi', scoreType: 'SAY', baseScore: 485, successRank: 1200 },
-        { id: 'm2', universityName: 'Mentos Teknik (Offline)', programName: 'Bilgisayar Mühendisliği', faculty: 'Bilgisayar Bilimleri', scoreType: 'SAY', baseScore: 512, successRank: 450 },
-        { id: 'm3', universityName: 'Akdeniz Üniversitesi (Mock)', programName: 'Tıp Fakültesi', faculty: 'Tıp', scoreType: 'SAY', baseScore: 505, successRank: 800 },
-      ];
-
-      return mockPrograms.filter(p => 
-        p.universityName.toLowerCase().includes(query.toLowerCase()) || 
-        p.programName.toLowerCase().includes(query.toLowerCase())
-      );
+      // YOK_ATLAS_DATA'dan dinamik olarak çek
+      const { YOK_ATLAS_DATA } = await import('../data/yokAtlasData');
+      
+      return YOK_ATLAS_DATA
+        .filter(p => 
+          p.university.toLowerCase().includes(query.toLowerCase()) || 
+          p.major.toLowerCase().includes(query.toLowerCase()) ||
+          p.city.toLowerCase().includes(query.toLowerCase())
+        )
+        .map(p => ({
+          id: p.id,
+          universityName: p.university,
+          programName: p.major,
+          faculty: p.city, // City'yi faculty yerine geçici olarak kullanıyoruz
+          scoreType: p.track,
+          baseScore: p.baseScore,
+          successRank: p.ranking,
+          tytNet: p.tytNet,
+          aytNet: p.aytNet
+        }))
+        .slice(0, 10);
     }
   },
 

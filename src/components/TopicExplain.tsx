@@ -20,7 +20,8 @@ const markdownComponents = {
 };
 
 export function TopicExplain() {
-  const store = useAppStore();
+  const profile = useAppStore(s => s.profile);
+  const chatHistory = useAppStore(s => s.chatHistory);
   const [examType, setExamType] = useState<'TYT' | 'AYT'>('TYT');
   const [subject, setSubject] = useState<string>('Matematik');
   const [topic, setTopic] = useState<string>('');
@@ -45,9 +46,9 @@ export function TopicExplain() {
     setIsLoading(true);
     setAnswer(null);
     try {
-      const ctx = `Öğrenci: ${store.profile?.name} | Alan: ${store.profile?.track}\nİstek: ${examType} / ${subject} / ${t || 'Konu seçilmedi'}\n`;
+      const ctx = `Öğrenci: ${profile?.name} | Alan: ${profile?.track}\nİstek: ${examType} / ${subject} / ${t || 'Konu seçilmedi'}\n`;
       const prompt = `ANLA\nKonu: ${examType} ${subject} - ${t || 'Genel'}\nSoru/Problem: ${q || 'Bu konuyu sıfırdan anlat.'}`;
-      const res = await getCoachResponse(prompt, ctx, store.chatHistory, { coachPersonality: store.profile?.coachPersonality, maxTokens: 1400 });
+      const res = await getCoachResponse(prompt, ctx, chatHistory, { coachPersonality: profile?.coachPersonality, maxTokens: 1400 });
       setAnswer(res || 'Yanıt alınamadı.');
     } finally {
       setIsLoading(false);
@@ -77,12 +78,14 @@ export function TopicExplain() {
                 <button
                   onClick={() => setExamType('TYT')}
                   className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest ${examType === 'TYT' ? 'bg-[#C17767] text-white' : 'text-zinc-500 dark:text-zinc-400'}`}
+                  aria-label="TYT Modunu Seç"
                 >
                   TYT
                 </button>
                 <button
                   onClick={() => setExamType('AYT')}
                   className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest ${examType === 'AYT' ? 'bg-[#C17767] text-white' : 'text-zinc-500 dark:text-zinc-400'}`}
+                  aria-label="AYT Modunu Seç"
                 >
                   AYT
                 </button>
@@ -127,6 +130,7 @@ export function TopicExplain() {
               onClick={handleExplain}
               disabled={isLoading}
               className="w-full py-4 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-[0.3em] hover:bg-[#A56253] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              aria-label="Konuyu Anlatmayı Başlat"
             >
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
               Anlat

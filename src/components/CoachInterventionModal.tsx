@@ -11,8 +11,10 @@ import { getCoachResponse } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
 
 export function CoachInterventionModal() {
-  const store = useAppStore();
-  const alert = store.activeAlerts?.[0]; // Sadece ilk uyarıyı göster
+  const activeAlerts = useAppStore(s => s.activeAlerts);
+  const profile = useAppStore(s => s.profile);
+  const dismissAlert = useAppStore(s => s.dismissAlert);
+  const alert = activeAlerts?.[0]; // Sadece ilk uyarıyı göster
   const [strategy, setStrategy] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,8 +23,8 @@ export function CoachInterventionModal() {
       setLoading(true);
       const prompt = `Öğrencinin güncel bir zaafı tespit edildi: ${alert.message} Konu: ${alert.subject}.
 Hemen SADECE 3 MADDELİK bir aksiyon planı çıkar. Çok sert, direkt ve kısa konuş. Başlık olarak "ÖZEL OPERASYON: ${alert.subject}" kullan.`;
-
-      getCoachResponse(prompt, `Alert Type: ${alert.type}`, [], { coachPersonality: store.profile?.coachPersonality })
+      
+      getCoachResponse(prompt, `Alert Type: ${alert.type}`, [], { coachPersonality: profile?.coachPersonality })
         .then(res => {
           setStrategy(res || 'Strateji oluşturulamadı.');
           setLoading(false);
@@ -32,7 +34,7 @@ Hemen SADECE 3 MADDELİK bir aksiyon planı çıkar. Çok sert, direkt ve kısa 
           setLoading(false);
         });
     }
-  }, [alert, strategy, loading, store.profile]);
+  }, [alert, strategy, loading, profile]);
 
   if (!alert) return null;
 
@@ -82,9 +84,10 @@ Hemen SADECE 3 MADDELİK bir aksiyon planı çıkar. Çok sert, direkt ve kısa 
           <button
             disabled={loading}
             onClick={() => {
-              store.dismissAlert(alert.id);
+              dismissAlert(alert.id);
               setStrategy(null);
             }}
+            aria-label="Müdahale Uyarısını Onayla ve Kapat"
             className="w-full py-5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-2xl tracking-[0.2em] uppercase text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-3"
           >
             <CheckCircle2 size={18} />

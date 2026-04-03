@@ -45,8 +45,8 @@ export function QuestionPanel({ question, children }: { question: any, children?
 }
 
 export function CanvasLayer({ canvasRef }: { canvasRef: React.RefObject<any> }) {
-  const store = useAppStore();
-  const isDrawing = store.drawingMode !== 'pointer';
+  const drawingMode = useAppStore(s => s.drawingMode);
+  const isDrawing = drawingMode !== 'pointer';
 
   return (
     <div 
@@ -59,8 +59,8 @@ export function CanvasLayer({ canvasRef }: { canvasRef: React.RefObject<any> }) 
       <div className="w-[2000px] h-[3000px]">
         <CanvasDraw
           ref={canvasRef}
-          brushColor={store.drawingMode === 'eraser' ? 'transparent' : '#C17767'}
-          brushRadius={store.drawingMode === 'eraser' ? 20 : 3}
+          brushColor={drawingMode === 'eraser' ? 'transparent' : '#C17767'}
+          brushRadius={drawingMode === 'eraser' ? 20 : 3}
           lazyRadius={0}
           canvasWidth={2000}
           canvasHeight={3000}
