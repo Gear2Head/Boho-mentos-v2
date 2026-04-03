@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 import { getCoachResponse } from './services/gemini';
+import { parseStructuredDirective } from './services/promptBuilder';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from './constants';
 import { useAppStore, COACH_NAME, COACH_SYSTEM_NAME } from './store/appStore';
 import type {
@@ -27,20 +28,21 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { MobileGuard } from './components/MobileGuard';
 import { MorningBlocker } from './components/MorningBlocker';
 import { ProfileShowcase } from './components/ProfileShowcase';
-import { QuizEngine } from './components/QuizEngine';
+// [PERF-001 FIX]: Ağır bileşenler Lazy load ediliyor
+const QuizEngine = React.lazy(() => import('./components/QuizEngine').then(m => ({ default: m.QuizEngine })));
+const TopicExplain = React.lazy(() => import('./components/TopicExplain').then(m => ({ default: m.TopicExplain })));
+const AgendaPage = React.lazy(() => import('./components/AgendaPage').then(m => ({ default: m.AgendaPage })));
+const StrategyHub = React.lazy(() => import('./components/StrategyHub').then(m => ({ default: m.StrategyHub })));
+const MebiWarRoom = React.lazy(() => import('./components/MebiWarRoom').then(m => ({ default: m.MebiWarRoom })));
+
 import { AchievementsPanel } from './components/AchievementsPanel';
-import { TopicExplain } from './components/TopicExplain';
-import { AgendaPage } from './components/AgendaPage';
 import { CoachInterventionModal } from './components/CoachInterventionModal';
 import { calcWorkloadRemaining, calcSourceROI, calculatePredictedNet, detectHabitAlerts } from './utils/statistics';
-// Kapsam Dışı: import { SpotifyWidget } from './components/SpotifyWidget'; 
 
 import { LogEntryWidget } from './components/forms/LogEntryWidget';
 import { ExamEntryModal } from './components/forms/ExamEntryModal';
 import { ProfileSettings } from './components/forms/ProfileSettings';
 import { ExamDetailModal } from './components/ExamDetailModal';
-import { StrategyHub } from './components/StrategyHub';
-import { MebiWarRoom } from './components/MebiWarRoom';
 import { FlapClock, MiniFlapClock } from './components/FlapClock';
 
 import { AdminPanelModal } from './components/admin/AdminPanelModal';
@@ -608,7 +610,17 @@ export default function App() {
         userState
       });
 
-      store.addChatMessage({ role: 'coach', content: response || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
+      // [COACH-006 FIX]: Offline çalışması için direktifi parse edip idb'ye (store'a) at
+      const parsed = parseStructuredDirective(response || '', action === 'qa_mode' ? 'qa_mode' : 'free_chat');
+      
+      // Her durumda son mesaja raw text olarak atıyoruz (UI chat history için)
+      const cleanContent = parsed.isStructured && parsed.directive.text ? parsed.directive.text.replace(/```json[\s\S]*?```/g, '').trim() : response;
+      store.addChatMessage({ role: 'coach', content: cleanContent || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
+      
+      // Sadece Structured Directive ise ön yüz için (Günün Direktifi) kaydet
+      if (parsed.isStructured) {
+        store.setLastCoachDirective(parsed.directive);
+      }
     } catch (err) {
       console.error("AI Error:", err);
       store.addChatMessage({ role: 'coach', content: "Bağlantı hatası oluştu.", timestamp: new Date().toISOString() });
@@ -890,7 +902,40 @@ export default function App() {
                   <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
                     <h3 className="font-display italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
                     <div className="prose prose-invert prose-sm max-w-none">
-                      {store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
+                      {store.lastCoachDirective ? (
+                        <div className="space-y-4">
+                          <h4 className="text-zinc-200 font-bold text-lg leading-snug">{store.lastCoachDirective.headline}</h4>
+                          <p className="text-zinc-400 text-sm leading-relaxed">{store.lastCoachDirective.summary}</p>
+                          
+                          {store.lastCoachDirective.tasks && store.lastCoachDirective.tasks.length > 0 && (
+                            <div className="mt-4">
+                              <h5 className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] mb-2 border-b border-[#2A2A2A] pb-1">Görevler</h5>
+                              <ul className="space-y-2 m-0 p-0 list-none">
+                                {store.lastCoachDirective.tasks.map((t, idx) => (
+                                  <li key={idx} className="flex gap-3 items-start bg-[#121212] p-3 rounded-lg border border-[#2A2A2A]">
+                                    <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                                    <div>
+                                      <p className="text-sm font-bold text-zinc-300">{t.action}</p>
+                                      {(t.subject || t.targetMinutes) && (
+                                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mt-1">
+                                          {t.subject} {t.targetMinutes ? `• ${t.targetMinutes} DK` : ''}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {store.lastCoachDirective.warnings && store.lastCoachDirective.warnings.length > 0 && (
+                             <div className="mt-4 bg-red-950/20 border border-red-900/30 p-3 rounded-lg">
+                               <h5 className="text-[10px] uppercase font-bold tracking-widest text-red-500 mb-1">Uyarı</h5>
+                               <p className="text-xs text-red-200/70">{store.lastCoachDirective.warnings[0].message}</p>
+                             </div>
+                          )}
+                        </div>
+                      ) : store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
                         <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
                           <ReactMarkdown components={markdownComponents}>{store.chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
                         </div>
@@ -1057,25 +1102,33 @@ export default function App() {
 
             {activeTab === 'war_room' && (
               <motion.div key="war_room" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="w-full min-h-screen">
-                <MebiWarRoom />
+                <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-[#C17767] my-20" size={32} /></div>}>
+                  <MebiWarRoom />
+                </Suspense>
               </motion.div>
             )}
 
             {activeTab === 'questions' && (
               <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-8 w-full min-h-full">
-                <QuizEngine />
+                <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-[#C17767] my-20" size={32} /></div>}>
+                  <QuizEngine />
+                </Suspense>
               </motion.div>
             )}
 
             {activeTab === 'explain' && (
               <motion.div key="explain" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                <TopicExplain />
+                <Suspense fallback={<div className="flex bg-[#121212] flex-1 items-center justify-center h-[500px]"><Loader2 className="animate-spin text-[#C17767]" size={32} /></div>}>
+                  <TopicExplain />
+                </Suspense>
               </motion.div>
             )}
 
             {activeTab === 'agenda' && (
               <motion.div key="agenda" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-                <AgendaPage />
+                <Suspense fallback={<div className="flex bg-[#121212] flex-1 items-center justify-center h-[500px]"><Loader2 className="animate-spin text-[#C17767]" size={32} /></div>}>
+                  <AgendaPage />
+                </Suspense>
               </motion.div>
             )}
 
@@ -1135,13 +1188,13 @@ export default function App() {
 
                 {store.subjectViewMode === 'list' ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                    <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onNotesChange={(idx, notes) => store.updateTytSubject(idx, { notes })} />
-                    <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, { notes }); }} />
+                    <SubjectList title="TYT Müfredatı" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onNotesChange={(idx, notes) => store.updateTytSubject(idx, { notes })} onBulkMaster={(subject) => store.bulkMasterTytSubjectsByName(subject)} />
+                    <SubjectList title="AYT Müfredatı" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name); store.updateAytSubject(si, { notes }); }} onBulkMaster={(subject) => store.bulkMasterAytSubjectsByName(subject)} />
                   </div>
                 ) : (
                   <div className="space-y-12">
-                    <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} />
-                    <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} />
+                    <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={store.tytSubjects} onStatusChange={(idx, status) => store.updateTytSubject(idx, { status })} onBulkMaster={(subject) => store.bulkMasterTytSubjectsByName(subject)} />
+                    <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = store.aytSubjects.findIndex(a => a.name === store.aytSubjects.filter(s => getAytSubjectsForTrack(store.profile!.track).includes(s.subject))[idx].name && a.subject === store.aytSubjects.filter(ss => getAytSubjectsForTrack(store.profile!.track).includes(ss.subject))[idx].subject); store.updateAytSubject(si, { status }); }} onBulkMaster={(subject) => store.bulkMasterAytSubjectsByName(subject)} />
                   </div>
                 )}
               </motion.div>
@@ -1149,14 +1202,16 @@ export default function App() {
 
             {activeTab === 'strategy' && (
               <motion.div key="strategy" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }}>
-                <StrategyHub />
+                <Suspense fallback={<div className="flex bg-[#121212] flex-1 items-center justify-center h-[500px]"><Loader2 className="animate-spin text-[#C17767]" size={32} /></div>}>
+                  <StrategyHub />
+                </Suspense>
               </motion.div>
             )}
 
             {activeTab === 'coach' && (
               <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
                 <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">
-                  {store.chatHistory.map((msg, i) => (
+                  {store.chatHistory.slice().sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
                         <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
@@ -1413,12 +1468,18 @@ const StatCard = ({ title, value, total, unit, icon }: any) => (
   </div>
 );
 
-const SubjectList = ({ title, subjects, onStatusChange, onNotesChange }: any) => {
+const SubjectList = ({ title, subjects, onStatusChange, onNotesChange, onBulkMaster }: any) => {
   const grouped = subjects.reduce((acc: any, sub: any, idx: number) => {
     if (!acc[sub.subject]) acc[sub.subject] = [];
     acc[sub.subject].push({ ...sub, originalIndex: idx });
     return acc;
   }, {});
+
+  const confirmBulkMaster = async (subjectParam: string) => {
+    if (await confirmDialog(`"${subjectParam}" dersindeki TÜM konuları "BİTTİ" olarak işaretlemek istediğine emin misin?`)) {
+      onBulkMaster(subjectParam);
+    }
+  };
 
   return (
     <div className="border border-[#2A2A2A] rounded-2xl bg-[#1A1A1A] overflow-hidden">
@@ -1428,8 +1489,15 @@ const SubjectList = ({ title, subjects, onStatusChange, onNotesChange }: any) =>
       <div className="overflow-auto h-[600px] custom-scrollbar">
         {Object.entries(grouped).map(([groupName, groupSubjects]: [string, any]) => (
           <div key={groupName} className="mb-4">
-            <div className="sticky top-0 bg-[#1A1A1A] z-10 px-5 py-2 border-b border-[#2A2A2A] border-t-4 border-t-transparent shadow-sm">
+            <div className="sticky top-0 bg-[#1A1A1A] z-10 px-5 py-2 border-b border-[#2A2A2A] border-t-4 border-t-transparent shadow-sm flex justify-between items-center">
               <h4 className="font-display italic text-sm text-[#C17767]/70 uppercase tracking-widest">{groupName}</h4>
+              <button 
+                onClick={() => confirmBulkMaster(groupName)}
+                className="text-[9px] uppercase tracking-widest bg-[#064E3B]/20 text-[#34D399] border border-[#064E3B] px-2 py-1 rounded hover:bg-[#064E3B]/50 transition-colors"
+                title="Bu dersteki tüm konuları bitti olarak işaretle"
+              >
+                TÜMÜNÜ BİTİR
+              </button>
             </div>
             <div className="divide-y divide-[#2A2A2A] opacity-90">
               {groupSubjects.map((sub: any) => {
@@ -1476,13 +1544,19 @@ const ProfileSection = ({ title, children }: any) => <div className="border bord
 const ProfileField = ({ label, value }: any) => <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest">{label}</p><p className="text-sm font-bold">{value}</p></div>;
 
 // --- GİZLİ ADMİN PANELİ ---
-const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
+const SubjectMap = ({ title, subjects, onStatusChange, onBulkMaster }: any) => {
   const isSyncing = useAppStore(state => state.isSyncing);
   const grouped = subjects.reduce((acc: any, sub: any, idx: number) => {
     if (!acc[sub.subject]) acc[sub.subject] = [];
     acc[sub.subject].push({ ...sub, originalIndex: idx });
     return acc;
   }, {});
+
+  const confirmBulkMaster = async (subjectParam: string) => {
+    if (await confirmDialog(`"${subjectParam}" eyaletindeki TÜM şehirleri (konuları) "FEThedildi" olarak işaretlemek istediğine emin misin?`)) {
+      onBulkMaster(subjectParam);
+    }
+  };
 
   return (
     <div className={`space-y-8 relative ${isSyncing ? 'pointer-events-none opacity-50' : ''}`}>
@@ -1510,8 +1584,16 @@ const SubjectMap = ({ title, subjects, onStatusChange }: any) => {
                   <h4 className="font-display italic text-xl text-zinc-200 group-hover:text-[#C17767] transition-colors">{province} Eyaleti</h4>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-bold mt-1">Fetih Durumu: {masteredCount}/{totalCount}</p>
                 </div>
-                <div className="text-right">
+                <div className="flex flex-col items-end gap-2">
                   <span className="text-2xl font-mono font-bold text-[#C17767] opacity-80">%{progressPercent}</span>
+                  {progressPercent < 100 && (
+                    <button 
+                      onClick={() => confirmBulkMaster(province)}
+                      className="text-[8px] uppercase tracking-widest bg-[#064E3B]/20 text-[#34D399] border border-[#064E3B] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      BUNU FETET
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -159,6 +159,12 @@ interface AppState {
   setFocusSidePanelOpen: (isOpen: boolean) => void;
   setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => void;
   analyzeUserData: () => string;
+  bulkMasterTytSubjectsByName: (subjectName: string) => void;
+  bulkMasterAytSubjectsByName: (subjectName: string) => void;
+
+  // [COACH-006 FIX]: Offline direktif cache
+  lastCoachDirective: import('../types/coach').CoachDirective | null;
+  setLastCoachDirective: (directive: import('../types/coach').CoachDirective | null) => void;
 
   warRoomMode: WarRoomMode;
   setWarRoomMode: (mode: WarRoomMode) => void;
@@ -242,6 +248,7 @@ const INITIAL_STATE = {
   lastLocalUpdateAt: toISODateTime(),
   notifications: [],
   hasHydrated: false,
+  lastCoachDirective: null,
 };
 
 function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
@@ -374,6 +381,7 @@ export const useAppStore = create<AppState>()(
       },
 
       setDevMode: (isDevMode) => set({ isDevMode }),
+      setLastCoachDirective: (directive) => set({ lastCoachDirective: directive }),
       setSubjectViewMode: (subjectViewMode) => set({ subjectViewMode }),
       setTheme: (theme) => {
         set({ theme });
@@ -439,6 +447,44 @@ export const useAppStore = create<AppState>()(
         
         let eloDelta = 0;
         if (updates.status === 'mastered' && oldStatus !== 'mastered') eloDelta = 75;
+
+        const masteredCount = [...state.tytSubjects, ...newSubs].filter(s => s.status === 'mastered').length;
+        const trophies = state.trophies.map(t => {
+          if (t.id === 'master_10' && masteredCount >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
+          if (t.id === 'master_50' && masteredCount >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
+          return t;
+        });
+
+        return { aytSubjects: newSubs, eloScore: state.eloScore + eloDelta, trophies };
+      }),
+
+      /** YENİ: Bir TYT dersindeki tüm konuları toplu olarak 'mastered' yap */
+      bulkMasterTytSubjectsByName: (subjectName: string) => set((state) => {
+        let eloDelta = 0;
+        const newSubs = state.tytSubjects.map((s) => {
+          if (s.subject !== subjectName) return s;
+          if (s.status !== 'mastered') eloDelta += 50; // her yeni konu için ELO
+          return { ...s, status: 'mastered' as const };
+        });
+
+        const masteredCount = [...newSubs, ...state.aytSubjects].filter(s => s.status === 'mastered').length;
+        const trophies = state.trophies.map(t => {
+          if (t.id === 'master_10' && masteredCount >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
+          if (t.id === 'master_50' && masteredCount >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
+          return t;
+        });
+
+        return { tytSubjects: newSubs, eloScore: state.eloScore + eloDelta, trophies };
+      }),
+
+      /** YENİ: Bir AYT dersindeki tüm konuları toplu olarak 'mastered' yap */
+      bulkMasterAytSubjectsByName: (subjectName: string) => set((state) => {
+        let eloDelta = 0;
+        const newSubs = state.aytSubjects.map((s) => {
+          if (s.subject !== subjectName) return s;
+          if (s.status !== 'mastered') eloDelta += 75; // AYT ELO biraz daha yüksek
+          return { ...s, status: 'mastered' as const };
+        });
 
         const masteredCount = [...state.tytSubjects, ...newSubs].filter(s => s.status === 'mastered').length;
         const trophies = state.trophies.map(t => {
@@ -589,11 +635,7 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
       addChatMessage: (message) => {
         const newMessage: ChatMessage = {
           ...message,
-          id:
-            message.id ??
-            (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-              ? crypto.randomUUID()
-              : `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+          id: message.id ?? `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         };
         // [SYNC-009 FIX]: Incrementı cloud write-through
         const uid = get().authUser?.uid;

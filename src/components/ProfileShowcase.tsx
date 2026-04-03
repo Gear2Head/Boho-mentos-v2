@@ -158,10 +158,8 @@ export function ProfileShowcase() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {targetGoals.map((item) => {
-              const currentNet = item.scoreType === 'TYT' ? lastTyt : lastAyt;
-              const targetNet = item.baseScore || 0;
-              const gap = Math.max(0, Number((targetNet - currentNet).toFixed(1)));
-              const gapColor = gap <= 3 ? 'text-green-400' : gap <= 8 ? 'text-yellow-400' : 'text-red-400';
+              const currentNet = item.scoreType === 'TYT' ? lastTyt.toFixed(1) : lastAyt.toFixed(1);
+              const hasRank = item.successRank && item.successRank > 0;
               
               return (
                 <div key={item.id} className="rounded-2xl border border-[#2A2A2A] bg-[#1A1A1A] p-5 hover:border-[#C17767]/50 transition-all group relative">
@@ -171,22 +169,22 @@ export function ProfileShowcase() {
                   >
                     <X size={12} />
                   </button>
-                  <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-1">{item.scoreType} • {item.year || 2023}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-[#E09F3E] font-bold mb-1">{item.scoreType} Puan Türü • YÖK {item.year || 2023}</div>
                   <div className="text-sm font-bold text-zinc-200 leading-tight mb-0.5">{item.universityName}</div>
                   <div className="text-xs text-[#C17767] italic mb-4">{item.programName}</div>
                   
                   <div className="space-y-2 pt-2 border-t border-zinc-800/50">
-                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-60">
-                      <span>Hedef Net:</span>
-                      <span className="text-zinc-200">{targetNet}</span>
+                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-80">
+                      <span className="text-zinc-400">Taban Puan:</span>
+                      <span className="text-zinc-200 font-mono">{item.baseScore?.toFixed(2) || '---'}</span>
                     </div>
-                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-60">
-                      <span>Mevcut:</span>
-                      <span className="text-zinc-200">{currentNet}</span>
+                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-80">
+                      <span className="text-zinc-400">Başarı Sırası:</span>
+                      <span className="text-zinc-200 font-mono">{hasRank ? new Intl.NumberFormat('tr-TR').format(item.successRank!) : '---'}</span>
                     </div>
-                    <div className={`flex justify-between text-xs font-bold pt-1 ${gapColor}`}>
-                      <span>Kalan Fark:</span>
-                      <span>{gap} Net</span>
+                    <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest opacity-80 pt-1 border-t border-zinc-800/30">
+                      <span className="text-[#C17767] opacity-80">Mevcut {item.scoreType} Net:</span>
+                      <span className="text-[#C17767] font-mono">{currentNet}</span>
                     </div>
                   </div>
                 </div>
