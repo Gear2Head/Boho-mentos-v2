@@ -274,6 +274,7 @@ const markdownComponents = {
 // --- Main App ---
 
 export default function App() {
+  const store = useAppStore();
   // --- STORE SELECTORS (PERF-003) ---
   const morningUnlockedDate = useAppStore(s => s.morningUnlockedDate);
   const notifications = useAppStore(s => s.notifications);
@@ -922,6 +923,7 @@ export default function App() {
                     return toISODateOnly(dt) === todayStr;
                   });
                   const todayHours = (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1);
+                  const activeHabitAlerts = detectHabitAlerts(logs);
                   return (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
