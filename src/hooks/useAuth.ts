@@ -24,6 +24,7 @@ import {
   mergeRemoteDocsWithLocal,
 } from '../services/firestoreSync';
 import { parseAuthError } from '../utils/parseAuthError';
+import { buildSyncPayload } from '../services/syncSchema';
 import type { FirestoreUserData } from '../services/firestoreSync';
 
 type AuthMode = 'login' | 'register';
@@ -239,27 +240,7 @@ export function useAuth() {
     };
   }, []);
 
-  const buildFullSnapshot = useCallback((): Partial<FirestoreUserData> => {
-    const s = useAppStore.getState();
-    return {
-      profile: s.profile ?? undefined,
-      tytSubjects: s.tytSubjects,
-      aytSubjects: s.aytSubjects,
-      logs: s.logs,
-      exams: s.exams,
-      failedQuestions: s.failedQuestions,
-      agendaEntries: s.agendaEntries,
-      focusSessions: s.focusSessions,
-      trophies: s.trophies,
-      eloScore: s.eloScore,
-      streakDays: s.streakDays,
-      theme: s.theme,
-      subjectViewMode: s.subjectViewMode,
-      chatHistory: s.chatHistory,
-      isPassiveMode: s.isPassiveMode,
-      activeAlerts: s.activeAlerts,
-    };
-  }, []);
+// Removed buildFullSnapshot in favor of buildSyncPayload
 
   const signInWithGoogle = useCallback(async () => {
     setAuthError(null);
@@ -269,7 +250,9 @@ export function useAuth() {
       const user = result.user;
       const cloudData = await pullFromFirestore(user.uid);
       if (!cloudData?.profile && profile) {
-        await pushToFirestore(user.uid, buildFullSnapshot());
+        const state = useAppStore.getState();
+        const { root, entities } = buildSyncPayload(state);
+        await pushToFirestore(user.uid, { ...root, ...entities });
       }
     } catch (err: unknown) {
       const code = (err as { code?: string }).code;
@@ -277,7 +260,7 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [profile, buildFullSnapshot]);
+  }, [profile]);
 
   const signInWithEmail = useCallback(async (email: string, password: string, mode: AuthMode, displayName?: string) => {
     setAuthError(null);
@@ -287,7 +270,9 @@ export function useAuth() {
         const result = await createUserWithEmailAndPassword(auth, email, password);
         if (displayName) await updateProfile(result.user, { displayName });
         if (profile) {
-          await pushToFirestore(result.user.uid, buildFullSnapshot());
+          const state = useAppStore.getState();
+          const { root, entities } = buildSyncPayload(state);
+          await pushToFirestore(result.user.uid, { ...root, ...entities });
         }
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -298,19 +283,21 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [profile, buildFullSnapshot]);
+  }, [profile]);
 
   const signOut = useCallback(async () => {
     try {
       const currentUid = useAppStore.getState().authUser?.uid;
       if (currentUid) {
-        await pushToFirestore(currentUid, buildFullSnapshot());
+        const state = useAppStore.getState();
+        const { root, entities } = buildSyncPayload(state);
+        await pushToFirestore(currentUid, { ...root, ...entities });
       }
       await firebaseSignOut(auth);
     } catch (err) {
       console.warn('[Auth] Sign out error:', err);
     }
-  }, [buildFullSnapshot]);
+  }, []);
 
   const resetPassword = useCallback(async (email: string): Promise<boolean> => {
     try {

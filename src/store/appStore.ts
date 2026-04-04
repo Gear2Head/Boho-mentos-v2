@@ -89,7 +89,7 @@ type FailedQuestionInput = Omit<FailedQuestion, 'status' | 'solveCount' | 'diffi
   difficulty?: FailedQuestion['difficulty'];
 };
 
-interface AppState {
+export interface AppState {
   profile: StudentProfile | null;
   tytSubjects: SubjectStatus[];
   aytSubjects: SubjectStatus[];
@@ -165,6 +165,10 @@ interface AppState {
   // [COACH-006 FIX]: Offline direktif cache
   lastCoachDirective: import('../types/coach').CoachDirective | null;
   setLastCoachDirective: (directive: import('../types/coach').CoachDirective | null) => void;
+
+  // V19: Directive history (chat'ten bağımsız kalıcı hafıza)
+  directiveHistory: import('../types/coach').DirectiveRecord[];
+  coachMemory: import('../types/coach').CoachMemory | null;
 
   warRoomMode: WarRoomMode;
   setWarRoomMode: (mode: WarRoomMode) => void;
@@ -249,6 +253,9 @@ const INITIAL_STATE = {
   notifications: [],
   hasHydrated: false,
   lastCoachDirective: null,
+  // V19: Directive history ve coach memory
+  directiveHistory: [] as import('../types/coach').DirectiveRecord[],
+  coachMemory: null as import('../types/coach').CoachMemory | null,
 };
 
 function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
@@ -784,6 +791,8 @@ TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir ko
         tytSubjects: persistedState?.tytSubjects || currentState.tytSubjects,
         aytSubjects: persistedState?.aytSubjects || currentState.aytSubjects,
         trophies: persistedState?.trophies || currentState.trophies,
+        directiveHistory: persistedState?.directiveHistory || [],
+        coachMemory: persistedState?.coachMemory || null,
       }),
       onRehydrateStorage: (state) => {
         return () => state.setHasHydrated(true);

@@ -12,8 +12,10 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-import { getCoachResponse } from './services/gemini';
 import { parseStructuredDirective } from './services/promptBuilder';
+import { buildCoachContext, summarizeLogsForPrompt, summarizeExamsForPrompt } from './services/coachContext';
+import { useCoachCore } from './hooks/useCoachCore';
+import type { CoachIntent } from './types/coach';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from './constants';
 import { useAppStore, COACH_NAME, COACH_SYSTEM_NAME } from './store/appStore';
 import type {
@@ -282,6 +284,7 @@ export default function App() {
   const isSyncing = useAppStore(s => s.isSyncing);
   const theme = useAppStore(s => s.theme);
   const addLog = useAppStore(s => s.addLog);
+  const addExam = useAppStore(s => s.addExam);
   const isPassiveMode = useAppStore(s => s.isPassiveMode);
   const setPassiveMode = useAppStore(s => s.setPassiveMode);
   const logs = useAppStore(s => s.logs);
@@ -320,7 +323,8 @@ export default function App() {
 
   const { user, isLoading, signOut } = useAuth();
   const { syncStatus, forceSync, isSyncing: isSyncManagerBusy } = useSyncManager(user?.uid);
-  const [isAuthSkipped, setIsAuthSkipped] = useState(false);
+
+  const { triggerLogAnalysis, triggerExamDebrief, sendMessage } = useCoachCore();
 
   // [UX-003 FIX]: Mobil klavye --vh senkronizasyonu
   useVisualViewportHeight();
@@ -427,19 +431,15 @@ export default function App() {
       unlockTrophy('streak_3');
     }
 
-    const logMessage = `LOG GİRİŞİ:\nDers: ${log.subject}\nKonu: ${log.topic}\nSoru: ${log.questions} (D:${log.correct} Y:${log.wrong} B:${log.empty})\nToplam Süre: ${log.avgTime}dk\nYorgunluk: ${log.fatigue}/10\nHatalar: ${log.tags.join(', ') || 'Yok'}${isPassive ? '\nSİSTEM NOTU: Öğrencinin zihinsel yorgunluğu 8 veya üzerinde. Sistemi otomatik olarak PASİF MODA geçir. Sadece video izleme, formül okuma gibi yorucu olmayan görevler ver.' : ''}`;
+    // COACH-PRODUCT-005: mikro analiz otomatik tetikle
+    await triggerLogAnalysis(log);
+  };
 
-    addChatMessage({ role: 'user', content: logMessage, timestamp: new Date().toISOString() });
-    setIsTyping(true);
-
-    const successRate = Math.round((log.correct / (log.questions || 1)) * 100);
-    const logSummary = `${log.subject} (${log.topic}): ${log.questions} soru, %${successRate} başarı, ${log.avgTime}dk. Yorgunluk: ${log.fatigue}/10.`;
-
-    const context = `Öğrenci Profili: ${JSON.stringify(profile)}\nYeni Log (Özet): ${logSummary}\nLütfen bu logu analiz et ve akşam değerlendirmesi yap.`;
-    const response = await getCoachResponse("LOG ANALİZİ YAP", context, chatHistory, { coachPersonality: profile?.coachPersonality });
-
-    addChatMessage({ role: 'coach', content: response || "Log kaydedildi. İyi çalışmalar.", timestamp: new Date().toISOString() });
-    setIsTyping(false);
+  const handleExamSave = (exam: ExamResult) => {
+    addExam(exam);
+    if (exam) {
+      setTimeout(() => triggerExamDebrief(exam), 1500);
+    }
   };
 
   const mathSpeedData = Array.from({ length: 7 }, (_, i) => {
@@ -549,7 +549,7 @@ export default function App() {
     }
   }, [activeTab, chatHistory.length, addChatMessage]);
 
-  const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string) => {
+  const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string, overrideIntent?: CoachIntent) => {
     e?.preventDefault();
     const userMsg = messageOverride || inputMessage;
     if (!userMsg.trim() || isTyping) return;
@@ -562,81 +562,39 @@ export default function App() {
 
     // Mevcut bir Q&A seansı var mı?
     const activeQA = qaSession;
+    let intent: CoachIntent = overrideIntent || 'free_chat';
+
+    if (isQAStarter && !activeQA) {
+      // Yeni Q&A Başlat
+      intent = "qa_mode";
+      setQaSession({
+        scenario: upperMsg.includes('PLAN') ? 'plan' : upperMsg.includes('LOG') ? 'log' : upperMsg.includes('DENEME') ? 'exam' : 'topic',
+        currentQuestion: 1,
+        totalQuestions: upperMsg.includes('PLAN') ? 6 : upperMsg.includes('LOG') ? 7 : upperMsg.includes('DENEME') ? 8 : 5,
+        answers: {},
+        isComplete: false
+      });
+    } else if (activeQA) {
+      // Devam eden Q&A
+      intent = "qa_mode";
+      const qIdx = activeQA.currentQuestion;
+      updateQaAnswer(qIdx, userMsg);
+      if (qIdx >= activeQA.totalQuestions) {
+        setQaSession(null);
+      } else {
+        setQaSession({ ...activeQA, currentQuestion: qIdx + 1 });
+      }
+    }
 
     addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
-    setIsTyping(true);
 
     try {
-      const compactProfile = profile ? `${profile.name}, Alan:${profile.track}, Hedef:${profile.targetUniversity}, TYT:${profile.tytTarget}, AYT:${profile.aytTarget}` : "Bilinmiyor";
-      const logsCtx = summarizeLogs(logs.slice(-5));
-      const examsCtx = exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|');
-
-      let context = `P:${compactProfile}\nLogs:${logsCtx}\nExams:${examsCtx}`;
-      let action: "free_chat" | "qa_mode" = "free_chat";
-
-      if (isQAStarter && !activeQA) {
-        // Yeni Q&A Başlat
-        action = "qa_mode";
-        context += `\nKOMUT: ${upperMsg} SEANSI BAŞLATILIYOR. İLK SORUYU SOR.`;
-
-        // Store'da seansı başlat (AI yanıtına göre güncellenecek ama şimdilik placeholder)
-        setQaSession({
-          scenario: upperMsg.includes('PLAN') ? 'plan' : upperMsg.includes('LOG') ? 'log' : upperMsg.includes('DENEME') ? 'exam' : 'topic',
-          currentQuestion: 1,
-          totalQuestions: upperMsg.includes('PLAN') ? 6 : upperMsg.includes('LOG') ? 7 : upperMsg.includes('DENEME') ? 8 : 5,
-          answers: {},
-          isComplete: false
-        });
-      } else if (activeQA) {
-        // Devam eden Q&A
-        action = "qa_mode";
-        const qIdx = activeQA.currentQuestion;
-        updateQaAnswer(qIdx, userMsg);
-
-        context += `\nQA_MODU: AKTİF. Senaryo: ${activeQA.scenario}. Cevaplanan Soru: ${qIdx}/${activeQA.totalQuestions}.`;
-
-        if (qIdx >= activeQA.totalQuestions) {
-          context += `\nQA_DURUM: TÜM SORULAR CEVAPLANDI. ANALİZİ VE SONUÇ TABLOSUNU DÖNDÜR.`;
-          setQaSession(null);
-        } else {
-          setQaSession({ ...activeQA, currentQuestion: qIdx + 1 });
-        }
-      }
-
-      const userState = {
-        name: profile?.name,
-        track: profile?.track,
-        elo: eloScore,
-        streak: streakDays,
-        summary: `TYT %${Math.round((tytSubjects.filter(s => s.status === 'mastered').length / (tytSubjects.length || 1)) * 100)} bitti, AYT %${Math.round((aytSubjects.filter(s => s.status === 'mastered').length / (aytSubjects.length || 1)) * 100)} bitti.`,
-        lastLogs: logs.slice(-3).map(l => `${l.subject}: ${l.questions}s %${Math.round((l.correct / (l.questions || 1)) * 100)} başarı`),
-        lastExams: exams.slice(-1).map(e => `${e.type}: ${e.totalNet} net`),
-        alerts: activeAlerts.length,
-        target: profile?.targetUniversity
-      };
-
-      const response = await getCoachResponse(userMsg, context, chatHistory, {
-        coachPersonality: profile?.coachPersonality,
-        action: action,
-        userState
+      await sendMessage({
+        userMessage: userMsg,
+        intent: intent,
       });
-
-      // [COACH-006 FIX]: Offline çalışması için direktifi parse edip idb'ye (store'a) at
-      const parsed = parseStructuredDirective(response || '', action === 'qa_mode' ? 'qa_mode' : 'free_chat');
-
-      // Her durumda son mesaja raw text olarak atıyoruz (UI chat history için)
-      const cleanContent = parsed.isStructured && parsed.directive.text ? parsed.directive.text.replace(/```json[\s\S]*?```/g, '').trim() : response;
-      addChatMessage({ role: 'coach', content: cleanContent || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
-
-      // Sadece Structured Directive ise ön yüz için (Günün Direktifi) kaydet
-      if (parsed.isStructured) {
-        setLastCoachDirective(parsed.directive);
-      }
     } catch (err) {
       console.error("AI Error:", err);
-      addChatMessage({ role: 'coach', content: "Bağlantı hatası oluştu.", timestamp: new Date().toISOString() });
-    } finally {
-      setIsTyping(false);
     }
   };
 
@@ -662,9 +620,9 @@ export default function App() {
     );
   }
 
-  // 2. Durum: Kimlik doğrulaması yok ve misafir geçişi de atlanmamış
-  if (!user && !isAuthSkipped) {
-    return <AuthGate onSkip={() => setIsAuthSkipped(true)} />;
+  // 2. Durum: Kimlik doğrulaması yoksa her zaman login ekranı göster
+  if (!user) {
+    return <AuthGate />;
   }
 
   // 3. Durum: Profil kurulumu eksik

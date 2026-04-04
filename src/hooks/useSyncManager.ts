@@ -11,35 +11,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { pushToFirestore } from '../services/firestoreSync';
+import { buildSyncPayload } from '../services/syncSchema';
 
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
-
-const EXCLUDED_KEYS = new Set([
-  'warRoomSession',
-  'warRoomAnswers',
-  'warRoomEliminated',
-  'warRoomTimeLeft',
-  'warRoomMode',
-  'isFocusSidePanelOpen',
-  'qaSession',
-  'drawingMode',
-  'authUser',
-  'isDevMode',
-  'isSyncing',
-  'notifications',
-]);
-
-function buildPayload(state: ReturnType<typeof useAppStore.getState>): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(state)) {
-    if (!EXCLUDED_KEYS.has(key) && typeof value !== 'function') {
-      payload[key] = value;
-    }
-  }
-
-  return payload;
-}
 
 export function useSyncManager(uid: string | undefined) {
   const isStoreSyncing = useAppStore((s) => s.isSyncing);
@@ -106,8 +80,10 @@ export function useSyncManager(uid: string | undefined) {
       setSyncStatus('syncing');
 
       try {
-        const payload = buildPayload(useAppStore.getState());
-        await pushToFirestore(uid, payload);
+        const state = useAppStore.getState();
+        const { root, entities } = buildSyncPayload(state);
+        // Entity'leri ayrı gönderiyoruz
+        await pushToFirestore(uid, { ...root, ...entities });
         setSyncStatus('synced');
 
         if (showNotif) {

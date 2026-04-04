@@ -1,64 +1,99 @@
 /**
  * AMAÇ: Spotify Web API entegrasyonu
- * MANTIK: Şu an PASİF — implicit flow güvenlik açığı (SEC-003) nedeniyle devre dışı.
- * UYARI: Token hash'ten frontend'de okunamaz. Backend-assisted PKCE gerekli.
- *        Production'da VITE_SPOTIFY_ENABLED=true olmadan hiçbir fonksiyon çalışmaz.
+ * MANTIK: PASİF — implicit flow güvenlik açığı (SEC-003) nedeniyle devre dışı.
+ *
+ * V19 (BUILD-002): unknown response üzerinden property erişimi kaldırıldı.
+ * Spotify API response'ları tip-güvenli hale getirildi.
+ * PKCE backend tamamlanana kadar feature flag ile korunuyor.
  */
 
-/** [SEC-003 FIX]: Implicit flow frontend token açığını engelle */
 const SPOTIFY_ENABLED = import.meta.env.VITE_SPOTIFY_ENABLED === 'true';
-
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '';
-const REDIRECT_URI = `${window.location.origin}/callback`;
-const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private';
+const REDIRECT_URI =
+  typeof window !== 'undefined'
+    ? `${window.location.origin}/callback`
+    : '';
 
-export const spotifyAuthUrl = SPOTIFY_ENABLED
+const SCOPES = [
+  'user-read-playback-state',
+  'user-modify-playback-state',
+  'user-read-currently-playing',
+  'playlist-read-private',
+].join(' ');
+
+export const spotifyAuthUrl: string | null = SPOTIFY_ENABLED
   ? `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}`
   : null;
 
-export function getSpotifyTokenFromUrl(): string | null {
-  if (!SPOTIFY_ENABLED || typeof window === 'undefined') return null;
-  // [SEC-003 FIX]: Artık hash'ten token OKUNMUYOR — code flow, backend'den alınmalı
-  return sessionStorage.getItem('spotify_token');
-}
+// ─── Typed Spotify API responses ──────────────────────────────────────────────
 
-export interface SpotifyTrackArtist {
+export interface SpotifyArtist {
+  id: string;
   name: string;
 }
 
-export interface SpotifyTrackImage {
+export interface SpotifyImage {
   url: string;
+  width: number | null;
+  height: number | null;
+}
+
+export interface SpotifyAlbum {
+  id: string;
+  name: string;
+  images: SpotifyImage[];
 }
 
 export interface SpotifyTrack {
+  id: string;
   name: string;
-  artists: SpotifyTrackArtist[];
-  album?: {
-    images?: SpotifyTrackImage[];
-  };
+  artists: SpotifyArtist[];
+  album: SpotifyAlbum;
+  duration_ms: number;
 }
 
-export interface SpotifyCurrentTrackResponse {
-  item?: SpotifyTrack | null;
-  is_playing?: boolean;
+export interface SpotifyCurrentlyPlaying {
+  is_playing: boolean;
+  item: SpotifyTrack | null;
+  progress_ms: number | null;
 }
 
-export async function getCurrentTrack(token: string): Promise<SpotifyCurrentTrackResponse | null> {
+// ─── Token ────────────────────────────────────────────────────────────────────
+
+export function getSpotifyTokenFromUrl(): string | null {
+  if (!SPOTIFY_ENABLED || typeof window === 'undefined') return null;
+  // SEC-003: hash token okunmuyor — backend PKCE flow gerekli
+  return sessionStorage.getItem('spotify_token');
+}
+
+// ─── API Calls ────────────────────────────────────────────────────────────────
+
+export async function getCurrentTrack(
+  token: string
+): Promise<SpotifyCurrentlyPlaying | null> {
   if (!SPOTIFY_ENABLED) return null;
-  const response = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  const response = await fetch(
+    'https://api.spotify.com/v1/me/player/currently-playing',
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
   if (response.status === 204) return null;
-  if (!response.ok) throw new Error('Spotify API Error');
-  return response.json();
+  if (!response.ok) throw new Error(`Spotify API ${response.status}`);
+  // V19 BUILD-002: cast to typed interface — no more `any` or `unknown` access
+  return response.json() as Promise<SpotifyCurrentlyPlaying>;
 }
 
-export async function playTrack(token: string, contextUri?: string): Promise<void> {
+export async function playTrack(
+  token: string,
+  contextUri?: string
+): Promise<void> {
   if (!SPOTIFY_ENABLED) return;
   await fetch('https://api.spotify.com/v1/me/player/play', {
     method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: contextUri ? JSON.stringify({ context_uri: contextUri }) : undefined
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: contextUri ? JSON.stringify({ context_uri: contextUri }) : undefined,
   });
 }
 
@@ -66,7 +101,7 @@ export async function pauseTrack(token: string): Promise<void> {
   if (!SPOTIFY_ENABLED) return;
   await fetch('https://api.spotify.com/v1/me/player/pause', {
     method: 'PUT',
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
@@ -74,6 +109,6 @@ export async function nextTrack(token: string): Promise<void> {
   if (!SPOTIFY_ENABLED) return;
   await fetch('https://api.spotify.com/v1/me/player/next', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
