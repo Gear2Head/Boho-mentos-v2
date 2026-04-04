@@ -11,11 +11,12 @@
 import { GoogleGenAI } from "@google/genai";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import type { CoachIntent } from "../src/types/coach";
 
 type ChatHistoryItem = { role: "user" | "coach"; content: string };
 type OpenAIMessage = { role: "system" | "user" | "assistant"; content: string };
 
-type CoachAction = "coach" | "qa_mode";
+type CoachAction = Extract<CoachIntent, "free_chat" | "qa_mode">;
 type AiRequestBody =
   | {
     action?: CoachAction;

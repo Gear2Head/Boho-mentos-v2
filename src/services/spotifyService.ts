@@ -22,7 +22,28 @@ export function getSpotifyTokenFromUrl(): string | null {
   return sessionStorage.getItem('spotify_token');
 }
 
-export async function getCurrentTrack(token: string): Promise<unknown | null> {
+export interface SpotifyTrackArtist {
+  name: string;
+}
+
+export interface SpotifyTrackImage {
+  url: string;
+}
+
+export interface SpotifyTrack {
+  name: string;
+  artists: SpotifyTrackArtist[];
+  album?: {
+    images?: SpotifyTrackImage[];
+  };
+}
+
+export interface SpotifyCurrentTrackResponse {
+  item?: SpotifyTrack | null;
+  is_playing?: boolean;
+}
+
+export async function getCurrentTrack(token: string): Promise<SpotifyCurrentTrackResponse | null> {
   if (!SPOTIFY_ENABLED) return null;
   const response = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
     headers: { Authorization: `Bearer ${token}` }
@@ -56,4 +77,3 @@ export async function nextTrack(token: string): Promise<void> {
     headers: { Authorization: `Bearer ${token}` }
   });
 }
-

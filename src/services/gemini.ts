@@ -5,7 +5,7 @@
  */
 
 import { resolveAiError, resolveErrorMessage } from '../utils/errorMessages';
-import type { CoachApiRequest } from '../types/coach';
+import type { CoachApiRequest, CoachIntent } from '../types/coach';
 
 interface OpenAIMessage {
   role: "system" | "user" | "assistant";
@@ -39,7 +39,7 @@ export async function getCoachResponse(
   context: string,
   chatHistory: { role: "user" | "coach"; content: string }[] = [],
   options?: {
-    action?: "coach" | "qa_mode";
+    action?: Extract<CoachIntent, "free_chat" | "qa_mode">;
     coachPersonality?: string;
     forceJson?: boolean;
     maxTokens?: number;
@@ -47,7 +47,7 @@ export async function getCoachResponse(
   }
 ): Promise<string> {
   const payload: Partial<CoachApiRequest> = {
-    action: options?.action === "qa_mode" ? "qa_mode" : "coach",
+    action: options?.action === "qa_mode" ? "qa_mode" : "free_chat",
     userMessage,
     context,
     chatHistory: chatHistory.slice(-6),

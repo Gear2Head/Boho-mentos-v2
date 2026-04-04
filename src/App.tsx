@@ -7,7 +7,7 @@ import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
   Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2, LogOut,
-  Bell, RefreshCcw, CloudOff, RefreshCw
+  Bell, RefreshCcw, CloudOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -28,6 +28,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { MobileGuard } from './components/MobileGuard';
 import { MorningBlocker } from './components/MorningBlocker';
 import { ProfileShowcase } from './components/ProfileShowcase';
+import { SubjectMapAdvanced } from './components/SubjectMapAdvanced';
 // [PERF-001 FIX]: Ağır bileşenler Lazy load ediliyor
 const QuizEngine = React.lazy(() => import('./components/QuizEngine').then(m => ({ default: m.QuizEngine })));
 const TopicExplain = React.lazy(() => import('./components/TopicExplain').then(m => ({ default: m.TopicExplain })));
@@ -51,8 +52,8 @@ import { NavItem } from './components/NavItem';
 import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
+import { useSyncManager } from './hooks/useSyncManager';
 import { useVisualViewportHeight } from './hooks/useViewport';
-import { debouncedPush, pushToFirestore } from './services/firestoreSync';
 import { initOfflineSync } from './utils/syncQueue';
 import { useToast } from './contexts/ToastContext';
 import { subscribeToSystemConfig, SystemConfig } from './services/systemService';
@@ -289,7 +290,6 @@ export default function App() {
   const addChatMessage = useAppStore(s => s.addChatMessage);
   const profile = useAppStore(s => s.profile);
   const chatHistory = useAppStore(s => s.chatHistory);
-  const setSyncing = useAppStore(s => s.setSyncing);
   const activeAlerts = useAppStore(s => s.activeAlerts);
   const qaSession = useAppStore(s => s.qaSession);
   const setQaSession = useAppStore(s => s.setQaSession);
@@ -305,7 +305,6 @@ export default function App() {
   const exams = useAppStore(s => s.exams);
   const eloScore = useAppStore(s => s.eloScore);
   const streakDays = useAppStore(s => s.streakDays);
-  const addNotification = useAppStore(s => s.addNotification);
   const setFocusSidePanelOpen = useAppStore(s => s.setFocusSidePanelOpen);
   const subjectViewMode = useAppStore(s => s.subjectViewMode);
   const setSubjectViewMode = useAppStore(s => s.setSubjectViewMode);
@@ -320,6 +319,7 @@ export default function App() {
   const failedQuestions = useAppStore(s => s.failedQuestions);
 
   const { user, isLoading, signOut } = useAuth();
+  const { syncStatus, forceSync, isSyncing: isSyncManagerBusy } = useSyncManager(user?.uid);
   const [isAuthSkipped, setIsAuthSkipped] = useState(false);
 
   // [UX-003 FIX]: Mobil klavye --vh senkronizasyonu
@@ -347,7 +347,12 @@ export default function App() {
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
-  const isCurrentlySyncing = isSyncing;
+  const isCurrentlySyncing = isSyncing || isSyncManagerBusy;
+  const syncButtonTitle = syncStatus === 'offline'
+    ? 'Çevrimdışı - eşitleme internet gelince yeniden denenebilir'
+    : isCurrentlySyncing
+      ? 'Bulutla eşitleniyor'
+      : 'Bulutla Eşitle';
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // --- SYSTEM STATE & BROADCAST ---
@@ -487,44 +492,6 @@ export default function App() {
     }
   }, [theme]);
 
-  // [PHASE 3]: Stratejik Senkronizasyon (Manual + Strategic Auto)
-  const syncWithCloud = useCallback(async (showNotif = true) => {
-    const state = useAppStore.getState();
-    const uid = state.authUser?.uid;
-    if (!uid) return;
-
-    const EXCLUDED = new Set([
-      'warRoomSession', 'warRoomAnswers', 'warRoomEliminated',
-      'warRoomTimeLeft', 'warRoomMode', 'isFocusSidePanelOpen',
-      'qaSession', 'drawingMode', 'authUser', 'isDevMode',
-      'isSyncing', 'showGreeting', 'activeSidebarTab', 'notifications'
-    ]);
-
-    setSyncing(true);
-
-    const payload: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(state)) {
-      if (!EXCLUDED.has(k) && typeof v !== 'function') {
-        payload[k] = v;
-      }
-    }
-
-    try {
-      await pushToFirestore(uid, payload);
-      setSyncing(false);
-      if (showNotif) {
-        addNotification({
-          type: 'success',
-          title: 'Senkronizasyon Başarılı',
-          message: 'Tüm ilerlemen buluta güvenle yedeklendi.'
-        });
-      }
-    } catch (err) {
-      setSyncing(false);
-      console.error('Manual sync failed:', err);
-    }
-  }, [setSyncing, addNotification]);
-
   // [BUG-006 FIX]: beforeunload → sendBeacon ile güvenli son-kayıt
   // sendBeacon browser tarafından sayfa kapansa bile gönderilmeyi garantiler.
   useEffect(() => {
@@ -558,12 +525,12 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  // Her oturum başlangıcında ve internet gelince verileri buluttan çek
+  // Her oturum başlangıcında mevcut local state'i yeni sync manager ile flush et
   useEffect(() => {
     if (user?.uid) {
-      syncWithCloud(false); // Mount sırasında son durumu push/sync et
+      void forceSync(false);
     }
-  }, [user?.uid]);
+  }, [user?.uid, forceSync]);
 
   useEffect(() => {
     return initOfflineSync();
@@ -605,7 +572,7 @@ export default function App() {
       const examsCtx = exams.slice(-3).map(e => `${e.type}:${e.totalNet}N`).join('|');
 
       let context = `P:${compactProfile}\nLogs:${logsCtx}\nExams:${examsCtx}`;
-      let action: "coach" | "qa_mode" = "coach";
+      let action: "free_chat" | "qa_mode" = "free_chat";
 
       if (isQAStarter && !activeQA) {
         // Yeni Q&A Başlat
@@ -656,11 +623,11 @@ export default function App() {
 
       // [COACH-006 FIX]: Offline çalışması için direktifi parse edip idb'ye (store'a) at
       const parsed = parseStructuredDirective(response || '', action === 'qa_mode' ? 'qa_mode' : 'free_chat');
-      
+
       // Her durumda son mesaja raw text olarak atıyoruz (UI chat history için)
       const cleanContent = parsed.isStructured && parsed.directive.text ? parsed.directive.text.replace(/```json[\s\S]*?```/g, '').trim() : response;
       addChatMessage({ role: 'coach', content: cleanContent || "Üzgünüm, şu an yanıt veremiyorum.", timestamp: new Date().toISOString() });
-      
+
       // Sadece Structured Directive ise ön yüz için (Günün Direktifi) kaydet
       if (parsed.isStructured) {
         setLastCoachDirective(parsed.directive);
@@ -684,10 +651,10 @@ export default function App() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#FDFBF7] dark:bg-[#0A0A0A]">
         <div className="relative mb-8">
-           <div className="w-16 h-16 border-4 border-[#C17767]/20 border-t-[#C17767] rounded-full animate-spin" />
-           <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 bg-[#C17767] rounded-lg animate-pulse" />
-           </div>
+          <div className="w-16 h-16 border-4 border-[#C17767]/20 border-t-[#C17767] rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 bg-[#C17767] rounded-lg animate-pulse" />
+          </div>
         </div>
         <h1 className="font-display italic text-2xl text-[#C17767] animate-pulse">Boho Mentosluk</h1>
         <p className="text-[10px] uppercase tracking-[0.3em] opacity-40 mt-4 font-bold">Veriler Senkronize Ediliyor...</p>
@@ -723,17 +690,26 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => syncWithCloud()}
+              onClick={() => forceSync()}
               disabled={isCurrentlySyncing}
-              className={`p-2 rounded-lg transition-all ${isCurrentlySyncing ? 'text-[#C17767] animate-spin' : 'text-zinc-400 hover:text-[#C17767]'}`}
-              title="Bulutla Eşitle"
+              className={`p-2 rounded-lg transition-all ${syncStatus === 'offline'
+                ? 'text-amber-500 hover:text-amber-400'
+                : isCurrentlySyncing
+                  ? 'text-[#C17767] animate-spin'
+                  : 'text-zinc-400 hover:text-[#C17767]'
+                }`}
+              title={syncButtonTitle}
               aria-label="Bulutla Eşitle"
             >
-              <RefreshCcw size={20} className={isCurrentlySyncing ? 'animate-spin' : ''} />
+              {syncStatus === 'offline' ? (
+                <CloudOff size={20} />
+              ) : (
+                <RefreshCcw size={20} className={isCurrentlySyncing ? 'animate-spin' : ''} />
+              )}
             </button>
             <div className="relative">
-              <button 
-                onClick={() => setIsNotifOpen(true)} 
+              <button
+                onClick={() => setIsNotifOpen(true)}
                 className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative"
                 aria-label={`Bildirimler (${unreadCount} okunmamış)`}
               >
@@ -742,8 +718,8 @@ export default function App() {
               </button>
             </div>
             <ThemeToggle />
-            <div 
-              className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer" 
+            <div
+              className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer"
               onClick={() => setActiveTab('profile')}
               role="button"
               aria-label="Profil Git"
@@ -767,13 +743,17 @@ export default function App() {
             <div className="flex items-center justify-between mt-1">
               <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
               <button
-                onClick={() => syncWithCloud()}
+                onClick={() => forceSync()}
                 disabled={isCurrentlySyncing}
                 className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
-                title="Bulutla Eşitle"
+                title={syncButtonTitle}
                 aria-label="Bulutla Eşitle"
               >
-                <RefreshCcw size={16} className={isCurrentlySyncing ? 'animate-spin text-[#C17767]' : ''} />
+                {syncStatus === 'offline' ? (
+                  <CloudOff size={16} className="text-amber-500" />
+                ) : (
+                  <RefreshCcw size={16} className={isCurrentlySyncing ? 'animate-spin text-[#C17767]' : ''} />
+                )}
               </button>
               <button
                 onClick={() => setIsNotifOpen(true)}
@@ -954,91 +934,91 @@ export default function App() {
                 })()}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                <section className="md:col-span-2 space-y-6">
-                  {/* Günün Direktifi */}
-                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
-                    <h3 className="font-display italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
-                    <div className="prose prose-invert prose-sm max-w-none">
-                      {lastCoachDirective ? (
-                        <div className="space-y-4">
-                          <h4 className="text-zinc-200 font-bold text-lg leading-snug">{lastCoachDirective.headline}</h4>
-                          <p className="text-zinc-400 text-sm leading-relaxed">{lastCoachDirective.summary}</p>
-                          
-                          {lastCoachDirective.tasks && lastCoachDirective.tasks.length > 0 && (
-                            <div className="mt-4">
-                              <h5 className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] mb-2 border-b border-[#2A2A2A] pb-1">Görevler</h5>
-                              <ul className="space-y-2 m-0 p-0 list-none">
-                                {lastCoachDirective.tasks.map((t, idx) => (
-                                  <li key={idx} className="flex gap-3 items-start bg-[#121212] p-3 rounded-lg border border-[#2A2A2A]">
-                                    <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                                    <div>
-                                      <p className="text-sm font-bold text-zinc-300">{t.action}</p>
-                                      {(t.subject || t.targetMinutes) && (
-                                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mt-1">
-                                          {t.subject} {t.targetMinutes ? `• ${t.targetMinutes} DK` : ''}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                  <section className="md:col-span-2 space-y-6">
+                    {/* Günün Direktifi */}
+                    <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
+                      <h3 className="font-display italic text-xl mb-4 border-b border-[#EAE6DF] dark:border-zinc-800 pb-2 uppercase tracking-tight text-[#C17767] dark:text-rose-400">Günün Direktifi</h3>
+                      <div className="prose prose-invert prose-sm max-w-none">
+                        {lastCoachDirective ? (
+                          <div className="space-y-4">
+                            <h4 className="text-zinc-200 font-bold text-lg leading-snug">{lastCoachDirective.headline}</h4>
+                            <p className="text-zinc-400 text-sm leading-relaxed">{lastCoachDirective.summary}</p>
 
-                          {lastCoachDirective.warnings && lastCoachDirective.warnings.length > 0 && (
-                             <div className="mt-4 bg-red-950/20 border border-red-900/30 p-3 rounded-lg">
-                               <h5 className="text-[10px] uppercase font-bold tracking-widest text-red-500 mb-1">Uyarı</h5>
-                               <p className="text-xs text-red-200/70">{lastCoachDirective.warnings[0].message}</p>
-                             </div>
-                          )}
-                        </div>
-                      ) : chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
-                        <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
-                          <ReactMarkdown components={markdownComponents}>{chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 opacity-50 text-[#4A443C] dark:text-zinc-400">Henüz bir direktif yok. Koç ile konuşmaya başla.</div>
-                      )}
-                    </div>
-                  </div>
+                            {lastCoachDirective.tasks && lastCoachDirective.tasks.length > 0 && (
+                              <div className="mt-4">
+                                <h5 className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] mb-2 border-b border-[#2A2A2A] pb-1">Görevler</h5>
+                                <ul className="space-y-2 m-0 p-0 list-none">
+                                  {lastCoachDirective.tasks.map((t, idx) => (
+                                    <li key={idx} className="flex gap-3 items-start bg-[#121212] p-3 rounded-lg border border-[#2A2A2A]">
+                                      <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                                      <div>
+                                        <p className="text-sm font-bold text-zinc-300">{t.action}</p>
+                                        {(t.subject || t.targetMinutes) && (
+                                          <p className="text-[10px] uppercase tracking-widest text-zinc-500 mt-1">
+                                            {t.subject} {t.targetMinutes ? `• ${t.targetMinutes} DK` : ''}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
 
-                  {/* Matematik Seri Takibi (RESTORED) */}
-                  <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm h-60">
-                    <h3 className="font-display italic text-lg mb-4 uppercase tracking-tight text-[#C17767] flex justify-between items-center">
-                      <span>Matematik Seri Takibi</span>
-                      <span className="text-[10px] opacity-40 font-bold uppercase">Son 7 Gün</span>
-                    </h3>
-                    <div className="h-40 w-full">
-                      {isMounted && (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={mathSpeedData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} opacity={0.1} />
-                            <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#888' }} />
-                            <YAxis hide domain={['auto', 'auto']} />
-                            <Tooltip
-                              contentStyle={{ 
-                                backgroundColor: '#1A1A1A', 
-                                border: '1px solid #2A2A2A', 
-                                borderRadius: '12px',
-                                fontSize: '10px'
-                              }}
-                            />
-                            <Line 
-                              type="monotone" 
-                              dataKey="actual" 
-                              stroke="#C17767" 
-                              strokeWidth={3} 
-                              dot={{ fill: '#C17767', r: 4 }} 
-                              activeDot={{ r: 6, stroke: '#FFF', strokeWidth: 2 }}
-                              connectNulls
-                            />
-                            <ReferenceLine y={45} stroke="#22C55E" strokeDasharray="5 5" label={{ value: 'Hedef', position: 'right', fill: '#22C55E', fontSize: 8 }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      )}
+                            {lastCoachDirective.warnings && lastCoachDirective.warnings.length > 0 && (
+                              <div className="mt-4 bg-red-950/20 border border-red-900/30 p-3 rounded-lg">
+                                <h5 className="text-[10px] uppercase font-bold tracking-widest text-red-500 mb-1">Uyarı</h5>
+                                <p className="text-xs text-red-200/70">{lastCoachDirective.warnings[0].message}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : chatHistory.filter(m => m.role === 'coach').slice(-1)[0]?.content ? (
+                          <div className="font-mono text-[15px] leading-8 text-[#4A443C] dark:text-zinc-200" style={{ letterSpacing: '0.3px', wordSpacing: '1px' }}>
+                            <ReactMarkdown components={markdownComponents}>{chatHistory.filter(m => m.role === 'coach').slice(-1)[0].content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 opacity-50 text-[#4A443C] dark:text-zinc-400">Henüz bir direktif yok. Koç ile konuşmaya başla.</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </section>
+
+                    {/* Matematik Seri Takibi (RESTORED) */}
+                    <div className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm h-60">
+                      <h3 className="font-display italic text-lg mb-4 uppercase tracking-tight text-[#C17767] flex justify-between items-center">
+                        <span>Matematik Seri Takibi</span>
+                        <span className="text-[10px] opacity-40 font-bold uppercase">Son 7 Gün</span>
+                      </h3>
+                      <div className="h-40 w-full">
+                        {isMounted && (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={mathSpeedData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} opacity={0.1} />
+                              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#888' }} />
+                              <YAxis hide domain={['auto', 'auto']} />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: '#1A1A1A',
+                                  border: '1px solid #2A2A2A',
+                                  borderRadius: '12px',
+                                  fontSize: '10px'
+                                }}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="actual"
+                                stroke="#C17767"
+                                strokeWidth={3}
+                                dot={{ fill: '#C17767', r: 4 }}
+                                activeDot={{ r: 6, stroke: '#FFF', strokeWidth: 2 }}
+                                connectNulls
+                              />
+                              <ReferenceLine y={45} stroke="#22C55E" strokeDasharray="5 5" label={{ value: 'Hedef', position: 'right', fill: '#22C55E', fontSize: 8 }} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </div>
+                  </section>
 
                   <section className="flex flex-col gap-4">
                     {/* Yeni Koç Yönlendirme Kartı */}
@@ -1238,7 +1218,7 @@ export default function App() {
                       onClick={() => setSubjectViewMode('map')}
                       className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all flex items-center gap-2 ${subjectViewMode === 'map' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
-                      <MapIcon size={14} /> Harita
+                      <MapIcon size={14} /> Gelişmiş List
                     </button>
                   </div>
                 </div>
@@ -1249,10 +1229,7 @@ export default function App() {
                     <SubjectList title="AYT Müfredatı" subjects={aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = aytSubjects.findIndex(a => a.name === aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))[idx].name && a.subject === aytSubjects.filter(ss => getAytSubjectsForTrack(profile!.track).includes(ss.subject))[idx].subject); updateAytSubject(si, { status }); }} onNotesChange={(idx, notes) => { const si = aytSubjects.findIndex(a => a.name === aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))[idx].name); updateAytSubject(si, { notes }); }} onBulkMaster={(subject) => bulkMasterAytSubjectsByName(subject)} />
                   </div>
                 ) : (
-                  <div className="space-y-12">
-                    <SubjectMap title="TYT Kıtası — Temel Hakimiyet" subjects={tytSubjects} onStatusChange={(idx, status) => updateTytSubject(idx, { status })} onBulkMaster={(subject) => bulkMasterTytSubjectsByName(subject)} />
-                    <SubjectMap title="AYT Kıtası — İleri Seviye Seferberlik" subjects={aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))} onStatusChange={(idx, status) => { const si = aytSubjects.findIndex(a => a.name === aytSubjects.filter(s => getAytSubjectsForTrack(profile!.track).includes(s.subject))[idx].name && a.subject === aytSubjects.filter(ss => getAytSubjectsForTrack(profile!.track).includes(ss.subject))[idx].subject); updateAytSubject(si, { status }); }} onBulkMaster={(subject) => bulkMasterAytSubjectsByName(subject)} />
-                  </div>
+                  <SubjectMapAdvanced />
                 )}
               </motion.div>
             )}
@@ -1548,7 +1525,7 @@ const SubjectList = ({ title, subjects, onStatusChange, onNotesChange, onBulkMas
           <div key={groupName} className="mb-4">
             <div className="sticky top-0 bg-[#1A1A1A] z-10 px-5 py-2 border-b border-[#2A2A2A] border-t-4 border-t-transparent shadow-sm flex justify-between items-center">
               <h4 className="font-display italic text-sm text-[#C17767]/70 uppercase tracking-widest">{groupName}</h4>
-              <button 
+              <button
                 onClick={() => confirmBulkMaster(groupName)}
                 className="text-[9px] uppercase tracking-widest bg-[#064E3B]/20 text-[#34D399] border border-[#064E3B] px-2 py-1 rounded hover:bg-[#064E3B]/50 transition-colors"
                 title="Bu dersteki tüm konuları bitti olarak işaretle"
@@ -1644,7 +1621,7 @@ const SubjectMap = ({ title, subjects, onStatusChange, onBulkMaster }: any) => {
                 <div className="flex flex-col items-end gap-2">
                   <span className="text-2xl font-mono font-bold text-[#C17767] opacity-80">%{progressPercent}</span>
                   {progressPercent < 100 && (
-                    <button 
+                    <button
                       onClick={() => confirmBulkMaster(province)}
                       className="text-[8px] uppercase tracking-widest bg-[#064E3B]/20 text-[#34D399] border border-[#064E3B] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                     >
@@ -1766,3 +1743,4 @@ const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: 
     </motion.div>
   );
 };
+

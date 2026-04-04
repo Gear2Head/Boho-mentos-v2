@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, SkipForward, Music } from 'lucide-react';
-import { spotifyAuthUrl, getSpotifyTokenFromUrl, getCurrentTrack, playTrack, pauseTrack, nextTrack } from '../services/spotifyService';
+import {
+  spotifyAuthUrl,
+  getSpotifyTokenFromUrl,
+  getCurrentTrack,
+  playTrack,
+  pauseTrack,
+  nextTrack,
+  type SpotifyTrack,
+} from '../services/spotifyService';
 
 export function SpotifyWidget() {
   const [token, setToken] = useState<string | null>(null);
-  const [track, setTrack] = useState<any>(null);
+  const [track, setTrack] = useState<SpotifyTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
@@ -17,10 +25,8 @@ export function SpotifyWidget() {
     const fetchTrack = async () => {
       try {
         const data = await getCurrentTrack(token);
-        if (data && data.item) {
-          setTrack(data.item);
-          setIsPlaying(data.is_playing);
-        }
+        setTrack(data?.item ?? null);
+        setIsPlaying(Boolean(data?.is_playing));
       } catch (err) {
         console.error("Spotify yetkisi düştü veya hata:", err);
       }
@@ -47,7 +53,12 @@ export function SpotifyWidget() {
     if (!token) return;
     try {
       await nextTrack(token);
-      setTimeout(() => getCurrentTrack(token).then(d => { setTrack(d?.item); setIsPlaying(d?.is_playing) }), 1000);
+      setTimeout(() => {
+        void getCurrentTrack(token).then((data) => {
+          setTrack(data?.item ?? null);
+          setIsPlaying(Boolean(data?.is_playing));
+        });
+      }, 1000);
     } catch (e) { console.error(e); }
   };
 
@@ -62,7 +73,7 @@ export function SpotifyWidget() {
           <p className="text-[10px] opacity-60 dark:text-zinc-400">Odak müzikleri için giriş yap</p>
         </div>
         <a 
-          href={spotifyAuthUrl}
+          href={spotifyAuthUrl ?? '#'}
           className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-[10px] uppercase tracking-widest font-bold hover:bg-green-600 transition-colors"
         >
           Bağlan
@@ -83,7 +94,7 @@ export function SpotifyWidget() {
       
       <div className="flex-1 overflow-hidden">
         <h4 className="text-xs font-bold text-[#4A443C] dark:text-zinc-200 truncate">{track ? track.name : 'Bağlı'}</h4>
-        <p className="text-[10px] opacity-60 dark:text-zinc-400 truncate">{track ? track.artists.map((a:any) => a.name).join(', ') : 'Müzik çalmıyor'}</p>
+        <p className="text-[10px] opacity-60 dark:text-zinc-400 truncate">{track ? track.artists.map((artist) => artist.name).join(', ') : 'Müzik çalmıyor'}</p>
       </div>
 
       <div className="flex items-center gap-1 opacity-100 transition-opacity">
