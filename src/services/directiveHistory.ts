@@ -54,15 +54,17 @@ export function completeTask(
   };
 
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
-  const skippedCount = tasks.filter((t) => t.status === 'skipped').length;
-  const isResolved =
-    completedCount + skippedCount >= tasks.length;
+  // COACH-CORE-002: 'skipped' kaldırıldı — deferred/cancelled/failed tümü resolved sayılır
+  const resolvedCount = tasks.filter((t) =>
+    t.status === 'deferred' || t.status === 'cancelled' || t.status === 'failed'
+  ).length;
+  const isResolved = completedCount + resolvedCount >= tasks.length;
 
   return {
     ...record,
     directive: { ...record.directive, tasks },
     completedTaskCount: completedCount,
-    skippedTaskCount: skippedCount,
+    skippedTaskCount: resolvedCount,
     isResolved,
   };
 }
@@ -77,19 +79,25 @@ export function skipTask(
 
   tasks[taskIndex] = {
     ...tasks[taskIndex],
-    status: 'skipped',
-    skipReason: reason ?? 'Kullanıcı atladı',
+    // COACH-CORE-002: 'skipped' kaldırıldı — 'deferred' kullan
+    status: 'deferred',
+    failureReason: 'other',
+    failureNote: reason ?? 'Kullanıcı atlandı',
+    updatedAt: new Date().toISOString(),
   };
 
   const completedCount = tasks.filter((t) => t.status === 'completed').length;
-  const skippedCount = tasks.filter((t) => t.status === 'skipped').length;
-  const isResolved = completedCount + skippedCount >= tasks.length;
+  // deferred/cancelled/failed tümü „atlandı“ sayılır (resolved için)
+  const resolvedCount = tasks.filter((t) =>
+    t.status === 'deferred' || t.status === 'cancelled' || t.status === 'failed'
+  ).length;
+  const isResolved = completedCount + resolvedCount >= tasks.length;
 
   return {
     ...record,
     directive: { ...record.directive, tasks },
     completedTaskCount: completedCount,
-    skippedTaskCount: skippedCount,
+    skippedTaskCount: resolvedCount,
     isResolved,
   };
 }
@@ -129,11 +137,18 @@ export function updateCoachMemory(
   current: CoachMemory | null
 ): CoachMemory {
   const base: CoachMemory = current ?? {
-    recurringWeaknesses: [],
-    strengths: [],
+    recurringWeakTopics: [],
+    recurringAvoidedSubjects: [],
+    staleAdvicePatterns: [],
+    interventionEffectiveness: 'unknown' as const,
+    missedTaskReasons: [],
+    strongSubjects: [],
     persistentNotes: [],
     netTrend: 'unknown',
     updatedAt: new Date().toISOString(),
+    // backward compat
+    recurringWeaknesses: [],
+    strengths: [],
   };
 
   // Son 10 direktiften zayıflık ve güçlü yönleri çıkar
@@ -147,7 +162,7 @@ export function updateCoachMemory(
       if (!task.subject) continue;
       if (
         task.priority === 'high' &&
-        (task.status === 'skipped' || task.status === 'failed' || !task.status || task.status === 'pending')
+        (task.status === 'deferred' || task.status === 'failed' || task.status === 'cancelled' || !task.status || task.status === 'pending')
       ) {
         weaknessMap.set(task.subject, (weaknessMap.get(task.subject) ?? 0) + 1);
       }
@@ -194,11 +209,19 @@ export function updateCoachMemory(
   }
 
   return {
-    recurringWeaknesses: weaknesses,
-    strengths,
+    // COACH-MEM-001: Yeni CoachMemory alan yapısı
+    recurringWeakTopics: weaknesses,
+    recurringAvoidedSubjects: [],  // Gelecek: log/exam analizinden türetilecek
+    staleAdvicePatterns: [],       // Gelecek: direktif tekrar tespitinden türetilecek
+    interventionEffectiveness: 'unknown' as const,
+    missedTaskReasons: [],         // Gelecek: failureReason istatistiklerinden türetilecek
+    strongSubjects: strengths,
     persistentNotes: base.persistentNotes.slice(0, 10),
     netTrend,
     updatedAt: new Date().toISOString(),
+    // Backward compat (deprecated)
+    recurringWeaknesses: weaknesses,
+    strengths,
   };
 }
 

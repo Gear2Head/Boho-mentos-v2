@@ -1,13 +1,15 @@
 /**
- * AMAÇ: Koç V3 — Tip Sistemi, Directive Schema ve Coach Memory
- * MANTIK: Her AI yüzeyi bu kontrat üzerinden çalışır; any kullanımı yasaktır.
+ * AMAÇ: Koç Domain Tip Sistemi — tüm AI yüzeyleri bu kontrat üzerinden çalışır.
+ * MANTIK: Intent → Directive → Task → Memory hiyerarşisi. any kullanımı yasaktır.
+ * UYARI: COACH-CORE-002 + COACH-MEM-001 — CoachTask yürütülebilir görev nesnesi;
+ *         CoachMemory gerçek performans verisinden besleniyor.
  *
- * Değişiklikler (V19):
- *  - CoachIntent genişletildi: war_room_analysis, exam_debrief, weekly_review
- *  - CoachTask: completion, dueWindow, originSurface, rationale alanları eklendi
- *  - DirectiveRecord: tarihsel direktif kaydı için yeni tip
- *  - CoachMemory: kalıcı koç hafızası (chat'ten bağımsız)
- *  - CoachApiRequest: legacy "coach" action kaldırıldı, intent bazlı model
+ * Değişiklikler (Sprint-1):
+ *  - CoachTask: id, title, dueDate, targetQuestions, successCriteria, expectedOutcome,
+ *               linkedLogIds, linkedExamIds, sourceEvidence, failureReason eklendi
+ *  - TaskStatus: deferred, cancelled, blocked eklendi
+ *  - CoachMemory: recurringWeakTopics, recurringAvoidedSubjects, staleAdvicePatterns,
+ *                 interventionEffectiveness, missedTaskReasons, strongSubjects eklendi
  */
 
 // ─── Intent ──────────────────────────────────────────────────────────────────
@@ -28,11 +30,40 @@ export type CoachIntent =
 
 // ─── Task (Görev Nesnesi) ────────────────────────────────────────────────────
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed';
+/** COACH-CORE-002: Tam görev yaşam döngüsü — pending → completed/failed/cancelled/deferred/blocked */
+export type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'deferred'
+  | 'failed'
+  | 'cancelled'
+  | 'blocked';
+  // Legacy: 'skipped' → 'deferred' ile eşanlamlı; yeni kodda deferred kullan
+
 export type TaskPriority = 'high' | 'medium' | 'low';
 
+/** Bir görevin başarısız/atlanma nedeni — KOÇ'un sonraki kararını etkiler */
+export type TaskFailureReason =
+  | 'time_shortage'
+  | 'topic_too_hard'
+  | 'low_motivation'
+  | 'forgot'
+  | 'technical_issue'
+  | 'external_factor'
+  | 'dependency_blocked'
+  | 'other';
+
+/**
+ * CoachTask: Direktiften doğan, bağımsız yaşam döngüsüne sahip yürütülebilir görev.
+ * Sadece chat'te görünen bir madde değil; agenda, focus ve review akışlarına bağlanır.
+ */
 export interface CoachTask {
-  /** Görevin içeriği */
+  /** UUID — directive kapansa bile görev yaşamaya devam eder */
+  id: string;
+  /** Kısa, eyleme geçilebilir başlık */
+  title: string;
+  /** Detaylı görev açıklaması */
   action: string;
   /** Öncelik seviyesi */
   priority: TaskPriority;
@@ -40,21 +71,40 @@ export interface CoachTask {
   subject?: string;
   /** İlgili konu */
   topic?: string;
-  /** Tahmini dakika */
+  /** Tahmini çalışma süresi (dakika) */
   targetMinutes?: number;
-  // V19: Yeni alanlar
-  /** Görev neden bu şekilde belirlendi — 1 satır veri temelli gerekçe */
-  rationale?: string;
-  /** Hangi yüzeyden üretildi: coach/strategy/warroom/agenda */
-  originSurface?: 'coach' | 'strategy' | 'warroom' | 'agenda' | 'system';
-  /** Ne zaman tamamlanması bekleniyor */
+  /** Hedef soru sayısı */
+  targetQuestions?: number;
+  /** Son tamamlanma tarihi (ISO string) */
+  dueDate?: string;
+  /** Genel zaman penceresi */
   dueWindow?: 'today' | 'tomorrow' | 'this_week';
-  /** Tamamlanma durumu (UI izleme için) */
+  /** Görev neden belirlendi — 1 satır veri temelli gerekçe */
+  rationale?: string;
+  /** Başarı ölçütü — KOÇ bunu okuyarak kararını verir */
+  successCriteria?: string;
+  /** Tamamlanınca ne kazanılır */
+  expectedOutcome?: string;
+  /** Hangi yüzeyden üretildi */
+  originSurface?: 'coach' | 'strategy' | 'warroom' | 'agenda' | 'system';
+  /** Görev durumu */
   status?: TaskStatus;
   /** Tamamlanma zamanı */
   completedAt?: string;
-  /** Neden atlıandı veya başarısız oldu */
-  skipReason?: string;
+  /** Neden başarısız/atlandı — KOÇ sonraki mud gelenekte bunu okur */
+  failureReason?: TaskFailureReason;
+  /** Gerekirse ek açıklama */
+  failureNote?: string;
+  /** Bağlantılı log ID'leri */
+  linkedLogIds?: string[];
+  /** Bağlantılı sınav ID'leri */
+  linkedExamIds?: string[];
+  /** Bu göreve yol açan kanıt özeti (KOÇ context'i için) */
+  sourceEvidence?: string;
+  /** Oluşturulma tarihi */
+  createdAt?: string;
+  /** Son güncellenme tarihi */
+  updatedAt?: string;
 }
 
 // ─── Warning ─────────────────────────────────────────────────────────────────
@@ -120,18 +170,36 @@ export interface DirectiveRecord {
 
 // ─── Coach Memory (Kalıcı Hafıza) ────────────────────────────────────────────
 
-/** Chat temizlense bile koç öğrenciyi tanımaya devam eder */
+/**
+ * CoachMemory: Kalıcı hafıza — chat silinse bile KOÇ öğrenciyi tanır.
+ * COACH-MEM-001: Gerçek performans verisinden türetilir, görev tamamlama sayısından değil.
+ */
 export interface CoachMemory {
-  /** Son trendler: son 7 günde baskın zayıf konu(lar) */
-  recurringWeaknesses: string[];
-  /** Son trendler: güçlü alanlar */
-  strengths: string[];
-  /** Kalıcı direktif özeti: "Bu öğrenci X konusunda tekrar hata yapıyor" */
+  /** Son 14 günde tekrar eden zayıf konular (log + exam verisiyle belirlenir) */
+  recurringWeakTopics: string[];
+  /** Öğrencinin sürekli kaçındığı dersler */
+  recurringAvoidedSubjects: string[];
+  /** Koçun tekrar verdiği tavsiyeler (bayan: stale_advice_count > 2 ise alarm) */
+  staleAdvicePatterns: string[];
+  /** Müdahale etkinliği: intervention sonrası iyileşme var mı? */
+  interventionEffectiveness: 'effective' | 'partial' | 'none' | 'unknown';
+  /** Başarısız görevlerin en yaygın nedenleri */
+  missedTaskReasons: TaskFailureReason[];
+  /** Güçlü alanlar (tutarlı yüksek doğruluk) */
+  strongSubjects: string[];
+  /** Kalıcı koç notları — "Bu öğrenci X'te tekrar düşüyor" */
   persistentNotes: string[];
-  /** Son haftalık net trend: artan / azalan / stabil */
+  /** Son haftalık net trend */
   netTrend: 'rising' | 'falling' | 'stable' | 'unknown';
   /** Son güncellenme */
   updatedAt: string;
+  /**
+   * @deprecated Eski alan — recurringWeakTopics ile karşılandı.
+   * Geriye dönük uyumluluk için tutuldu; yeni kodda kullanma.
+   */
+  recurringWeaknesses?: string[];
+  /** @deprecated strengths → strongSubjects */
+  strengths?: string[];
 }
 
 // ─── System Context ───────────────────────────────────────────────────────────

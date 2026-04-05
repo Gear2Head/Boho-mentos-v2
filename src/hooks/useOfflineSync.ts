@@ -1,58 +1,24 @@
 /**
- * AMAÇ: İnternet geldiğinde yerel verileri (IndexedDB) bulutla (Firebase) senkronize etmek
- * MANTIK: 'online' eventini dinler ve kuyruktaki verileri Firestore'a basar.
+ * AMAÇ: DEVRE DIŞI — Offline sync kuyruğu artık bu hook'ta yönetilmiyor.
+ * MANTIK: FALSEFIX-003 — Eski `indexedDB.ts` queue + `setDoc` sistemi yeni sync mimarisiyle
+ *         çakışıyordu ve yanlış Firestore path'lerine yazabiliyordu (users/{uid}/... standardı).
+ *         Offline replay artık `useSyncManager.ts` üzerinden yönetilmektedir.
  *
- * [BUG-002 FIX]: profile?.id → authUser?.uid
- * StudentProfile tipinde "id" alanı tanımlı değildi. Bu yüzden userId her zaman
- * undefined dönüyor ve hook hiç çalışmıyordu. authUser.uid üzerinden direkt okuma sağlandı.
+ * Emeklilik nedeni:
+ *  - item.collection / item.id bazlı doğrudan setDoc → users/{uid}/... path modeli uyumsuz
+ *  - iki ayrı offline mekanizma (indexedDB.ts + syncQueue.ts) aynı anda çalışıyordu (SYNC-009)
+ *  - auth header taşımadan cloud'a yazıyordu (SYNC-008)
+ *
+ * Bu dosya silinmeden önce kod tabanının bu hook'u import eden yerler temizlenmeli.
+ * Geçici olarak no-op export bırakılmıştır.
  */
 
-import { useEffect } from 'react';
-import { getSyncQueue, clearSyncQueue } from '../services/indexedDB';
-import { db } from '../services/firebase';
-import { setDoc, doc } from 'firebase/firestore';
-import { useAppStore } from '../store/appStore';
-
-export function useOfflineSync() {
-  // [BUG-002 FIX]: authUser.uid kullan, profile.id değil
-  const authUser = useAppStore((s) => s.authUser);
-  const userId = authUser?.uid;
-
-  useEffect(() => {
-    if (!userId) return;
-
-    const syncData = async () => {
-      if (!navigator.onLine) return;
-
-      const queue = await getSyncQueue();
-      if (queue.length === 0) return;
-
-      console.log(`[OfflineSync] ${queue.length} kayıt senkronize ediliyor...`);
-
-      try {
-        for (const item of queue) {
-          if (item.collection && item.id) {
-            await setDoc(doc(db, item.collection, item.id), item.data, {
-              merge: true,
-            });
-          }
-        }
-        await clearSyncQueue();
-        console.log('[OfflineSync] Başarılı.');
-      } catch (err) {
-        console.error('[OfflineSync Error]', err);
-      }
-    };
-
-    window.addEventListener('online', syncData);
-
-    // İlk açılışta online isek hemen kontrol et
-    if (navigator.onLine) {
-      syncData();
-    }
-
-    return () => {
-      window.removeEventListener('online', syncData);
-    };
-  }, [userId]);
+/** @deprecated FALSEFIX-003: Bu hook no-op. useSyncManager.ts kullanın. */
+export function useOfflineSync(): void {
+  // No-op: Eski offline sync kaldırıldı.
+  // Yeni mimaride useSyncManager.ts bu sorumluluğu taşıyor.
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('[useOfflineSync] DEPRECATED: Bu hook artık çalışmıyor. useSyncManager kullanın.');
+  }
 }
+

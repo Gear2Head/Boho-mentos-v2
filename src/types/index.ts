@@ -123,11 +123,14 @@ export interface FailedQuestion {
   imageUrl?: string;
 }
 
+import type { CoachDirective } from './coach';
+
 export interface ChatMessage {
   id?: string;
   role: 'user' | 'coach';
   content: string;
   timestamp: string;
+  directive?: CoachDirective;
 }
 
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';

@@ -1,10 +1,17 @@
 /**
- * AMAÇ: Geliştirici & Süper Admin yetkilerini, rolleri ve kilit UID'yi tanımlamak
- * MANTIK: Güvenlik, Hiyerarşi ve Rol atama kuralları
+ * AMAÇ: Geliştirici & Süper Admin yetkilerini, rolleri ve yetki hiyerarşisini tanımlamak.
+ * MANTIK: Güvenlik tek kaynak — Firebase Auth custom claims. UID sabitleri güvenlik kararı için yasak.
+ * UYARI: FALSEFIX-005 — SUPER_ADMIN_UID artık güvenlik kararı için KULLANILMIYOR.
+ *         Tüm karar noktaları Firebase custom claims üzerinden gidiyor.
+ *         `SUPER_ADMIN_UID` sadece geriye dönük uyumluluk için boş string export olarak bırakıldı.
  */
 
-// Sistemin Sahibi: UID'i değiştirilmez.
-export const SUPER_ADMIN_UID = '9z9OAxBXsFU3oPT8AqIxnDSfzNy2';
+/**
+ * @deprecated FALSEFIX-005: Güvenlik kararları için kullanmayın.
+ * Firebase custom claims (superAdmin: true) tek yetki kaynağıdır.
+ * Bu sabit sadece legacy import'ları kırmamak için tutulmuştur.
+ */
+export const SUPER_ADMIN_UID = '';
 
 export type UserRole = 'super_admin' | 'developer' | 'standard' | 'banned';
 
@@ -15,14 +22,22 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   banned: 0,
 };
 
-/** Prefer Firebase Auth custom claims (`superAdmin`) in production. */
+/**
+ * Firebase Auth custom claims üzerinden super admin kontrolü.
+ * Tek güvenilir yetki kaynağı budur.
+ */
 export function isSuperAdminClaims(claims: Record<string, unknown> | undefined | null): boolean {
   return claims?.superAdmin === true;
 }
 
-export function isSuperAdmin(uid?: string | null): boolean {
-  if (!uid) return false;
-  return uid === SUPER_ADMIN_UID;
+/**
+ * @deprecated FALSEFIX-005: UID karşılaştırması güvenlik açığıdır.
+ * Yeni kodda isSuperAdminClaims() kullanın.
+ * Bu fonksiyon artık her zaman false döner — hardcoded UID kaldırıldı.
+ */
+export function isSuperAdmin(_uid?: string | null): boolean {
+  // FALSEFIX-005: UID bazlı karar kaldırıldı. Claims kullanın.
+  return false;
 }
 
 export function canManageUser(actorRole: UserRole, targetRole: UserRole): boolean {
@@ -51,3 +66,4 @@ export interface FirestoreUser {
 
   notes?: string;
 }
+

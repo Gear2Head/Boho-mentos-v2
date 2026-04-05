@@ -40,6 +40,7 @@ const MebiWarRoom = React.lazy(() => import('./components/MebiWarRoom').then(m =
 
 import { AchievementsPanel } from './components/AchievementsPanel';
 import { CoachInterventionModal } from './components/CoachInterventionModal';
+import { CoachScreen } from './components/coach/CoachScreen';
 import { calcWorkloadRemaining, calcSourceROI, calculatePredictedNet, detectHabitAlerts } from './utils/statistics';
 
 import { LogEntryWidget } from './components/forms/LogEntryWidget';
@@ -324,7 +325,7 @@ export default function App() {
   const { user, isLoading, signOut } = useAuth();
   const { syncStatus, forceSync, isSyncing: isSyncManagerBusy } = useSyncManager(user?.uid);
 
-  const { triggerLogAnalysis, triggerExamDebrief, sendMessage } = useCoachCore();
+  const { triggerLogAnalysis, triggerExamDebrief, sendMessage, isTyping: coachIsTyping } = useCoachCore();
 
   // [UX-003 FIX]: Mobil klavye --vh senkronizasyonu
   useVisualViewportHeight();
@@ -337,7 +338,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
-  const [isTyping, setIsTyping] = useState(false);
+  const isTyping = coachIsTyping;
   const [inputMessage, setInputMessage] = useState('');
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
   const [isLogWidgetOpen, setIsLogWidgetOpen] = useState(false);
@@ -797,7 +798,28 @@ export default function App() {
           </div>
         </nav>
 
-        <main className="flex-1 overflow-auto relative bg-app pb-24 md:pb-0 pt-0">
+        <main className="flex-1 overflow-hidden relative flex flex-col bg-app pb-16 md:pb-0 pt-0">
+          {/* Coach tab renders outside overflow-auto div to maintain full height */}
+          {activeTab === 'coach' && (
+            <motion.div
+              key="coach-standalone"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-1 overflow-hidden h-full"
+            >
+              <CoachScreen
+                isTyping={isTyping}
+                inputMessage={inputMessage}
+                setInputMessage={setInputMessage}
+                onSendMessage={(msg, intent) => handleSendMessage(undefined, msg, intent)}
+                onLogClick={() => setIsLogWidgetOpen(true)}
+                onExamClick={() => setIsExamModalOpen(true)}
+              />
+              {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
+            </motion.div>
+          )}
+          <div className={`flex-1 overflow-auto flex flex-col ${activeTab === 'coach' ? 'hidden' : ''}`}>
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="p-4 md:p-8 max-w-5xl mx-auto">
@@ -1201,39 +1223,22 @@ export default function App() {
             )}
 
             {activeTab === 'coach' && (
-              <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
-                <div className="flex-1 overflow-auto p-4 md:p-8 space-y-6">
-                  {chatHistory.slice().sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] md:max-w-[70%] p-5 rounded-2xl ${msg.role === 'user' ? 'bg-[#C17767] text-[#FDFBF7]' : 'bg-[#121212] border border-green-800/50 shadow-[0_0_15px_rgba(0,128,0,0.05)] text-zinc-300'}`}>
-                        <div className="text-[10px] uppercase font-bold tracking-widest opacity-50 mb-3 border-b border-black/10 dark:border-white/10 pb-2">
-                          {/* [BUG-018 FIX]: COACH_NAME sabiti */}
-                          {msg.role === 'user' ? `${profile.name} - ${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : COACH_SYSTEM_NAME}
-                        </div>
-                        <div className="text-sm font-mono leading-relaxed opacity-90 tracking-wide"><ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown></div>
-                      </div>
-                    </div>
-                  ))}
-                  {isTyping && <div className="p-5 max-w-xs border border-green-800/50 rounded-2xl bg-[#121212] flex items-center gap-3"><Loader2 size={16} className="animate-spin text-green-500" /><span className="text-xs uppercase font-bold tracking-widest text-zinc-500">{COACH_SYSTEM_NAME} analiz ediyor...</span></div>}
-                  <div ref={chatEndRef} />
-                </div>
-
-                <div className="p-4 md:p-8 border-t border-[#2A2A2A] bg-[#1A1A1A]">
-                  {/* Hızlı Butonlar */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <button onClick={() => setIsLogWidgetOpen(true)} className="px-3 py-1.5 border border-[#C17767] text-[#C17767] bg-[#C17767]/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-[#C17767] hover:text-white transition-colors">+ LOG</button>
-                    <button onClick={() => handleSendMessage(undefined, "ANALİZ ET")} className="px-3 py-1.5 border border-amber-600 text-amber-500 bg-amber-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-amber-600 hover:text-white transition-colors">+ ANALİZ ET</button>
-                    <button onClick={() => setIsExamModalOpen(true)} className="px-3 py-1.5 border border-red-600 text-red-500 bg-red-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-red-600 hover:text-white transition-colors">- DENEME</button>
-                    <button onClick={() => handleSendMessage(undefined, "ANLA")} className="px-3 py-1.5 border border-zinc-600 text-zinc-400 bg-zinc-600/10 text-[10px] uppercase font-bold tracking-widest rounded-md hover:bg-zinc-600 hover:text-white transition-colors">+ ANLA</button>
-                  </div>
-
-                  {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
-
-                  <form onSubmit={handleSendMessage} className="flex gap-4 items-center">
-                    <input value={inputMessage} onChange={e => setInputMessage(e.target.value)} placeholder="Komut gir veya mesaj yaz..." className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-4 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors" />
-                    <button type="submit" disabled={isTyping} className="w-12 h-12 bg-[#2A2A2A] text-zinc-400 hover:text-[#C17767] border border-[#333] flex justify-center items-center rounded-xl transition-colors shrink-0 disabled:opacity-50"><Send size={18} className="transform -translate-y-px translate-x-px" /></button>
-                  </form>
-                </div>
+              <motion.div
+                key="coach"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="h-full overflow-hidden"
+              >
+                <CoachScreen
+                  isTyping={isTyping}
+                  inputMessage={inputMessage}
+                  setInputMessage={setInputMessage}
+                  onSendMessage={(msg, intent) => handleSendMessage(undefined, msg, intent)}
+                  onLogClick={() => setIsLogWidgetOpen(true)}
+                  onExamClick={() => setIsExamModalOpen(true)}
+                />
+                {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
               </motion.div>
             )}
 
@@ -1363,7 +1368,7 @@ export default function App() {
                             onClick={() => store.setSubjectViewMode('map')}
                             className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${store.subjectViewMode === 'map' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
                           >
-                            Harita
+                            Gelişmiş Liste
                           </button>
                         </div>
                       </div>
@@ -1426,6 +1431,7 @@ export default function App() {
             )}
 
           </AnimatePresence>
+          </div>
         </main>
         <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={store.profile!.track} onSave={(exam) => { store.addExam(exam); setIsExamModalOpen(false); store.unlockTrophy('first_blood'); }} />
         <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={store.isDevMode} />

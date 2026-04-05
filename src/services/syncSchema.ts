@@ -100,10 +100,12 @@ export function buildSyncPayload(state: Partial<AppState>): SyncPayload {
   }
 
   // Entity subcollections
+  // BUILD-004: DirectiveRecord[] gibi strongly-typed diziler doğrudan cast edilemiyor.
+  // unknown aracılığıyla çift-cast: T[] → unknown[] → Record<string, unknown>[]
   for (const [storeKey, subcollection] of Object.entries(ENTITY_SUBCOLLECTIONS)) {
     const arr = state[storeKey as keyof AppState];
     if (Array.isArray(arr)) {
-      entities[subcollection] = arr as Array<Record<string, unknown>>;
+      entities[subcollection] = (arr as unknown[]) as Array<Record<string, unknown>>;
     }
   }
 

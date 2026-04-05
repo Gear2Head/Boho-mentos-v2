@@ -23,13 +23,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
-import {
-  completeTask,
-  skipTask,
-  updateInHistory,
-  calcComplianceRate,
-} from '../services/directiveHistory';
-import type { CoachIntent } from '../types/coach';
+import { completeTask, skipTask, updateInHistory, calcComplianceRate } from '../services/directiveHistory';
+import type { CoachIntent, DirectiveRecord } from '../types/coach';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -168,7 +163,8 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
           <div className="space-y-3">
             {lastCoachDirective.tasks.map((task, i) => {
               const isDone = task.status === 'completed';
-              const isSkipped = task.status === 'skipped';
+              // COACH-CORE-002: 'skipped' kaldırıldı — 'deferred' kullan
+              const isSkipped = task.status === 'deferred' || task.status === 'cancelled';
               const isDimmed = isDone || isSkipped;
 
               return (

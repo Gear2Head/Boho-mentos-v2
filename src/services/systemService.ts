@@ -47,10 +47,11 @@ export async function toggleMaintenanceMode(actorUid: string, actorRole: UserRol
       updatedAt: new Date().toISOString()
     }, { merge: true });
 
-    await logAdminAction(actorUid, actorRole, 'SYSTEM', enabled ? 'ENABLE_MAINTENANCE' : 'DISABLE_MAINTENANCE');
+    await logAdminAction({ actorUid, actorRole, targetUid: 'SYSTEM', action: enabled ? 'ENABLE_MAINTENANCE' : 'DISABLE_MAINTENANCE', result: 'success' });
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: msg };
   }
 }
 
@@ -65,10 +66,11 @@ export async function setGlobalAnnouncement(actorUid: string, actorRole: UserRol
       updatedAt: new Date().toISOString()
     }, { merge: true });
 
-    await logAdminAction(actorUid, actorRole, 'SYSTEM', 'SET_ANNOUNCEMENT', { message });
+    await logAdminAction({ actorUid, actorRole, targetUid: 'SYSTEM', action: 'SET_ANNOUNCEMENT', details: { message }, result: 'success' });
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: msg };
   }
 }
 

@@ -3,11 +3,13 @@
  * MANTIK: sourceName alanı eklenerek kaynak ROI takibi destekleniyor
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Mic, Camera, BookOpen } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../../constants';
 import type { DailyLog } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
+import confetti from 'canvas-confetti';
 
 interface LogEntryWidgetProps {
   onSubmit: (log: DailyLog) => void;
@@ -31,6 +33,12 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
   const availableSubjects = Object.keys(subjectsMap);
   const availableTopics = subject ? subjectsMap[subject] || [] : [];
 
+  // Lock body scroll when open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = 'auto'; };
+  }, []);
+
   const handleManualSubmit = () => {
     if (!subject || !topic || correct === '' || wrong === '' || empty === '' || time === '') {
       toast.warning('Lütfen zorunlu alanları (Ders, Konu, Soru Dağılımı ve Süre) doldurunuz.');
@@ -51,6 +59,14 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
       sourceName: sourceName.trim() || undefined,
     };
 
+    // Confetti celebration
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.8 },
+      colors: ['#C17767', '#A56253', '#ffffff']
+    });
+
     onSubmit(log);
   };
 
@@ -63,21 +79,49 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
   };
 
   return (
-    <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-6 mb-6 shadow-2xl relative">
-      <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#2A2A2A]">
-        <h4 className="font-serif italic text-xl text-[#C17767]">Günlük Çalışma Logu</h4>
-        <div className="flex items-center gap-2">
-          <button onClick={handleVoiceLog} className="flex items-center gap-2 px-3 py-1.5 bg-[#2A2A2A] text-[#C17767] rounded hover:bg-[#333] transition-colors text-[10px] font-bold tracking-widest uppercase">
-            <Mic size={14} /> Sesli Log
-          </button>
-          <button onClick={handleOcrLog} className="flex items-center gap-2 px-3 py-1.5 bg-[#2A2A2A] text-zinc-300 rounded hover:bg-[#333] transition-colors text-[10px] font-bold tracking-widest uppercase">
-            <Camera size={14} /> OCR
-          </button>
-          <button onClick={onCancel} className="p-1.5 ml-2 text-zinc-500 hover:text-white transition-colors">
-            <X size={18}/>
-          </button>
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      {/* Backdrop */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onCancel}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+      
+      {/* Bottom Sheet */}
+      <motion.div 
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        drag="y"
+        dragConstraints={{ top: 0 }}
+        dragElastic={0.2}
+        onDragEnd={(e, { offset, velocity }) => {
+          if (offset.y > 150 || velocity.y > 500) {
+            onCancel();
+          }
+        }}
+        className="relative bg-[#1A1A1A] border-t border-[#2A2A2A] rounded-t-3xl p-6 pb-safe w-full max-w-3xl mx-auto shadow-2xl max-h-[90vh] overflow-y-auto"
+      >
+        {/* Drag handle line */}
+        <div className="w-12 h-1.5 bg-zinc-700 rounded-full mx-auto mb-6 opacity-50 cursor-grab active:cursor-grabbing" />
+        
+        <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#2A2A2A]">
+          <h4 className="font-serif italic text-xl text-[#C17767]">Günlük Çalışma Logu</h4>
+          <div className="flex items-center gap-2">
+            <button onClick={handleVoiceLog} className="flex items-center gap-2 px-3 py-1.5 bg-[#2A2A2A] text-[#C17767] rounded hover:bg-[#333] transition-colors text-[10px] font-bold tracking-widest uppercase">
+              <Mic size={14} /> Sesli Log
+            </button>
+            <button onClick={handleOcrLog} className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#2A2A2A] text-zinc-300 rounded hover:bg-[#333] transition-colors text-[10px] font-bold tracking-widest uppercase">
+              <Camera size={14} /> OCR
+            </button>
+            <button onClick={onCancel} className="p-1.5 ml-2 text-zinc-500 hover:text-white transition-colors bg-zinc-900 rounded-full">
+              <X size={18}/>
+            </button>
+          </div>
         </div>
-      </div>
 
       <div className="space-y-6">
         {/* Sınav Tipi */}
@@ -209,6 +253,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
           LOG KAYDET VE ANALİZ ET
         </button>
       </div>
+      </motion.div>
     </div>
   );
 }

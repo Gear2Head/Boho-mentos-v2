@@ -1,37 +1,67 @@
 /**
  * AMAÇ: Merkezi Koç Prompt Builder — tüm AI yüzeyleri bu modülden türetilir.
- * MANTIK: Intent bazlı prompt şablonları + context enjeksiyonu + JSON format talimatı.
- * UYARI: Prompt değişiklikleri tek yerden yönetilir; api/ai.ts ve gemini.ts bu modülü kullanmalı.
- *
- * [COACH-004 FIX]: Dağınık prompt mantığı tek merkezi modüle taşındı.
+ * MANTIK: Intent bazlı tip-güvenli prompt şablonları + context enjeksiyonu + JSON format talimatı.
+ * UYARI: BUILD-003 fix — Record<CoachIntent, string> tip-güvenli; hiçbir intent fallback'e düşmez.
+ *         Prompt değişiklikleri tek yerden yönetilir; api/ai.ts ve gemini.ts bu modülü kullanmalı.
  */
 
 import type { CoachIntent, CoachSystemContext } from '../types/coach';
 
 export const COACH_PERSONA_BASE = `Sen "Kübra"sın — YKS koçusun. Sert, analitik, mazeret kabul etmeyen ama toksik olmayan bir disiplin anlayışıyla çalışırsın. Veriyle konuşursun, duyguyla değil.`;
 
+/**
+ * BUILD-003: Record<CoachIntent, string> — tüm intent'lerin karşılığı zorunlu.
+ * Typecheck eksik intent varsa derleme hatası verir; fallback gizlenmez.
+ */
 const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   daily_plan: `Öğrencinin mevcut durumunu analiz ederek bugün için somut bir çalışma planı oluştur. Konu, süre ve öncelik sırasını belirt. Gerekçeni göster.`,
   log_analysis: `Girilen log verisini incele. Doğruluk oranı, hız, yorgunluk ve alışkanlık örüntülerini analiz et. 3 maddeli aksiyon planı çıkar.`,
   exam_analysis: `Deneme sonucunu hedefle karşılaştır. Güçlü ve zayıf konuları tespit et. Eksik konulara yönelik priorite sırası belirle.`,
+  exam_debrief: `Son deneme savaş raporu: konu bazlı kayıplar, tuzak şıklar, hedefle mevcut fark, en riskli 2 ders, korunacak 1 alan, 48 saatlik telafi planı ve tekrar backlog'u çıkar. Sonuç somut görev listesi olmalı.`,
   topic_explain: `Konuyu net ve sade dille açıkla. Türkiye müfredatı bağlamında YKS'ye özgü ipuçları ve yaygın tuzaklar hakkında bilgi ver.`,
-  intervention: `Acil müdahale gerekiyor. Öğrencinin düşen verimini veya tehlikeli alışkanlığını doğrudan ve sert biçimde ele al. Empati değil, eylem.`,
+  intervention: `Acil müdahale gerekiyor. Öğrencinin düşen verimini veya tehlikeli alışkanlığını doğrudan ve sert biçimde ele al. Empati değil, eylem — somut ve ölçülebilir.`,
   qa_mode: `YKS Asistanı modundasın. Kısa, teknik ve net cevap ver. Kaynak odaklı konuş. Gereksiz methiye veya motivasyon konuşması yapma.`,
   free_chat: `Öğrenci seninle serbest konuşuyor. YKS hedefleriyle ilişkilendirerek yanıt ver ama zorlama. Kısa ve samimi ol.`,
+  war_room_analysis: `War Room simülasyonu bitti. Soru bazlı hata analizi yap: hatalı soruların ortak paydası nedir, hangi konu/tip tuzak, doğruluk oranı ve hız dengesi nasıl. Konuya özgü 3 somut aksiyon ver.`,
+  weekly_review: `Haftalık retrospektif: Ne oldu (veri), neden oldu (örüntü analizi), gelecek hafta ne değişecek (somut 3 karar). Net veriyle konuş, tahmin değil gözlem.`,
+  micro_feedback: `Log kaydedildi. Maksimum 3 cümle: 1 kısa özet (ne yapıldı, nasıl gitti) + 1 risk tespiti + 1 sonraki adım. Gereksiz övgü yasak.`,
 };
 
+
+/**
+ * Directive çıktısı için tam JSON şema talimatı.
+ * BUILD-003: Schema güncel CoachTask alanlarını kapsar.
+ */
 const STRUCTURED_JSON_INSTRUCTION = `
 ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:
 {
   "headline": "Tek cümlelik genel değerlendirme",
   "summary": "2-3 cümlelik özet",
   "tasks": [
-    { "priority": "high|medium|low", "subject": "ders", "topic": "konu", "action": "yapılacak iş", "targetMinutes": 45 }
+    {
+      "id": "uuid-benzeri-id",
+      "title": "Kısa görev başlığı",
+      "priority": "high|medium|low",
+      "subject": "ders",
+      "topic": "konu",
+      "action": "yapılacak iş detayı",
+      "targetMinutes": 45,
+      "targetQuestions": 20,
+      "dueWindow": "today|tomorrow|this_week",
+      "rationale": "1 satır veri temelli gerekçe",
+      "successCriteria": "başarı ölçütü",
+      "originSurface": "coach|strategy|warroom|system"
+    }
   ],
   "warnings": [
-    { "type": "avoidance|memorization_risk|time_loss|low_accuracy|streak_break", "message": "uyarı", "severity": "info|warning|critical" }
+    {
+      "type": "avoidance|memorization_risk|time_loss|low_accuracy|streak_break|burnout_risk|target_gap",
+      "message": "uyarı",
+      "severity": "info|warning|critical"
+    }
   ],
-  "followUpQuestion": "Bir sonraki seansta sorulacak soru"
+  "followUpQuestion": "Bir sonraki seansta sorulacak soru",
+  "confidence": 75
 }
 `;
 

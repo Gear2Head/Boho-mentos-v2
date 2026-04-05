@@ -143,6 +143,7 @@ export function useCoachCore(): UseCoachCoreReturn {
           role: 'coach',
           content: cleanText,
           timestamp: new Date().toISOString(),
+          directive: directive
         });
 
         return { text: cleanText, directive };

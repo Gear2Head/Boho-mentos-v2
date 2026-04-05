@@ -1,0 +1,1 @@
+﻿src/components/CoachBriefing.tsx(166,33): error TS2367: This comparison appears to be unintentional because the types 'TaskStatus' and '"skipped"' have no overlap.

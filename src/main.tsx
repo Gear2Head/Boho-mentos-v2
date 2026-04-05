@@ -3,15 +3,22 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// --- BEYAZ EKRAN (CACHE/SW) RESETLEYICI ---
+/**
+ * OPS-001: Localhost ortamında otomatik cache temizleme KALDIRILDI.
+ * Artık yalnızca açık developer flag (BOHO_DEV_AGGRESSIVE_RESET=true) ile tetiklenir.
+ * Eski davranış test verisini habersizce siliyordu.
+ */
 if (typeof window !== 'undefined') {
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  if (isLocal) {
+  // OPS-001: Agresif cache sıfırlama flag'e bağlandı — env üzerinden açılır
+  const aggressiveReset = isLocal && import.meta.env.VITE_DEV_AGGRESSIVE_RESET === 'true';
+
+  if (aggressiveReset) {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const registration of registrations) {
           registration.unregister();
-          console.warn('SW Unregistered.');
+          console.warn('[DEV] SW Unregistered (dev flag aktif).');
         }
       });
     }
@@ -20,13 +27,21 @@ if (typeof window !== 'undefined') {
     if (!localStorage.getItem(REFRESH_KEY)) {
       if ('caches' in window) {
         caches.keys().then((names) => {
-          Promise.all(names.map(name => caches.delete(name))).then(() => {
+          Promise.all(names.map((name) => caches.delete(name))).then(() => {
             localStorage.setItem(REFRESH_KEY, 'true');
+            console.warn('[DEV] Cache temizlendi. Sayfa yenileniyor...');
             window.location.reload();
           });
         });
       }
     }
+  } else if (isLocal && 'serviceWorker' in navigator) {
+    // Local'de SW'yi sessizce unregister et ama cache silme
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+      }
+    });
   }
 }
 

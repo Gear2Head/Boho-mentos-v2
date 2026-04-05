@@ -1,17 +1,23 @@
 /**
  * AMAÇ: AdminPanelModal (Dev Console) içerisinde kullanılacak reaktif hook.
  * MANTIK: Güvenlik, Yükleme durumları (Loaders) ve Arama/Seçme durumlarını bağlar.
+ * UYARI: FALSEFIX-006 — useAuth() kaldırıldı. Auth state store'dan okunuyor.
+ *         İkinci auth listener riski ortadan kalktı.
  */
 
 import { useState, useCallback } from 'react';
-import { useAuth } from './useAuth';
-import { isSuperAdmin, FirestoreUser, UserRole } from '../config/admin';
+import { useAppStore } from '../store/appStore';
+import { isSuperAdminClaims, FirestoreUser, UserRole } from '../config/admin';
 import * as devService from '../services/developerService';
 import * as systemService from '../services/systemService';
 
 export function useAdminPanel() {
-  const { user } = useAuth(); // from app auth store wrapper
-  const hasAccess = user && isSuperAdmin(user.uid);
+  // FALSEFIX-006: useAuth() yerine store'dan direkt oku — ikinci listener açılmıyor
+  const authUser = useAppStore((s) => s.authUser);
+  const hasAccess = authUser != null && isSuperAdminClaims(
+    // claims store'da varsa oradan, yoksa false
+    (authUser as { claims?: Record<string, unknown> }).claims ?? null
+  );
 
   const [searchResults, setSearchResults] = useState<FirestoreUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<FirestoreUser | null>(null);
@@ -65,13 +71,15 @@ export function useAdminPanel() {
     setIsSearching(false);
   }, [hasAccess]);
 
-  const changeRole = (targetUid: string, role: UserRole) => _runAction(() => devService.changeUserRole(user.uid, 'super_admin', targetUid, role), 'Kullanıcı Rolü Güncellendi.');
-  const banUser = (targetUid: string, reason: string) => _runAction(() => devService.toggleBan(user.uid, 'super_admin', targetUid, true, reason), 'Kullanıcı IP/Hesap olarak Banlandı.');
-  const unbanUser = (targetUid: string) => _runAction(() => devService.toggleBan(user.uid, 'super_admin', targetUid, false), 'Kullanıcı engeli kaldırıldı.');
+  const actorUid = authUser?.uid ?? '';
+
+  const changeRole = (targetUid: string, role: UserRole) => _runAction(() => devService.changeUserRole(actorUid, 'super_admin', targetUid, role), 'Kullanıcı Rolü Güncellendi.');
+  const banUser = (targetUid: string, reason: string) => _runAction(() => devService.toggleBan(actorUid, 'super_admin', targetUid, true, reason), 'Kullanıcı IP/Hesap olarak Banlandı.');
+  const unbanUser = (targetUid: string) => _runAction(() => devService.toggleBan(actorUid, 'super_admin', targetUid, false), 'Kullanıcı engeli kaldırıldı.');
   
   const addElo = (targetUid: string, amount: number) => _runAction(async () => {
-    const res = await devService.injectElo(user.uid, 'super_admin', targetUid, amount);
-    if (res.success && targetUid === user.uid) {
+    const res = await devService.injectElo(actorUid, 'super_admin', targetUid, amount);
+    if (res.success && targetUid === actorUid) {
        // Kendi kendisine vuruyorsa frontend arayüzündeki (Dashboard) rakamı o an GÜNCELLE
        import('../store/appStore').then(({ useAppStore }) => {
           useAppStore.getState().addElo(amount);
@@ -80,9 +88,9 @@ export function useAdminPanel() {
     return res;
   }, `Sisteme ${amount} ELO enjekte edildi.`);
 
-  const clearLogs = (targetUid: string) => _runAction(() => devService.clearUserLogs(user.uid, 'super_admin', targetUid), 'Kullanıcının tüm Log kayıtları tamamen silindi.');
-  const mockWarRoom = (targetUid: string) => _runAction(() => devService.pushMockWarRoomSession(user.uid, 'super_admin', targetUid), 'Kullanıcı sahte (Mock) deneme sınav verisi aldı.');
-  const repairProfile = (targetUid: string) => _runAction(() => devService.repairProfileDoc(user.uid, 'super_admin', targetUid), 'Zede gören veya olmayan Profil veri tabanına ZORLA yazıldı (Onarıldı).');
+  const clearLogs = (targetUid: string) => _runAction(() => devService.clearUserLogs(actorUid, 'super_admin', targetUid), 'Kullanıcının tüm Log kayıtları tamamen silindi.');
+  const mockWarRoom = (targetUid: string) => _runAction(() => devService.pushMockWarRoomSession(actorUid, 'super_admin', targetUid), 'Kullanıcı sahte (Mock) deneme sınav verisi aldı.');
+  const repairProfile = (targetUid: string) => _runAction(() => devService.repairProfileDoc(actorUid, 'super_admin', targetUid), 'Zede gören veya olmayan Profil veri tabanına ZORLA yazıldı (Onarıldı).');
 
   /* --- SYSTEM ACTIONS --- */
   const loadSystemData = useCallback(async () => {
@@ -102,11 +110,11 @@ export function useAdminPanel() {
   }, [hasAccess]);
 
   const toggleMaintenance = (enabled: boolean) => 
-    _runAction(() => systemService.toggleMaintenanceMode(user.uid, 'super_admin', enabled), 
+    _runAction(() => systemService.toggleMaintenanceMode(actorUid, 'super_admin', enabled), 
     `Bakım Modu ${enabled ? 'AÇILDI' : 'KAPATILDI'}.`);
 
   const updateAnnouncement = (msg: string | null) => 
-    _runAction(() => systemService.setGlobalAnnouncement(user.uid, 'super_admin', msg), 
+    _runAction(() => systemService.setGlobalAnnouncement(actorUid, 'super_admin', msg), 
     'Global Duyuru Güncellendi.');
 
   return {
