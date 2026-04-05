@@ -287,13 +287,19 @@ function memRateLimit(ip: string): { ok: boolean; retryAfterMs?: number } {
 }
 
 async function checkRateLimit(ip: string): Promise<{ ok: boolean; retryAfterMs?: number }> {
-  if (persistentRateLimit) {
-    const res = await persistentRateLimit.limit(ip);
-    if (!res.success) {
-      const ms = typeof res.reset === 'number' ? Math.max(res.reset - Date.now(), 0) : 1000;
-      return { ok: false, retryAfterMs: ms };
+  try {
+    if (persistentRateLimit) {
+      const res = await persistentRateLimit.limit(ip);
+      if (!res.success) {
+        const ms = typeof res.reset === 'number' ? Math.max(res.reset - Date.now(), 0) : 1000;
+        return { ok: false, retryAfterMs: ms };
+      }
+      return { ok: true };
     }
-    return { ok: true };
+  } catch (err) {
+    console.error('[AI] Rate limiter Redis error:', err);
+    // Fallback to in-memory on Redis failure
+    return memRateLimit(ip);
   }
   // Upstash yoksa in-memory (cold start sıfırlanır — sadece geliştirme ortamı)
   if (!persistentRateLimit) {
@@ -302,8 +308,12 @@ async function checkRateLimit(ip: string): Promise<{ ok: boolean; retryAfterMs?:
   return memRateLimit(ip);
 }
 
-function getClientIp(req: { headers?: Record<string, string | undefined>; socket?: { remoteAddress?: string } }): string {
-  const fwd = (req.headers?.['x-forwarded-for'] as string | undefined) ?? '';
+function getClientIp(req: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }): string {
+  let fwd = req.headers?.['x-forwarded-for'];
+  if (Array.isArray(fwd)) {
+    fwd = fwd[0];
+  }
+  fwd = (fwd as string | undefined) ?? '';
   return fwd.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
 }
 
@@ -317,33 +327,33 @@ export default async function handler(
     end: (body: string) => void;
   }
 ): Promise<void> {
-  if ((req.method as string) !== 'POST') {
-    res.statusCode = 405;
-    res.end(JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
-    return;
-  }
-
-  const rl = await checkRateLimit(getClientIp(req as never));
-  if (!rl.ok) {
-    res.statusCode = 429;
-    res.setHeader('Retry-After', String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)));
-    res.end(JSON.stringify({ error: 'RATE_LIMITED' }));
-    return;
-  }
-
-  const rawBody =
-    typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
-
-  let body: AiRequestBody;
   try {
-    body = JSON.parse(rawBody) as AiRequestBody;
-  } catch {
-    res.statusCode = 400;
-    res.end(JSON.stringify({ error: 'INVALID_JSON' }));
-    return;
-  }
+    if ((req.method as string) !== 'POST') {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
+      return;
+    }
 
-  try {
+    const rl = await checkRateLimit(getClientIp(req as never));
+    if (!rl.ok) {
+      res.statusCode = 429;
+      res.setHeader('Retry-After', String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)));
+      res.end(JSON.stringify({ error: 'RATE_LIMITED' }));
+      return;
+    }
+
+    const rawBody =
+      typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+
+    let body: AiRequestBody;
+    try {
+      body = JSON.parse(rawBody) as AiRequestBody;
+    } catch {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: 'INVALID_JSON' }));
+      return;
+    }
+
     // Voice log ayrı akış
     if (body.action === 'parseVoiceLog' || body.transcript) {
       const transcript = String(body.transcript ?? '');
