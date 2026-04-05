@@ -8,17 +8,15 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { openDB } from 'idb';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import { toISODateOnly, toISODateTime, toDateMs } from '../utils/date';
-import { tombstoneEntity, pushSingleEntity } from '../services/firestoreSync';
+import { tombstoneEntity, pushSingleEntity, pushToFirestore } from '../services/firestoreSync';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
   HabitAlert, WarRoomMode, WarRoomSession, AuthUser, AtlasProgram, AppNotification
 } from '../types';
 
-/** [BUG-018 FIX]: Tek merkezi isim sabitleri — UI'da tutarsız etiket kalmaması için */
 export const COACH_NAME = 'Kübra';
 export const COACH_SYSTEM_NAME = 'Gear_Head.Kübra';
-
 
 export interface QASession {
   scenario: 'plan' | 'log' | 'exam' | 'topic';
@@ -54,16 +52,6 @@ const idbStorage: StateStorage = {
       await db.put('keyval', value, name);
     } catch (err) {
       console.error('IDB write failed', err);
-      // Kullanıcıya görünür hata üret (persist başarısızsa veri kaybı riski var)
-      try {
-        useAppStore.getState().addNotification({
-          type: 'error',
-          title: 'Depolama Hatası',
-          message: 'Veriler yerel olarak kaydedilemedi. Tarayıcı depolaması engellenmiş olabilir.'
-        });
-      } catch {
-        // rehydrate öncesi gibi durumlarda sessizce geç
-      }
     }
   },
   removeItem: async (name: string): Promise<void> => {
@@ -72,15 +60,6 @@ const idbStorage: StateStorage = {
       await db.delete('keyval', name);
     } catch (err) {
       console.error('IDB remove failed', err);
-      try {
-        useAppStore.getState().addNotification({
-          type: 'warning',
-          title: 'Depolama Uyarısı',
-          message: 'Yerel depolamada silme işlemi başarısız oldu.'
-        });
-      } catch {
-        // ignore
-      }
     }
   },
 };
@@ -110,18 +89,15 @@ export interface AppState {
   qaSession: QASession | null;
   drawingMode: 'pointer' | 'pen' | 'eraser';
   
-  // [SYNC-FIX]: Senkronizasyon durumu
   isSyncing: boolean;
   lastLocalUpdateAt: string;
   setSyncing: (isSyncing: boolean) => void;
 
-  // [NOTIF]: Bildirim merkezi
   notifications: AppNotification[];
   addNotification: (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
   markNotificationAsRead: (id: string) => void;
   clearNotifications: () => void;
 
-  /** [BUG-010 FIX]: MorningBlocker kilit tarihi — sessionStorage yerine persist store */
   morningUnlockedDate: string;
   setMorningUnlockedDate: (date: string) => void;
 
@@ -129,7 +105,11 @@ export interface AppState {
   updateTytSubject: (index: number, updates: Partial<SubjectStatus>) => void;
   updateAytSubject: (originalIndex: number, updates: Partial<SubjectStatus>) => void;
   addLog: (log: DailyLog) => void;
+  removeLog: (id: string) => void;
+  updateLog: (id: string, updates: Partial<DailyLog>) => void;
   addExam: (exam: ExamResult) => void;
+  removeExam: (id: string) => void;
+  updateExam: (id: string, updates: Partial<ExamResult>) => void;
   addChatMessage: (message: ChatMessage) => void;
   setPassiveMode: (isPassive: boolean) => void;
   addFailedQuestion: (question: FailedQuestionInput) => void;
@@ -137,8 +117,6 @@ export interface AppState {
   removeFailedQuestion: (id: string) => void;
   unlockTrophy: (trophyId: string) => void;
   setMorningBlockerEnabled: (enabled: boolean) => void;
-  removeExam: (id: string) => void;
-  updateExam: (id: string, updates: Partial<ExamResult>) => void;
   addElo: (amount: number) => void;
   addFocusSession: (record: FocusSessionRecord) => void;
   addAgendaEntry: (entry: AgendaEntry) => void;
@@ -146,7 +124,12 @@ export interface AppState {
   removeAgendaEntry: (id: string) => void;
   dismissAlert: (id: string) => void;
   detectAndSetHabits: () => void;
-  resetStore: () => void;
+  completeCoachTask: (recordId: string, taskIndex: number) => void;
+  deferCoachTask: (recordId: string, taskIndex: number, reason?: string) => void;
+  failCoachTask: (recordId: string, taskIndex: number, reason?: string) => void;
+  startRecoveryFlow: () => void;
+  generateStrategyPlan: () => void;
+  hardReset: (scope?: 'full' | 'ui' | 'all-data') => void;
   isDevMode: boolean;
   setDevMode: (enabled: boolean) => void;
   subjectViewMode: 'list' | 'map';
@@ -162,11 +145,9 @@ export interface AppState {
   bulkMasterTytSubjectsByName: (subjectName: string) => void;
   bulkMasterAytSubjectsByName: (subjectName: string) => void;
 
-  // [COACH-006 FIX]: Offline direktif cache
   lastCoachDirective: import('../types/coach').CoachDirective | null;
   setLastCoachDirective: (directive: import('../types/coach').CoachDirective | null) => void;
 
-  // V19: Directive history (chat'ten bağımsız kalıcı hafıza)
   directiveHistory: import('../types/coach').DirectiveRecord[];
   coachMemory: import('../types/coach').CoachMemory | null;
 
@@ -232,7 +213,7 @@ const INITIAL_STATE = {
   lastEloUpdateDate: toISODateOnly(),
   streakDays: 0,
   isMorningBlockerEnabled: true,
-  morningUnlockedDate: '', // [BUG-010 FIX]: Persist edilen kilit tarihi
+  morningUnlockedDate: '',
   focusSessions: [],
   agendaEntries: [],
   activeAlerts: [],
@@ -253,7 +234,6 @@ const INITIAL_STATE = {
   notifications: [],
   hasHydrated: false,
   lastCoachDirective: null,
-  // V19: Directive history ve coach memory
   directiveHistory: [] as import('../types/coach').DirectiveRecord[],
   coachMemory: null as import('../types/coach').CoachMemory | null,
 };
@@ -307,9 +287,9 @@ function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
 
   const recentNets = logs.slice(-10);
   if (recentNets.length >= 5) {
-    const netIncreasing = recentNets.slice(-3).every((l, i, arr) => i === 0 || (l.correct / l.questions) >= (arr[i - 1].correct / arr[i - 1].questions));
-    const speedDecreasing = recentNets.slice(-3).every((l, i, arr) => i === 0 || l.avgTime >= arr[i - 1].avgTime);
-    if (netIncreasing && speedDecreasing) {
+    const accuracy = recentNets.slice(-3).every((l, i, arr) => i === 0 || (l.correct / l.questions) >= (arr[i - 1].correct / arr[i - 1].questions));
+    const speed = recentNets.slice(-3).every((l, i, arr) => i === 0 || l.avgTime >= arr[i - 1].avgTime);
+    if (accuracy && speed) {
       alerts.push({
         id: `memorization_${Date.now()}`,
         type: 'memorization_risk',
@@ -343,209 +323,116 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       ...INITIAL_STATE,
 
-      resetStore: () => {
-        set(INITIAL_STATE);
-      },
-
-      setProfile: (profile) => set({ profile }),
-
-      setDrawingMode: (mode: 'pointer' | 'pen' | 'eraser') => set({ drawingMode: mode }),
-
-      setWarRoomMode: (warRoomMode) => set({ warRoomMode }),
-
-      setWarRoomSession: (session) => set({
-        warRoomSession: session,
-        warRoomAnswers: {},
-        warRoomEliminated: {},
-        warRoomTimeLeft: 0,
-      }),
-
-      setWarRoomTimeLeft: (time) => set((state) => ({
-        warRoomTimeLeft: typeof time === 'function' ? time(state.warRoomTimeLeft) : time,
-      })),
-
-      setSelectedAnswer: (questionId, answer) => set((state) => ({
-        warRoomAnswers: { ...state.warRoomAnswers, [questionId]: answer },
-      })),
-
-      toggleEliminatedOption: (questionId, optionIndex) => set((state) => {
-        const current = state.warRoomEliminated[questionId] ?? [];
-        const next = current.includes(optionIndex)
-          ? current.filter((i) => i !== optionIndex)
-          : [...current, optionIndex];
-        return { warRoomEliminated: { ...state.warRoomEliminated, [questionId]: next } };
-      }),
-
-      updateWarRoomAnswer: (questionId, answer) => set((state) => ({
-        warRoomAnswers: { ...state.warRoomAnswers, [questionId]: answer },
-      })),
-
-      setAuthUser: (authUser) => set({ authUser }),
-
-      signOut: async () => {
-        set({ authUser: null });
-        get().resetStore();
-      },
-
-      setDevMode: (isDevMode) => set({ isDevMode }),
-      setLastCoachDirective: (directive) => set({ lastCoachDirective: directive }),
-      setSubjectViewMode: (subjectViewMode) => set({ subjectViewMode }),
-      setTheme: (theme) => {
-        set({ theme });
-        if (typeof document !== 'undefined') {
-          const html = document.documentElement;
-          if (theme === 'dark') {
-            html.classList.add('dark');
-            html.classList.remove('light');
-          } else {
-            html.classList.remove('dark');
-            html.classList.add('light');
-          }
-          html.style.colorScheme = theme;
+      hardReset: (scope = 'full') => {
+        if (scope === 'full') {
+          set(INITIAL_STATE);
+        } else if (scope === 'ui') {
+          set({
+            isSyncing: false,
+            notifications: [],
+            isFocusSidePanelOpen: false,
+            qaSession: null,
+            warRoomMode: 'setup',
+            warRoomSession: null,
+          });
+        } else if (scope === 'all-data') {
+          set({
+            logs: [],
+            exams: [],
+            failedQuestions: [],
+            agendaEntries: [],
+            focusSessions: [],
+            chatHistory: [],
+            directiveHistory: [],
+            coachMemory: null,
+            lastCoachDirective: null,
+          });
         }
       },
-      qaSession: null,
-      setQaSession: (session) => set({ qaSession: session }),
-      updateQaAnswer: (qIdx, ans) => set((s) => {
-        if (!s.qaSession) return s;
-        return {
-          qaSession: {
-            ...s.qaSession,
-            answers: { ...s.qaSession.answers, [qIdx]: ans }
-          }
-        };
-      }),
-      isFocusSidePanelOpen: false,
-      setFocusSidePanelOpen: (isOpen) => set({ isFocusSidePanelOpen: isOpen }),
 
-      dismissAlert: (id) => set((state) => ({
-        activeAlerts: state.activeAlerts.filter(a => a.id !== id),
-      })),
+      setMorningUnlockedDate: (date) => set({ morningUnlockedDate: date }),
 
-      detectAndSetHabits: () => {
-        const logs = get().logs;
-        if (logs.length < 5) return;
-        const alerts = detectHabitsFromLogs(logs);
-        set({ activeAlerts: alerts });
+      setProfile: (profile) => {
+        const uid = get().authUser?.uid;
+        set({ profile });
+        if (uid && profile) void pushToFirestore(uid, { profile });
       },
 
-      updateTytSubject: (index, updates) => set((state) => {
-        const newSubs = [...state.tytSubjects];
+      updateTytSubject: (index, updates) => {
+        const uid = get().authUser?.uid;
+        const newSubs = [...get().tytSubjects];
         const oldStatus = newSubs[index].status;
         newSubs[index] = { ...newSubs[index], ...updates };
         
         let eloDelta = 0;
         if (updates.status === 'mastered' && oldStatus !== 'mastered') eloDelta = 50;
 
-        const masteredCount = [...newSubs, ...state.aytSubjects].filter(s => s.status === 'mastered').length;
-        const trophies = state.trophies.map(t => {
+        const masteredCount = [...newSubs, ...get().aytSubjects].filter(s => s.status === 'mastered').length;
+        const trophies = get().trophies.map(t => {
           if (t.id === 'master_10' && masteredCount >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           if (t.id === 'master_50' && masteredCount >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           return t;
         });
 
-        return { tytSubjects: newSubs, eloScore: state.eloScore + eloDelta, trophies };
-      }),
+        const newElo = get().eloScore + eloDelta;
+        set({ tytSubjects: newSubs, eloScore: newElo, trophies });
+        if (uid) void pushToFirestore(uid, { tytSubjects: newSubs, eloScore: newElo, trophies });
+      },
 
-      updateAytSubject: (originalIndex, updates) => set((state) => {
-        const newSubs = [...state.aytSubjects];
+      updateAytSubject: (originalIndex, updates) => {
+        const uid = get().authUser?.uid;
+        const newSubs = [...get().aytSubjects];
         const oldStatus = newSubs[originalIndex].status;
         newSubs[originalIndex] = { ...newSubs[originalIndex], ...updates };
         
         let eloDelta = 0;
         if (updates.status === 'mastered' && oldStatus !== 'mastered') eloDelta = 75;
 
-        const masteredCount = [...state.tytSubjects, ...newSubs].filter(s => s.status === 'mastered').length;
-        const trophies = state.trophies.map(t => {
+        const masteredCount = [...get().tytSubjects, ...newSubs].filter(s => s.status === 'mastered').length;
+        const trophies = get().trophies.map(t => {
           if (t.id === 'master_10' && masteredCount >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           if (t.id === 'master_50' && masteredCount >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           return t;
         });
 
-        return { aytSubjects: newSubs, eloScore: state.eloScore + eloDelta, trophies };
-      }),
+        const newElo = get().eloScore + eloDelta;
+        set({ aytSubjects: newSubs, eloScore: newElo, trophies });
+        if (uid) void pushToFirestore(uid, { aytSubjects: newSubs, eloScore: newElo, trophies });
+      },
 
-      /** YENİ: Bir TYT dersindeki tüm konuları toplu olarak 'mastered' yap */
-      bulkMasterTytSubjectsByName: (subjectName: string) => set((state) => {
-        let eloDelta = 0;
-        const newSubs = state.tytSubjects.map((s) => {
-          if (s.subject !== subjectName) return s;
-          if (s.status !== 'mastered') eloDelta += 50; // her yeni konu için ELO
-          return { ...s, status: 'mastered' as const };
-        });
-
-        const masteredCount = [...newSubs, ...state.aytSubjects].filter(s => s.status === 'mastered').length;
-        const trophies = state.trophies.map(t => {
-          if (t.id === 'master_10' && masteredCount >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-          if (t.id === 'master_50' && masteredCount >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-          return t;
-        });
-
-        return { tytSubjects: newSubs, eloScore: state.eloScore + eloDelta, trophies };
-      }),
-
-      /** YENİ: Bir AYT dersindeki tüm konuları toplu olarak 'mastered' yap */
-      bulkMasterAytSubjectsByName: (subjectName: string) => set((state) => {
-        let eloDelta = 0;
-        const newSubs = state.aytSubjects.map((s) => {
-          if (s.subject !== subjectName) return s;
-          if (s.status !== 'mastered') eloDelta += 75; // AYT ELO biraz daha yüksek
-          return { ...s, status: 'mastered' as const };
-        });
-
-        const masteredCount = [...state.tytSubjects, ...newSubs].filter(s => s.status === 'mastered').length;
-        const trophies = state.trophies.map(t => {
-          if (t.id === 'master_10' && masteredCount >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-          if (t.id === 'master_50' && masteredCount >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-          return t;
-        });
-
-        return { aytSubjects: newSubs, eloScore: state.eloScore + eloDelta, trophies };
-      }),
-
-      addLog: (log) => set((state) => {
+      addLog: (log) => {
+        const uid = get().authUser?.uid;
         const logWithId: DailyLog = {
           ...log,
-          id:
-            log.id ??
-            (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-              ? crypto.randomUUID()
-              : `log_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`),
+          id: log.id ?? `log_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
         };
-        const newLogs = [...state.logs, logWithId].slice(-500);
+        const newLogs = [...get().logs, logWithId].slice(-500);
         const todayStr = toISODateOnly();
-        const hasLoggedToday = state.logs.some((l) => {
+        const hasLoggedToday = get().logs.some((l) => {
           const ms = toDateMs(l.date);
-          if (ms === null) return false;
-          return toISODateOnly(new Date(ms)) === todayStr;
+          return ms ? toISODateOnly(new Date(ms)) === todayStr : false;
         });
-        const newStreak = hasLoggedToday ? state.streakDays : state.streakDays + 1;
+        const newStreak = hasLoggedToday ? get().streakDays : get().streakDays + 1;
         
         let K = 30; 
-        if (state.eloScore >= 15000) K = 10;
-        else if (state.eloScore >= 7000) K = 15;
-        else if (state.eloScore >= 2500) K = 20;
+        if (get().eloScore >= 15000) K = 10;
+        else if (get().eloScore >= 7000) K = 15;
+        else if (get().eloScore >= 2500) K = 20;
 
         const expectedNet = (log.questions || 1) * 0.60;
         const actualNet = log.correct - (log.wrong * 0.25);
-        let netDiff = actualNet - expectedNet;
-        netDiff = Math.max(-50, Math.min(50, netDiff)); 
-        
+        let netDiff = Math.max(-50, Math.min(50, actualNet - expectedNet)); 
         const eloDelta = Math.round(K * netDiff);
         
-        let newDailyDelta = state.dailyEloDelta;
-        if (state.lastEloUpdateDate !== todayStr) {
-           newDailyDelta = 0;
-        }
+        let newDailyDelta = get().lastEloUpdateDate !== todayStr ? 0 : get().dailyEloDelta;
         newDailyDelta += eloDelta;
-        
-        const newEloScore = Math.max(0, state.eloScore + eloDelta);
+        const newEloScore = Math.max(0, get().eloScore + eloDelta);
 
         const accuracy = log.correct / (log.questions || 1);
         const last3 = newLogs.slice(-3);
         const last3Good = last3.length === 3 && last3.every(l => (l.correct / (l.questions || 1)) >= 0.8);
 
-        const trophies = state.trophies.map(t => {
+        const trophies = get().trophies.map(t => {
           if (t.id === 'log_10' && newLogs.length >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           if (t.id === 'log_50' && newLogs.length >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           if (t.id === 'streak_3' && newStreak >= 3 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
@@ -557,57 +444,279 @@ export const useAppStore = create<AppState>()(
           return t;
         });
 
-        const newAlerts = newLogs.length >= 5 ? detectHabitsFromLogs(newLogs) : state.activeAlerts;
+        const newAlerts = newLogs.length >= 5 ? detectHabitsFromLogs(newLogs) : get().activeAlerts;
 
-        // [SYNC-009 FIX]: Incrementı cloud write-through
+        set({ logs: newLogs, streakDays: newStreak, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies, activeAlerts: newAlerts, lastLocalUpdateAt: new Date().toISOString() });
+        if (uid) void pushToFirestore(uid, { logs: newLogs, streakDays: newStreak, eloScore: newEloScore, trophies });
+      },
+
+      removeLog: (id) => {
         const uid = get().authUser?.uid;
-        if (uid) void pushSingleEntity(uid, 'logs', logWithId as unknown as Record<string, unknown>);
+        const newLogs = get().logs.filter(l => l.id !== id);
+        set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
+        if (uid) {
+          void tombstoneEntity(uid, 'logs', id);
+          void pushToFirestore(uid, { logs: newLogs });
+        }
+        get().detectAndSetHabits();
+      },
 
-        return { logs: newLogs, streakDays: newStreak, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies, activeAlerts: newAlerts };
-      }),
+      updateLog: (id, updates) => {
+        const uid = get().authUser?.uid;
+        const newLogs = get().logs.map(l => l.id === id ? { ...l, ...updates } : l);
+        set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
+        if (uid) void pushToFirestore(uid, { logs: newLogs });
+        get().detectAndSetHabits();
+      },
 
-      addExam: (exam) => set((state) => {
+      addExam: (exam) => {
+        const uid = get().authUser?.uid;
         const todayStr = toISODateOnly();
         const safeTotalNet = !isFinite(exam.totalNet) || isNaN(exam.totalNet) ? 0 : exam.totalNet;
-        const safeScores = exam.scores ?? {};
-        const normalizedExam = { ...exam, totalNet: safeTotalNet, scores: safeScores };
+        const normalizedExam = { ...exam, totalNet: safeTotalNet };
 
         let eloDelta = 100;
-        if (state.profile) {
-            const target = normalizedExam.type === 'TYT' ? state.profile.tytTarget : state.profile.aytTarget;
+        if (get().profile) {
+            const target = normalizedExam.type === 'TYT' ? get().profile!.tytTarget : get().profile!.aytTarget;
             if (normalizedExam.totalNet >= target) eloDelta += 150;
             else if (normalizedExam.totalNet < target * 0.5) eloDelta -= 50;
         }
 
-        let newDailyDelta = state.dailyEloDelta;
-        if (state.lastEloUpdateDate !== todayStr) {
-           newDailyDelta = 0;
-        }
+        let newDailyDelta = get().lastEloUpdateDate !== todayStr ? 0 : get().dailyEloDelta;
         newDailyDelta += eloDelta;
-        const newEloScore = Math.max(0, state.eloScore + eloDelta);
-        const newExams = [...state.exams, normalizedExam];
-        const trophies = state.trophies.map(t => {
+        const newEloScore = Math.max(0, get().eloScore + eloDelta);
+        const newExams = [...get().exams, normalizedExam].slice(-200);
+        const trophies = get().trophies.map(t => {
           if (t.id === 'first_blood' && newExams.length >= 1 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-          if (t.id === 'exam_target_hit' && state.profile) {
-            const target = normalizedExam.type === 'TYT' ? state.profile.tytTarget : state.profile.aytTarget;
+          if (t.id === 'exam_target_hit' && get().profile) {
+            const target = normalizedExam.type === 'TYT' ? get().profile!.tytTarget : get().profile!.aytTarget;
             if (normalizedExam.totalNet >= target && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
           }
           return t;
         });
 
-        // [SYNC-009 FIX]: Incrementı cloud write-through
-        const uid = get().authUser?.uid;
-        if (uid) void pushSingleEntity(uid, 'exams', normalizedExam as unknown as Record<string, unknown>);
-
-        return { exams: newExams.slice(-200), eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies };
-      }),
+        set({ exams: newExams, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies, lastLocalUpdateAt: new Date().toISOString() });
+        if (uid) void pushToFirestore(uid, { exams: newExams, eloScore: newEloScore, trophies });
+      },
 
       removeExam: (id) => {
         const uid = get().authUser?.uid;
-        if (uid) void tombstoneEntity(uid, 'exams', id);
-        set((state) => ({
-          exams: state.exams.filter((e) => e.id !== id),
-        }));
+        const newExams = get().exams.filter(e => e.id !== id);
+        set({ exams: newExams, lastLocalUpdateAt: new Date().toISOString() });
+        if (uid) {
+          void tombstoneEntity(uid, 'exams', id);
+          void pushToFirestore(uid, { exams: newExams });
+        }
+      },
+
+      updateExam: (id, updates) => {
+        const uid = get().authUser?.uid;
+        const newExams = get().exams.map(e => e.id === id ? { ...e, ...updates } : e);
+        set({ exams: newExams, lastLocalUpdateAt: new Date().toISOString() });
+        if (uid) void pushToFirestore(uid, { exams: newExams });
+      },
+
+      addChatMessage: (message) => {
+        const uid = get().authUser?.uid;
+        const newMessage: ChatMessage = {
+          ...message,
+          id: message.id ?? `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        };
+        const newHistory = [...get().chatHistory, newMessage].slice(-200);
+        set({ chatHistory: newHistory });
+        if (uid) void pushToFirestore(uid, { chatHistory: newHistory });
+      },
+
+      setPassiveMode: (isPassiveMode) => {
+        const uid = get().authUser?.uid;
+        set({ isPassiveMode });
+        if (uid) void pushToFirestore(uid, { isPassiveMode });
+      },
+
+      addFailedQuestion: (input) => {
+        const uid = get().authUser?.uid;
+        const newQ: FailedQuestion = {
+          ...input,
+          id: input.id || `fail_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          status: 'active',
+          solveCount: 0,
+          difficulty: input.difficulty || 'medium'
+        };
+        const newList = [...get().failedQuestions, newQ];
+        set({ failedQuestions: newList });
+        if (uid) void pushToFirestore(uid, { failedQuestions: newList });
+      },
+
+      solveFailedQuestion: (id) => {
+        const uid = get().authUser?.uid;
+        const newList = get().failedQuestions.map(q => 
+          q.id === id ? { ...q, status: 'solved' as const, solveCount: q.solveCount + 1 } : q
+        );
+        set({ failedQuestions: newList });
+        if (uid) void pushToFirestore(uid, { failedQuestions: newList });
+        get().addElo(15);
+      },
+
+      removeFailedQuestion: (id) => {
+        const uid = get().authUser?.uid;
+        const newList = get().failedQuestions.filter(q => q.id !== id);
+        set({ failedQuestions: newList });
+        if (uid) {
+          void tombstoneEntity(uid, 'failedQuestions', id);
+          void pushToFirestore(uid, { failedQuestions: newList });
+        }
+      },
+
+      unlockTrophy: (trophyId) => {
+        const uid = get().authUser?.uid;
+        const trophies = get().trophies;
+        const idx = trophies.findIndex(t => t.id === trophyId);
+        if (idx !== -1 && !trophies[idx].unlockedAt) {
+          const newTrophies = [...trophies];
+          newTrophies[idx] = { ...newTrophies[idx], unlockedAt: new Date().toISOString() };
+          set({ trophies: newTrophies });
+          if (uid) void pushToFirestore(uid, { trophies: newTrophies });
+          get().addElo(50);
+        }
+      },
+
+      setMorningBlockerEnabled: (enabled) => {
+        const uid = get().authUser?.uid;
+        set({ isMorningBlockerEnabled: enabled });
+        if (uid) void pushToFirestore(uid, { isMorningBlockerEnabled: enabled } as any);
+      },
+
+      addElo: (amount) => {
+        const uid = get().authUser?.uid;
+        const newScore = Math.max(0, get().eloScore + amount);
+        set({ eloScore: newScore });
+        if (uid) void pushToFirestore(uid, { eloScore: newScore });
+      },
+
+      addFocusSession: (record) => {
+        const uid = get().authUser?.uid;
+        const newSessions = [...get().focusSessions, record];
+        set({ focusSessions: newSessions });
+        if (uid) void pushToFirestore(uid, { focusSessions: newSessions });
+      },
+
+      setDrawingMode: (mode) => set({ drawingMode: mode }),
+      setWarRoomMode: (mode) => set({ warRoomMode: mode }),
+      setWarRoomSession: (session) => set({
+        warRoomSession: session,
+        warRoomAnswers: {},
+        warRoomEliminated: {},
+        warRoomTimeLeft: 0,
+      }),
+      setWarRoomTimeLeft: (time) => set((s) => ({
+        warRoomTimeLeft: typeof time === 'function' ? time(s.warRoomTimeLeft) : time,
+      })),
+      setSelectedAnswer: (qId, ans) => set((s) => ({
+        warRoomAnswers: { ...s.warRoomAnswers, [qId]: ans },
+      })),
+      toggleEliminatedOption: (qId, optIdx) => set((s) => {
+        const cur = s.warRoomEliminated[qId] ?? [];
+        const next = cur.includes(optIdx) ? cur.filter(i => i !== optIdx) : [...cur, optIdx];
+        return { warRoomEliminated: { ...s.warRoomEliminated, [qId]: next } };
+      }),
+      updateWarRoomAnswer: (qId, ans) => set((s) => ({
+        warRoomAnswers: { ...s.warRoomAnswers, [qId]: ans },
+      })),
+      setAuthUser: (user) => set({ authUser: user }),
+      signOut: async () => {
+        set({ authUser: null });
+        get().hardReset();
+      },
+      setDevMode: (enabled) => set({ isDevMode: enabled }),
+
+      completeCoachTask: (recordId, index) => {
+        const { directiveHistory, eloScore, authUser, coachMemory } = get();
+        const record = directiveHistory.find(r => r.id === recordId);
+        if (!record || !record.directive.tasks[index]) return;
+
+        const task = record.directive.tasks[index];
+        import('../services/directiveHistory').then(m => {
+          const nr = m.completeTask(record, index);
+          const newHistory = m.updateInHistory(directiveHistory, nr);
+          const newMemory = m.updateCoachMemory(newHistory, coachMemory);
+          
+          const bonus = task.priority === 'high' ? 40 : 25;
+          const newElo = Math.min(eloScore + bonus, 9000);
+
+          set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
+          if (authUser?.uid) {
+            pushSingleEntity(authUser.uid, 'directiveHistory' as any, nr as any);
+            pushToFirestore(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
+          }
+        });
+      },
+
+      deferCoachTask: (recordId, index, reason) => {
+        const { directiveHistory, eloScore, authUser, coachMemory } = get();
+        const record = directiveHistory.find(r => r.id === recordId);
+        if (!record) return;
+
+        import('../services/directiveHistory').then(m => {
+          const nr = m.skipTask(record, index, reason);
+          const newHistory = m.updateInHistory(directiveHistory, nr);
+          const newMemory = m.updateCoachMemory(newHistory, coachMemory);
+          const newElo = Math.max(eloScore - 5, 0);
+
+          set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
+          if (authUser?.uid) {
+            pushSingleEntity(authUser.uid, 'directiveHistory' as any, nr as any);
+            pushToFirestore(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
+          }
+        });
+      },
+
+      failCoachTask: (recordId, index, reason) => {
+        const { directiveHistory, eloScore, authUser, coachMemory } = get();
+        const record = directiveHistory.find(r => r.id === recordId);
+        if (!record) return;
+
+        import('../services/directiveHistory').then(m => {
+          const nr = m.failTask(record, index, (reason as any) || 'other');
+          const newHistory = m.updateInHistory(directiveHistory, nr);
+          const newMemory = m.updateCoachMemory(newHistory, coachMemory);
+          const newElo = Math.max(eloScore - 15, 0);
+
+          set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
+          if (authUser?.uid) {
+            pushSingleEntity(authUser.uid, 'directiveHistory' as any, nr as any);
+            pushToFirestore(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
+          }
+        });
+      },
+
+      startRecoveryFlow: () => {
+        const { directiveHistory, authUser } = get();
+        import('../services/directiveHistory').then(m => {
+          const recTasks = m.generateRecoveryTasks(directiveHistory);
+          if (recTasks.length === 0) return;
+
+          const newRecord = {
+            id: `rec_${Date.now()}`,
+            directive: {
+              headline: 'Akıllı Telafi Planı',
+              summary: 'Kaçırdığın veya yapamadığın görevleri programa geri kazandırıyoruz.',
+              tasks: recTasks,
+              intent: 'intervention' as const,
+              createdAt: new Date().toISOString(),
+            },
+            isResolved: false,
+            contextHash: '',
+            completedTaskCount: 0,
+            skippedTaskCount: 0
+          };
+          const newHistory = [newRecord, ...directiveHistory];
+          set({ directiveHistory: newHistory });
+          if (authUser?.uid) pushSingleEntity(authUser.uid, 'directiveHistory' as any, newRecord as any);
+        });
+      },
+
+      generateStrategyPlan: () => {
+        console.log('[Strategy] Generating weekly plan...');
       },
 
       analyzeUserData: () => {
@@ -615,188 +724,80 @@ export const useAppStore = create<AppState>()(
          const tytTarget = state.profile?.tytTarget || 0;
          const aytTarget = state.profile?.aytTarget || 0;
          const last10Math = state.logs
-            .filter(l => l.subject?.toLowerCase().includes('matematik') || l.subject?.toLowerCase().includes('fizik') || l.subject?.toLowerCase().includes('kimya') || l.subject?.toLowerCase().includes('biyoloji'))
+            .filter(l => l.subject?.toLowerCase().includes('matematik') || l.subject?.toLowerCase().includes('fizik'))
             .slice(-10);
-            
-         const recentExams = state.exams.slice(-3);
-         const lastTyt = recentExams.filter(e => e.type === 'TYT').pop()?.totalNet || 0;
-         const lastAyt = recentExams.filter(e => e.type === 'AYT').pop()?.totalNet || 0;
+         const mistakesContext = last10Math.map(l => `${l.subject}: D:${l.correct} Y:${l.wrong}`).join(' | ');
          
-         const mistakesContext = last10Math.map(l => `[${l.subject}] Konu: ${l.topic} -> Doğru: ${l.correct}, Hata: ${l.wrong}, Boş: ${l.empty} / Soru: ${l.questions}`).join(' | ');
-         
-         return `HEDEF: ${state.profile?.targetUniversity} ${state.profile?.targetMajor}. 
-MEVCUT NET: TYT ${lastTyt} (Hedef: ${tytTarget}), AYT ${lastAyt} (Hedef: ${aytTarget}).
-ELO: ${state.eloScore} | SERİ: ${state.streakDays} Gün.
-SON 10 SAYISAL LOG (Mezarlık Kaydı): ${mistakesContext || 'Yeterli log yok.'}
-TALİMAT: Öğrencinin son hatalarını ve eksiklerini incele. Disipliner bir koç gibi davran ve MF (Sayısal) odaklı gerçekçi eleştiriler yap. Sorunun nereden kaynaklandığını belirleyen net ve nokta atışı 3 maddelik bir Savaş Planı/Strateji tavsiyesi sun! Lütfen gereksiz yorum yapma, sadece 3 madde ver.`;
+         return `HEDEF: ${state.profile?.targetUniversity}. TYT: ${tytTarget}, AYT: ${aytTarget}. ELO: ${state.eloScore}. LOGLAR: ${mistakesContext}`;
       },
 
-      updateExam: (id, updates) => set((state) => ({
-        exams: state.exams.map(e => e.id === id ? { ...e, ...updates } : e)
+      bulkMasterTytSubjectsByName: (name) => set((s) => ({
+        tytSubjects: s.tytSubjects.map(sub => sub.subject === name ? { ...sub, status: 'mastered' } : sub)
       })),
-
-      addElo: (amount) => set((state) => ({
-        eloScore: state.eloScore + amount
+      bulkMasterAytSubjectsByName: (name) => set((s) => ({
+        aytSubjects: s.aytSubjects.map(sub => sub.subject === name ? { ...sub, status: 'mastered' } : sub)
       })),
-
-      addChatMessage: (message) => {
-        const newMessage: ChatMessage = {
-          ...message,
-          id: message.id ?? `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        };
-        // [SYNC-009 FIX]: Incrementı cloud write-through
-        const uid = get().authUser?.uid;
-        if (uid) void pushSingleEntity(uid, 'chatHistory', newMessage as unknown as Record<string, unknown>);
-        set((state) => ({
-          chatHistory: [
-            ...state.chatHistory,
-            newMessage,
-          ].slice(-100),
-        }));
-      },
-
-      setPassiveMode: (isPassiveMode) => set({ isPassiveMode }),
-
-      addFailedQuestion: (question) => set((state) => ({ 
-        failedQuestions: [...state.failedQuestions, { 
-          ...question, 
-          status: 'active', 
-          solveCount: 0,
-          difficulty: question.difficulty || 'medium' 
-        }] 
-      })),
-
-      solveFailedQuestion: (id) => set((state) => {
-        const newQuestions = state.failedQuestions.map(q => {
-          if (q.id === id) {
-            const newCount = q.solveCount + 1;
-            return { 
-              ...q, 
-              solveCount: newCount, 
-              status: newCount >= 3 ? 'solved' as const : 'active' as const 
-            };
-          }
-          return q;
-        });
-        return { failedQuestions: newQuestions };
-      }),
-
-      removeFailedQuestion: (id) => {
-        const uid = get().authUser?.uid;
-        if (uid) void tombstoneEntity(uid, 'failedQuestions', id);
-        set((state) => ({
-          failedQuestions: state.failedQuestions.filter((q) => q.id !== id),
-        }));
-      },
-
-      unlockTrophy: (trophyId) => set((state) => {
-        const newTrophies = state.trophies.map(t => 
-          t.id === trophyId && !t.unlockedAt ? { ...t, unlockedAt: new Date().toISOString() } : t
-        );
-        return { trophies: newTrophies };
-      }),
-
-      setMorningBlockerEnabled: (isMorningBlockerEnabled) => set({ isMorningBlockerEnabled }),
-
-      addFocusSession: (record) => {
-        // [SYNC-009 FIX]: Incrementı cloud write-through
-        const uid = get().authUser?.uid;
-        if (uid) void pushSingleEntity(uid, 'focusSessions', record as unknown as Record<string, unknown>);
-        set((state) => ({
-          focusSessions: [...state.focusSessions, record],
-        }));
-      },
 
       addAgendaEntry: (entry) => {
-        // [SYNC-009 FIX]: Incrementı cloud write-through
         const uid = get().authUser?.uid;
-        if (uid) void pushSingleEntity(uid, 'agendaEntries', entry as unknown as Record<string, unknown>);
-        set((state) => ({
-          agendaEntries: [...state.agendaEntries, entry],
-        }));
+        const newEntries = [...get().agendaEntries, entry];
+        set({ agendaEntries: newEntries });
+        if (uid) void pushToFirestore(uid, { agendaEntries: newEntries });
       },
-
-      updateAgendaEntry: (id, updates) => set((state) => ({
-        agendaEntries: state.agendaEntries.map(e => e.id === id ? { ...e, ...updates } : e),
-      })),
-
+      updateAgendaEntry: (id, updates) => {
+        const uid = get().authUser?.uid;
+        const newEntries = get().agendaEntries.map(e => e.id === id ? { ...e, ...updates } : e);
+        set({ agendaEntries: newEntries });
+        if (uid) void pushToFirestore(uid, { agendaEntries: newEntries });
+      },
       removeAgendaEntry: (id) => {
         const uid = get().authUser?.uid;
-        if (uid) void tombstoneEntity(uid, 'agendaEntries', id);
-        set((state) => ({
-          agendaEntries: state.agendaEntries.filter((e) => e.id !== id),
-        }));
+        const newEntries = get().agendaEntries.filter(e => e.id !== id);
+        set({ agendaEntries: newEntries });
+        if (uid) {
+          void tombstoneEntity(uid, 'agendaEntries', id);
+          void pushToFirestore(uid, { agendaEntries: newEntries });
+        }
       },
-
-      addTargetGoal: (goal) => set((state) => {
-        const currentGoals = state.profile?.targetGoals || [];
-        if (currentGoals.find(g => g.id === goal.id)) return state;
-        return {
-          profile: state.profile ? { 
-            ...state.profile, 
-            targetGoals: [...currentGoals, goal] 
-          } : null
-        };
-      }),
-
-      removeTargetGoal: (id) => set((state) => ({
-        profile: state.profile ? {
-          ...state.profile,
-          targetGoals: (state.profile.targetGoals || []).filter(g => g.id !== id)
-        } : null
+      addTargetGoal: (goal) => set((s) => ({
+        profile: s.profile ? { ...s.profile, targetGoals: [...(s.profile.targetGoals || []), goal] } : null
       })),
-
+      removeTargetGoal: (id) => set((s) => ({
+        profile: s.profile ? { ...s.profile, targetGoals: (s.profile.targetGoals || []).filter(g => g.id !== id) } : null
+      })),
       setSyncing: (isSyncing) => set({ isSyncing }),
-
-      /** [BUG-010 FIX]: MorningBlocker kilidi artık persist'e bağlı */
-      setMorningUnlockedDate: (date) => set({ morningUnlockedDate: date }),
-      
-      addNotification: (notif) => set((state) => {
-        const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-        const newNotif: AppNotification = {
-          ...notif,
-          id,
-          timestamp: new Date().toISOString(),
-          read: false
-        };
-        return { notifications: [newNotif, ...state.notifications].slice(0, 50) };
-      }),
-
-      markNotificationAsRead: (id) => set((state) => ({
-        notifications: state.notifications.map(n => n.id === id ? { ...n, read: true } : n)
+      addNotification: (notif) => set((s) => ({
+        notifications: [{ ...notif, id: `notif_${Date.now()}`, timestamp: new Date().toISOString(), read: false }, ...s.notifications].slice(0, 50)
       })),
-
+      markNotificationAsRead: (id) => set((s) => ({
+        notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n)
+      })),
       clearNotifications: () => set({ notifications: [] }),
-      
       setHasHydrated: (val) => set({ hasHydrated: val }),
+      setSubjectViewMode: (mode) => set({ subjectViewMode: mode }),
+      setTheme: (theme) => set({ theme }),
+      setLastCoachDirective: (dir) => set({ lastCoachDirective: dir }),
+      setQaSession: (session) => set({ qaSession: session }),
+      updateQaAnswer: (idx, ans) => set((s) => s.qaSession ? ({
+        qaSession: { ...s.qaSession, answers: { ...s.qaSession.answers, [idx]: ans } }
+      }) : s),
+      setFocusSidePanelOpen: (isOpen) => set({ isFocusSidePanelOpen: isOpen }),
+      dismissAlert: (id) => set((s) => ({ activeAlerts: s.activeAlerts.filter(a => a.id !== id) })),
+      detectAndSetHabits: () => {
+        const alerts = detectHabitsFromLogs(get().logs);
+        set({ activeAlerts: alerts });
+      },
     }),
     {
       name: 'yks_coach_storage',
       storage: createJSONStorage(() => idbStorage),
-      merge: (persistedState: any, currentState) => ({
-        ...currentState,
-        ...persistedState,
+      merge: (persisted: any, current) => ({
+        ...current,
+        ...persisted,
         warRoomTimeLeft: 0,
         warRoomSession: null,
-        warRoomAnswers: {},
-        warRoomEliminated: {},
-        warRoomMode: 'setup' as const,
-        activeAlerts: persistedState?.activeAlerts || [],
-        focusSessions: persistedState?.focusSessions || [],
-        agendaEntries: persistedState?.agendaEntries || [],
-        logs: persistedState?.logs || [],
-        exams: persistedState?.exams || [],
-        failedQuestions: persistedState?.failedQuestions || [],
-        chatHistory: persistedState?.chatHistory || [],
-        tytSubjects: persistedState?.tytSubjects || currentState.tytSubjects,
-        aytSubjects: persistedState?.aytSubjects || currentState.aytSubjects,
-        trophies: persistedState?.trophies || currentState.trophies,
-        directiveHistory: persistedState?.directiveHistory || [],
-        coachMemory: persistedState?.coachMemory || null,
       }),
-      onRehydrateStorage: (state) => {
-        return () => state.setHasHydrated(true);
-      }
+      onRehydrateStorage: (state) => () => state.setHasHydrated(true),
     }
   )
 );

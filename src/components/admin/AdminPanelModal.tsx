@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText } from 'lucide-react';
+import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText, RefreshCw } from 'lucide-react';
 import { useAdminPanel } from '../../hooks/useAdminPanel';
 
 interface Props {
@@ -18,6 +18,8 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<'users' | 'tools' | 'system'>('users');
   const [query, setQuery] = useState('');
   const [announcementMsg, setAnnouncementMsg] = useState('');
+  const [showCoachMemory, setShowCoachMemory] = useState(false);
+  const [coachMemData, setCoachMemData] = useState<any>(null);
 
   // Sistem verilerini yükle
   useEffect(() => {
@@ -70,8 +72,8 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
              </div>
              
              <div className="absolute hidden md:block bottom-8 left-8">
-               <span className="text-[8px] uppercase tracking-[0.2em] opacity-40">System UID Locked</span><br/>
-               <span className="text-[10px] uppercase font-mono tracking-widest opacity-20">#9z9OAxBXsFU...</span>
+               <span className="text-[8px] uppercase tracking-[0.2em] opacity-40">System Access Level</span><br/>
+               <span className="text-[10px] uppercase font-mono tracking-widest opacity-20">Super Admin (Claims)</span>
              </div>
           </div>
 
@@ -127,6 +129,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                            <div className="text-right">
                              <div className="text-xs font-bold text-[#C17767]">{u.eloScore || 1200} ELO</div>
                              <div className="text-[9px] uppercase tracking-widest opacity-50 mt-1">{u.role}</div>
+                             <div className="text-[8px] text-zinc-500 mt-1">Son: {admin.formatRelativeTime(u.lastSignedInAt)}</div>
                            </div>
                          </div>
                        </button>
@@ -247,7 +250,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                                <span className="text-blue-500 font-bold">#{log.actorUid.slice(0, 6)}</span>
                                <p className="text-zinc-400 mt-0.5">{JSON.stringify(log.details)}</p>
                             </div>
-                            <span className="opacity-30 whitespace-nowrap">{new Date(log.timestamp?.seconds * 1000).toLocaleTimeString()}</span>
+                            <span className="opacity-30 whitespace-nowrap">{admin.formatTimestamp(log.timestamp)}</span>
                          </div>
                        ))}
                        {(!admin.systemStats?.recentLogs || admin.systemStats.recentLogs.length === 0) && (
@@ -266,19 +269,89 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                     <p className="text-xs text-red-600/80 leading-relaxed">Burada yapılacak işlemlerin geri dönüşü yoktur. Veritabanının bütünlüğünü bozmamak için işlemleri dikkatli gerçekleştirin. (Büyük yetki büyük sorumluluk...)</p>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button 
-                      onClick={() => { if(confirm("TÜM ADMIN LOGLARINI SİLMEK İSTEDİĞİNE EMİN MİSİN?")) admin.repairProfile(admin.selectedUser?.uid || ''); }}
-                      className="p-6 text-left bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl hover:border-red-500/50 transition-colors group"
-                    >
-                       <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2 group-hover:text-red-500">Sistem Loglarını Sıfırla</h5>
-                       <p className="text-[10px] text-zinc-500 italic">Tüm bu audit kayıtlarını tamamen temizler. Dikkatli kullanın.</p>
-                    </button>
-                    <div className="p-6 bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl opacity-50 cursor-not-allowed">
-                       <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2">Veri Tabanı İndeksi Zorla</h5>
-                       <p className="text-[10px] text-zinc-500">Koleksiyonları yeniden haritalandırır. Gelecek fazda aktif edilecek.</p>
+                 {/* Senkronizasyon Merkezi */}
+                 <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl mb-6">
+                    <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
+                       <Radio size={14} className="text-blue-500" /> Senkronizasyon Merkezi (Kişisel)
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                       <button 
+                         onClick={() => admin.forceSyncMyData()}
+                         disabled={admin.actionLoading}
+                         className="p-4 bg-blue-600 text-white rounded-2xl text-[10px] font-bold uppercase shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
+                       >
+                         <RefreshCw size={14} className={admin.actionLoading ? 'animate-spin' : ''} /> Buluttan Zorla Çek (Pull)
+                       </button>
+                       <div className="p-4 bg-white dark:bg-black border border-app rounded-2xl">
+                          <p className="text-[9px] text-zinc-500 leading-tight">Yerel verileriniz (idb) bozulduysa veya diğer cihazdaki veriler gelmiyorsa buluttaki kopyayı buraya zorla indirir.</p>
+                       </div>
                     </div>
                  </div>
+
+                 {/* Müfredat Tamiri */}
+                 <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl mb-6">
+                    <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
+                       <Flame size={14} className="text-orange-500" /> Müfredat Kontrol Ünitesi
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                       <button 
+                         onClick={() => admin.resetMySubjects()}
+                         disabled={admin.actionLoading}
+                         className="p-4 bg-orange-600 text-white rounded-2xl text-[10px] font-bold uppercase shadow-lg shadow-orange-600/20"
+                       >
+                         Müfredat İlerlemesini SIFIRLA
+                       </button>
+                       <div className="p-4 bg-white dark:bg-black border border-app rounded-2xl">
+                          <p className="text-[9px] text-zinc-500 leading-tight">Tüm TYT ve AYT konu ilerlemelerini 'not-started' durumuna çeker ve buluta yazar. (Geri dönüşü yoktur!)</p>
+                       </div>
+                    </div>
+                 </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <button 
+                       onClick={() => {
+                         const data = admin.getCoachMemory();
+                         setCoachMemData(data);
+                         setShowCoachMemory(true);
+                       }}
+                       className="p-6 text-left bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 transition-colors group"
+                     >
+                        <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2 group-hover:text-blue-500">Coach Belleğini Gör</h5>
+                        <p className="text-[10px] text-zinc-500 italic">Core yapay zeka hafızasını ve mesaj sayısını ham JSON olarak incele.</p>
+                     </button>
+                     <button 
+                       onClick={() => { if(confirm("TÜM ADMIN LOGLARINI SİLMEK İSTEDİĞİNE EMİN MİSİN?")) admin.clearAdminLogs(); }}
+                       disabled={admin.actionLoading}
+                       className="p-6 text-left bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl hover:border-red-500/50 transition-colors group"
+                     >
+                        <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2 group-hover:text-red-500">Sistem Loglarını Sıfırla</h5>
+                        <p className="text-[10px] text-zinc-500 italic">Tüm bu audit kayıtlarını tamamen temizler. Dikkatli kullanın.</p>
+                     </button>
+                     <div className="p-6 bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl opacity-50 cursor-not-allowed">
+                        <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2">Veri Tabanı JSON Editör</h5>
+                        <p className="text-[10px] text-zinc-500">Kullanıcı verilerini JSON olarak düzenleme. Gelecek fazda aktif edilecek.</p>
+                     </div>
+                  </div>
+
+                  {/* Coach Memory Modal Inline */}
+                  <AnimatePresence>
+                    {showCoachMemory && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-4 p-6 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden"
+                      >
+                        <div className="flex justify-between items-center mb-4">
+                          <h6 className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Coach Core Debugger</h6>
+                          <button onClick={() => setShowCoachMemory(false)} className="text-zinc-500 hover:text-white"><X size={16}/></button>
+                        </div>
+                        <pre className="text-[10px] font-mono text-zinc-400 overflow-auto max-h-[300px] no-scrollbar whitespace-pre-wrap">
+                          {JSON.stringify(coachMemData, null, 2)}
+                        </pre>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                </div>
             )}
 

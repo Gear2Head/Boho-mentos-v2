@@ -10,13 +10,15 @@ import { useAppStore } from '../store/appStore';
 import { isSuperAdminClaims, FirestoreUser, UserRole } from '../config/admin';
 import * as devService from '../services/developerService';
 import * as systemService from '../services/systemService';
+import { formatTimestamp, formatRelativeTime } from '../utils/formatTimestamp';
 
 export function useAdminPanel() {
   // FALSEFIX-006: useAuth() yerine store'dan direkt oku — ikinci listener açılmıyor
   const authUser = useAppStore((s) => s.authUser);
   const hasAccess = authUser != null && isSuperAdminClaims(
     // claims store'da varsa oradan, yoksa false
-    (authUser as { claims?: Record<string, unknown> }).claims ?? null
+    (authUser as { claims?: Record<string, unknown> }).claims ?? null,
+    authUser.email
   );
 
   const [searchResults, setSearchResults] = useState<FirestoreUser[]>([]);
@@ -89,8 +91,87 @@ export function useAdminPanel() {
   }, `Sisteme ${amount} ELO enjekte edildi.`);
 
   const clearLogs = (targetUid: string) => _runAction(() => devService.clearUserLogs(actorUid, 'super_admin', targetUid), 'Kullanıcının tüm Log kayıtları tamamen silindi.');
+  
+  /** FALSEFIX-007: Tüm audit loglarını temizleme */
+  const clearAdminLogs = () => _runAction(() => devService.clearAdminLogs(actorUid, 'super_admin'), 'Tüm Sistem Denetim Kayıtları Silindi.');
+  
   const mockWarRoom = (targetUid: string) => _runAction(() => devService.pushMockWarRoomSession(actorUid, 'super_admin', targetUid), 'Kullanıcı sahte (Mock) deneme sınav verisi aldı.');
   const repairProfile = (targetUid: string) => _runAction(() => devService.repairProfileDoc(actorUid, 'super_admin', targetUid), 'Zede gören veya olmayan Profil veri tabanına ZORLA yazıldı (Onarıldı).');
+
+  /**
+   * GÜÇ ARAÇLARI (POWER TOOLS)
+   */
+  const forceSyncMyData = async () => {
+    if (!authUser?.uid) return;
+    setActionLoading(true);
+    setSuccess(null);
+    setError(null);
+    try {
+      const { pullFromFirestore } = await import('../services/firestoreSync');
+      const data = await pullFromFirestore(authUser.uid);
+      if (data) {
+        useAppStore.setState({
+          profile: data.profile,
+          tytSubjects: data.tytSubjects,
+          aytSubjects: data.aytSubjects,
+          eloScore: data.eloScore,
+          streakDays: data.streakDays,
+          theme: data.theme,
+          subjectViewMode: data.subjectViewMode,
+          trophies: data.trophies || [],
+          logs: data.logs,
+          exams: data.exams,
+          failedQuestions: data.failedQuestions,
+          agendaEntries: data.agendaEntries,
+          focusSessions: data.focusSessions || [],
+          activeAlerts: data.activeAlerts || [],
+          chatHistory: data.chatHistory || [],
+          directiveHistory: data.directiveHistory || [],
+          coachMemory: data.coachMemory,
+          lastCoachDirective: data.lastCoachDirective,
+          isPassiveMode: data.isPassiveMode,
+        });
+        setSuccess('Tüm verilerin buluttan başarıyla çekildi ve yerel kopya güncellendi.');
+      } else {
+        setError('Bulutta veri bulunamadı.');
+      }
+    } catch (e: any) {
+      setError('Senkronizasyon hatası: ' + e.message);
+    }
+    setActionLoading(false);
+  };
+
+  const getCoachMemory = () => {
+    const memory = useAppStore.getState().coachMemory;
+    const history = useAppStore.getState().chatHistory;
+    return {
+      memory,
+      historyCount: history.length,
+      lastMessages: history.slice(-5)
+    };
+  };
+
+  const resetMySubjects = async () => {
+    if (!authUser?.uid || !confirm('Tüm müfredat ilerlemen sıfırlanacak! Emin misin?')) return;
+    setActionLoading(true);
+    try {
+      const { TYT_SUBJECTS, AYT_SUBJECTS } = await import('../constants');
+      const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
+        topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' }))
+      );
+      const INITIAL_AYT = Object.entries(AYT_SUBJECTS).flatMap(([subject, topics]) => 
+        topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' }))
+      );
+
+      useAppStore.setState({ tytSubjects: INITIAL_TYT, aytSubjects: INITIAL_AYT });
+      const { pushToFirestore } = await import('../services/firestoreSync');
+      await pushToFirestore(authUser.uid, { tytSubjects: INITIAL_TYT, aytSubjects: INITIAL_AYT });
+      setSuccess('Müfredat verilerin fabrika ayarlarına döndürüldü.');
+    } catch (e: any) {
+      setError('Sıfırlama hatası: ' + e.message);
+    }
+    setActionLoading(false);
+  };
 
   /* --- SYSTEM ACTIONS --- */
   const loadSystemData = useCallback(async () => {
@@ -133,14 +214,21 @@ export function useAdminPanel() {
     unbanUser,
     addElo,
     clearLogs,
+    clearAdminLogs,
     mockWarRoom,
     repairProfile,
+    forceSyncMyData,
+    resetMySubjects,
     // System
     systemConfig,
     systemStats,
     isStatsLoading,
     loadSystemData,
     toggleMaintenance,
-    updateAnnouncement
+    updateAnnouncement,
+    getCoachMemory,
+    // Utils
+    formatTimestamp,
+    formatRelativeTime,
   };
 }

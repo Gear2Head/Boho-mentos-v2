@@ -29,11 +29,16 @@ export async function getSystemConfig(): Promise<SystemConfig | null> {
  * Konfigürasyonu canlı dinle
  */
 export function subscribeToSystemConfig(callback: (config: SystemConfig) => void) {
-  return onSnapshot(doc(db, CONFIG_DOC_PATH), (snapshot) => {
-    if (snapshot.exists()) {
-      callback(snapshot.data() as SystemConfig);
+  return onSnapshot(doc(db, CONFIG_DOC_PATH), 
+    (snapshot) => {
+      if (snapshot.exists()) {
+        callback(snapshot.data() as SystemConfig);
+      }
+    },
+    (error) => {
+      console.warn('[SystemConfig] Subscription error (likely permission denied):', error);
     }
-  });
+  );
 }
 
 /**

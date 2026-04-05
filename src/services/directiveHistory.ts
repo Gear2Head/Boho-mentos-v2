@@ -102,6 +102,91 @@ export function skipTask(
   };
 }
 
+export function failTask(
+  record: DirectiveRecord,
+  taskIndex: number,
+  reason: CoachTask['failureReason'] = 'other',
+  note?: string
+): DirectiveRecord {
+  const tasks = [...record.directive.tasks];
+  if (!tasks[taskIndex]) return record;
+
+  tasks[taskIndex] = {
+    ...tasks[taskIndex],
+    status: 'failed',
+    failureReason: reason,
+    failureNote: note,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const completedCount = tasks.filter((t) => t.status === 'completed').length;
+  const resolvedCount = tasks.filter((t) =>
+    t.status === 'deferred' || t.status === 'cancelled' || t.status === 'failed'
+  ).length;
+  const isResolved = completedCount + resolvedCount >= tasks.length;
+
+  return {
+    ...record,
+    directive: { ...record.directive, tasks },
+    completedTaskCount: completedCount,
+    skippedTaskCount: resolvedCount,
+    isResolved,
+  };
+}
+
+// ─── Recovery & Analysis Logic ────────────────────────────────────────────────
+
+export function generateRecoveryTasks(history: DirectiveRecord[]): CoachTask[] {
+  const recoveryTasks: CoachTask[] = [];
+  
+  // Son 3 kayıttaki başarısız veya ertelenen görevleri bul
+  const recentRecords = history.slice(-3);
+  for (const record of recentRecords) {
+    for (const task of record.directive.tasks) {
+      if ((task.status === 'failed' || task.status === 'deferred') && !task.id.startsWith('recovered-')) {
+        recoveryTasks.push({
+          ...task,
+          id: `recovered-${task.id}`,
+          title: `[TELAFi] ${task.title}`,
+          status: 'pending',
+          priority: 'high', // Telafi görevleri her zaman yüksek önceliklidir
+          rationale: `Bu görev daha önce yapılamadığı için telafi listesine alındı.`,
+          originSurface: 'strategy',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+  
+  return recoveryTasks.slice(0, 3); // Max 3 telafi görevi ver
+}
+
+export function calculateWeeklyWorkload(history: DirectiveRecord[]) {
+  const stats = {
+    totalMinutes: 0,
+    totalQuestions: 0,
+    subjectDistribution: {} as Record<string, number>,
+    pendingTaskCount: 0
+  };
+
+  const activeRecords = history.filter(r => !r.isResolved);
+  for (const record of activeRecords) {
+    for (const task of record.directive.tasks) {
+      if (task.status === 'pending') {
+        stats.pendingTaskCount++;
+        stats.totalMinutes += task.targetMinutes || 0;
+        stats.totalQuestions += task.targetQuestions || 0;
+        if (task.subject) {
+          stats.subjectDistribution[task.subject] = (stats.subjectDistribution[task.subject] || 0) + (task.targetMinutes || 30);
+        }
+      }
+    }
+  }
+
+  return stats;
+}
+
 // ─── History Management ───────────────────────────────────────────────────────
 
 export function addToHistory(
@@ -169,6 +254,9 @@ export function updateCoachMemory(
       if (task.status === 'completed') {
         strengthMap.set(task.subject, (strengthMap.get(task.subject) ?? 0) + 1);
       }
+      if (task.status === 'failed' && task.failureReason) {
+        base.missedTaskReasons.push(`${task.subject}: ${task.failureReason}`);
+      }
     }
 
     // Uyarılar
@@ -214,7 +302,7 @@ export function updateCoachMemory(
     recurringAvoidedSubjects: [],  // Gelecek: log/exam analizinden türetilecek
     staleAdvicePatterns: [],       // Gelecek: direktif tekrar tespitinden türetilecek
     interventionEffectiveness: 'unknown' as const,
-    missedTaskReasons: [],         // Gelecek: failureReason istatistiklerinden türetilecek
+    missedTaskReasons: [...new Set(base.missedTaskReasons)].slice(-10),
     strongSubjects: strengths,
     persistentNotes: base.persistentNotes.slice(0, 10),
     netTrend,

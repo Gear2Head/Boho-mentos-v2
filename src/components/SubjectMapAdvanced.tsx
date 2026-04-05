@@ -338,9 +338,9 @@ function SubjectGroup({
   return (
     <div className="border border-zinc-800/60 rounded-2xl overflow-hidden bg-zinc-950/40 backdrop-blur-sm">
       {/* Grup başlığı */}
-      <button
+      <div
         onClick={() => setIsOpen(o => !o)}
-        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-zinc-900/40 transition-colors text-left group"
+        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-zinc-900/40 transition-colors text-left group cursor-pointer outline-none border-b border-zinc-800/10"
       >
         {/* Progress ring (mini) */}
         <div className="relative shrink-0 w-10 h-10">
@@ -409,7 +409,7 @@ function SubjectGroup({
             <ChevronRight size={16} className="text-zinc-500" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* Toplu işlem satırı */}
       <AnimatePresence>

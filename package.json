@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/autofix.cjs && npx concurrently --kill-others \"vite --port=3000 --strictPort --host=127.0.0.1\" \"tsx server.ts\" \"tsc --noEmit --watch --preserveWatchOutput\"",
     "doctor": "node scripts/autofix.cjs",
-    "build": "vite build",
+    "build": "npm run clean && vite build",
     "preview": "vite preview",
     "clean": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});\"",
     "lint": "tsc --noEmit"

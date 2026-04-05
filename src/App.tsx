@@ -50,6 +50,7 @@ import { ExamDetailModal } from './components/ExamDetailModal';
 import { FlapClock, MiniFlapClock } from './components/FlapClock';
 
 import { AdminPanelModal } from './components/admin/AdminPanelModal';
+import { LogDetailModal } from './components/LogDetailModal';
 import { NAV_ITEMS, ActiveTab } from './config/navItems';
 import { NavItem } from './components/NavItem';
 import { isSuperAdmin } from './config/admin';
@@ -79,7 +80,7 @@ const getAytSubjectsForTrack = (track: string) => {
 
 // --- Sub Components ---
 
-function LogHistory({ logs }: { logs: DailyLog[] }) {
+function LogHistory({ logs, onLogClick }: { logs: DailyLog[], onLogClick: (log: DailyLog) => void }) {
   const [filterSubject, setFilterSubject] = useState('');
   const [filterTag, setFilterTag] = useState('');
   const [fromDate, setFromDate] = useState<string>('');
@@ -157,7 +158,11 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
           <p className="text-center py-8 opacity-40 text-xs text-[#4A443C] dark:text-zinc-400">Kriterlere uygun log bulunamadı.</p>
         ) : (
           filteredLogs.map((log, i) => (
-            <div key={i} className="p-4 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#F5F2EB] dark:bg-zinc-950">
+            <button 
+              key={i} 
+              onClick={() => onLogClick(log)}
+              className="w-full text-left p-4 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#F5F2EB] dark:bg-zinc-950 hover:border-[#C17767]/50 transition-all active:scale-[0.99]"
+            >
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <span className="text-[10px] uppercase tracking-widest opacity-50 block mb-1 text-[#4A443C] dark:text-zinc-400">{new Date(log.date).toLocaleString('tr-TR')}</span>
@@ -189,7 +194,7 @@ function LogHistory({ logs }: { logs: DailyLog[] }) {
                   </span>
                 ))}
               </div>
-            </div>
+            </button>
           ))
         )}
       </div>
@@ -336,6 +341,7 @@ export default function App() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
   const isTyping = coachIsTyping;
@@ -366,6 +372,8 @@ export default function App() {
   const { toast: toastAPI } = useToast();
 
   useEffect(() => {
+    if (!user) return; // FIX: Giriş yapmamış kullanıcılar için abonelik başlatma (Permission Denied önleme)
+    
     return subscribeToSystemConfig((config) => {
       setSystemConfig(config);
 
@@ -375,7 +383,7 @@ export default function App() {
         toastAPI.info(config.globalAnnouncement, 10000); // 10 saniye göster
       }
     });
-  }, [toastAPI]);
+  }, [toastAPI, user]);
 
   // --- TEMA FLASHBANG ENGELLEYİCİ ---
   useEffect(() => {
@@ -781,7 +789,7 @@ export default function App() {
 
           {/* Nav Alt İşlemler */}
           <div className="hidden md:flex flex-col border-t border-app">
-            {isSuperAdmin(user?.uid) && (
+            {isSuperAdmin(user?.uid, user?.email) && (
               <div
                 className="p-4 text-[9px] uppercase tracking-[0.3em] text-[#C17767] opacity-60 hover:opacity-100 transition-opacity cursor-pointer font-bold text-center border-b border-app/50"
                 onClick={() => setIsAdminPanelOpen(true)}
@@ -1149,7 +1157,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-display italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={logs} /></div>}
+            {activeTab === 'logs' && <div className="p-8 max-w-5xl mx-auto"><h2 className="font-display italic text-4xl mb-8">Log Geçmişi</h2><LogHistory logs={logs} onLogClick={(log) => setSelectedLog(log)} /></div>}
 
             {activeTab === 'exams' && (
               <motion.div key="exams" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 max-w-5xl mx-auto">
@@ -1417,7 +1425,7 @@ export default function App() {
                     <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
                       <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
                         <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
-                        <button onClick={async () => { if (await confirmDialog('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.resetStore(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
+                        <button onClick={async () => { if (await confirmDialog('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { store.hardReset(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
                       </div>
                     </ProfileSection>
                   </div>
@@ -1434,7 +1442,18 @@ export default function App() {
           </div>
         </main>
         <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={store.profile!.track} onSave={(exam) => { store.addExam(exam); setIsExamModalOpen(false); store.unlockTrophy('first_blood'); }} />
-        <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={store.isDevMode} />
+        <ExamDetailModal 
+          isOpen={!!selectedExam} 
+          onClose={() => setSelectedExam(null)} 
+          exam={selectedExam} 
+          isAdmin={isSuperAdmin(user?.uid, user?.email)} 
+        />
+        <LogDetailModal
+          isOpen={!!selectedLog}
+          onClose={() => setSelectedLog(null)}
+          log={selectedLog}
+          isAdmin={isSuperAdmin(user?.uid, user?.email)}
+        />
         <FocusSidePanel />
         <CoachInterventionModal />
         <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />

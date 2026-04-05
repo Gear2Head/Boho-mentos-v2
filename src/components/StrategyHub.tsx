@@ -3,9 +3,12 @@
  * MANTIK: Store verilerini harmanlayarak insight kartları (grafik, ROI) gösterir ve AI prompt'ları çalıştırır
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, ChevronRight, BookOpen, TrendingUp } from 'lucide-react';
+import { 
+  Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, 
+  ChevronRight, TrendingUp, CheckCircle2, AlertCircle, BarChart3, Hourglass 
+} from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
 import { YOK_ATLAS_DATA, type YokAtlasProgram } from '../data/yokAtlasData';
@@ -15,25 +18,25 @@ import { SourceROIPanel } from './SourceROIPanel';
 import { toDateMs } from '../utils/date';
 
 const markdownComponents = {
-  p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 text-zinc-300 text-sm" {...props} />,
-  li: ({ node, ...props }: any) => <li className="mb-1.5 leading-relaxed text-zinc-300" {...props} />,
+  p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 text-ink-muted text-sm" {...props} />,
+  li: ({ node, ...props }: any) => <li className="mb-1.5 leading-relaxed text-ink-muted" {...props} />,
   ul: ({ node, ...props }: any) => <ul className="list-disc pl-5 mb-4 space-y-1 opacity-90" {...props} />,
   ol: ({ node, ...props }: any) => <ol className="list-decimal pl-5 mb-4 space-y-1 opacity-90" {...props} />,
-  strong: ({ node, ...props }: any) => <strong className="font-bold text-[#C17767]" {...props} />,
-  h3: ({ node, ...props }: any) => <h3 className="text-base font-bold font-serif italic mt-5 mb-2 border-b border-zinc-800 pb-1 text-zinc-200" {...props} />,
-  table: ({ node, ...props }: any) => <div className="overflow-x-auto mb-4"><table className="w-full text-xs border-collapse" {...props} /></div>,
-  th: ({ node, ...props }: any) => <th className="p-2 bg-[#1A1A1A] border border-zinc-800 text-[#C17767] uppercase tracking-widest text-left font-bold" {...props} />,
-  td: ({ node, ...props }: any) => <td className="p-2 border border-zinc-800 text-zinc-300" {...props} />,
+  strong: ({ node, ...props }: any) => <strong className="font-bold text-accent" {...props} />,
+  h3: ({ node, ...props }: any) => <h3 className="text-base font-bold font-serif italic mt-5 mb-2 border-b border-app-subtle pb-1 text-ink" {...props} />,
+  table: ({ node, ...props }: any) => <div className="overflow-x-auto mb-4 custom-scrollbar"><table className="w-full text-xs border-collapse" {...props} /></div>,
+  th: ({ node, ...props }: any) => <th className="p-2 bg-surface border border-app-subtle text-accent uppercase tracking-widest text-left font-bold" {...props} />,
+  td: ({ node, ...props }: any) => <td className="p-2 border border-app-subtle text-ink-muted" {...props} />,
 };
 
 export function StrategyHub() {
-  const logs = useAppStore(s => s.logs);
-  const exams = useAppStore(s => s.exams);
-  const eloScore = useAppStore(s => s.eloScore);
-  const tytSubjects = useAppStore(s => s.tytSubjects);
-  const aytSubjects = useAppStore(s => s.aytSubjects);
-  const profile = useAppStore(s => s.profile);
-  const analyzeUserData = useAppStore(s => s.analyzeUserData);
+  const { 
+    logs, exams, profile, tytSubjects, aytSubjects, directiveHistory,
+    generateStrategyPlan, startRecoveryFlow, eloScore, analyzeUserData 
+  } = useAppStore();
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [localWorkload, setLocalWorkload] = useState<any>(null);
   const [weeklyPlan, setWeeklyPlan] = useState<string | null>(null);
   const [sprintPlan, setSprintPlan] = useState<string | null>(null);
   const [warRoomPlan, setWarRoomPlan] = useState<string | null>(null);
@@ -42,11 +45,27 @@ export function StrategyHub() {
   const [isLoadingSprint, setIsLoadingSprint] = useState(false);
   const [isLoadingWarRoom, setIsLoadingWarRoom] = useState(false);
 
+  useEffect(() => {
+    import('../services/directiveHistory').then(m => {
+      setLocalWorkload(m.calculateWeeklyWorkload(directiveHistory || []));
+    });
+  }, [directiveHistory]);
+
+  const recoveryTasks = useMemo(() => {
+    return (directiveHistory || [])
+      .filter(r => !r.isResolved)
+      .flatMap(r => r.directive.tasks)
+      .filter(t => t.status === 'failed' || t.status === 'deferred');
+  }, [directiveHistory]);
+
+  const handleRefreshStrategy = async () => {
+    setIsAnalyzing(true);
+    await generateStrategyPlan();
+    setTimeout(() => setIsAnalyzing(false), 1500);
+  };
+
   // --- FAZ 1: KAYNAK ROI ---
   const sourceROIs = useMemo(() => calcSourceROI(logs), [logs]);
-  const bestSources = sourceROIs.slice(0, 3);
-  const avgROI = sourceROIs.length > 0 ? sourceROIs.reduce((a, b) => a + b.roiScore, 0) / sourceROIs.length : 0;
-  const badSources = sourceROIs.filter(s => s.roiScore < avgROI * 0.6); // Ortanın %40 altı
   
   // --- FAZ 2: NET PROJEKSİYONU ---
   const examDate = new Date('2026-06-20T10:15:00+03:00');
@@ -58,31 +77,18 @@ export function StrategyHub() {
   const aiPredAyt = useMemo(() => calculatePredictedNet(exams, logs, examDate, 'AYT', eloScore), [exams, logs, eloScore]);
   
   const projectionChartData = useMemo(() => {
-    const data = [];
+    const data: any[] = [];
     const tytExams = exams.filter(e => e.type === 'TYT').slice(-5);
 
-    // Mevcut veri
     tytExams.forEach((e, i) => {
-      data.push({
-        name: `Deneme ${i + 1}`,
-        gercek: e.totalNet,
-        tahmin: null,
-      });
+      data.push({ name: `Deneme ${i + 1}`, gercek: e.totalNet, tahmin: null });
     });
 
-    // Tahmin çizgisi
     if (projection.tyt.hasEnoughData && tytExams.length > 0) {
       const lastGercek = tytExams[tytExams.length - 1].totalNet;
-      if (data.length > 0) {
-        data[data.length - 1].tahmin = lastGercek; // Bağlantı noktası
-      }
-      data.push({
-        name: 'Sınav 2026',
-        gercek: null,
-        tahmin: projection.tyt.predictedNet,
-      });
+      if (data.length > 0) data[data.length - 1].tahmin = lastGercek;
+      data.push({ name: 'Sınav 2026', gercek: null, tahmin: projection.tyt.predictedNet });
     }
-
     return data;
   }, [exams, projection]);
 
@@ -186,7 +192,6 @@ Son denemeler: ${recentExams || 'Yok'}`;
     if (!profile || !lastExam) return null;
 
     const currentNet = lastExam.totalNet;
-    // Hedef üniversite ve bölüm eşleşmesini bul
     const candidates = YOK_ATLAS_DATA.filter(p =>
     (p.university.toLowerCase().includes(profile.targetUniversity.toLowerCase()) &&
       p.major.toLowerCase().includes(profile.targetMajor.toLowerCase()))
@@ -206,7 +211,6 @@ Son denemeler: ${recentExams || 'Yok'}`;
     const diff = Number((targetNet - currentNet).toFixed(2));
     const diffText = diff >= 0 ? `${diff} net gerisindesin` : `${Math.abs(diff)} net önündesin`;
 
-    // Mart Referansı Analizi
     const marchDiff = Number((next.marchReferenceNet - currentNet).toFixed(2));
     const isAheadOfMarch = marchDiff < 0;
 
@@ -222,9 +226,9 @@ Son denemeler: ${recentExams || 'Yok'}`;
           </div>
         </div>
 
-        <div className="p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800">
-          <p className="text-xs text-zinc-400 leading-relaxed italic">
-            "Geçen yıl bu bölüme giren son kişi Mart ayında ortalama <strong className="text-zinc-200">{next.marchReferenceNet} net</strong> yapıyordu.
+        <div className="p-4 bg-surface rounded-2xl border border-app-subtle">
+          <p className="text-xs text-ink-muted leading-relaxed italic">
+            "Geçen yıl bu bölüme giren son kişi Mart ayında ortalama <strong className="text-ink">{next.marchReferenceNet} net</strong> yapıyordu.
             Sen şu an {isAheadOfMarch ? <span className="text-green-500">onun {Math.abs(marchDiff)} net önündesin.</span> : <span className="text-amber-500">o seviyenin {marchDiff} net gerisindesin.</span>}
             Saldırıya devam et!"
           </p>
@@ -234,230 +238,249 @@ Son denemeler: ${recentExams || 'Yok'}`;
   })();
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto">
-      <header className="mb-10 border-b border-[#2A2A2A] pb-6">
-        <h2 className="font-serif italic text-4xl text-zinc-200 mb-2">Strateji Odası</h2>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[#C17767] font-bold font-mono">Taktik, Analiz ve İleri Görüş Merkezi</p>
+    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-10">
+      <header className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6">
+        <div>
+          <h2 className="font-serif italic text-4xl text-ink leading-tight">Strateji Hub</h2>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-accent mt-2 font-bold font-mono">Veri Madenciliği & Gelecek Projeksiyonu v2.1</p>
+        </div>
+        <div className="flex gap-3">
+          <button 
+            onClick={analyzeUserData}
+            className="px-5 py-2.5 bg-surface-2 border border-app-subtle text-ink-muted hover:text-ink rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95"
+          >
+            <RefreshCw size={14} className={isAnalyzing ? 'animate-spin' : ''} /> VERİLERİ HARMANLA
+          </button>
+          <button 
+            onClick={handleRefreshStrategy}
+            disabled={isAnalyzing}
+            className="px-6 py-2.5 bg-accent text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:brightness-110 flex items-center gap-2 shadow-lg shadow-accent/20 transition-all active:scale-95 disabled:opacity-50"
+          >
+            {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />} AI ANALİZİ TAZELİ
+          </button>
+        </div>
       </header>
 
-      {/* FAZ 2: Projeksiyon Grafiği */}
-      <div className="grid grid-cols-1 mb-8">
-        <div className="bg-[#121212] border border-zinc-800 rounded-2xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-green-500"></div>
-          <h3 className="font-serif italic text-xl mb-4 text-zinc-200 flex items-center gap-2">
-            <TrendingUp size={20} className="text-blue-500" /> Tahmini TYT Projeksiyonu
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 mt-2">
-            <div className="bg-[#1A1A1A]/80 backdrop-blur-md border border-[#C17767]/30 rounded-2xl p-5 shadow-[0_0_20px_rgba(193,119,103,0.05)]">
-              <div className="flex justify-between items-start mb-2">
-                <h4 className="text-[#C17767] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (TYT)</h4>
-                <span className="text-zinc-500 text-[10px] uppercase">{daysRemaining} Gün Kaldı</span>
-              </div>
-              <p className="text-zinc-300 text-sm leading-relaxed italic border-l-2 border-[#C17767]/50 pl-3">
-                "{profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-[#C17767] text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-zinc-100 font-mono">%{aiPredTyt.confidence}</strong>."
-              </p>
-            </div>
-            <div className="bg-[#1A1A1A]/80 backdrop-blur-md border border-[#E09F3E]/30 rounded-2xl p-5 shadow-[0_0_20px_rgba(224,159,62,0.05)]">
-              <div className="flex justify-between items-start mb-2">
-                <h4 className="text-[#E09F3E] font-bold uppercase tracking-widest text-xs flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (AYT)</h4>
-                <span className="text-zinc-500 text-[10px] uppercase">{daysRemaining} Gün Kaldı</span>
-              </div>
-              <p className="text-zinc-300 text-sm leading-relaxed italic border-l-2 border-[#E09F3E]/50 pl-3">
-                "Alan testindeki ivmen, doğru/yanlış analizine ve algoritmanın regresyon hesabına göre AYT'de <strong className="text-[#E09F3E] text-xl">{aiPredAyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-zinc-100 font-mono">%{aiPredAyt.confidence}</strong>."
-              </p>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-surface-2 p-5 rounded-2xl border border-app-subtle group hover:border-accent/30 transition-colors">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-2 bg-rose-500/10 text-rose-500 rounded-lg"><Hourglass size={18} /></div>
+            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Haftalık Yük</span>
           </div>
+          <div className="text-2xl font-bold text-ink">{localWorkload?.totalMinutes || 0}<span className="text-xs ml-1 opacity-40 font-normal">dk</span></div>
+          <div className="text-[10px] text-ink-muted mt-1 uppercase font-bold tracking-tight">Toplam Kalan Efor</div>
+        </div>
 
-          {projection.tyt.hasEnoughData ? (
-            <div className="mt-6 w-full h-64">
-              <div style={{ width: '100%', height: '100%', minHeight: '256px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
-                    <XAxis dataKey="name" stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
-                    <YAxis stroke="#666" tick={{ fill: '#666', fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1A1A1A', borderColor: '#2A2A2A', borderRadius: '8px' }}
-                      itemStyle={{ fontSize: 12, fontWeight: 'bold' }}
-                      labelStyle={{ fontSize: 10, color: '#888' }}
-                    />
-                    {profile?.tytTarget && <ReferenceLine y={profile.tytTarget} stroke="#C17767" strokeDasharray="3 3" />}
-                    <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
-                    <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
-                  </LineChart>
-                </ResponsiveContainer>
-                <div className="mt-4 flex justify-between items-center text-xs">
-                  <span className="text-zinc-500">Hesaplanan sapma (Regresyon bazlı)</span>
-                  <span className="font-bold text-green-500 uppercase tracking-widest">{projection.tyt.predictedNet} NET BEKLENTİSİ</span>
-                </div>
-              </div>
+        <div className="bg-surface-2 p-5 rounded-2xl border border-app-subtle group hover:border-accent/30 transition-colors">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg"><Target size={18} /></div>
+            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Hedef Soru</span>
+          </div>
+          <div className="text-2xl font-bold text-ink">+{localWorkload?.totalQuestions || 0}</div>
+          <div className="text-[10px] text-ink-muted mt-1 uppercase font-bold tracking-tight">Kritik Soru Havuzu</div>
+        </div>
+
+        <div className="bg-accent/5 p-5 rounded-2xl border border-accent/20 flex flex-col justify-between group hover:border-accent/40 transition-colors">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4 text-accent" />
+              <span className="text-[10px] font-bold text-accent uppercase tracking-widest">Akıllı Telafi</span>
             </div>
-          ) : (
-            <div className="h-40 flex flex-col items-center justify-center text-zinc-600">
-              <TrendingUp size={32} className="opacity-20 mb-2" />
-              <p className="text-xs uppercase tracking-widest font-bold">YETERLİ VERİ YOK</p>
-              <p className="text-[10px] mt-1 opacity-60">Tahmin için en az 3 TYT denemesi girmelisin.</p>
-            </div>
+            <p className="text-[10px] text-ink-muted leading-tight">
+              {recoveryTasks.length > 0 
+                ? `${recoveryTasks.length} adet başarısız görev tespit edildi. Programa dahil etmek istersin?`
+                : 'Şu an telafi edilmesi gereken kritik bir görev bulunmuyor.'}
+            </p>
+          </div>
+          {recoveryTasks.length > 0 && (
+            <button 
+              onClick={() => startRecoveryFlow()}
+              className="mt-3 w-full py-2 bg-accent hover:brightness-110 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all"
+            >
+              TELAFİ ET (RECOVERY)
+            </button>
           )}
         </div>
       </div>
 
-      {/* FAZ 1: Kaynak Analizi (ROI) */}
-      <div className="mb-8">
-        <SourceROIPanel />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {criticalSubjects.length > 0 ? criticalSubjects.map((cs, i) => (
-          <div key={i} className={`bg-[#121212] border rounded-2xl p-5 ${cs.rate < 40 ? 'border-red-900/50' : cs.rate < 60 ? 'border-[#E09F3E]/50' : 'border-zinc-800'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500">KRİTİK SALDIRI #{i + 1}</span>
-              <AlertTriangle size={14} className={cs.rate < 40 ? 'text-red-500' : 'text-[#E09F3E]'} />
-            </div>
-            <h4 className="font-serif italic text-lg text-zinc-200 mb-1">{cs.subject}</h4>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${cs.rate < 40 ? 'bg-red-500' : cs.rate < 60 ? 'bg-[#E09F3E]' : 'bg-green-500'}`} style={{ width: `${cs.rate}%` }} />
-              </div>
-              <span className={`text-sm font-bold font-mono ${cs.rate < 40 ? 'text-red-400' : 'text-[#E09F3E]'}`}>%{cs.rate}</span>
-            </div>
+      <div className="bg-surface-2 border border-app-subtle rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-sm">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/50 to-green-500/50"></div>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+          <div>
+            <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3">
+              <TrendingUp size={24} className="text-blue-500" /> Tahmini TYT Projeksiyonu
+            </h3>
+            <p className="text-[10px] uppercase tracking-widest text-ink-muted mt-2 font-bold">Veri Seti: Son 5 Deneme + ELO Liyakati</p>
           </div>
-        )) : (
-          <div className="col-span-3 py-8 text-center text-zinc-600 text-xs uppercase tracking-widest">Henüz yeterli log verisi yok.</div>
+          <div className="flex gap-2">
+            <span className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full border border-blue-500/20 font-bold uppercase tracking-widest">Regresyon Modeli: Aktif</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <div className="bg-surface/50 backdrop-blur-md border border-accent/20 rounded-2xl p-5 group hover:border-accent/40 transition-colors">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-accent font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (TYT)</h4>
+              <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
+            </div>
+            <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-accent/50 pl-3">
+              "{profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-accent text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredTyt.confidence}</strong>."
+            </p>
+          </div>
+          <div className="bg-surface/50 backdrop-blur-md border border-amber-500/20 rounded-2xl p-5 group hover:border-amber-500/40 transition-colors">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-amber-500 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (AYT)</h4>
+              <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
+            </div>
+            <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-amber-500/50 pl-3">
+              "Alan testindeki ivmen, doğru/yanlış analizine ve algoritmanın regresyon hesabına göre AYT'de <strong className="text-amber-500 text-xl">{aiPredAyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredAyt.confidence}</strong>."
+            </p>
+          </div>
+        </div>
+
+        {projection.tyt.hasEnoughData ? (
+          <div className="mt-8 w-full h-[320px] min-h-[320px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} opacity={0.2} />
+                <XAxis dataKey="name" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
+                <YAxis stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: '12px', fontSize: '10px' }}
+                  itemStyle={{ fontWeight: 'bold' }}
+                />
+                {profile?.tytTarget && <ReferenceLine y={profile.tytTarget} stroke="var(--color-accent)" strokeDasharray="3 3" />}
+                <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
+                <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed border-app-subtle rounded-2xl gap-3">
+            <TrendingUp size={32} className="opacity-10" />
+            <p className="text-[10px] uppercase tracking-widest text-ink-muted italic font-bold text-center">Projeksiyon için yeterli deneme kaydı bulunmuyor.</p>
+          </div>
         )}
       </div>
 
-      <div className="mb-8">
-        <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#60A5FA]/10 rounded-xl border border-[#60A5FA]/20"><CrosshairIcon size={20} className="text-[#60A5FA]" /></div>
-              <div>
-                <h3 className="font-serif italic text-xl text-zinc-200">Akıllı Deneme Önerisi</h3>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Hata verilerine göre (son 14 gün)</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <SourceROIPanel />
+        </div>
+        <div className="space-y-6">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4 border-b border-app-subtle pb-2">Kritik Saldırı Planı</h3>
+          {criticalSubjects.length > 0 ? criticalSubjects.map((cs, i) => (
+            <div key={i} className="bg-surface-2 border border-app-subtle rounded-2xl p-5 hover:border-accent/30 transition-colors">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[9px] uppercase font-bold tracking-widest text-ink-muted">ÖNCELİK #{i + 1}</span>
+                <AlertTriangle size={14} className={cs.rate < 40 ? 'text-red-500' : 'text-amber-500'} />
               </div>
+              <h4 className="font-serif italic text-lg text-ink mb-2">{cs.subject}</h4>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${cs.rate < 40 ? 'bg-red-500' : cs.rate < 60 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${cs.rate}%` }} />
+                </div>
+                <span className="text-xs font-bold font-mono text-ink">%{cs.rate}</span>
+              </div>
+            </div>
+          )) : (
+            <div className="py-8 text-center text-ink-muted text-[10px] uppercase tracking-widest italic border border-dashed border-app-subtle rounded-2xl">Yeterli veri yok.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden group hover:border-accent/30 transition-colors">
+          <div className="p-6 border-b border-app-subtle flex items-center gap-4">
+            <div className="p-2 bg-blue-500/10 rounded-xl text-blue-500"><CrosshairIcon size={20} /></div>
+            <div>
+              <h3 className="font-serif italic text-xl text-ink leading-none">Deneme Önerisi</h3>
+              <p className="text-[9px] uppercase tracking-widest text-ink-muted mt-1.5 font-bold">Son 14 Güne Dayalı Analiz</p>
             </div>
           </div>
           <div className="p-6">
             {!smartMockSuggestion ? (
-              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70">Yeterli log verisi yok.</div>
+              <p className="text-xs italic text-ink-muted">Deneme önerisi hazırlamak için daha fazla log girişi yapmalısın.</p>
             ) : (
-              <div className="space-y-3">
-                <div className="text-sm text-zinc-200 font-mono leading-relaxed"><span className="text-[#60A5FA] font-bold">{smartMockSuggestion.message}</span></div>
-                <div className="text-[10px] uppercase tracking-widest text-zinc-500">{smartMockSuggestion.reasoning}</div>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {smartMockSuggestion.focusTopics.map((t) => (
-                    <span key={t} className="px-2.5 py-1 bg-[#60A5FA]/10 text-[#60A5FA] border border-[#60A5FA]/20 rounded-lg text-[10px] uppercase font-bold tracking-widest">{t}</span>
+              <div className="space-y-4">
+                <p className="text-sm text-ink-muted leading-relaxed italic"><strong className="text-blue-500 font-bold font-mono">{smartMockSuggestion.mockLabel}:</strong> {smartMockSuggestion.message}</p>
+                <div className="flex flex-wrap gap-2">
+                  {smartMockSuggestion.focusTopics.map(t => (
+                    <span key={t} className="px-2 py-0.5 bg-blue-500/5 text-blue-500 border border-blue-500/20 rounded-full text-[9px] font-bold uppercase tracking-widest">{t}</span>
                   ))}
                 </div>
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      <div className="mb-8">
-        <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#C17767]/10 rounded-xl border border-[#C17767]/20"><ChevronRight size={20} className="text-[#C17767]" /></div>
-              <div>
-                <h3 className="font-serif italic text-xl text-zinc-200">YÖK Atlas Kovalamaca</h3>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Hedefle arandaki bağı koparma</p>
-              </div>
+        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden group hover:border-accent/30 transition-colors">
+          <div className="p-6 border-b border-app-subtle flex items-center gap-4">
+            <div className="p-2 bg-accent/10 rounded-xl text-accent"><ChevronRight size={20} /></div>
+            <div>
+              <h3 className="font-serif italic text-xl text-ink leading-none">YÖK Atlas Takibi</h3>
+              <p className="text-[9px] uppercase tracking-widest text-ink-muted mt-1.5 font-bold">Hedefle Mevcut Durum Analizi</p>
             </div>
           </div>
           <div className="p-6">
             {!yokAtlasChase ? (
-              <div className="text-xs uppercase tracking-widest text-zinc-600 opacity-70 italic">Kovalamaca için en az 1 deneme kaydı gerekli.</div>
+              <p className="text-xs italic text-ink-muted">Hedef takibi için en az bir deneme kaydı gerekiyor.</p>
             ) : (
-              <div>{yokAtlasChase}</div>
+              <div className="no-scrollbar">{yokAtlasChase}</div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden shadow-sm flex flex-col">
+          <div className="p-6 border-b border-app-subtle flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#C17767]/10 rounded-xl border border-[#C17767]/20"><Target size={20} className="text-[#C17767]" /></div>
-              <div>
-                <h3 className="font-serif italic text-xl text-zinc-200">Haftalık Kuşatma</h3>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">7 günlük saldırı planı</p>
-              </div>
+              <div className="p-2 bg-accent/10 rounded-xl text-accent"><Target size={18} /></div>
+              <h3 className="font-serif italic text-lg text-ink">Haftalık Plan</h3>
             </div>
-            <button onClick={handleWeeklyPlan} disabled={isLoadingWeekly} className="flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#C17767] hover:text-white transition-all disabled:opacity-40" aria-label="Haftalık Plan Oluştur">
-              {isLoadingWeekly ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {weeklyPlan ? 'Yenile' : 'Oluştur'}
+            <button onClick={handleWeeklyPlan} disabled={isLoadingWeekly} className="p-2 hover:bg-accent/10 text-accent rounded-xl transition-all disabled:opacity-50">
+              {isLoadingWeekly ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             </button>
           </div>
-          <div className="p-6 min-h-48">
-            {isLoadingWeekly && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50"><Loader2 size={24} className="animate-spin text-[#C17767]" /><p className="text-xs uppercase tracking-widest text-zinc-500">Kübra. hesaplıyor...</p></div>}
-            {!isLoadingWeekly && !weeklyPlan && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30"><Target size={32} className="text-zinc-600" /><p className="text-xs uppercase tracking-widest text-zinc-600">Plan henüz oluşturulmadı</p></div>}
-            {weeklyPlan && !isLoadingWeekly && <ReactMarkdown components={markdownComponents}>{weeklyPlan}</ReactMarkdown>}
+          <div className="p-6 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar">
+            {isLoadingWeekly ? <div className="flex flex-col items-center justify-center h-full opacity-50"><Loader2 className="animate-spin mb-2" size={24} /><p className="text-[10px] uppercase font-bold tracking-widest">Hesaplanıyor...</p></div> : 
+             weeklyPlan ? <div className="prose prose-invert prose-sm max-w-none"><ReactMarkdown components={markdownComponents}>{weeklyPlan}</ReactMarkdown></div> :
+             <div className="h-full flex items-center justify-center text-[10px] uppercase tracking-widest text-ink-muted font-bold opacity-30">Plan Üretmek İçin Tıkla</div>}
           </div>
         </div>
 
-        <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-[#2A2A2A] flex items-center justify-between">
+        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden shadow-sm flex flex-col">
+          <div className="p-6 border-b border-app-subtle flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#E09F3E]/10 rounded-xl border border-[#E09F3E]/20"><Zap size={20} className="text-[#E09F3E]" /></div>
-              <div>
-                <h3 className="font-serif italic text-xl text-zinc-200">24 Saatlik Sprint</h3>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">Bugünün 3 kritik görevi</p>
-              </div>
+              <div className="p-2 bg-amber-500/10 rounded-xl text-amber-500"><Zap size={18} /></div>
+              <h3 className="font-serif italic text-lg text-ink">Günlük Sprint</h3>
             </div>
-            <button onClick={handleSprintPlan} disabled={isLoadingSprint} className="flex items-center gap-2 px-4 py-2 bg-[#E09F3E]/10 text-[#E09F3E] border border-[#E09F3E]/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#E09F3E] hover:text-black transition-all disabled:opacity-40" aria-label="Bugün İçin Sprint Başlat">
-              {isLoadingSprint ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />} {sprintPlan ? 'Yenile' : 'Başlat'}
+            <button onClick={handleSprintPlan} disabled={isLoadingSprint} className="p-2 hover:bg-amber-500/10 text-amber-500 rounded-xl transition-all disabled:opacity-50">
+              {isLoadingSprint ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
             </button>
           </div>
-          <div className="p-6 min-h-48">
-            {isLoadingSprint && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50"><Loader2 size={24} className="animate-spin text-[#E09F3E]" /><p className="text-xs uppercase tracking-widest text-zinc-500">Görevler hesaplanıyor...</p></div>}
-            {!isLoadingSprint && !sprintPlan && <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30"><Zap size={32} className="text-zinc-600" /><p className="text-xs uppercase tracking-widest text-zinc-600">Sprint henüz başlatılmadı</p></div>}
-            {sprintPlan && !isLoadingSprint && <ReactMarkdown components={markdownComponents}>{sprintPlan}</ReactMarkdown>}
+          <div className="p-6 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar">
+            {isLoadingSprint ? <div className="flex flex-col items-center justify-center h-full opacity-50"><Loader2 className="animate-spin mb-2" size={24} /><p className="text-[10px] uppercase font-bold tracking-widest">Hazırlanıyor...</p></div> : 
+             sprintPlan ? <div className="prose prose-invert prose-sm max-w-none"><ReactMarkdown components={markdownComponents}>{sprintPlan}</ReactMarkdown></div> :
+             <div className="h-full flex items-center justify-center text-[10px] uppercase tracking-widest text-ink-muted font-bold opacity-30">Sprint Başlat</div>}
           </div>
         </div>
 
-        {/* WAR ROOM / ANLA KARTI */}
-        <div className="bg-[#121212] border border-red-900/30 rounded-2xl overflow-hidden shadow-[0_0_15px_rgba(239,68,68,0.05)]">
-          <div className="p-6 border-b border-red-900/40 flex items-center justify-between">
+        <div className="bg-surface-2 border border-red-950/20 rounded-3xl overflow-hidden shadow-sm flex flex-col border-red-500/10">
+          <div className="p-6 border-b border-red-500/10 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-900/10 rounded-xl border border-red-900/20">
-                <AlertTriangle size={20} className="text-red-500" />
-              </div>
-              <div>
-                <h3 className="font-serif italic text-xl text-zinc-200">Savaş Planı</h3>
-                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mt-0.5">Mezarlık & Log Analizi</p>
-              </div>
+              <div className="p-2 bg-red-500/10 rounded-xl text-red-500"><AlertTriangle size={18} /></div>
+              <h3 className="font-serif italic text-lg text-ink">Savaş Planı</h3>
             </div>
-            <button
-              onClick={handleWarRoom}
-              disabled={isLoadingWarRoom}
-              className="flex items-center gap-2 px-4 py-2 bg-red-900/10 text-red-500 border border-red-900/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-900/30 hover:text-white transition-all disabled:opacity-40"
-              aria-label="Kübra Analizini Başlat"
-            >
-              {isLoadingWarRoom ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />} {warRoomPlan ? 'Yenile' : 'ANLA'}
+            <button onClick={handleWarRoom} disabled={isLoadingWarRoom} className="p-2 hover:bg-red-500/10 text-red-500 rounded-xl transition-all disabled:opacity-50">
+              {isLoadingWarRoom ? <Loader2 size={16} className="animate-spin" /> : <BarChart3 size={16} />}
             </button>
           </div>
-          <div className="p-6 min-h-48">
-            {isLoadingWarRoom && (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-50">
-                <Loader2 size={24} className="animate-spin text-red-500" />
-                <p className="text-xs uppercase tracking-widest text-zinc-500">Kübra analiz ediyor...</p>
-              </div>
-            )}
-            {!isLoadingWarRoom && !warRoomPlan && (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-30">
-                <AlertTriangle size={32} className="text-zinc-600" />
-                <p className="text-xs uppercase tracking-widest text-zinc-600 font-bold ml-1 text-center">GELİŞİMİN DURDU MU, SAVAŞA HAZIR MISIN?</p>
-              </div>
-            )}
-            {warRoomPlan && !isLoadingWarRoom && (
-              <div className="border-l-2 border-red-500/50 pl-3">
-                <ReactMarkdown components={markdownComponents}>{warRoomPlan}</ReactMarkdown>
-              </div>
-            )}
+          <div className="p-6 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar">
+            {isLoadingWarRoom ? <div className="flex flex-col items-center justify-center h-full opacity-50"><Loader2 className="animate-spin mb-2" size={24} /><p className="text-[10px] uppercase font-bold tracking-widest">Analiz Ediliyor...</p></div> : 
+             warRoomPlan ? <div className="prose prose-invert prose-sm max-w-none border-l-2 border-red-500/30 pl-4 py-1 italic"><ReactMarkdown components={markdownComponents}>{warRoomPlan}</ReactMarkdown></div> :
+             <div className="h-full flex items-center justify-center text-[10px] uppercase tracking-widest text-ink-muted font-bold opacity-30">Analizi Başlat</div>}
           </div>
         </div>
       </div>

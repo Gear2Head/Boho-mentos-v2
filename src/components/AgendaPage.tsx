@@ -5,7 +5,7 @@
 
 import React, { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Plus, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { CheckCircle2, CircleDashed, Timer, XCircle, Plus, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import type { AgendaEntry, ExamResult } from '../types';
 import { getCoachResponse } from '../services/gemini';
@@ -45,16 +45,22 @@ const buildExamFromParsed = (p: NonNullable<AgendaEntry['parsedExam']>): ExamRes
 };
 
 export function AgendaPage() {
-  const agendaEntries = useAppStore(s => s.agendaEntries);
-  const addAgendaEntry = useAppStore(s => s.addAgendaEntry);
-  const addExam = useAppStore(s => s.addExam);
-  const profile = useAppStore(s => s.profile);
-  const chatHistory = useAppStore(s => s.chatHistory);
-  const updateAgendaEntry = useAppStore(s => s.updateAgendaEntry);
-  const removeAgendaEntry = useAppStore(s => s.removeAgendaEntry);
+  const { 
+    agendaEntries, addAgendaEntry, addExam, profile, chatHistory, 
+    updateAgendaEntry, removeAgendaEntry, directiveHistory,
+    completeCoachTask, deferCoachTask, failCoachTask 
+  } = useAppStore();
 
   const [draft, setDraft] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // V19: Aktif AI Görevlerini Çek
+  const activeTasks = useMemo(() => {
+    return (directiveHistory || [])
+      .filter(r => !r.isResolved)
+      .flatMap(r => r.directive.tasks.map((t, idx) => ({ ...t, recordId: r.id, taskIndex: idx })))
+      .filter(t => t.status === 'pending');
+  }, [directiveHistory]);
 
   const entries = useMemo(() => {
     return agendaEntries
@@ -132,6 +138,60 @@ export function AgendaPage() {
           </button>
         </div>
       </div>
+
+      {/* V19: AI Tasks Section */}
+      {activeTasks.length > 0 && (
+        <div className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-4 h-4 text-[#C17767]" />
+            <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#C17767]">Kübra'nın Görevleri</h3>
+            <span className="px-1.5 py-0.5 bg-[#C17767]/10 text-[#C17767] rounded text-[8px] font-bold">{activeTasks.length} AKTİF</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {activeTasks.map((t) => (
+              <div key={`${t.recordId}-${t.taskIndex}`} className="bg-white dark:bg-zinc-900 border-l-4 border-l-[#C17767] border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-widest ${
+                        t.priority === 'high' ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'
+                      }`}>
+                        {t.priority} PRiORiTY
+                      </span>
+                      {t.subject && <span className="text-[8px] text-zinc-500 uppercase font-bold tracking-widest">{t.subject}</span>}
+                    </div>
+                    <h4 className="font-bold text-sm text-[#4A443C] dark:text-zinc-100">{t.title}</h4>
+                  </div>
+                  <CircleDashed className="w-4 h-4 text-[#C17767] animate-pulse" />
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4 line-clamp-2">{t.action}</p>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => completeCoachTask(t.recordId, t.taskIndex)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-green-600/10 hover:bg-green-600 hover:text-white text-green-600 rounded-lg text-[10px] font-bold uppercase transition-all"
+                  >
+                    <CheckCircle2 size={12} /> TAMAMLA
+                  </button>
+                  <button 
+                    onClick={() => deferCoachTask(t.recordId, t.taskIndex)}
+                    className="p-2 bg-amber-600/10 hover:bg-amber-600 hover:text-white text-amber-600 rounded-lg transition-all"
+                    title="Ertele (-5 ELO)"
+                  >
+                    <Timer size={14} />
+                  </button>
+                  <button 
+                    onClick={() => failCoachTask(t.recordId, t.taskIndex)}
+                    className="p-2 bg-rose-600/10 hover:bg-rose-600 hover:text-white text-rose-600 rounded-lg transition-all"
+                    title="Yapamadım (-15 ELO)"
+                  >
+                    <XCircle size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {entries.length === 0 ? (

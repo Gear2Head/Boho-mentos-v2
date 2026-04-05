@@ -122,6 +122,37 @@ export async function toggleBan(
   }
 }
 
+/**
+ * FALSEFIX-007: Tüm admin audit loglarını temizler.
+ * Güvenlik: Sadece superAdmin claim'i olanlar tetikleyebilir.
+ */
+export async function clearAdminLogs(
+  actorUid: string,
+  actorRole: UserRole
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const logsRef = collection(db, 'adminLogs');
+    const snap = await getDocs(logsRef);
+    
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+
+    await logAdminAction({
+      actorUid,
+      actorRole,
+      targetUid: 'SYSTEM',
+      action: 'CLEAR_ADMIN_LOGS',
+      details: { deletedCount: snap.size },
+      result: 'success',
+    });
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: msg };
+  }
+}
+
 // ─── Tehlikeli Veri İşlemleri ─────────────────────────────────────────────────
 
 /**

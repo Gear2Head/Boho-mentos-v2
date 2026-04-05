@@ -14,6 +14,11 @@
 import { GoogleGenAI } from '@google/genai';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { 
+  COACH_PERSONA_BASE, 
+  buildSystemInstruction, 
+  buildStructuredSystemInstruction 
+} from '../src/services/promptBuilder';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,80 +72,7 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
 
-// ─── Intent → System Instruction ─────────────────────────────────────────────
-
-const PERSONA_BASE =
-  "Sen 'Kübra'sin. YKS koçusun. Sert, analitik, mazeret kabul etmeyen ama toksik olmayan bir disiplin anlayışıyla çalışırsın. Veriyle konuşursun, duyguyla değil.";
-
-const INTENT_INSTRUCTIONS: Record<string, string> = {
-  daily_plan: `Öğrencinin mevcut durumunu analiz ederek bugün için somut çalışma planı oluştur. Konu, süre ve öncelik sırasını belirt. Gerekçeni göster.`,
-  log_analysis: `Girilen log verisini incele. Doğruluk oranı, hız ve alışkanlık örüntülerini analiz et. 3 maddeli aksiyon planı çıkar.`,
-  exam_analysis: `Deneme sonucunu hedefle karşılaştır. Güçlü ve zayıf konuları tespit et. Öncelik sırası belirle.`,
-  exam_debrief: `Son deneme savaş raporunu çıkar. Konu bazlı kayıpları, tuzak şıkları ve sonraki 48 saatlik telafi planını ver.`,
-  topic_explain: `Konuyu net ve sade dille açıkla. YKS'ye özgü ipuçları ve yaygın tuzaklar hakkında bilgi ver.`,
-  intervention: `ACİL müdahale. Öğrencinin tehlikeli alışkanlığını doğrudan ve sert ele al. Empati değil, eylem.`,
-  qa_mode: `YKS Asistanı modundasın. Kısa, teknik ve net cevap ver. Gereksiz methiye yapma.`,
-  free_chat: `Öğrenci seninle serbest konuşuyor. YKS hedefleriyle ilişkilendirerek yanıt ver ama zorlama.`,
-  war_room_analysis: `War Room simülasyonu bitti. Soru bazlı hata analizi yap. Konuya özgü 3 aksiyon ver.`,
-  weekly_review: `Haftalık retrospektif: Ne oldu, neden oldu, gelecek hafta ne değişecek. Net veriyle konuş.`,
-  micro_feedback: `Log kaydedildi. 1 kısa özet + 1 risk + 1 sonraki adım. Maksimum 3 cümle.`,
-};
-
-const DIRECTIVE_JSON_SCHEMA = `
-ZORUNLU FORMAT (sadece geçerli JSON döndür, başka metin ekleme):
-{
-  "headline": "Tek cümlelik değerlendirme",
-  "summary": "2-3 cümlelik özet",
-  "tasks": [
-    {
-      "priority": "high|medium|low",
-      "subject": "ders",
-      "topic": "konu",
-      "action": "yapılacak iş",
-      "targetMinutes": 45,
-      "rationale": "1 satır veri temelli gerekçe",
-      "originSurface": "coach|strategy|warroom|system",
-      "dueWindow": "today|tomorrow|this_week"
-    }
-  ],
-  "warnings": [
-    {
-      "type": "avoidance|memorization_risk|time_loss|low_accuracy|streak_break|burnout_risk|target_gap",
-      "message": "uyarı",
-      "severity": "info|warning|critical"
-    }
-  ],
-  "followUpQuestion": "Sonraki seansta sorulacak soru",
-  "confidence": 75
-}
-`;
-
-function buildSystemInstruction(
-  intent: CoachIntent,
-  coachPersonality?: string,
-  userState?: Record<string, unknown>
-): string {
-  const intentGuide = INTENT_INSTRUCTIONS[intent] ?? INTENT_INSTRUCTIONS.free_chat;
-  const personalityNote = coachPersonality
-    ? `\n[Koçluk Kişiliği: ${coachPersonality}]`
-    : '';
-
-  let stateNote = '';
-  if (userState) {
-    const u = userState;
-    if (u.targetUniversity && u.targetMajor) {
-      stateNote += `\nHedef: ${u.targetUniversity} - ${u.targetMajor}`;
-    }
-    if (u.tytTarget || u.aytTarget) {
-      stateNote += `. Hedef Netler: TYT:${u.tytTarget ?? '-'}, AYT:${u.aytTarget ?? '-'}`;
-    }
-    if (u.tytGap !== undefined && u.aytGap !== undefined) {
-      stateNote += `. Mevcut Açık: TYT ${(u.tytGap as number).toFixed(1)}, AYT ${(u.aytGap as number).toFixed(1)}`;
-    }
-  }
-
-  return `${PERSONA_BASE}${personalityNote}\n\nGÖREV: ${intentGuide}${stateNote}`;
-}
+// ─── AI Logic moved to src/services/promptBuilder.ts ─────────────────────────
 
 // ─── Provider Calls ───────────────────────────────────────────────────────────
 
@@ -217,8 +149,9 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
   error?: string;
 }> {
   // intent — BUILD-001: legacy "action" → intent migration
+  // intent — BUILD-001: legacy "action" → intent migration
   let intent: CoachIntent = 'free_chat';
-  if (body.intent && INTENT_INSTRUCTIONS[body.intent]) {
+  if (body.intent) {
     intent = body.intent;
   } else if (body.action === 'qa_mode') {
     intent = 'qa_mode';
@@ -233,17 +166,17 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
   const maxTokens = Math.max(200, Math.min(3000, Number(body.maxTokens) || 1200));
   const wantDirective = body.wantDirective === true;
 
-  const systemInstruction = buildSystemInstruction(
-    intent,
-    body.coachPersonality,
-    body.userState
-  );
+  // SYNC-002: Merkezi prompt builder kullanımı
+  const contextObj = (body.userState as any) || {};
+  
+  const systemInstruction = wantDirective
+    ? buildStructuredSystemInstruction(intent, contextObj, body.coachPersonality)
+    : buildSystemInstruction(intent, contextObj, body.coachPersonality);
 
   const fullPrompt = [
     `Bağlam:\n${context}`,
     `Mesaj:\n${userMessage}`,
-    wantDirective ? `\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR.${DIRECTIVE_JSON_SCHEMA}` : '',
-    body.forceJson ? '\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR.' : '',
+    body.forceJson && !wantDirective ? '\nKURAL: SADECE GEÇERLİ JSON DÖNDÜR.' : '',
   ]
     .filter(Boolean)
     .join('\n\n');

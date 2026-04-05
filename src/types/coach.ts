@@ -183,8 +183,8 @@ export interface CoachMemory {
   staleAdvicePatterns: string[];
   /** Müdahale etkinliği: intervention sonrası iyileşme var mı? */
   interventionEffectiveness: 'effective' | 'partial' | 'none' | 'unknown';
-  /** Başarısız görevlerin en yaygın nedenleri */
-  missedTaskReasons: TaskFailureReason[];
+  /** Başarısız görevlerin en yaygın nedenleri (Ders: Neden formatında) */
+  missedTaskReasons: string[];
   /** Güçlü alanlar (tutarlı yüksek doğruluk) */
   strongSubjects: string[];
   /** Kalıcı koç notları — "Bu öğrenci X'te tekrar düşüyor" */

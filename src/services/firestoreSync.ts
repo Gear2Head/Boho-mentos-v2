@@ -47,6 +47,10 @@ export interface FirestoreUserData {
   chatHistory: ChatMessage[];
   isPassiveMode: boolean;
   activeAlerts: HabitAlert[];
+  // V19 Coach Core
+  lastCoachDirective: import('../types/coach').CoachDirective | null;
+  directiveHistory: import('../types/coach').DirectiveRecord[];
+  coachMemory: import('../types/coach').CoachMemory | null;
 }
 
 const EXCLUDED_KEYS = new Set([
@@ -72,6 +76,7 @@ const ENTITY_SUBCOLLECTION: Record<string, string> = {
   agendaEntries: 'agendaEntries',
   focusSessions: 'focusSessions',
   chatHistory: 'chatMessages',
+  directiveHistory: 'directiveHistory',
 };
 
 const LEGACY_ROOT_ARRAY_KEYS = new Set([
@@ -81,6 +86,7 @@ const LEGACY_ROOT_ARRAY_KEYS = new Set([
   'agendaEntries',
   'focusSessions',
   'chatHistory',
+  'directiveHistory',
 ]);
 
 function toMillis(v: unknown): number {
@@ -263,6 +269,11 @@ export async function pullFromFirestore(uid: string): Promise<FirestoreUserData 
       'agendaEntries',
       d.agendaEntries as AgendaEntry[] | undefined
     );
+    const directiveHistory = await loadSubcollection<import('../types/coach').DirectiveRecord>(
+      uid,
+      'directiveHistory',
+      d.directiveHistory as any[] | undefined
+    );
     const focusSessions = await loadSubcollection<FocusSessionRecord>(
       uid,
       'focusSessions',
@@ -284,6 +295,7 @@ export async function pullFromFirestore(uid: string): Promise<FirestoreUserData 
       subjectViewMode: d.subjectViewMode ?? 'map',
       trophies: d.trophies ?? [],
       chatHistory,
+      directiveHistory,
       focusSessions,
       logs,
       exams,
@@ -291,6 +303,8 @@ export async function pullFromFirestore(uid: string): Promise<FirestoreUserData 
       agendaEntries,
       isPassiveMode: d.isPassiveMode ?? false,
       activeAlerts: d.activeAlerts ?? [],
+      lastCoachDirective: d.lastCoachDirective ?? null,
+      coachMemory: d.coachMemory ?? null,
     };
   } catch (err) {
     console.warn('[Firestore] Pull failed:', err);

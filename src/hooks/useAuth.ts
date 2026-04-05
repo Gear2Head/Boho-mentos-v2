@@ -10,6 +10,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
@@ -41,9 +43,8 @@ function applyCloudDataToStore(incoming: Partial<FirestoreUserData>) {
     if (delta !== 0) current.addElo(delta);
   }
 
-  // SYNC-001 FIX: Boş array („[]“) geçerli cloud gerçeğidir.
-  // incoming !== undefined ise cloud değerini kullan. undefined ise local'i koru.
-  // Eski hata: incoming.tytSubjects.length > 0 ? incoming : current — bu, cloud'da sıfırlanan diziyi lokal'e yansıtmıyordu.
+  // SYNC-001 OPTIMIZATION: Buluttan gelen veri her zaman "Truth" kabul edilir.
+  // Not: incoming[key] === undefined ise buluttan çekilememiştir; bu durumda yereli koru.
   useAppStore.setState({
     tytSubjects: incoming.tytSubjects !== undefined
       ? incoming.tytSubjects
@@ -62,6 +63,8 @@ function applyCloudDataToStore(incoming: Partial<FirestoreUserData>) {
     activeAlerts: incoming.activeAlerts !== undefined ? incoming.activeAlerts : current.activeAlerts,
     chatHistory: Array.isArray(incoming.chatHistory) ? incoming.chatHistory : current.chatHistory,
     subjectViewMode: incoming.subjectViewMode ?? current.subjectViewMode,
+    coachMemory: incoming.coachMemory !== undefined ? incoming.coachMemory : current.coachMemory,
+    lastCoachDirective: incoming.lastCoachDirective !== undefined ? incoming.lastCoachDirective : current.lastCoachDirective,
   });
 }
 
@@ -77,6 +80,8 @@ const ROOT_RT_FIELDS: Array<keyof FirestoreUserData> = [
   'isPassiveMode',
   'activeAlerts',
   'subjectViewMode',
+  'coachMemory',
+  'lastCoachDirective',
 ];
 
 function applyRootCloudDataToStore(incoming: Partial<FirestoreUserData>) {
@@ -90,7 +95,7 @@ function applyRootCloudDataToStore(incoming: Partial<FirestoreUserData>) {
     if (delta !== 0) current.addElo(delta);
   }
 
-  // SYNC-001 FIX: Realtime root listener — boş array geçerli cloud durumu.
+  // SYNC-001 OPTIMIZATION: Realtime root listener.
   useAppStore.setState({
     tytSubjects: incoming.tytSubjects !== undefined
       ? incoming.tytSubjects
@@ -103,6 +108,8 @@ function applyRootCloudDataToStore(incoming: Partial<FirestoreUserData>) {
     isPassiveMode: incoming.isPassiveMode ?? current.isPassiveMode,
     activeAlerts: incoming.activeAlerts !== undefined ? incoming.activeAlerts : current.activeAlerts,
     subjectViewMode: incoming.subjectViewMode ?? current.subjectViewMode,
+    coachMemory: incoming.coachMemory !== undefined ? incoming.coachMemory : current.coachMemory,
+    lastCoachDirective: incoming.lastCoachDirective !== undefined ? incoming.lastCoachDirective : current.lastCoachDirective,
   });
 }
 
@@ -136,7 +143,10 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribeFns: Array<() => void> = [];
 
+    console.log('[Auth] Initializing auth state listener...');
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('[Auth] onAuthStateChanged:', firebaseUser?.email || 'null');
       if (firebaseUser) {
         unsubscribeFns.forEach((u) => u());
         unsubscribeFns.length = 0;
@@ -241,27 +251,20 @@ export function useAuth() {
     };
   }, []);
 
-// Removed buildFullSnapshot in favor of buildSyncPayload
-
   const signInWithGoogle = useCallback(async () => {
     setAuthError(null);
     try {
       setIsLoading(true);
+      console.log('[Auth] Starting Google Sign-In via Popup...');
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      const cloudData = await pullFromFirestore(user.uid);
-      if (!cloudData?.profile && profile) {
-        const state = useAppStore.getState();
-        const { root, entities } = buildSyncPayload(state);
-        await pushToFirestore(user.uid, { ...root, ...entities });
-      }
+      console.log('[Auth] Popup success for:', result.user.email);
     } catch (err: unknown) {
+      console.error('[Auth] Popup error:', err);
       const code = (err as { code?: string }).code;
       setAuthError(parseAuthError(code ?? ''));
-    } finally {
       setIsLoading(false);
     }
-  }, [profile]);
+  }, []);
 
   const signInWithEmail = useCallback(async (email: string, password: string, mode: AuthMode, displayName?: string) => {
     setAuthError(null);

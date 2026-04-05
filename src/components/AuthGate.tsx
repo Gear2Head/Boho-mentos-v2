@@ -99,6 +99,7 @@ export function AuthGate() {
                   placeholder="Adin / mahlasın"
                   value={displayName}
                   onChange={e => setDisplayName(e.target.value)}
+                  autoComplete="name"
                   className="w-full rounded-xl border border-[#2A2A2A] bg-[#1A1A1A] py-3 pl-10 pr-4 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#C17767]"
                 />
               </div>
@@ -112,6 +113,7 @@ export function AuthGate() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="w-full rounded-xl border border-[#2A2A2A] bg-[#1A1A1A] py-3 pl-10 pr-4 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#C17767]"
               />
             </div>
@@ -125,6 +127,7 @@ export function AuthGate() {
                 onChange={e => setPassword(e.target.value)}
                 required
                 minLength={6}
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                 className="w-full rounded-xl border border-[#2A2A2A] bg-[#1A1A1A] py-3 pl-10 pr-12 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#C17767]"
               />
               <button

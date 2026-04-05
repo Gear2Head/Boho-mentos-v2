@@ -24,9 +24,11 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
   const [isEditing, setIsEditing] = useState(false);
   const [draftScores, setDraftScores] = useState<ExamResult['scores']>({});
 
-  if (!isOpen || !exam) return null;
+  const scores = isEditing ? draftScores : exam?.scores || {};
 
-  const scores = isEditing ? draftScores : exam.scores;
+  const totalNet = useMemo(() => {
+    return Object.values(scores).reduce((acc: number, s: any) => acc + (s?.net || 0), 0);
+  }, [scores]);
 
   const calcNet = (correct: number, wrong: number) => {
     const c = Number.isFinite(correct) ? correct : 0;
@@ -34,9 +36,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
     return c - w * 0.25;
   };
 
-  const totalNet = useMemo(() => {
-    return Object.values(scores).reduce((acc: number, s: any) => acc + (s?.net || 0), 0);
-  }, [scores]);
+  if (!isOpen || !exam) return null;
 
   // [UX-001 FIX]: window.confirm → confirmDialog
   const handleDelete = async () => {
