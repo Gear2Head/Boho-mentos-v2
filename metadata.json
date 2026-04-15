@@ -1,7 +1,0 @@
-{
-  "name": "Boho Mentosluk",
-  "description": "YKS öğrencileri için veri odaklı, aktif direktif veren yapay zeka koçluk sistemi.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
-}
