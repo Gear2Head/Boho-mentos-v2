@@ -202,7 +202,10 @@ export function useAuth() {
     const sb = getSupabaseClient();
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { queryParams: { prompt: 'select_account' } },
+      options: { 
+        redirectTo: window.location.origin + '/', 
+        queryParams: { prompt: 'select_account' } 
+      },
     });
     if (error) setAuthError(parseAuthError(error.message));
   }, []);
@@ -214,6 +217,7 @@ export function useAuth() {
       provider: 'spotify',
       options: {
         scopes: 'user-read-email user-read-private', // Minimum scopes required to login
+        redirectTo: window.location.origin + '/',
       },
     });
     if (error) setAuthError(parseAuthError(error.message));
