@@ -77,10 +77,9 @@ export default defineConfig(({ mode }) => ({
           charts: ['recharts'],
           markdown: ['react-markdown'],
           motion: ['motion'],
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          supabase: ['@supabase/supabase-js'],
           // [PERF-002 FIX]: Ağır AI ve native paketleri ayrı chunk
           genai: ['@google/genai'],
-          capacitor: ['@capacitor/core', '@capacitor/app', '@capacitor/status-bar'],
           idb: ['idb'],
         },
       },
