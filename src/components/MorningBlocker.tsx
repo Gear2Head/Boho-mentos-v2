@@ -196,6 +196,9 @@ const FALLBACK_QUESTIONS: Record<StudentTrack, MorningQuestion[]> = {
 
 export function MorningBlocker({ onUnlock }: { onUnlock: () => void }) {
   const profile = useAppStore((s) => s.profile);
+  const tytSubjects = useAppStore((s) => s.tytSubjects);
+  const aytSubjects = useAppStore((s) => s.aytSubjects);
+  
   const [isOpen, setIsOpen] = useState(false);
   const [question, setQuestion] = useState<MorningQuestion | null>(null);
   const [isLoadingQ, setIsLoadingQ] = useState(true);
@@ -226,8 +229,14 @@ export function MorningBlocker({ onUnlock }: { onUnlock: () => void }) {
 
     // Try AI generation
     try {
+      const weakTopics = [...tytSubjects, ...aytSubjects]
+        .filter((s) => s.status === 'not-started' || s.status === 'in-progress')
+        .map((s) => `${s.subject}/${s.name}`);
+      const randomWeak = weakTopics.sort(() => 0.5 - Math.random()).slice(0, 3).join(', ');
+      const weakContext = randomWeak ? `Şu zayıf konulardan birini seç: ${randomWeak}.` : `Rastgele bir konudan seç.`;
+
       const raw = await getCoachResponse(
-        `Kullanıcının alanı: ${track}. Bugün için sabah kilidi sorusu üret. SADECE JSON döndür (başka metin ekleme):
+        `Kullanıcının alanı: ${track}. Bugün için bir sabah kilidi sorusu üret. ${weakContext} SADECE JSON döndür (başka metin ekleme):
 {"topic":"...","expression":"latex_string_or_empty_string","questionStr":"...","correctAnswers":["cevap1","cevap2"],"hints":["...","...","..."]}
 Zorluk: orta. Kısa soru. Günlük sıkılmayacak kadar değişken konu seç. LaTeX'i sadece matematiksel ifade varsa kullan.`,
         '',

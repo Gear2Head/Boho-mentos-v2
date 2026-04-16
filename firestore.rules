@@ -42,7 +42,19 @@ service cloud.firestore {
       match /system/{docId} {
         allow read, write: if isOwner(userId) || isSuperAdmin();
       }
+      // [A5 FIX]: Eksik subcollection ownership rules eklendi
+      match /directiveHistory/{recordId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /flashcards/{cardId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
+      match /notifications/{notifId} {
+        allow read: if isOwner(userId) || isSuperAdmin();
+        allow write: if isSuperAdmin();
+      }
     }
+
 
     match /userData/{userId} {
       allow read, write: if isOwner(userId) || isSuperAdmin();

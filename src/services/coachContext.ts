@@ -91,6 +91,22 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
   const tytGap = profile.tytTarget - lastTytNet;
   const aytGap = profile.aytTarget - lastAytNet;
 
+  // [B2 FIX]: Zayıf konu tespiti — son 5 logdan accuracy < 0.6
+  const weakTopics = logs
+    .slice(-5)
+    .filter(l => l.questions > 0 && (l.correct / l.questions) < 0.6)
+    .map(l => `${l.subject}/${l.topic}`)
+    .slice(0, 3);
+
+  // [B2 FIX]: Bu hafta çalışılan gün sayısı
+  const nowMs = Date.now();
+  const weekAgoMs = nowMs - 7 * 24 * 60 * 60 * 1000;
+  const daysWorkedThisWeek = new Set(
+    logs
+      .filter(l => { const ms = toDateMs(l.date); return ms !== null && ms >= weekAgoMs; })
+      .map(l => l.date.slice(0, 10))
+  ).size;
+
   // ─── Son direktif durumu ──────────────────────────────────────────────────
   let lastDirectiveStatus: CoachSystemContext['lastDirectiveStatus'] = 'none';
   if (lastDirective) {
@@ -138,6 +154,13 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     `ELO: ${eloScore} | Seri: ${streakDays} gün`,
     `Müfredat: TYT %${tytPct} / AYT %${aytPct}`,
     ``,
+    // [B2 FIX]: Kritik açık blok
+    `[KRİTİK AÇIKLAR]`,
+    `TYT: ${tytGap > 0 ? `HEDEFiN ${tytGap.toFixed(1)} NET GERiSiNDE` : `HEDEFi ${Math.abs(tytGap).toFixed(1)} NET GEÇTiN`}`,
+    `AYT: ${aytGap > 0 ? `HEDEFiN ${aytGap.toFixed(1)} NET GERiSiNDE` : `HEDEFi ${Math.abs(aytGap).toFixed(1)} NET GEÇTiN`}`,
+    weakTopics.length > 0 ? `[SON LOGLARDAN ZAYIF KONULAR]: ${weakTopics.join(', ')}` : '',
+    `[BU HAFTA ÇALIŞILAN GÜNLER]: ${daysWorkedThisWeek}/7`,
+    ``,
     `[SON LOGLAR]`,
     last5Logs.length > 0 ? last5Logs.join(' | ') : 'Log yok',
     ``,
@@ -148,7 +171,7 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     activeAlerts.length > 0
       ? activeAlerts.map((a) => a.message).join(' | ')
       : 'Aktif uyarı yok',
-  ];
+  ].filter(l => l !== '');
 
   if (lastDirective) {
     lines.push(``, `[SON PLAN DURUMU]`, `${lastDirectiveStatus}`);

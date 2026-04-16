@@ -6,7 +6,7 @@ import { useAppStore } from '../store/appStore';
 import { FlapUnit } from './FlapClock';
 
 export function FocusSidePanel() {
-  const { isFocusSidePanelOpen, setFocusSidePanelOpen, addFocusSession } = useAppStore();
+  const { isFocusSidePanelOpen, setFocusSidePanelOpen, addFocusSession, isLofiEnabled, setLofiEnabled } = useAppStore();
   const { 
     sessionSeconds, 
     isRunning, 
@@ -19,17 +19,10 @@ export function FocusSidePanel() {
     addLap 
   } = useFocusTimer();
 
+
+
   const [customCountdownMinutes, setCustomCountdownMinutes] = useState<number>(25);
   const [showBreakOverlay, setShowBreakOverlay] = useState(false);
-  const [isLofiEnabled, setIsLofiEnabled] = useState<boolean>(() => {
-    try {
-      if (typeof window === 'undefined') return false;
-      return window.localStorage.getItem('yks_lofi_enabled') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
   const h = Math.floor(sessionSeconds / 3600);
   const m = Math.floor((sessionSeconds % 3600) / 60);
   const s = sessionSeconds % 60;
@@ -48,15 +41,6 @@ export function FocusSidePanel() {
     }
   }, [sessionSeconds, mode, isRunning, pause]);
 
-  // Lofi state persist
-  useEffect(() => {
-    try {
-      if (typeof window === 'undefined') return;
-      window.localStorage.setItem('yks_lofi_enabled', String(isLofiEnabled));
-    } catch {
-      return;
-    }
-  }, [isLofiEnabled]);
 
   return (
     <>
@@ -79,7 +63,7 @@ export function FocusSidePanel() {
               </div>
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => setIsLofiEnabled(p => !p)}
+                  onClick={() => setLofiEnabled(!isLofiEnabled)}
                   className={`p-2 rounded-full transition-colors ${isLofiEnabled ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-transparent text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}
                   title="Lo-Fi Radyo"
                 >

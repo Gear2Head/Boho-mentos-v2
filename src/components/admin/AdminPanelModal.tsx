@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText, RefreshCw, Brain, HeartPulse, TrendingDown, Zap } from 'lucide-react';
+import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText, RefreshCw, Brain, HeartPulse, TrendingDown, Zap, Code } from 'lucide-react';
 import { useAdminPanel } from '../../hooks/useAdminPanel';
 import type { FirestoreUser } from '../../config/admin';
 import { computeHealthScore } from '../../utils/healthScore';
@@ -13,6 +13,7 @@ import { detectAnomalies } from '../../utils/anomalyDetection';
 import type { AnomalyAlert } from '../../utils/anomalyDetection';
 import { predictChurn } from '../../utils/churnPredictor';
 import * as devService from '../../services/developerService';
+import { PromptLab } from './PromptLab';
 
 interface Props {
   isOpen: boolean;
@@ -21,7 +22,7 @@ interface Props {
 
 export function AdminPanelModal({ isOpen, onClose }: Props) {
   const admin = useAdminPanel();
-  const [activeTab, setActiveTab] = useState<'users' | 'anomaly' | 'tools' | 'system'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'anomaly' | 'tools' | 'system' | 'prompt_lab'>('users');
   const [query, setQuery] = useState('');
   const [announcementMsg, setAnnouncementMsg] = useState('');
   const [showCoachMemory, setShowCoachMemory] = useState(false);
@@ -114,6 +115,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                  { id: 'users', label: 'Kullanıcı Haritası', icon: <Users size={16} /> },
                  { id: 'anomaly', label: 'Anomali İstihbaratı', icon: <HeartPulse size={16} /> },
                  { id: 'system', label: 'Sistem Odası', icon: <Activity size={16} /> },
+                 { id: 'prompt_lab', label: 'Prompt Lab', icon: <Code size={16} /> },
                  { id: 'tools', label: 'Güç Araçları', icon: <Database size={16} /> }
                ].map(t => (
                  <button
@@ -495,6 +497,12 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                </div>
             )}
 
+
+            {activeTab === 'prompt_lab' && (
+              <div className="h-full">
+                <PromptLab />
+              </div>
+            )}
 
           </div>
         </motion.div>

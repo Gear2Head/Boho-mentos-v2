@@ -296,11 +296,37 @@ export function updateCoachMemory(
     else netTrend = 'stable';
   }
 
+  // [B5 FIX]: staleAdvicePatterns — son 10 direktifin keyword kesişim analizi
+  const STOP_WORDS = new Set(['ve', 'ile', 'için', 'bu', 'bir', 'the', 'and', 'for', 'to', 'in', 'of', 'a', 'is', 'on']);
+
+  function extractKeywords(text: string): Set<string> {
+    return new Set(
+      text.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !STOP_WORDS.has(w))
+    );
+  }
+
+  const recentSummaries = recent
+    .map(r => r.directive.text ?? r.directive.tasks.map(t => t.title).join(' '))
+    .filter(Boolean);
+
+  const stalePatterns: string[] = [];
+  for (let i = 0; i < recentSummaries.length; i++) {
+    for (let j = i + 1; j < recentSummaries.length; j++) {
+      const kA = extractKeywords(recentSummaries[i]);
+      const kB = extractKeywords(recentSummaries[j]);
+      const intersection = [...kA].filter(w => kB.has(w));
+      if (intersection.length >= 3) {
+        const pattern = intersection.slice(0, 3).join(', ');
+        if (!stalePatterns.includes(pattern)) stalePatterns.push(pattern);
+      }
+    }
+  }
+
   return {
     // COACH-MEM-001: Yeni CoachMemory alan yapısı
     recurringWeakTopics: weaknesses,
     recurringAvoidedSubjects: [],  // Gelecek: log/exam analizinden türetilecek
-    staleAdvicePatterns: [],       // Gelecek: direktif tekrar tespitinden türetilecek
+    staleAdvicePatterns: stalePatterns.slice(0, 5),
     interventionEffectiveness: 'unknown' as const,
     missedTaskReasons: [...new Set(base.missedTaskReasons)].slice(-10),
     strongSubjects: strengths,
@@ -312,6 +338,7 @@ export function updateCoachMemory(
     strengths,
   };
 }
+
 
 // ─── Compliance Rate ──────────────────────────────────────────────────────────
 

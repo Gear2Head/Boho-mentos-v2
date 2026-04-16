@@ -10,8 +10,17 @@ import {
   Trophy, Trash2, Calendar, LayoutList
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
-import { formatDistanceToNow } from 'date-fns';
-import { tr } from 'date-fns/locale';
+
+// F7 FIX: date-fns kaldırıldı (~30KB), inline Türkçe relativeTime yeterli
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const abs = Math.abs(diff);
+  if (abs < 60000) return 'az önce';
+  if (abs < 3600000) return `${Math.round(abs / 60000)} dakika önce`;
+  if (abs < 86400000) return `${Math.round(abs / 3600000)} saat önce`;
+  if (abs < 604800000) return `${Math.round(abs / 86400000)} gün önce`;
+  return `${Math.round(abs / 604800000)} hafta önce`;
+}
 
 interface NotificationCenterProps {
   isOpen: boolean;
@@ -121,7 +130,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                         <div className="flex items-center gap-2 mt-2 opacity-50">
                           <Calendar size={10} />
                           <span className="text-[10px] font-mono">
-                            {formatDistanceToNow(new Date(notif.timestamp), { addSuffix: true, locale: tr })}
+                            {relativeTime(notif.timestamp)}
                           </span>
                         </div>
                       </div>

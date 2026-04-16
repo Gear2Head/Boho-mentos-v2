@@ -81,6 +81,7 @@ export interface AppState {
   exams: ExamResult[];
   chatHistory: ChatMessage[];
   isPassiveMode: boolean;
+  isLofiEnabled: boolean;
   failedQuestions: FailedQuestion[];
   trophies: Trophy[];
   eloScore: number;
@@ -117,6 +118,7 @@ export interface AppState {
   updateExam: (id: string, updates: Partial<ExamResult>) => void;
   addChatMessage: (message: ChatMessage) => void;
   setPassiveMode: (isPassive: boolean) => void;
+  setLofiEnabled: (enabled: boolean) => void;
   addFailedQuestion: (question: FailedQuestionInput) => void;
   solveFailedQuestion: (id: string) => void;
   removeFailedQuestion: (id: string) => void;
@@ -159,9 +161,7 @@ export interface AppState {
   addFlashcard: (card: import('../types/coach').Flashcard) => void;
   updateFlashcard: (id: string, updates: Partial<import('../types/coach').Flashcard>) => void;
   removeFlashcard: (id: string) => void;
-  // TODO-034: Lofi preference in store
-  isLofiEnabled: boolean;
-  setLofiEnabled: (enabled: boolean) => void;
+
   // Daily quests tracking
   dailyQuestsGeneratedDate: string;
   setDailyQuestsGeneratedDate: (date: string) => void;
@@ -176,6 +176,8 @@ export interface AppState {
   setWarRoomMode: (mode: WarRoomMode) => void;
   warRoomSession: WarRoomSession | null;
   setWarRoomSession: (session: WarRoomSession | null) => void;
+  lastWarRoomSummary: { examType: string; score: number; completedAt: string; status: 'completed' | 'quit' } | null;
+  setLastWarRoomSummary: (summary: { examType: string; score: number; completedAt: string; status: 'completed' | 'quit' } | null) => void;
   warRoomAnswers: Record<string, string>;
   warRoomEliminated: Record<string, number[]>;
   warRoomTimeLeft: number;
@@ -227,6 +229,7 @@ const INITIAL_STATE = {
   exams: [],
   chatHistory: [],
   isPassiveMode: false,
+  isLofiEnabled: false,
   failedQuestions: [],
   trophies: INITIAL_TROPHIES,
   eloScore: 0,
@@ -247,6 +250,7 @@ const INITIAL_STATE = {
   drawingMode: 'pen' as const,
   warRoomMode: 'setup' as const,
   warRoomSession: null,
+  lastWarRoomSummary: null,
   warRoomAnswers: {},
   warRoomEliminated: {},
   warRoomTimeLeft: 0,
@@ -260,8 +264,7 @@ const INITIAL_STATE = {
   coachMemory: null as import('../types/coach').CoachMemory | null,
   // TODO-008
   flashcards: [] as import('../types/coach').Flashcard[],
-  // TODO-034
-  isLofiEnabled: false,
+
   // Daily quests
   dailyQuestsGeneratedDate: '',
 };
@@ -600,8 +603,8 @@ export const useAppStore = create<AppState>()(
           ...message,
           id: message.id ?? `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         };
-        // TODO-026: Cap at 100 messages to prevent memory leak
-        const newHistory = [...get().chatHistory, newMessage].slice(-100);
+        // [A4 FIX]: Store retains 80 messages maximum locally
+        const newHistory = [...get().chatHistory, newMessage].slice(-80);
         set({ chatHistory: newHistory });
         if (uid) void pushSingleEntityToSupabase(uid, 'chatHistory', newMessage as unknown as Record<string, unknown>);
       },
@@ -610,6 +613,12 @@ export const useAppStore = create<AppState>()(
         const uid = get().authUser?.uid;
         set({ isPassiveMode });
         if (uid) void pushToSupabase(uid, { isPassiveMode });
+      },
+
+      setLofiEnabled: (isLofiEnabled) => {
+        const uid = get().authUser?.uid;
+        set({ isLofiEnabled });
+        if (uid) void pushToSupabase(uid, { isLofiEnabled } as never);
       },
 
       addFailedQuestion: (input) => {
@@ -687,6 +696,11 @@ export const useAppStore = create<AppState>()(
         warRoomEliminated: {},
         warRoomTimeLeft: 0,
       }),
+      setLastWarRoomSummary: (summary) => {
+        const uid = get().authUser?.uid;
+        set({ lastWarRoomSummary: summary });
+        if (uid) void pushToSupabase(uid, { lastWarRoomSummary: summary } as never);
+      },
       setWarRoomTimeLeft: (time) => set((s) => ({
         warRoomTimeLeft: typeof time === 'function' ? time(s.warRoomTimeLeft) : time,
       })),
@@ -810,12 +824,22 @@ export const useAppStore = create<AppState>()(
          return `HEDEF: ${state.profile?.targetUniversity}. TYT: ${tytTarget}, AYT: ${aytTarget}. ELO: ${state.eloScore}. LOGLAR: ${mistakesContext}`;
       },
 
-      bulkMasterTytSubjectsByName: (name) => set((s) => ({
-        tytSubjects: s.tytSubjects.map(sub => sub.subject === name ? { ...sub, status: 'mastered' } : sub)
-      })),
-      bulkMasterAytSubjectsByName: (name) => set((s) => ({
-        aytSubjects: s.aytSubjects.map(sub => sub.subject === name ? { ...sub, status: 'mastered' } : sub)
-      })),
+      bulkMasterTytSubjectsByName: (name) => {
+        const uid = get().authUser?.uid;
+        set((s) => {
+          const newSubs = s.tytSubjects.map(sub => sub.subject === name ? { ...sub, status: 'mastered' } : sub);
+          if (uid) void pushToSupabase(uid, { tytSubjects: newSubs });
+          return { tytSubjects: newSubs };
+        });
+      },
+      bulkMasterAytSubjectsByName: (name) => {
+        const uid = get().authUser?.uid;
+        set((s) => {
+          const newSubs = s.aytSubjects.map(sub => sub.subject === name ? { ...sub, status: 'mastered' } : sub);
+          if (uid) void pushToSupabase(uid, { aytSubjects: newSubs });
+          return { aytSubjects: newSubs };
+        });
+      },
 
       // TODO-038: Atomic bulk update for subject status
       bulkUpdateTytSubjects: (updates) => set((s) => {
@@ -837,19 +861,28 @@ export const useAppStore = create<AppState>()(
         return { aytSubjects: newSubs };
       }),
 
-      // TODO-008: Flashcard CRUD
-      addFlashcard: (card) => set((s) => ({
-        flashcards: [...s.flashcards, card],
-      })),
-      updateFlashcard: (id, updates) => set((s) => ({
-        flashcards: s.flashcards.map(c => c.id === id ? { ...c, ...updates } : c),
-      })),
-      removeFlashcard: (id) => set((s) => ({
-        flashcards: s.flashcards.filter(c => c.id !== id),
-      })),
+      // TODO-008: Flashcard CRUD — [B1 FIX]: Supabase sync entegre edildi
+      addFlashcard: (card) => {
+        const uid = get().authUser?.uid;
+        set((s) => ({ flashcards: [...s.flashcards, card] }));
+        if (uid) void pushSingleEntityToSupabase(uid, 'flashcards', card as unknown as Record<string, unknown>);
+      },
+      updateFlashcard: (id, updates) => {
+        const uid = get().authUser?.uid;
+        set((s) => ({
+          flashcards: s.flashcards.map(c => c.id === id ? { ...c, ...updates } : c),
+        }));
+        if (uid) {
+          const updated = get().flashcards.find(c => c.id === id);
+          if (updated) void pushSingleEntityToSupabase(uid, 'flashcards', updated as unknown as Record<string, unknown>);
+        }
+      },
+      removeFlashcard: (id) => {
+        const uid = get().authUser?.uid;
+        set((s) => ({ flashcards: s.flashcards.filter(c => c.id !== id) }));
+        if (uid) void tombstoneEntityInSupabase(uid, 'flashcards', id);
+      },
 
-      // TODO-034
-      setLofiEnabled: (enabled) => set({ isLofiEnabled: enabled }),
 
       // Daily quests
       setDailyQuestsGeneratedDate: (date) => set({ dailyQuestsGeneratedDate: date }),

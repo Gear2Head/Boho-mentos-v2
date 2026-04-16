@@ -175,6 +175,7 @@ export function useAuth() {
         (payload) => {
           const u = payload.new as Record<string, unknown>;
           applyCloudDataToStore({
+            updated_at: u.updated_at as string, // [CRITICAL FIX] Prevents infinite push loop!
             profile: u.profile as SupabaseUserData['profile'],
             tytSubjects: decompressSubjectsLocal((u.tyt_subjects as any[]) || [], INITIAL_TYT),
             aytSubjects: decompressSubjectsLocal((u.ayt_subjects as any[]) || [], INITIAL_AYT),

@@ -60,6 +60,7 @@ interface ProviderTelemetry {
   latencyMs: number;
   success: boolean;
   errorCode?: string;
+  parseAttempts?: number;
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -76,22 +77,15 @@ const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
 // ─── TODO-001: JSON Sanitizer ─────────────────────────────────────────────────
 
 function sanitizeJsonResponse(raw: string): string {
-  let s = raw.trim();
+  const s = raw.trim();
 
-  // Strip markdown code fences
-  if (s.includes('```')) {
-    const parts = s.split('```');
-    const jsonBlock = parts.find((p) => p.startsWith('json'));
-    const block = jsonBlock || parts[1] || '';
-    s = block.replace(/^json/, '').trim();
-  }
-
-  // Find first balanced { or [
+  // Find first { or [ — skip any markdown prefix entirely
   const firstObj = s.indexOf('{');
   const firstArr = s.indexOf('[');
-  let startChar: number;
   if (firstObj === -1 && firstArr === -1) return s;
-  else if (firstObj === -1) startChar = firstArr;
+
+  let startChar: number;
+  if (firstObj === -1) startChar = firstArr;
   else if (firstArr === -1) startChar = firstObj;
   else startChar = Math.min(firstObj, firstArr);
 
@@ -108,17 +102,20 @@ function sanitizeJsonResponse(raw: string): string {
     if (ch === '\\' && inString) { escape = true; continue; }
     if (ch === '"') { inString = !inString; continue; }
     if (inString) continue;
+
     if (ch === openChar) depth++;
     else if (ch === closeChar) {
       depth--;
-      if (depth === 0) { endIdx = i; break; }
+      if (depth === 0) {
+        endIdx = i;
+        break;
+      }
     }
   }
 
-  s = endIdx === -1 ? s.substring(startChar) : s.substring(startChar, endIdx + 1);
-  // Remove trailing commas before } or ]
-  s = s.replace(/,(\s*[}\]])/g, '$1');
-  return s;
+  const extracted = endIdx === -1 ? s.substring(startChar) : s.substring(startChar, endIdx + 1);
+  // Remove trailing commas before } or ] (common LLM error)
+  return extracted.replace(/,(\s*[}\]])/g, '$1');
 }
 
 function tryParseJson(raw: string): unknown | null {
@@ -290,23 +287,27 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
   for (const provider of providers) {
     for (const key of provider.keys) {
       const t0 = Date.now();
+      let parseAttempts = 0;
       try {
         const text = await provider.call(key);
         if (!text || text.trim().length === 0) continue;
 
-        // TODO-001: If JSON expected, validate — skip to next on parse failure
-        if (needsJson && tryParseJson(text) === null) {
-          console.warn(`[AI] ${provider.name} non-parseable JSON — trying next provider/key`);
-          telemetry.push({
-            provider: provider.name,
-            latencyMs: Date.now() - t0,
-            success: false,
-            errorCode: 'JSON_PARSE_FAIL',
-          });
-          continue;
+        if (needsJson) {
+          parseAttempts++;
+          if (tryParseJson(text) === null) {
+            console.warn(`[AI] ${provider.name} malformed JSON (attempt ${parseAttempts}) — next key/provider`);
+            telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: false, errorCode: 'JSON_PARSE_FAIL', parseAttempts });
+            continue;
+          }
         }
 
-        telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: true });
+        telemetry.push({ 
+          provider: provider.name, 
+          latencyMs: Date.now() - t0, 
+          success: true,
+          parseAttempts
+        });
+        
         console.info(`[AI] ${provider.name} OK ${Date.now() - t0}ms intent=${intent}`);
         return { text: text.trim(), providerUsed: provider.name, telemetry };
       } catch (e) {
@@ -317,6 +318,7 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
           latencyMs: Date.now() - t0,
           success: false,
           errorCode: errMsg.slice(0, 60),
+          parseAttempts
         });
       }
     }

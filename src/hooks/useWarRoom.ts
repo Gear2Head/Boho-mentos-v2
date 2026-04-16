@@ -24,6 +24,7 @@ export function useWarRoom() {
   const setWarRoomSession = useAppStore(s => s.setWarRoomSession);
   const setWarRoomMode = useAppStore(s => s.setWarRoomMode);
   const setWarRoomTimeLeft = useAppStore(s => s.setWarRoomTimeLeft);
+  const setLastWarRoomSummary = useAppStore(s => s.setLastWarRoomSummary);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +39,12 @@ export function useWarRoom() {
       warRoomAnswers
     );
 
-    // [BUG-012 FIX + TODO-002]: Gerçek geçen süreyi hesapla, NaN guard eklendi
-    const elapsed = Number.isFinite(warRoomSession.startTime)
-      ? Math.round((Date.now() - warRoomSession.startTime) / 1000)
-      : 0;
+    // [A2 FIX]: IDB rehydration'da startTime string gelebilir — Number() ile cast et
+    const rawStart = warRoomSession.startTime;
+    const startTs = typeof rawStart === 'number' ? rawStart : Number(rawStart);
+    const elapsed = Number.isFinite(startTs) ? Math.round((Date.now() - startTs) / 1000) : 0;
     const timeSpentSeconds = Math.max(1, elapsed);
+
 
     const endedSession: WarRoomSession = {
       ...warRoomSession,
@@ -60,6 +62,13 @@ export function useWarRoom() {
     setWarRoomTimeLeft(0);
     setWarRoomSession(endedSession);
     setWarRoomMode('result');
+    
+    setLastWarRoomSummary({
+      examType: warRoomSession.examType,
+      score: net,
+      completedAt: new Date().toISOString(),
+      status: 'completed'
+    });
 
     // Log olarak kaydet
     addLog({
@@ -147,6 +156,14 @@ export function useWarRoom() {
         : window.confirm('Savaştan kaçıyor musun? Geri dönüşü yok.');
 
       if (confirmed) {
+        if (warRoomSession) {
+          setLastWarRoomSummary({
+            examType: warRoomSession.examType,
+            score: 0,
+            completedAt: new Date().toISOString(),
+            status: 'quit'
+          });
+        }
         setWarRoomTimeLeft(0);
         setWarRoomSession(null);
         setWarRoomMode('setup');

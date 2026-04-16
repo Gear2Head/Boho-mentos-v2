@@ -18,7 +18,7 @@ import type {
   Trophy,
   HabitAlert,
 } from '../types';
-import type { CoachDirective, DirectiveRecord, CoachMemory } from '../types/coach';
+import type { CoachDirective, DirectiveRecord, CoachMemory, Flashcard } from '../types/coach';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 
 const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) =>
@@ -36,7 +36,7 @@ function compressSubjects(subs: any[]): string[] {
     if (typeof s === 'string') { comp.push(s); return; }
     if (s.status === 'mastered') comp.push(idx + '|M');
     else if (s.status === 'in-progress') comp.push(idx + '|I');
-    else if (s.notes) comp.push(idx + '|N|' + s.notes.replace(/\|/g, ''));
+    else if (s.notes) comp.push(idx + '|N|' + (String(s.notes || '').replace(/\|/g, '')));
   });
   return comp;
 }
@@ -56,6 +56,7 @@ function decompressSubjects(comp: any[], initial: any[]): any[] {
     else if (parts[1] === 'I') res[idx].status = 'in-progress';
     else if (parts[1] === 'N') { res[idx].status = 'not-started'; res[idx].notes = parts[2] || ''; }
   });
+  return res; // [A6 FIX]: Missing return was causing pull to return undefined
 }
 
 export interface SyncSummary {
@@ -87,6 +88,12 @@ export interface SupabaseUserData {
   lastCoachDirective: CoachDirective | null;
   directiveHistory: DirectiveRecord[];
   coachMemory: CoachMemory | null;
+  isMorningBlockerEnabled?: boolean;
+  morningUnlockedDate?: string;
+  dailyQuestsGeneratedDate?: string;
+  isLofiEnabled?: boolean;
+  lastWarRoomSummary?: any;
+  flashcards?: Flashcard[];
 }
 
 // Store key -> Supabase table name
@@ -98,6 +105,7 @@ export const ENTITY_TABLES: Record<string, string> = {
   focusSessions: 'focus_sessions',
   chatHistory: 'chat_messages',
   directiveHistory: 'directive_history',
+  flashcards: 'flashcards',
 };
 
 // Whitelist: Store key → DB column name. ONLY columns that exist in the users table.
@@ -114,6 +122,11 @@ const USERS_STORE_TO_DB: Record<string, string> = {
   lastCoachDirective: 'last_coach_directive',
   coachMemory: 'coach_memory',
   profile: 'profile',
+  isMorningBlockerEnabled: 'is_morning_blocker_enabled',
+  morningUnlockedDate: 'morning_unlocked_date',
+  dailyQuestsGeneratedDate: 'daily_quests_generated_date',
+  isLofiEnabled: 'is_lofi_enabled',
+  lastWarRoomSummary: 'last_war_room_summary',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -147,7 +160,8 @@ export async function pushRootToSupabase(
     // Truncate avatar (base64 images can be huge)
     if (storeKey === 'profile' && value && typeof value === 'object') {
       const p = { ...(value as Record<string, unknown>) };
-      if (typeof p.avatar === 'string' && p.avatar.length > 50000) delete p.avatar;
+      // [A7 FIX] Aggressive base64 truncation: drop avatars > 2KB (mostly data urls) to unblock airplane wifi
+      if (typeof p.avatar === 'string' && p.avatar.length > 2000) delete p.avatar;
       rootPayload[dbCol] = p;
     } else if (storeKey === 'tytSubjects' || storeKey === 'aytSubjects') {
       rootPayload[dbCol] = compressSubjects(value as any[]);
@@ -159,7 +173,12 @@ export async function pushRootToSupabase(
   console.log('[SupabaseSync] Root Push — keys:', Object.keys(rootPayload).join(', '));
   console.log('[SupabaseSync] Root Push — size:', JSON.stringify(rootPayload).length, 'bytes');
 
-  const { error } = await sb.from('users').upsert(rootPayload as never, { onConflict: 'uid' });
+  // [A8 FIX] Switch from upsert -> update to prevent PostgREST/PostgreSQL row deadlocks
+  // The row is guaranteed to exist because useAuth.ts creates it on login.
+  const { error } = await sb
+    .from('users')
+    .update(rootPayload as never)
+    .eq('uid', uid);
 
   if (error) {
     console.error('[SupabaseSync] Root push FAILED:', error.message);
@@ -252,7 +271,9 @@ export async function pushToSupabase(
     console.log('[SupabaseSync] Push complete:', summary);
     if (onComplete) onComplete(summary);
   } catch (err) {
-    console.warn('[SupabaseSync] Push failed:', err);
+    console.warn('[SupabaseSync] Push failed, adding to Offline Queue:', err);
+    // [D2 FIX]: If root push or anything fails, we enqueue root state to be safe.
+    import('./SyncQueue').then(q => q.enqueueRootPush(uid, data));
   }
   return summary;
 }
@@ -297,7 +318,7 @@ export async function pullFromSupabase(uid: string): Promise<SupabaseUserData | 
     })) as T[];
   }
 
-  const [logs, exams, failedQuestions, agendaEntries, focusSessions, chatHistory, directiveHistory] =
+  const [logs, exams, failedQuestions, agendaEntries, focusSessions, chatHistory, directiveHistory, flashcards] =
     await Promise.all([
       loadTable<DailyLog>('logs'),
       loadTable<ExamResult>('exams'),
@@ -306,6 +327,7 @@ export async function pullFromSupabase(uid: string): Promise<SupabaseUserData | 
       loadTable<FocusSessionRecord>('focus_sessions'),
       loadTable<ChatMessage>('chat_messages'),
       loadTable<DirectiveRecord>('directive_history'),
+      loadTable<import('../types/coach').Flashcard>('flashcards'),
     ]);
 
   return {
@@ -322,6 +344,11 @@ export async function pullFromSupabase(uid: string): Promise<SupabaseUserData | 
     activeAlerts: (u.active_alerts as HabitAlert[]) ?? [],
     lastCoachDirective: (u.last_coach_directive as CoachDirective) ?? null,
     coachMemory: (u.coach_memory as CoachMemory) ?? null,
+    isMorningBlockerEnabled: (u.is_morning_blocker_enabled as boolean) ?? true,
+    morningUnlockedDate: (u.morning_unlocked_date as string) ?? '',
+    dailyQuestsGeneratedDate: (u.daily_quests_generated_date as string) ?? '',
+    isLofiEnabled: (u.is_lofi_enabled as boolean) ?? false,
+    lastWarRoomSummary: (u.last_war_room_summary as { examType: string; score: number; completedAt: string; status: 'completed' | 'quit' }) ?? null,
     logs,
     exams,
     failedQuestions,
@@ -329,6 +356,7 @@ export async function pullFromSupabase(uid: string): Promise<SupabaseUserData | 
     focusSessions,
     chatHistory,
     directiveHistory,
+    flashcards,
   };
 }
 
@@ -341,20 +369,8 @@ export async function pushSingleEntityToSupabase(
 ): Promise<void> {
   const tableName = ENTITY_TABLES[storeKey];
   if (!tableName) return;
-
-  const sb = getSupabaseClient();
-  const id = (item.id as string) || `gen_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  const { error } = await sb
-    .from(tableName as never)
-    .upsert({
-      id,
-      user_id: uid,
-      updated_at: now(),
-      device_id: getDeviceId(),
-      payload: { ...item, id }
-    } as never, { onConflict: 'id' });
-
-  if (error) console.warn(`[SupabaseSync] Single entity push failed (${tableName}):`, error.message);
+  
+  import('./SyncQueue').then(q => q.enqueueEntityPush(uid, storeKey, item));
 }
 
 // ─── Tombstone (Soft Delete) ──────────────────────────────────────────────────
@@ -367,14 +383,7 @@ export async function tombstoneEntityInSupabase(
   const tableName = ENTITY_TABLES[storeKey];
   if (!tableName) return;
 
-  const sb = getSupabaseClient();
-  const { error } = await sb
-    .from(tableName as never)
-    .update({ deleted_at: now(), updated_at: now() } as never)
-    .eq('id', entityId)
-    .eq('user_id', uid);
-
-  if (error) console.warn(`[SupabaseSync] Tombstone failed (${tableName}):`, error.message);
+  import('./SyncQueue').then(q => q.enqueueTombstone(uid, storeKey, entityId));
 }
 
 // ─── Debounced Push ───────────────────────────────────────────────────────────

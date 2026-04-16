@@ -9,7 +9,7 @@ import type { CoachIntent, CoachSystemContext } from '../types/coach';
 
 export const COACH_PERSONA_BASE = `Sen "Kübra"sın — YKS koçusun. Sert, analitik, mazeret kabul etmeyen ama toksik olmayan bir disiplin anlayışıyla çalışırsın. Veriyle konuşursun, duyguyla değil.`;
 
-const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
+export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   daily_plan: `Öğrencinin mevcut durumunu analiz ederek bugün için somut bir çalışma planı oluştur. Konu, süre ve öncelik sırasını belirt. Gerekçeni göster.`,
   log_analysis: `Girilen log verisini incele. Doğruluk oranı, hız, yorgunluk ve alışkanlık örüntülerini analiz et. 3 maddeli aksiyon planı çıkar.`,
   exam_analysis: `Deneme sonucunu hedefle karşılaştır. Güçlü ve zayıf konuları tespit et. Eksik konulara yönelik priorite sırası belirle.`,
@@ -20,7 +20,7 @@ const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   free_chat: `Öğrenci seninle serbest konuşuyor. YKS hedefleriyle ilişkilendirerek yanıt ver ama zorlama. Kısa ve samimi ol.`,
   war_room_analysis: `War Room simülasyonu bitti. Soru bazlı hata analizi yap: hatalı soruların ortak paydası nedir, hangi konu/tip tuzak, doğruluk oranı ve hız dengesi nasıl. Konuya özgü 3 somut aksiyon ver.`,
   weekly_review: `Haftalık retrospektif: Ne oldu (veri), neden oldu (örüntü analizi), gelecek hafta ne değişecek (somut 3 karar). Net veriyle konuş, tahmin değil gözlem.`,
-  micro_feedback: `Log kaydedildi. Maksimum 3 cümle: 1 kısa özet (ne yapıldı, nasıl gitti) + 1 risk tespiti + 1 sonraki adım. Gereksiz övgü yasak.`,
+  micro_feedback: `Log kaydedildi. KURAL: Övme yasak. Format — kesinlikle 3 cümle: 1. [Gerçek veri]: ne yapıldı, doğruluk oranı, hız. 2. [Risk]: bu seansın gösterdiği tek kritik tehlike. 3. [Sonraki adım]: bugün yapılacak tek spesifik şey (ders+konu+soru sayısı). Toplam 3 cümle, fazlası yasak.`,
 
   // TODO-007: Kübra v2 intent'leri
   inverse_coaching: `Artık öğrenci rolünü oynuyorsun. Kullanıcı sana konuyu anlatacak. Sen meraklı ama kavramsal boşlukları yakalayan bir öğrenci gibi sorular sor. Yanlış anlar gibi davran, net olmayan noktaları zorla. Anlatım bittiğinde: 3 maddeli güçlü/zayıf özet ve tespit ettiğin 1 gerçek hata yaz.`,
@@ -76,7 +76,11 @@ export function buildSystemInstruction(
   const personalityStr = coachPersonality
     ? `\n[Koçluk Kişiliği: ${coachPersonality}]`
     : '';
-  return `${COACH_PERSONA_BASE}${personalityStr}\n\nGÖREV: ${intentGuide}\n\n${contextStr}`;
+  // [B5 FIX]: staleAdvicePatterns sistemde birikmisse prompt'a ekle
+  const staleStr = context?.staleAdvicePatterns?.length
+    ? `\n[TEKRARLAMA YASAK - ŞU TAVSiYELERi VERME]: ${context.staleAdvicePatterns.join(', ')}`
+    : '';
+  return `${COACH_PERSONA_BASE}${personalityStr}\n\nGÖREV: ${intentGuide}\n\n${contextStr}${staleStr}`;
 }
 
 export function buildStructuredSystemInstruction(

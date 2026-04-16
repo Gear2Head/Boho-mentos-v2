@@ -239,6 +239,8 @@ export interface CoachSystemContext {
   lastDirectiveStatus?: 'resolved' | 'partial' | 'abandoned' | 'none';
   /** Hangi surface'ten çağrılıyor */
   callerSurface?: CoachIntent;
+  /** [B5]: Koçun tekrarladığı tavsiyeler — prompt'ta TEKRARLAMA YASAK olarak geçer */
+  staleAdvicePatterns?: string[];
 }
 
 // ─── API Request ──────────────────────────────────────────────────────────────

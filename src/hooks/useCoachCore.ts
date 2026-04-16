@@ -40,7 +40,7 @@ interface UseCoachCoreReturn {
     wrong: number;
     accuracy: number;
     topics: string[];
-  }) => Promise<void>;
+  }) => Promise<{ text: string } | null>;
 }
 
 export function useCoachCore(): UseCoachCoreReturn {
@@ -227,16 +227,18 @@ export function useCoachCore(): UseCoachCoreReturn {
       wrong: number;
       accuracy: number;
       topics: string[];
-    }): Promise<void> => {
+    }): Promise<{ text: string } | null> => {
       const { examType, correct, wrong, accuracy, topics } = params;
       const prompt = `WAR ROOM BİTTİ: ${examType} — ${correct}D/${wrong}Y, %${accuracy} başarı. Konular: ${topics.join(', ')}. Soru bazlı hata analizi ve 3 aksiyon ver.`;
 
-      await sendMessage({
+      // [B3 FIX]: Return text so WarRoomResultScreen can render AI output
+      const result = await sendMessage({
         userMessage: prompt,
         intent: 'war_room_analysis',
         wantDirective: true,
         callerSurface: 'war_room_analysis',
       });
+      return result.text ? { text: result.text } : null;
     },
     [sendMessage]
   );

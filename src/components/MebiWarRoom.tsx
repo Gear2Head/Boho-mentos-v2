@@ -147,8 +147,8 @@ export function MebiWarRoom() {
               )}
             </div>
 
-            {/* Şıklar Paneli (Tıklanabilir) */}
-            <div className="relative z-10 pointer-events-auto">
+            {/* Şıklar Paneli (Tıklanabilir — sadece pointer modunda) */}
+            <div className={drawingMode !== 'pointer' ? 'pointer-events-none opacity-60' : 'relative z-10 pointer-events-auto'}>
               <OptionsPanel 
                 options={question.options} 
                 currentQuestionId={question.id} 

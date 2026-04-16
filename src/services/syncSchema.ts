@@ -34,8 +34,11 @@ export const SYNC_ROOT_WHITELIST = [
   'morningUnlockedDate',
   // Coach direktivler (kalıcı hafıza için)
   'lastCoachDirective',
-  'directiveHistory',
   'coachMemory',
+  // Settings & Quests
+  'dailyQuestsGeneratedDate',
+  'isLofiEnabled',
+  'lastWarRoomSummary',
 ] as const;
 
 export type SyncRootKey = (typeof SYNC_ROOT_WHITELIST)[number];
@@ -54,6 +57,7 @@ export const ENTITY_SUBCOLLECTIONS: Record<string, string> = {
   focusSessions: 'focusSessions',
   chatHistory: 'chatHistory',
   directiveHistory: 'directiveHistory',
+  flashcards: 'flashcards',
 };
 
 // ─── UI-only excluded fields ──────────────────────────────────────────────────
@@ -145,10 +149,10 @@ export function buildBeaconSnapshot(
 // ─── Chat Retention ───────────────────────────────────────────────────────────
 
 /**
- * Chat geçmişi için retention stratejisi (SYNC-009).
- * Local: son 100 mesaj, Cloud: son 50 mesaj.
+ * Chat geçmişi için retention stratejisi.
+ * [A4 FIX]: Local: son 80 mesaj, Cloud: son 30 mesaj.
  */
 export const CHAT_RETENTION = {
-  localMax: 100,
-  cloudMax: 50,
+  localMax: 80,
+  cloudMax: 30,
 } as const;

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store/appStore';
-import { pushToSupabase, SyncSummary } from '../services/supabaseSync';
+import { pushRootToSupabase, pushEntitiesToSupabase, SyncSummary } from '../services/supabaseSync';
 import { buildSyncPayload } from '../services/syncSchema';
 
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline';
@@ -88,6 +88,7 @@ export function useSyncManager(uid: string | undefined) {
   const forceSync = useCallback(
     async (showNotif = true) => {
       if (!uid) return;
+      if (useAppStore.getState().isSyncing) return; // [Global Guard] Prevents duplicate fetches across components
 
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         setSyncStatus('offline');
@@ -104,48 +105,79 @@ export function useSyncManager(uid: string | undefined) {
       setSyncing(true);
       setSyncStatus('syncing');
 
+      let rootSynced = false;
+      let entitiesSynced = false;
+
       try {
         const state = useAppStore.getState();
         const { root, entities } = buildSyncPayload(state);
-        
-        // Timeout protection: 15 seconds
-        const syncPromise = pushToSupabase(uid, { ...root, ...entities });
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Sync timeout')), 15000)
-        );
 
-        const summary = await Promise.race([syncPromise, timeoutPromise]) as SyncSummary;
-        
-        setStatusWithAutoReset('synced');
-
-        if (showNotif) {
-          addNotification({
-            type: 'success',
-            title: 'Senkronizasyon Başarılı',
-            message: formatSummary(summary),
-          });
+        // ── ADIM 1: Root (profil + konular) — 30s timeout, kritik ──────────
+        try {
+          await Promise.race([
+            pushRootToSupabase(uid, root as any),
+            new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Root timeout')), 30000)),
+          ]);
+          rootSynced = true;
+          console.log('[SyncManager] Root push OK');
+        } catch (rootErr) {
+          console.error('[SyncManager] Root push failed:', rootErr);
         }
-      } catch (error) {
-        console.error('[SyncManager] forceSync failed:', error);
-        setStatusWithAutoReset(
-          typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error'
-        );
 
+        // ── ADIM 2: Entities (loglar, denemeler…) — 40s timeout, kritik değil ─
+        try {
+          await Promise.race([
+            pushEntitiesToSupabase(uid, entities as any),
+            new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Entities timeout')), 40000)),
+          ]);
+          entitiesSynced = true;
+          console.log('[SyncManager] Entities push OK');
+        } catch (entErr) {
+          console.warn('[SyncManager] Entities push failed (non-critical):', entErr);
+        }
+
+        if (rootSynced) {
+          setStatusWithAutoReset('synced');
+          if (showNotif) {
+            addNotification({
+              type: entitiesSynced ? 'success' : 'info',
+              title: 'Senkronizasyon Tamamlandı',
+              message: entitiesSynced
+                ? 'Tüm veriler buluta yedeklendi.'
+                : 'Profil ve konular yedeklendi. Loglar/Denemeler bir sonraki senkronda aktarılacak.',
+            });
+          }
+        } else {
+          setStatusWithAutoReset('error');
+          if (showNotif) {
+            addNotification({
+              type: 'error',
+              title: 'Senkronizasyon Başarısız',
+              message: 'Profil verisi gönderilemedi. İnternet bağlantını ve oturumunu kontrol et.',
+            });
+          }
+        }
+      } catch (err: unknown) {
+        const error = err as any;
+        console.error('[SyncManager] forceSync unexpected error:', error);
+        setStatusWithAutoReset('error');
+        const isAuthError = error?.code === '42501'
+          || error?.message?.toLowerCase().includes('jwt')
+          || error?.status === 401 || error?.status === 403;
         if (showNotif) {
-          const isTimeout = (error as Error).message === 'Sync timeout';
           addNotification({
             type: 'error',
-            title: isTimeout ? 'Senkronizasyon Zaman Aşımı' : 'Senkronizasyon Hatası',
-            message: isTimeout 
-              ? 'Bağlantı çok yavaş olduğu için işlem iptal edildi. Daha sonra tekrar dene.'
-              : 'Veriler buluta gönderilemedi. Daha sonra tekrar dene.',
+            title: isAuthError ? 'Oturum Hatası' : 'Senkronizasyon Hatası',
+            message: isAuthError
+              ? 'Yetki reddedildi. Çıkış yapıp tekrar giriş yapın.'
+              : 'Beklenmedik bir hata oluştu. Tekrar dene.',
           });
         }
       } finally {
         setSyncing(false);
       }
     },
-    [uid, setSyncing, addNotification, setStatusWithAutoReset]
+    [uid, setSyncing, addNotification, setStatusWithAutoReset, syncStatus]
   );
 
   const isSyncing = useMemo(() => syncStatus === 'syncing', [syncStatus]);
