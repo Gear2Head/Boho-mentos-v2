@@ -159,15 +159,6 @@ export async function pushRootToSupabase(
   console.log('[SupabaseSync] Root Push — keys:', Object.keys(rootPayload).join(', '));
   console.log('[SupabaseSync] Root Push — size:', JSON.stringify(rootPayload).length, 'bytes');
 
-  try {
-    console.time('[SupabaseSync] Test Connection');
-    const { data: testData, error: testError } = await sb.from('users').select('uid').eq('uid', uid).limit(1);
-    console.timeEnd('[SupabaseSync] Test Connection');
-    console.log('[SupabaseSync] Test Select Result:', { testData, testError });
-  } catch (err) {
-    console.error('[SupabaseSync] Test Connection threw:', err);
-  }
-
   const { error } = await sb.from('users').upsert(rootPayload as never, { onConflict: 'uid' });
 
   if (error) {
