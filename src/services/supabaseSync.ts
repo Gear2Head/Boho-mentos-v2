@@ -21,11 +21,11 @@ import type {
 import type { CoachDirective, DirectiveRecord, CoachMemory } from '../types/coach';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 
-const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
+const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) =>
   topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' }))
 );
 
-const INITIAL_AYT = Object.entries(AYT_SUBJECTS).flatMap(([subject, topics]) => 
+const INITIAL_AYT = Object.entries(AYT_SUBJECTS).flatMap(([subject, topics]) =>
   topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' }))
 );
 
@@ -45,13 +45,13 @@ function decompressSubjects(comp: any[], initial: any[]): any[] {
   if (!comp || !Array.isArray(comp) || comp.length === 0) return [...initial];
   if (typeof comp[0] !== 'string') return comp;
 
-  const res = initial.map(s => ({...s}));
+  const res = initial.map(s => ({ ...s }));
   comp.forEach(c => {
     if (typeof c !== 'string') return;
     const parts = c.split('|');
     const idx = parseInt(parts[0], 10);
     if (isNaN(idx) || !res[idx]) return;
-    
+
     if (parts[1] === 'M') res[idx].status = 'mastered';
     else if (parts[1] === 'I') res[idx].status = 'in-progress';
     else if (parts[1] === 'N') { res[idx].status = 'not-started'; res[idx].notes = parts[2] || ''; }
@@ -102,18 +102,18 @@ export const ENTITY_TABLES: Record<string, string> = {
 
 // Whitelist: Store key → DB column name. ONLY columns that exist in the users table.
 const USERS_STORE_TO_DB: Record<string, string> = {
-  eloScore:        'elo_score',
-  streakDays:      'streak_days',
-  theme:           'theme',
+  eloScore: 'elo_score',
+  streakDays: 'streak_days',
+  theme: 'theme',
   subjectViewMode: 'subject_view_mode',
-  isPassiveMode:   'is_passive_mode',
-  tytSubjects:     'tyt_subjects',
-  aytSubjects:     'ayt_subjects',
-  activeAlerts:    'active_alerts',
-  trophies:        'trophies',
+  isPassiveMode: 'is_passive_mode',
+  tytSubjects: 'tyt_subjects',
+  aytSubjects: 'ayt_subjects',
+  activeAlerts: 'active_alerts',
+  trophies: 'trophies',
   lastCoachDirective: 'last_coach_directive',
-  coachMemory:     'coach_memory',
-  profile:         'profile',
+  coachMemory: 'coach_memory',
+  profile: 'profile',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ const USERS_STORE_TO_DB: Record<string, string> = {
 function now() { return new Date().toISOString(); }
 
 function stripSyncFields<T extends Record<string, unknown>>(row: T): T {
-  const { user_id, created_at, updated_at, deleted_at, ...rest } = row as Record<string,unknown>;
+  const { user_id, created_at, updated_at, deleted_at, ...rest } = row as Record<string, unknown>;
   void user_id; void created_at; void updated_at; void deleted_at;
   return rest as T;
 }
@@ -194,7 +194,7 @@ export async function pushEntitiesToSupabase(
         last_modified_at: Date.now(),
         device_id: deviceId,
         deleted_at: null,
-        payload: { ...item, id } 
+        payload: { ...item, id }
       };
     });
 
@@ -203,7 +203,7 @@ export async function pushEntitiesToSupabase(
       const chunk = rows.slice(i, i + 50);
       const payloadSize = JSON.stringify(chunk).length;
       console.log(`[SupabaseSync] Upserting chunk to ${tableName} (${payloadSize} bytes)...`);
-      
+
       const { error } = await sb
         .from(tableName as never)
         .upsert(chunk as never, { onConflict: 'id' });
@@ -235,20 +235,20 @@ export async function pushToSupabase(
     // STEP 1: Root push (whitelist-filtered inside pushRootToSupabase)
     summary.rootSynced = await pushRootToSupabase(uid, data as any)
       .then(() => true)
-      .catch((err) => { 
-        console.error('[SupabaseSync] Root Push Error:', err); 
-        return false; 
+      .catch((err) => {
+        console.error('[SupabaseSync] Root Push Error:', err);
+        return false;
       });
-    
+
     console.log('[SupabaseSync] Root synchronized:', summary.rootSynced);
-    
+
     // STEP 2: Entity push (only keys in ENTITY_TABLES)
     const entityData: Record<string, unknown> = {};
     for (const key of Object.keys(ENTITY_TABLES)) {
       if (data[key] !== undefined) entityData[key] = data[key];
     }
     summary.entities = await pushEntitiesToSupabase(uid, entityData);
-    
+
     console.log('[SupabaseSync] Push complete:', summary);
     if (onComplete) onComplete(summary);
   } catch (err) {
@@ -285,9 +285,9 @@ export async function pullFromSupabase(uid: string): Promise<SupabaseUserData | 
       .eq('user_id', uid)
       .is('deleted_at', null);
 
-    if (error) { 
-      console.warn(`[SupabaseSync] Load ${table} failed:`, error.message); 
-      return []; 
+    if (error) {
+      console.warn(`[SupabaseSync] Load ${table} failed:`, error.message);
+      return [];
     }
 
     // Unpack payloads
@@ -420,3 +420,6 @@ export async function recordEloActivity(
 function camelToSnake(str: string): string {
   return str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
+
+
+//
