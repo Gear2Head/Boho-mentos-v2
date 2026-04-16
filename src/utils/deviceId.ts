@@ -1,28 +1,12 @@
 /**
- * Stable device id for multi-device sync metadata (Firestore entity docs).
+ * Generates and persists a stable device ID in localStorage.
+ * Used for conflict detection in multi-device sync scenarios.
  */
-
-const STORAGE_KEY = 'boho_device_id_v1';
-
-function randomId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `dev_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
-}
-
 export function getDeviceId(): string {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-    return 'ssr';
-  }
-  try {
-    let id = localStorage.getItem(STORAGE_KEY);
-    if (!id) {
-      id = randomId();
-      localStorage.setItem(STORAGE_KEY, id);
-    }
-    return id;
-  } catch {
-    return randomId();
-  }
+  const key = 'boho_device_id';
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  const id = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  localStorage.setItem(key, id);
+  return id;
 }

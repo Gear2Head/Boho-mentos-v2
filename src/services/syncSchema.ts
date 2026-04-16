@@ -52,7 +52,8 @@ export const ENTITY_SUBCOLLECTIONS: Record<string, string> = {
   failedQuestions: 'failedQuestions',
   agendaEntries: 'agendaEntries',
   focusSessions: 'focusSessions',
-  chatHistory: 'chatMessages',
+  chatHistory: 'chatHistory',
+  directiveHistory: 'directiveHistory',
 };
 
 // ─── UI-only excluded fields ──────────────────────────────────────────────────

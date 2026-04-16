@@ -137,3 +137,9 @@ body {
 .no-transition, .no-transition * {
   transition: none !important;
 }
+
+/* === SPOTIFY: Equalizer bars animation === */
+@keyframes equalizer {
+  0%, 100% { transform: scaleY(0.4); }
+  50%       { transform: scaleY(1); }
+}

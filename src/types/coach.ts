@@ -19,14 +19,19 @@ export type CoachIntent =
   | 'daily_plan'
   | 'log_analysis'
   | 'exam_analysis'
-  | 'exam_debrief'       // Yeni: deneme sonrası otomatik savaş raporu
+  | 'exam_debrief'
   | 'topic_explain'
   | 'intervention'
   | 'qa_mode'
   | 'free_chat'
-  | 'war_room_analysis'  // Yeni: War Room bittikten sonra
-  | 'weekly_review'      // Yeni: haftalık retrospektif
-  | 'micro_feedback';    // Yeni: log sonrası anlık mikro analiz
+  | 'war_room_analysis'
+  | 'weekly_review'
+  | 'micro_feedback'
+  // TODO-007: Kübra v2 intent'leri
+  | 'inverse_coaching'
+  | 'flashcard_generation'
+  | 'forgetting_curve_reminder'
+  | 'daily_quest';
 
 // ─── Task (Görev Nesnesi) ────────────────────────────────────────────────────
 
@@ -244,7 +249,6 @@ export interface CoachSystemContext {
  * Tüm yüzeyler intent kullanır.
  */
 export interface CoachApiRequest {
-  /** Intent bazlı model — "coach" artık geçersiz */
   intent: CoachIntent;
   userMessage: string;
   context: string;
@@ -253,8 +257,10 @@ export interface CoachApiRequest {
   forceJson?: boolean;
   maxTokens?: number;
   userState?: Partial<CoachSystemContext>;
-  /** Structured directive çıktısı isteniyorsa true */
   wantDirective?: boolean;
+  // TODO-010: Vision support
+  imageBase64?: string;
+  imageMediaType?: string;
 }
 
 // ─── Response ─────────────────────────────────────────────────────────────────
@@ -277,6 +283,31 @@ export interface InterventionRecord {
   generatedPlan: string;
   createdAt: string;
   resolvedAt?: string;
-  /** pending / acknowledged / resolved / ignored */
   status: 'pending' | 'acknowledged' | 'resolved' | 'ignored';
+}
+
+// ─── TODO-008: Flashcard ─────────────────────────────────────────────────────
+
+export interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  subject: string;
+  createdAt: string;
+  nextReviewAt: string;
+  reviewCount: number;
+  lastCorrect: boolean | null;
+}
+
+// ─── TODO-011: Ghost Rival ───────────────────────────────────────────────────
+
+export interface GhostRival {
+  id: string;
+  name: string;
+  eloScore: number;
+  tytNet: number;
+  aytNet: number;
+  streakDays: number;
+  source: 'self_past' | 'community_avg' | 'target_rank';
 }

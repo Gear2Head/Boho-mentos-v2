@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { App as CapApp } from '@capacitor/app';
-import { StatusBar, Style } from '@capacitor/status-bar';
-import { Capacitor } from '@capacitor/core';
 import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
@@ -23,6 +20,7 @@ import type {
 } from './types';
 
 import { NotificationCenter } from './components/NotificationCenter';
+import { SpotifyWidget } from './components/SpotifyWidget';
 
 import { FocusSidePanel } from './components/FocusSidePanel';
 import { EloRankCard } from './components/EloRankCard';
@@ -307,7 +305,17 @@ export default function App() {
   const aytSubjects = useAppStore(s => s.aytSubjects);
   const lastCoachDirective = useAppStore(s => s.lastCoachDirective);
   const setLastCoachDirective = useAppStore(s => s.setLastCoachDirective);
+  
   const hasHydrated = useAppStore(s => s.hasHydrated);
+  const setHasHydrated = useAppStore(s => s.setHasHydrated);
+  useEffect(() => {
+    if (!hasHydrated) {
+      const timer = setTimeout(() => {
+        setHasHydrated(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [hasHydrated, setHasHydrated]);
   const setProfile = useAppStore(s => s.setProfile);
   const isMorningBlockerEnabled = useAppStore(s => s.isMorningBlockerEnabled);
   const setMorningUnlockedDate = useAppStore(s => s.setMorningUnlockedDate);
@@ -366,6 +374,16 @@ export default function App() {
       : 'Bulutla Eşitle';
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // --- HYDRATION SAFETY TIMEOUT ---
+  // If IDB never fires onRehydrateStorage, force unblock after 4s
+  useEffect(() => {
+    if (hasHydrated) return;
+    const t = setTimeout(() => {
+      useAppStore.getState().setHasHydrated(true);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [hasHydrated]);
+
   // --- SYSTEM STATE & BROADCAST ---
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
   const lastAnnouncementRef = useRef<string | null>(null);
@@ -397,36 +415,6 @@ export default function App() {
     }
   }, [theme]);
 
-  // --- CAPACITOR NATIVE INTEGRATION ---
-  useEffect(() => {
-    if (Capacitor.getPlatform() === 'web') return;
-
-    // 1. Status Bar Kurulumu
-    const setupStatusBar = async () => {
-      try {
-        await StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light });
-        await StatusBar.setBackgroundColor({ color: theme === 'dark' ? '#0A0A0A' : '#FDFBF7' });
-      } catch (e) {
-        console.warn('StatusBar Plugin not loaded', e);
-      }
-    };
-    setupStatusBar();
-
-    // 2. Geri Tuşu Yönetimi
-    const backListener = CapApp.addListener('backButton', async ({ canGoBack }) => {
-      if (activeTab !== 'dashboard') {
-        setActiveTab('dashboard');
-      } else {
-        if (await confirmDialog('Boho Mentosluk\'tan çıkmak istediğine emin misin?')) {
-          CapApp.exitApp();
-        }
-      }
-    });
-
-    return () => {
-      backListener.then(l => l.remove());
-    };
-  }, [theme, activeTab]);
 
   const handleLogSubmit = async (log: DailyLog) => {
     setIsLogWidgetOpen(false);
@@ -535,11 +523,16 @@ export default function App() {
   }, []);
 
   // Her oturum başlangıcında mevcut local state'i yeni sync manager ile flush et
+  // REF GUARD: Sadece bir kez çalışır, forceSync referansı değişince yeniden çalışmaz
+  const syncOnLoginDoneRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (user?.uid) {
-      void forceSync(false);
+    if (user?.uid && syncOnLoginDoneRef.current !== user.uid) {
+      syncOnLoginDoneRef.current = user.uid;
+      // 2s gecikme: hydration tamamlansın, pullFromSupabase duraksın
+      const t = setTimeout(() => void forceSync(false), 2000);
+      return () => clearTimeout(t);
     }
-  }, [user?.uid, forceSync]);
+  }, [user?.uid]); // INTENTIONAL: forceSync kasıtlı dependency dışı
 
   useEffect(() => {
     return initOfflineSync();
@@ -646,7 +639,7 @@ export default function App() {
 
   return (
     <MobileGuard className="h-[100dvh]">
-      <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: Capacitor.getPlatform() !== 'web' ? 'var(--sat)' : '0px' }}>
+      <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
 
         <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
           <div className="flex items-center gap-2">
@@ -659,12 +652,13 @@ export default function App() {
             <button
               onClick={() => forceSync()}
               disabled={isCurrentlySyncing}
-              className={`p-2 rounded-lg transition-all ${syncStatus === 'offline'
-                ? 'text-amber-500 hover:text-amber-400'
-                : isCurrentlySyncing
-                  ? 'text-[#C17767] animate-spin'
-                  : 'text-zinc-400 hover:text-[#C17767]'
-                }`}
+              className={`p-2 rounded-lg transition-all ${
+                syncStatus === 'offline'
+                  ? 'text-amber-500 hover:text-amber-400'
+                  : isCurrentlySyncing
+                    ? 'text-[#C17767]'
+                    : 'text-zinc-400 hover:text-[#C17767]'
+              }`}
               title={syncButtonTitle}
               aria-label="Bulutla Eşitle"
             >
@@ -712,14 +706,16 @@ export default function App() {
               <button
                 onClick={() => forceSync()}
                 disabled={isCurrentlySyncing}
-                className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
+                className={`p-1.5 hover:bg-white/5 rounded-lg transition-all relative group ${
+                  isCurrentlySyncing ? 'text-[#C17767]' : 'text-zinc-500 hover:text-[#C17767]'
+                }`}
                 title={syncButtonTitle}
                 aria-label="Bulutla Eşitle"
               >
                 {syncStatus === 'offline' ? (
                   <CloudOff size={16} className="text-amber-500" />
                 ) : (
-                  <RefreshCcw size={16} className={isCurrentlySyncing ? 'animate-spin text-[#C17767]' : ''} />
+                  <RefreshCcw size={16} className={isCurrentlySyncing ? 'animate-spin' : ''} />
                 )}
               </button>
               <button
@@ -1465,6 +1461,7 @@ export default function App() {
           onSignOut={signOut}
         />
         <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+        <SpotifyWidget />
       </div>
     </MobileGuard>
   );

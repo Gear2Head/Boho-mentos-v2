@@ -38,10 +38,11 @@ export function useWarRoom() {
       warRoomAnswers
     );
 
-    // [BUG-012 FIX]: Gerçek geçen süreyi hesapla
-    const timeSpentSeconds = Math.round(
-      (Date.now() - warRoomSession.startTime) / 1000
-    );
+    // [BUG-012 FIX + TODO-002]: Gerçek geçen süreyi hesapla, NaN guard eklendi
+    const elapsed = Number.isFinite(warRoomSession.startTime)
+      ? Math.round((Date.now() - warRoomSession.startTime) / 1000)
+      : 0;
+    const timeSpentSeconds = Math.max(1, elapsed);
 
     const endedSession: WarRoomSession = {
       ...warRoomSession,

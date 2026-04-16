@@ -107,8 +107,8 @@ export function useAdminPanel() {
     setSuccess(null);
     setError(null);
     try {
-      const { pullFromFirestore } = await import('../services/firestoreSync');
-      const data = await pullFromFirestore(authUser.uid);
+      const { pullFromSupabase } = await import('../services/supabaseSync');
+      const data = await pullFromSupabase(authUser.uid);
       if (data) {
         useAppStore.setState({
           profile: data.profile,
@@ -164,8 +164,8 @@ export function useAdminPanel() {
       );
 
       useAppStore.setState({ tytSubjects: INITIAL_TYT, aytSubjects: INITIAL_AYT });
-      const { pushToFirestore } = await import('../services/firestoreSync');
-      await pushToFirestore(authUser.uid, { tytSubjects: INITIAL_TYT, aytSubjects: INITIAL_AYT });
+      const { pushToSupabase } = await import('../services/supabaseSync');
+      await pushToSupabase(authUser.uid, { tytSubjects: INITIAL_TYT, aytSubjects: INITIAL_AYT });
       setSuccess('Müfredat verilerin fabrika ayarlarına döndürüldü.');
     } catch (e: any) {
       setError('Sıfırlama hatası: ' + e.message);

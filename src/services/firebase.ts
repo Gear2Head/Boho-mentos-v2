@@ -1,25 +1,14 @@
 /**
- * AMAÇ: Firebase başlatma, Auth ve Firestore referanslarını dışa aktarma
- * MANTIK: Web modular API v9 — tree-shakeable, ücretsiz Spark planı yeterli
+ * @deprecated Firebase tamamen kaldırıldı. Supabase kullanın.
+ * Bu dosya derleme hatası vermemek için stub olarak bırakıldı.
+ * Tüm importları supabaseClient.ts'e taşıyın.
+ *
+ * @see src/services/supabaseClient.ts
  */
 
-import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+// ASSUME: Bu dosyaya hâlâ import yapan bileşenler varsa
+// derleme sırasında kullanılmayan import uyarısı çıkacak. Normal.
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider();
-
-googleProvider.setCustomParameters({ prompt: 'select_account' });
+export const auth = null as unknown as { currentUser: null };
+export const db = null as unknown as Record<string, unknown>;
+export const googleProvider = null as unknown as Record<string, unknown>;

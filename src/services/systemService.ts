@@ -1,100 +1,126 @@
 /**
  * AMAÇ: Sistem genelindeki global ayarların yönetimi (Bakım modu, Duyuru vs.)
- * MANTIK: /systemConfig/settings belgesinden okur/yazar.
+ * MANTIK: Supabase system_config tablosundan okur/yazar.
+ *         Realtime subscription ile canlı dinleme.
  */
 
-import { doc, getDoc, setDoc, onSnapshot, collection, getDocs, query, limit } from 'firebase/firestore';
-import { db } from './firebase';
-import { logAdminAction } from './developerService';
-import { UserRole } from '../config/admin';
+import { getSupabaseClient } from './supabaseClient';
+import type { UserRole } from '../config/admin';
 
 export interface SystemConfig {
   maintenanceMode: boolean;
   globalAnnouncement: string | null;
   lastUpdatedBy?: string;
-  updatedAt?: any;
+  updatedAt?: string;
 }
 
-const CONFIG_DOC_PATH = 'systemConfig/settings';
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Global konfigürasyonu getir
- */
+async function getConfigValue<T>(key: string): Promise<T | null> {
+  const { data, error } = await (getSupabaseClient() as any)
+    .from('system_config')
+    .select('value')
+    .eq('key', key)
+    .single();
+  if (error || !data) return null;
+  return data.value as T;
+}
+
+async function setConfigValue(key: string, value: unknown, actorUid: string): Promise<void> {
+  await (getSupabaseClient() as any)
+    .from('system_config')
+    .upsert({ key, value, updated_at: new Date().toISOString(), updated_by: actorUid }, { onConflict: 'key' });
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 export async function getSystemConfig(): Promise<SystemConfig | null> {
-  const d = await getDoc(doc(db, CONFIG_DOC_PATH));
-  return d.exists() ? d.data() as SystemConfig : null;
+  const [maintenance, announcement] = await Promise.all([
+    getConfigValue<boolean>('maintenanceMode'),
+    getConfigValue<string | null>('globalAnnouncement'),
+  ]);
+  return {
+    maintenanceMode: maintenance ?? false,
+    globalAnnouncement: announcement ?? null,
+  };
 }
 
-/**
- * Konfigürasyonu canlı dinle
- */
-export function subscribeToSystemConfig(callback: (config: SystemConfig) => void) {
-  return onSnapshot(doc(db, CONFIG_DOC_PATH), 
-    (snapshot) => {
-      if (snapshot.exists()) {
-        callback(snapshot.data() as SystemConfig);
+export function subscribeToSystemConfig(callback: (config: SystemConfig) => void): () => void {
+  const sb = getSupabaseClient();
+
+  // Initial fetch
+  getSystemConfig().then((c) => { if (c) callback(c); });
+
+  // Realtime
+  const channel = sb
+    .channel('system-config')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'system_config' },
+      async () => {
+        const c = await getSystemConfig();
+        if (c) callback(c);
       }
-    },
-    (error) => {
-      console.warn('[SystemConfig] Subscription error (likely permission denied):', error);
-    }
-  );
+    )
+    .subscribe();
+
+  return () => { sb.removeChannel(channel); };
 }
 
-/**
- * Bakım Modunu Toggle Et
- */
-export async function toggleMaintenanceMode(actorUid: string, actorRole: UserRole, enabled: boolean): Promise<{ success: boolean; error?: string }> {
+export async function toggleMaintenanceMode(
+  actorUid: string,
+  _actorRole: UserRole,
+  enabled: boolean
+): Promise<{ success: boolean; error?: string }> {
   try {
-    await setDoc(doc(db, CONFIG_DOC_PATH), {
-      maintenanceMode: enabled,
-      lastUpdatedBy: actorUid,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-
-    await logAdminAction({ actorUid, actorRole, targetUid: 'SYSTEM', action: enabled ? 'ENABLE_MAINTENANCE' : 'DISABLE_MAINTENANCE', result: 'success' });
+    await setConfigValue('maintenanceMode', enabled, actorUid);
+    await logAdminAction({ actorUid, targetUid: 'SYSTEM', action: enabled ? 'ENABLE_MAINTENANCE' : 'DISABLE_MAINTENANCE', result: 'success' });
     return { success: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { success: false, error: msg };
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
-/**
- * Global Duyuru Gönder
- */
-export async function setGlobalAnnouncement(actorUid: string, actorRole: UserRole, message: string | null): Promise<{ success: boolean; error?: string }> {
+export async function setGlobalAnnouncement(
+  actorUid: string,
+  _actorRole: UserRole,
+  message: string | null
+): Promise<{ success: boolean; error?: string }> {
   try {
-    await setDoc(doc(db, CONFIG_DOC_PATH), {
-      globalAnnouncement: message,
-      lastUpdatedBy: actorUid,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-
-    await logAdminAction({ actorUid, actorRole, targetUid: 'SYSTEM', action: 'SET_ANNOUNCEMENT', details: { message }, result: 'success' });
+    await setConfigValue('globalAnnouncement', message, actorUid);
+    await logAdminAction({ actorUid, targetUid: 'SYSTEM', action: 'SET_ANNOUNCEMENT', details: { message }, result: 'success' });
     return { success: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return { success: false, error: msg };
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
-/**
- * Sistem İstatistiklerini Getir
- */
 export async function getSystemStats() {
-    const usersSnap = await getDocs(collection(db, 'users'));
-    const totalUsers = usersSnap.size;
-    
-    // Basit bir aktiflik ölçüsü (son 24 saatte login olanlar)
-    const activeLimit = new Date();
-    activeLimit.setHours(activeLimit.getHours() - 24);
-    
-    const logsSnap = await getDocs(query(collection(db, 'adminLogs'), limit(10)));
-    const recentLogs = logsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const sb = getSupabaseClient() as any;
+  const { count } = await sb.from('users').select('uid', { count: 'exact', head: true });
+  const { data: recentLogs } = await sb.from('admin_logs').select('*').order('created_at', { ascending: false }).limit(10);
+  return { totalUsers: count ?? 0, recentLogs: recentLogs ?? [] };
+}
 
-    return {
-        totalUsers,
-        recentLogs
-    };
+// ─── Audit Logging ────────────────────────────────────────────────────────────
+
+interface AuditPayload {
+  actorUid: string;
+  targetUid: string;
+  action: string;
+  details?: Record<string, unknown>;
+  result?: 'success' | 'failure';
+}
+
+export async function logAdminAction(payload: AuditPayload): Promise<void> {
+  try {
+    await (getSupabaseClient() as any).from('admin_logs').insert({
+      actor_uid: payload.actorUid,
+      target_uid: payload.targetUid,
+      action: payload.action,
+      details: payload.details ?? {},
+    });
+  } catch (e) {
+    console.error('[systemService] Audit log yazılamadı:', e);
+  }
 }

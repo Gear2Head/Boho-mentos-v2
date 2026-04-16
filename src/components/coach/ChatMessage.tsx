@@ -24,9 +24,9 @@ interface ChatMessageProps {
 // ─── Coach Avatar ──────────────────────────────────────────────────────────────
 
 const COACH_AVATAR: Record<string, { emoji: string; color: string; name: string }> = {
-  harsh: { emoji: '💀', color: 'bg-red-900/60 border-red-700/40', name: 'GEAR_HEAD.ALFA' },
-  motivational: { emoji: '🔥', color: 'bg-orange-900/60 border-orange-700/40', name: 'GEAR_HEAD.PHOENIX' },
-  analytical: { emoji: '📊', color: 'bg-blue-900/60 border-blue-700/40', name: 'GEAR_HEAD.SIGMA' },
+  harsh: { emoji: '💀', color: 'bg-red-900/60 border-red-700/40', name: 'Koç Kübra' },
+  motivational: { emoji: '🔥', color: 'bg-orange-900/60 border-orange-700/40', name: 'Koç Kübra' },
+  analytical: { emoji: '📊', color: 'bg-blue-900/60 border-blue-700/40', name: 'Koç Kübra' },
 };
 
 const DEFAULT_AVATAR = { emoji: '⚡', color: 'bg-zinc-800 border-zinc-700/50', name: 'GEAR_HEAD.' };
@@ -177,10 +177,10 @@ export const ChatMessage = memo(function ChatMessage({
               style={{
                 color: classification.type === 'directive' ? '#ef4444'
                   : classification.type === 'analysis' ? '#3b82f6'
-                  : classification.type === 'explanation' ? '#a855f7'
-                  : classification.type === 'praise' ? '#22c55e'
-                  : classification.type === 'warning' ? '#f59e0b'
-                  : '#6b7280',
+                    : classification.type === 'explanation' ? '#a855f7'
+                      : classification.type === 'praise' ? '#22c55e'
+                        : classification.type === 'warning' ? '#f59e0b'
+                          : '#6b7280',
                 borderColor: 'currentColor',
                 opacity: 0.7,
               }}
@@ -200,14 +200,13 @@ export const ChatMessage = memo(function ChatMessage({
         >
           {/* Left accent stripe */}
           <div
-            className={`absolute left-0 top-0 bottom-0 w-[3px] ${
-              classification.type === 'directive' ? 'bg-red-500'
+            className={`absolute left-0 top-0 bottom-0 w-[3px] ${classification.type === 'directive' ? 'bg-red-500'
               : classification.type === 'analysis' ? 'bg-blue-500'
-              : classification.type === 'explanation' ? 'bg-purple-500'
-              : classification.type === 'praise' ? 'bg-green-500'
-              : classification.type === 'warning' ? 'bg-amber-500'
-              : 'bg-zinc-600'
-            }`}
+                : classification.type === 'explanation' ? 'bg-purple-500'
+                  : classification.type === 'praise' ? 'bg-green-500'
+                    : classification.type === 'warning' ? 'bg-amber-500'
+                      : 'bg-zinc-600'
+              }`}
           />
 
           <div className="pl-5 pr-5 py-4">
@@ -216,7 +215,7 @@ export const ChatMessage = memo(function ChatMessage({
                 {message.content}
               </ReactMarkdown>
             </div>
-            
+
             {/* Inline Directive */}
             {message.directive && (
               <div className="mt-4 pt-4 border-t border-[#2A2A2A]">
@@ -226,7 +225,7 @@ export const ChatMessage = memo(function ChatMessage({
                 </div>
                 <h4 className="text-sm font-bold text-zinc-200 mb-1">{message.directive.headline}</h4>
                 <p className="text-xs text-zinc-400 mb-4">{message.directive.summary}</p>
-                
+
                 <div className="space-y-2">
                   {message.directive.tasks.map((task, idx) => (
                     <div key={idx} className="flex flex-col gap-1 p-3 bg-[#111111] border border-[#2A2A2A] rounded-xl">

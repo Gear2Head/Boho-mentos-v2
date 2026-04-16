@@ -1,18 +1,14 @@
 /**
  * AMAÇ: Merkezi Koç Prompt Builder — tüm AI yüzeyleri bu modülden türetilir.
  * MANTIK: Intent bazlı tip-güvenli prompt şablonları + context enjeksiyonu + JSON format talimatı.
- * UYARI: BUILD-003 fix — Record<CoachIntent, string> tip-güvenli; hiçbir intent fallback'e düşmez.
- *         Prompt değişiklikleri tek yerden yönetilir; api/ai.ts ve gemini.ts bu modülü kullanmalı.
+ * V20: inverse_coaching, flashcard_generation, forgetting_curve_reminder, daily_quest eklendi.
+ *      parseStructuredDirective bracket-balance parser ile yeniden yazıldı (TODO-001 fix).
  */
 
 import type { CoachIntent, CoachSystemContext } from '../types/coach';
 
 export const COACH_PERSONA_BASE = `Sen "Kübra"sın — YKS koçusun. Sert, analitik, mazeret kabul etmeyen ama toksik olmayan bir disiplin anlayışıyla çalışırsın. Veriyle konuşursun, duyguyla değil.`;
 
-/**
- * BUILD-003: Record<CoachIntent, string> — tüm intent'lerin karşılığı zorunlu.
- * Typecheck eksik intent varsa derleme hatası verir; fallback gizlenmez.
- */
 const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   daily_plan: `Öğrencinin mevcut durumunu analiz ederek bugün için somut bir çalışma planı oluştur. Konu, süre ve öncelik sırasını belirt. Gerekçeni göster.`,
   log_analysis: `Girilen log verisini incele. Doğruluk oranı, hız, yorgunluk ve alışkanlık örüntülerini analiz et. 3 maddeli aksiyon planı çıkar.`,
@@ -25,13 +21,18 @@ const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   war_room_analysis: `War Room simülasyonu bitti. Soru bazlı hata analizi yap: hatalı soruların ortak paydası nedir, hangi konu/tip tuzak, doğruluk oranı ve hız dengesi nasıl. Konuya özgü 3 somut aksiyon ver.`,
   weekly_review: `Haftalık retrospektif: Ne oldu (veri), neden oldu (örüntü analizi), gelecek hafta ne değişecek (somut 3 karar). Net veriyle konuş, tahmin değil gözlem.`,
   micro_feedback: `Log kaydedildi. Maksimum 3 cümle: 1 kısa özet (ne yapıldı, nasıl gitti) + 1 risk tespiti + 1 sonraki adım. Gereksiz övgü yasak.`,
+
+  // TODO-007: Kübra v2 intent'leri
+  inverse_coaching: `Artık öğrenci rolünü oynuyorsun. Kullanıcı sana konuyu anlatacak. Sen meraklı ama kavramsal boşlukları yakalayan bir öğrenci gibi sorular sor. Yanlış anlar gibi davran, net olmayan noktaları zorla. Anlatım bittiğinde: 3 maddeli güçlü/zayıf özet ve tespit ettiğin 1 gerçek hata yaz.`,
+
+  flashcard_generation: `Konuşma geçmişinden veya verilen konudan 5 adet çalışma kartı üret. SADECE JSON dizi döndür, başka metin ekleme:
+[{"front":"...","back":"...","difficulty":"easy|medium|hard","subject":"..."}]`,
+
+  forgetting_curve_reminder: `Ebbinghaus unutma eğrisine göre tekrar zamanı gelen konuların listesi verildi. Her konu için: neden tekrar gerektiğini 1 cümle açıkla, 10 dakikalık mini tekrar görevi ver. Somut ol.`,
+
+  daily_quest: `Öğrencinin gün verilerine bakarak 3 adet günlük yüksek öncelikli görev üret. Her görev çok spesifik (hangi konu, kaç soru, hangi kaynak), ölçülebilir, 60-120 dakikada tamamlanabilir olmalı. Format: structured JSON directive.`,
 };
 
-
-/**
- * Directive çıktısı için tam JSON şema talimatı.
- * BUILD-003: Schema güncel CoachTask alanlarını kapsar.
- */
 const STRUCTURED_JSON_INSTRUCTION = `
 ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:
 {
@@ -65,9 +66,6 @@ ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başk
 }
 `;
 
-/**
- * buildSystemInstruction: Intent + context → sistem prompt
- */
 export function buildSystemInstruction(
   intent: CoachIntent = 'free_chat',
   context?: Partial<CoachSystemContext>,
@@ -78,13 +76,9 @@ export function buildSystemInstruction(
   const personalityStr = coachPersonality
     ? `\n[Koçluk Kişiliği: ${coachPersonality}]`
     : '';
-
   return `${COACH_PERSONA_BASE}${personalityStr}\n\nGÖREV: ${intentGuide}\n\n${contextStr}`;
 }
 
-/**
- * buildStructuredSystemInstruction: JSON directive çıktısı için
- */
 export function buildStructuredSystemInstruction(
   intent: CoachIntent,
   context?: Partial<CoachSystemContext>,
@@ -93,14 +87,9 @@ export function buildStructuredSystemInstruction(
   return buildSystemInstruction(intent, context, coachPersonality) + STRUCTURED_JSON_INSTRUCTION;
 }
 
-/**
- * buildContextString: CoachSystemContext → okunabilir metin bloğu
- */
 export function buildContextString(ctx?: Partial<CoachSystemContext>): string {
   if (!ctx) return '';
-
   const lines: string[] = ['[ÖĞRENCİ DURUMU]'];
-
   if (ctx.name) lines.push(`İsim: ${ctx.name}`);
   if (ctx.track) lines.push(`Alan: ${ctx.track}`);
   if (ctx.targetUniversity) lines.push(`Hedef: ${ctx.targetUniversity} / ${ctx.targetMajor ?? '-'}`);
@@ -113,28 +102,62 @@ export function buildContextString(ctx?: Partial<CoachSystemContext>): string {
   if (ctx.lastLogs?.length) lines.push(`Son Loglar: ${ctx.lastLogs.join(' | ')}`);
   if (ctx.lastExams?.length) lines.push(`Son Denemeler: ${ctx.lastExams.join(' | ')}`);
   if (ctx.alertCount) lines.push(`Uyarı Sayısı: ${ctx.alertCount}`);
-
   return lines.join('\n');
 }
 
 /**
- * parseStructuredDirective: AI yanıtından JSON direktif çıkar, hata olursa text fallback
+ * TODO-001: Bracket-balance JSON parser — greedy regex yerine.
+ * Nested array/object içeren directive'lerde parse hatasını önler.
  */
+function extractFirstJsonObject(raw: string): string | null {
+  let s = raw.trim();
+  if (s.includes('```')) {
+    const parts = s.split('```');
+    const block = parts.find((p) => p.startsWith('json')) || parts[1] || '';
+    s = block.replace(/^json/, '').trim();
+  }
+  const start = s.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return s.substring(start, i + 1).replace(/,(\s*[}\]])/g, '$1');
+    }
+  }
+  return null;
+}
+
 export function parseStructuredDirective(
   rawText: string,
   intent: CoachIntent
 ): { isStructured: boolean; directive: import('../types/coach').CoachDirective } {
   try {
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON block found');
-    const parsed = JSON.parse(jsonMatch[0]) as Partial<import('../types/coach').CoachDirective>;
-    if (!parsed.headline || !parsed.summary) throw new Error('Missing required fields');
+    const jsonStr = extractFirstJsonObject(rawText);
+    if (!jsonStr) throw new Error('No JSON object found');
+    const parsed = JSON.parse(jsonStr) as Partial<import('../types/coach').CoachDirective>;
+
+    const headline = parsed.headline?.trim() || `${intent} analizi tamamlandı`;
+    const summary = parsed.summary?.trim() || rawText.slice(0, 300);
+    const tasks = (parsed.tasks ?? []).map((task, i) => ({
+      ...task,
+      id: task.id?.trim() ? task.id : `task_${Date.now()}_${i}`,
+    }));
+
     return {
       isStructured: true,
       directive: {
-        headline: parsed.headline,
-        summary: parsed.summary,
-        tasks: parsed.tasks ?? [],
+        headline,
+        summary,
+        tasks,
         warnings: parsed.warnings,
         followUpQuestion: parsed.followUpQuestion,
         text: rawText,

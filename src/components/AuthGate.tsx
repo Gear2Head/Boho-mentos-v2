@@ -3,11 +3,11 @@
  */
 
 import React, { useState } from 'react';
-import { Mail, Lock, User, Eye, EyeOff, LogIn } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, LogIn, Music } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export function AuthGate() {
-  const { signInWithGoogle, signInWithEmail, resetPassword, authError, setAuthError, isLoading } = useAuth();
+  const { signInWithGoogle, signInWithSpotify, signInWithEmail, resetPassword, authError, setAuthError, isLoading } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -82,6 +82,15 @@ export function AuthGate() {
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
             </svg>
             Google ile {mode === 'register' ? 'Kayit Ol' : 'Giris Yap'}
+          </button>
+
+          <button
+            onClick={signInWithSpotify}
+            disabled={isLoading}
+            className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-[#1DB954] py-3.5 text-sm font-bold text-black transition-all hover:bg-[#1ed760] disabled:opacity-50"
+          >
+            <Music size={20} className="text-black" />
+            Spotify ile {mode === 'register' ? 'Kayit Ol' : 'Giris Yap'}
           </button>
 
           <div className="mb-4 flex items-center gap-3">

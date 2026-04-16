@@ -2,9 +2,11 @@
  * AMAÇ: War Room Soru Üretimi (Groq/Gemini üzerinden)
  * MANTIK: Taze soruları AI ile üretir, session skorlaması yapar
  *
- * [BUG-005 FIX]: AI halüsinasyonlarından kaynaklanan eksik JSON field'ları artık
- * guard clause tabanlı validation katmanıyla tespit edilip normalize ediliyor.
- * Hatalı/eksik sorular atılıp kalan geçerli sorularla devam ediliyor.
+ * TODO-002 FIX:
+ *  - AbortController ile 25s timeout
+ *  - Eksik soru sayısında retry (reduced count)
+ *  - Options array padding (tam 5 şık garantisi)
+ *  - startTime NaN guard finishSession'da
  */
 
 import { getCoachResponse } from './gemini';
@@ -25,12 +27,8 @@ export interface GenerateQuestionsOptions {
 const VALID_ANSWERS = new Set(['A', 'B', 'C', 'D', 'E']);
 const VALID_DIFFICULTIES = new Set(['easy', 'medium', 'hard', 'elite']);
 const VALID_EXAM_TYPES = new Set(['TYT', 'AYT']);
+const OPTION_PLACEHOLDER = 'Bu şık AI tarafından üretilemedi.';
 
-/**
- * [BUG-005] Guard clause validation.
- * Eksik veya hatalı field'ları düzeltir ya da soruyu atar.
- * Throw etmek yerine null döndürür — caller invalid soruları filtreler.
- */
 function validateAndNormalizeQuestion(
   raw: unknown,
   index: number,
@@ -44,41 +42,32 @@ function validateAndNormalizeQuestion(
 
   const q = raw as Record<string, unknown>;
 
-  // text: zorunlu, string olmalı
   if (!q.text || typeof q.text !== 'string' || q.text.trim().length < 5) {
-    console.warn(`[WarRoom] Soru ${index}: "text" eksik veya çok kısa`, q.text);
+    console.warn(`[WarRoom] Soru ${index}: "text" eksik`, q.text);
     return null;
   }
 
-  // options: zorunlu, en az 4 şık, string dizisi
-  if (!Array.isArray(q.options) || q.options.length < 4) {
-    console.warn(`[WarRoom] Soru ${index}: "options" eksik veya yetersiz`, q.options);
-    return null;
+  // TODO-002: Pad options to exactly 5
+  let options: string[] = [];
+  if (Array.isArray(q.options)) {
+    options = q.options
+      .filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
+      .slice(0, 5);
   }
-  const options = q.options
-    .filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
-    .slice(0, 5);
-  if (options.length < 4) {
-    console.warn(`[WarRoom] Soru ${index}: geçerli şık sayısı yetersiz`);
-    return null;
+  while (options.length < 5) {
+    options.push(OPTION_PLACEHOLDER);
   }
 
-  // correctAnswer: A-E arası olmalı
   const rawAnswer = typeof q.correctAnswer === 'string'
     ? q.correctAnswer.trim().toUpperCase()
     : '';
   const correctAnswer = VALID_ANSWERS.has(rawAnswer) ? rawAnswer : 'A';
-  if (!VALID_ANSWERS.has(rawAnswer)) {
-    console.warn(`[WarRoom] Soru ${index}: "correctAnswer" geçersiz, A kullanılıyor`, q.correctAnswer);
-  }
 
-  // difficulty: normalize
   const rawDifficulty = typeof q.difficulty === 'string' ? q.difficulty : fallbackDifficulty;
   const difficulty = VALID_DIFFICULTIES.has(rawDifficulty)
     ? (rawDifficulty as WarRoomQuestion['difficulty'])
     : (fallbackDifficulty as WarRoomQuestion['difficulty']);
 
-  // examType: normalize
   const rawExamType = typeof q.examType === 'string' ? q.examType.toUpperCase() : fallbackExamType;
   const examType = VALID_EXAM_TYPES.has(rawExamType)
     ? (rawExamType as 'TYT' | 'AYT')
@@ -101,8 +90,6 @@ function validateAndNormalizeQuestion(
   };
 }
 
-// ─── Fallback mock soru ────────────────────────────────────────────────────────
-
 function buildFallbackQuestion(
   examType: 'TYT' | 'AYT',
   topic: string,
@@ -122,6 +109,75 @@ function buildFallbackQuestion(
   };
 }
 
+function buildFallbackArray(
+  count: number,
+  examType: 'TYT' | 'AYT',
+  topic: string,
+  difficulty: string
+): WarRoomQuestion[] {
+  return Array.from({ length: Math.max(1, count) }, (_, i) => ({
+    ...buildFallbackQuestion(examType, topic, difficulty),
+    id: `offline_mock_${Date.now()}_${i}`,
+  }));
+}
+
+// ─── Promise with timeout helper ──────────────────────────────────────────────
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
+// ─── Prompt builder ───────────────────────────────────────────────────────────
+
+function buildWarRoomPrompt(
+  opts: GenerateQuestionsOptions,
+  count: number,
+  topicCtx: string
+): string {
+  const { examType, subject, difficulty = 'medium' } = opts;
+  const diffMap: Record<string, string> = {
+    easy: 'temel, doğrudan uygulama',
+    medium: 'orta düzey, 1-2 adımlı akıl yürütme',
+    hard: 'zor, tuzaklı YKS tarzı',
+    elite: 'en yüksek zorluk, ÖSYM görünümlü olimpiyat ayarı',
+  };
+
+  return `
+Sen Türkiye'nin en seçkin yayın evlerinde soru yazan bir uzmansın.
+Aşağıdaki kriterlere göre ${count} adet %100 ÖSYM TARZI soru üret.
+
+KRİTERLER:
+- Sınav: ${examType}
+- ${topicCtx}
+- Zorluk Seviyesi: ${diffMap[difficulty] || diffMap.medium}
+- Şıklar: 5 seçenek (A, B, C, D, E)
+- Format: Matematiksel ifadelerde LaTeX kullan: \\(x^2\\)
+
+ZORUNLU ÇIKTI FORMATI (SADECE SAF JSON DİZİSİ):
+[
+  {
+    "id": "unique_id_${Date.now()}_0",
+    "subject": "${subject || examType + ' Karma'}",
+    "topic": "Alt Konu",
+    "difficulty": "${difficulty}",
+    "examType": "${examType}",
+    "text": "Soru metni.",
+    "options": ["A Şıkkı", "B Şıkkı", "C Şıkkı", "D Şıkkı", "E Şıkkı"],
+    "correctAnswer": "C",
+    "analysis": "Çözüm açıklaması."
+  }
+]
+
+ÖNEMLİ: JSON DIŞINDA HİÇBİR AÇIKLAMA METNİ EKLEME. [ ] ile başla ve bitir.
+`.trim();
+}
+
 // ─── Ana üretim fonksiyonu ────────────────────────────────────────────────────
 
 export async function generateWarRoomQuestions(
@@ -138,119 +194,85 @@ export async function generateWarRoomQuestions(
   } = opts;
 
   let topicCtx = '';
-  if (topic) {
-    topicCtx = `Konu: ${topic}`;
-  } else if (weakTopics.length > 0) {
-    topicCtx = `Öğrencinin zayıf konuları: ${weakTopics.slice(0, 3).join(', ')}`;
-  } else {
-    topicCtx = `${examType} genel karma`;
-  }
+  if (topic) topicCtx = `Konu: ${topic}`;
+  else if (weakTopics.length > 0) topicCtx = `Öğrencinin zayıf konuları: ${weakTopics.slice(0, 3).join(', ')}`;
+  else topicCtx = `${examType} genel karma`;
 
-  const diffMap = {
-    easy: 'temel, doğrudan uygulama',
-    medium: 'orta düzey, 1-2 adımlı akıl yürütme',
-    hard: 'zor, tuzaklı YKS tarzı',
-    elite: 'en yüksek zorluk, ÖSYM görünümlü olimpiyat ayarı',
-  };
+  const prompt = buildWarRoomPrompt(opts, count, topicCtx);
 
-  const prompt = `
-Sen Türkiye'nin en seçkin yayın evlerinde (Bilgi Sarmal, 3D, Apotemi ayarında) soru yazan bir uzmansın. 
-Aşağıdaki kriterlere göre ${count} adet %100 ÖSYM TARZI YENİ NESİL soru üret.
-
-KRİTERLER:
-- Sınav: ${examType}
-- ${topicCtx}
-- Zorluk Seviyesi: ${diffMap[difficulty]}
-- Soru Tipi: Sadece "Yeni Nesil" (Günlük hayat senaryolu, grafik yorumlamalı veya derin mantık muhakemesi gerektiren) sorular.
-- Dil: Akademik ve pürüzsüz bir Türkçe.
-- Şıklar: 5 seçenek (A, B, C, D, E). Çeldiriciler (yanlış şıklar) çok kuvvetli ve mantıklı olmalı, rastgele olmamalı.
-- Format: Metin içerisinde matematiksel ifadeler varsa mutlaka LaTeX kullan (örn: \\(x^2 + 5\\) veya \\[... \\]).
-
-ZORUNLU ÇIKTI FORMATI (SADECE SAF JSON DİZİSİ):
-[
-  {
-    "id": "unique_id_${Date.now()}_index",
-    "subject": "${subject || examType + ' Karma'}",
-    "topic": "İlgili Alt Konu",
-    "difficulty": "${difficulty}",
-    "examType": "${examType}",
-    "text": "Buraya sorunun hikayeleştirilmiş metni gelecek. Verilenler ve istenen net olmalı.",
-    "options": ["A Şıkkı", "B Şıkkı", "C Şıkkı", "D Şıkkı", "E Şıkkı"],
-    "correctAnswer": "C",
-    "analysis": "Sorunun detaylı çözüm mantığı ve neden diğer şıkların yanlış olduğu açıklaması."
-  }
-]
-
-ÖNEMLİ UYARI: JSON DIŞINDA HİÇBİR AÇIKLAMA METNİ EKLEME. ÇIKTI SADECE [ ] İLE BAŞLAMALI VE BİTMELİDİR.
-`.trim();
-
-  try {
-    const raw = await getCoachResponse(
-      prompt,
-      `${examType} Savaş Simülasyonu Soru Üretimi`,
-      [],
-      { forceJson: true, maxTokens: 3000, coachPersonality }
+  async function attemptGeneration(targetCount: number): Promise<WarRoomQuestion[]> {
+    // TODO-002: 25s hard timeout
+    const raw = await withTimeout(
+      getCoachResponse(
+        buildWarRoomPrompt({ ...opts, count: targetCount }, targetCount, topicCtx),
+        `${examType} Savaş Simülasyonu`,
+        [],
+        { forceJson: true, maxTokens: 3000, coachPersonality }
+      ),
+      25000
     );
 
-    // 4.1 JSON array'i ayıkla (Markdown kod bloklarını ve dış metinleri temizle)
     let jsonStr = raw.trim();
-    
-    // Markdown bloğu varsa (```json veya ```) içeriği al
     if (jsonStr.includes('```')) {
       const parts = jsonStr.split('```');
-      // Eğer "json" ile başlayan bir blok varsa onu al, yoksa ilk bloğu al
-      const block = parts.find(p => p.startsWith('json')) || parts[1];
+      const block = parts.find((p) => p.startsWith('json')) || parts[1] || '';
       jsonStr = block.replace(/^json/, '').trim();
     }
 
-    // JSON array başlangıç ve bitişini bul
     const startIdx = jsonStr.indexOf('[');
     const endIdx = jsonStr.lastIndexOf(']');
-    
     if (startIdx === -1 || endIdx === -1) {
-      console.error('[WarRoom] JSON array bulunamadı, Raw:', raw.slice(0, 300));
-      return [buildFallbackQuestion(examType, topic || '', difficulty)];
+      console.error('[WarRoom] JSON array bulunamadı');
+      return [];
     }
 
-    jsonStr = jsonStr.substring(startIdx, endIdx + 1);
-
-    // [BUG-FIX] Trailing commas temizleme (AI'ların sık yaptığı bir hata)
-    jsonStr = jsonStr.replace(/,\s*\]/g, ']').replace(/,\s*\}/g, '}');
+    jsonStr = jsonStr
+      .substring(startIdx, endIdx + 1)
+      .replace(/,\s*]/g, ']')
+      .replace(/,\s*}/g, '}');
 
     let parsedData: unknown[];
     try {
       parsedData = JSON.parse(jsonStr);
-    } catch (parseErr) {
-      console.error('[WarRoom] JSON parse hatası, İşlenmiş String:', jsonStr, parseErr);
-      return [buildFallbackQuestion(examType, topic || '', difficulty)];
+    } catch {
+      console.error('[WarRoom] JSON parse hatası');
+      return [];
     }
 
-    if (!Array.isArray(parsedData)) {
-      console.error('[WarRoom] Parse edilen veri array değil');
-      return [buildFallbackQuestion(examType, topic || '', difficulty)];
-    }
+    if (!Array.isArray(parsedData)) return [];
 
-    // [BUG-005] Her soruyu validate et, geçersizleri filtrele
-    const validated = parsedData
+    return parsedData
       .map((q, i) => validateAndNormalizeQuestion(q, i + 1, examType, difficulty))
       .filter((q): q is WarRoomQuestion => q !== null);
+  }
+
+  try {
+    // First attempt: full count
+    const validated = await attemptGeneration(count);
 
     if (validated.length === 0) {
-      console.warn('[WarRoom] Tüm sorular validation\'dan geçemedi, fallback kullanılıyor');
-      return [buildFallbackQuestion(examType, topic || '', difficulty)];
+      console.warn('[WarRoom] İlk deneme başarısız, fallback kullanılıyor');
+      return buildFallbackArray(count, examType, topic || '', difficulty);
     }
 
-    if (validated.length < parsedData.length) {
-      console.warn(
-        `[WarRoom] ${parsedData.length - validated.length} soru validation'dan geçemedi, ` +
-        `${validated.length} soru kullanılıyor`
-      );
+    // TODO-002: If we got less than requested, retry with reduced count
+    if (validated.length < count) {
+      console.warn(`[WarRoom] ${validated.length}/${count} soru geldi, eksik için retry`);
+      try {
+        const remaining = count - validated.length;
+        const extra = await attemptGeneration(Math.ceil(remaining));
+        const merged = [...validated, ...extra];
+        return merged.slice(0, count);
+      } catch {
+        // Partial success — return what we have
+        return validated;
+      }
     }
 
     return validated;
   } catch (error) {
     console.error('[WarRoom] generateWarRoomQuestions genel hata', error);
-    return [buildFallbackQuestion(examType, topic || '', difficulty)];
+    return buildFallbackArray(count, examType, topic || '', difficulty);
   }
 }
 
@@ -266,18 +288,13 @@ export function scoreWarRoomSession(
 
   for (const q of questions) {
     const ans = answers[q.id];
-    if (!ans) {
-      empty++;
-    } else if (ans === q.correctAnswer) {
-      correct++;
-    } else {
-      wrong++;
-    }
+    if (!ans) empty++;
+    else if (ans === q.correctAnswer) correct++;
+    else wrong++;
   }
 
   const net = correct - wrong * 0.25;
-  const accuracy =
-    questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
+  const accuracy = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 0;
 
   return { correct, wrong, empty, net, accuracy };
 }

@@ -8,7 +8,12 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { openDB } from 'idb';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../constants';
 import { toISODateOnly, toISODateTime, toDateMs } from '../utils/date';
-import { tombstoneEntity, pushSingleEntity, pushToFirestore } from '../services/firestoreSync';
+import { 
+  tombstoneEntityInSupabase, 
+  pushSingleEntityToSupabase, 
+  pushToSupabase,
+  recordEloActivity 
+} from '../services/supabaseSync';
 import type { 
   StudentProfile, SubjectStatus, DailyLog, ExamResult, 
   FailedQuestion, ChatMessage, Trophy, FocusSessionRecord, AgendaEntry,
@@ -137,6 +142,8 @@ export interface AppState {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   isFocusSidePanelOpen: boolean;
+  isSpotifyWidgetOpen: boolean;
+  setSpotifyWidgetOpen: (open: boolean) => void;
   setQaSession: (session: QASession | null) => void;
   updateQaAnswer: (questionIndex: number, answer: string) => void;
   setFocusSidePanelOpen: (isOpen: boolean) => void;
@@ -144,6 +151,20 @@ export interface AppState {
   analyzeUserData: () => string;
   bulkMasterTytSubjectsByName: (subjectName: string) => void;
   bulkMasterAytSubjectsByName: (subjectName: string) => void;
+  // TODO-038: Bulk update fix
+  bulkUpdateTytSubjects: (updates: Array<{index: number; status: import('../types').SubjectStatusType}>) => void;
+  bulkUpdateAytSubjects: (updates: Array<{index: number; status: import('../types').SubjectStatusType}>) => void;
+  // TODO-008: Flashcard
+  flashcards: import('../types/coach').Flashcard[];
+  addFlashcard: (card: import('../types/coach').Flashcard) => void;
+  updateFlashcard: (id: string, updates: Partial<import('../types/coach').Flashcard>) => void;
+  removeFlashcard: (id: string) => void;
+  // TODO-034: Lofi preference in store
+  isLofiEnabled: boolean;
+  setLofiEnabled: (enabled: boolean) => void;
+  // Daily quests tracking
+  dailyQuestsGeneratedDate: string;
+  setDailyQuestsGeneratedDate: (date: string) => void;
 
   lastCoachDirective: import('../types/coach').CoachDirective | null;
   setLastCoachDirective: (directive: import('../types/coach').CoachDirective | null) => void;
@@ -175,11 +196,11 @@ export interface AppState {
   setHasHydrated: (val: boolean) => void;
 }
 
-const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
+export const INITIAL_TYT = Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) => 
   topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' }))
 );
 
-const INITIAL_AYT = Object.entries(AYT_SUBJECTS).flatMap(([subject, topics]) => 
+export const INITIAL_AYT = Object.entries(AYT_SUBJECTS).flatMap(([subject, topics]) => 
   topics.map(name => ({ subject, name, status: 'not-started' as const, notes: '' }))
 );
 
@@ -221,6 +242,7 @@ const INITIAL_STATE = {
   subjectViewMode: 'map' as const,
   theme: 'dark' as const,
   isFocusSidePanelOpen: false,
+  isSpotifyWidgetOpen: true,
   qaSession: null,
   drawingMode: 'pen' as const,
   warRoomMode: 'setup' as const,
@@ -236,6 +258,12 @@ const INITIAL_STATE = {
   lastCoachDirective: null,
   directiveHistory: [] as import('../types/coach').DirectiveRecord[],
   coachMemory: null as import('../types/coach').CoachMemory | null,
+  // TODO-008
+  flashcards: [] as import('../types/coach').Flashcard[],
+  // TODO-034
+  isLofiEnabled: false,
+  // Daily quests
+  dailyQuestsGeneratedDate: '',
 };
 
 function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
@@ -331,6 +359,7 @@ export const useAppStore = create<AppState>()(
             isSyncing: false,
             notifications: [],
             isFocusSidePanelOpen: false,
+  isSpotifyWidgetOpen: true,
             qaSession: null,
             warRoomMode: 'setup',
             warRoomSession: null,
@@ -355,7 +384,7 @@ export const useAppStore = create<AppState>()(
       setProfile: (profile) => {
         const uid = get().authUser?.uid;
         set({ profile });
-        if (uid && profile) void pushToFirestore(uid, { profile });
+        if (uid && profile) void pushToSupabase(uid, { profile });
       },
 
       updateTytSubject: (index, updates) => {
@@ -365,7 +394,14 @@ export const useAppStore = create<AppState>()(
         newSubs[index] = { ...newSubs[index], ...updates };
         
         let eloDelta = 0;
-        if (updates.status === 'mastered' && oldStatus !== 'mastered') eloDelta = 50;
+        if (updates.status && updates.status !== oldStatus) {
+            if (updates.status === 'in-progress' && oldStatus === 'not-started') eloDelta = 15;
+            else if (updates.status === 'mastered' && oldStatus === 'in-progress') eloDelta = 35;
+            else if (updates.status === 'mastered' && oldStatus === 'not-started') eloDelta = 50;
+            else if (updates.status === 'not-started' && oldStatus === 'mastered') eloDelta = -50;
+            else if (updates.status === 'in-progress' && oldStatus === 'mastered') eloDelta = -35;
+            else if (updates.status === 'not-started' && oldStatus === 'in-progress') eloDelta = -15;
+        }
 
         const masteredCount = [...newSubs, ...get().aytSubjects].filter(s => s.status === 'mastered').length;
         const trophies = get().trophies.map(t => {
@@ -374,9 +410,19 @@ export const useAppStore = create<AppState>()(
           return t;
         });
 
-        const newElo = get().eloScore + eloDelta;
-        set({ tytSubjects: newSubs, eloScore: newElo, trophies });
-        if (uid) void pushToFirestore(uid, { tytSubjects: newSubs, eloScore: newElo, trophies });
+        const todayStr = new Date().toISOString().split('T')[0];
+        const newDailyDelta = get().lastEloUpdateDate !== todayStr ? eloDelta : get().dailyEloDelta + eloDelta;
+        const newElo = Math.max(0, get().eloScore + eloDelta);
+
+        set({ tytSubjects: newSubs, eloScore: newElo, trophies, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, lastLocalUpdateAt: new Date().toISOString() });
+        
+        if (uid) {
+          void pushToSupabase(uid, { tytSubjects: newSubs, trophies });
+          // TODO-021: Backend ELO Sync
+          recordEloActivity('tyt_subject', { oldStatus, newStatus: updates.status || oldStatus }).then(res => {
+            if (res) set({ eloScore: res.newElo });
+          });
+        }
       },
 
       updateAytSubject: (originalIndex, updates) => {
@@ -386,7 +432,14 @@ export const useAppStore = create<AppState>()(
         newSubs[originalIndex] = { ...newSubs[originalIndex], ...updates };
         
         let eloDelta = 0;
-        if (updates.status === 'mastered' && oldStatus !== 'mastered') eloDelta = 75;
+        if (updates.status && updates.status !== oldStatus) {
+            if (updates.status === 'in-progress' && oldStatus === 'not-started') eloDelta = 20;
+            else if (updates.status === 'mastered' && oldStatus === 'in-progress') eloDelta = 55;
+            else if (updates.status === 'mastered' && oldStatus === 'not-started') eloDelta = 75;
+            else if (updates.status === 'not-started' && oldStatus === 'mastered') eloDelta = -75;
+            else if (updates.status === 'in-progress' && oldStatus === 'mastered') eloDelta = -55;
+            else if (updates.status === 'not-started' && oldStatus === 'in-progress') eloDelta = -20;
+        }
 
         const masteredCount = [...get().tytSubjects, ...newSubs].filter(s => s.status === 'mastered').length;
         const trophies = get().trophies.map(t => {
@@ -395,9 +448,19 @@ export const useAppStore = create<AppState>()(
           return t;
         });
 
-        const newElo = get().eloScore + eloDelta;
-        set({ aytSubjects: newSubs, eloScore: newElo, trophies });
-        if (uid) void pushToFirestore(uid, { aytSubjects: newSubs, eloScore: newElo, trophies });
+        const todayStr = new Date().toISOString().split('T')[0];
+        const newDailyDelta = get().lastEloUpdateDate !== todayStr ? eloDelta : get().dailyEloDelta + eloDelta;
+        const newElo = Math.max(0, get().eloScore + eloDelta);
+
+        set({ aytSubjects: newSubs, eloScore: newElo, trophies, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, lastLocalUpdateAt: new Date().toISOString() });
+        
+        if (uid) {
+          void pushToSupabase(uid, { aytSubjects: newSubs, trophies });
+          // TODO-021: Backend ELO Sync
+          recordEloActivity('ayt_subject', { oldStatus, newStatus: updates.status || oldStatus }).then(res => {
+            if (res) set({ eloScore: res.newElo });
+          });
+        }
       },
 
       addLog: (log) => {
@@ -447,7 +510,14 @@ export const useAppStore = create<AppState>()(
         const newAlerts = newLogs.length >= 5 ? detectHabitsFromLogs(newLogs) : get().activeAlerts;
 
         set({ logs: newLogs, streakDays: newStreak, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies, activeAlerts: newAlerts, lastLocalUpdateAt: new Date().toISOString() });
-        if (uid) void pushToFirestore(uid, { logs: newLogs, streakDays: newStreak, eloScore: newEloScore, trophies });
+        
+        if (uid) {
+           void pushToSupabase(uid, { logs: newLogs, streakDays: newStreak, trophies });
+           // TODO-021: Backend ELO Sync
+           recordEloActivity('log', { questions: log.questions, correct: log.correct, wrong: log.wrong }).then(res => {
+             if (res) set({ eloScore: res.newElo });
+           });
+        }
       },
 
       removeLog: (id) => {
@@ -455,8 +525,8 @@ export const useAppStore = create<AppState>()(
         const newLogs = get().logs.filter(l => l.id !== id);
         set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
         if (uid) {
-          void tombstoneEntity(uid, 'logs', id);
-          void pushToFirestore(uid, { logs: newLogs });
+          void tombstoneEntityInSupabase(uid, 'logs', id);
+          void pushToSupabase(uid, { logs: newLogs });
         }
         get().detectAndSetHabits();
       },
@@ -465,7 +535,7 @@ export const useAppStore = create<AppState>()(
         const uid = get().authUser?.uid;
         const newLogs = get().logs.map(l => l.id === id ? { ...l, ...updates } : l);
         set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
-        if (uid) void pushToFirestore(uid, { logs: newLogs });
+        if (uid) void pushToSupabase(uid, { logs: newLogs });
         get().detectAndSetHabits();
       },
 
@@ -496,7 +566,15 @@ export const useAppStore = create<AppState>()(
         });
 
         set({ exams: newExams, eloScore: newEloScore, dailyEloDelta: newDailyDelta, lastEloUpdateDate: todayStr, trophies, lastLocalUpdateAt: new Date().toISOString() });
-        if (uid) void pushToFirestore(uid, { exams: newExams, eloScore: newEloScore, trophies });
+        
+        if (uid) {
+          void pushToSupabase(uid, { exams: newExams, trophies });
+          // TODO-021: Backend ELO Sync
+          const target = normalizedExam.type === 'TYT' ? (get().profile?.tytTarget || 0) : (get().profile?.aytTarget || 0);
+          recordEloActivity('exam', { totalNet: normalizedExam.totalNet }, target).then(res => {
+            if (res) set({ eloScore: res.newElo });
+          });
+        }
       },
 
       removeExam: (id) => {
@@ -504,8 +582,8 @@ export const useAppStore = create<AppState>()(
         const newExams = get().exams.filter(e => e.id !== id);
         set({ exams: newExams, lastLocalUpdateAt: new Date().toISOString() });
         if (uid) {
-          void tombstoneEntity(uid, 'exams', id);
-          void pushToFirestore(uid, { exams: newExams });
+          void tombstoneEntityInSupabase(uid, 'exams', id);
+          void pushToSupabase(uid, { exams: newExams });
         }
       },
 
@@ -513,7 +591,7 @@ export const useAppStore = create<AppState>()(
         const uid = get().authUser?.uid;
         const newExams = get().exams.map(e => e.id === id ? { ...e, ...updates } : e);
         set({ exams: newExams, lastLocalUpdateAt: new Date().toISOString() });
-        if (uid) void pushToFirestore(uid, { exams: newExams });
+        if (uid) void pushToSupabase(uid, { exams: newExams });
       },
 
       addChatMessage: (message) => {
@@ -522,15 +600,16 @@ export const useAppStore = create<AppState>()(
           ...message,
           id: message.id ?? `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         };
-        const newHistory = [...get().chatHistory, newMessage].slice(-200);
+        // TODO-026: Cap at 100 messages to prevent memory leak
+        const newHistory = [...get().chatHistory, newMessage].slice(-100);
         set({ chatHistory: newHistory });
-        if (uid) void pushToFirestore(uid, { chatHistory: newHistory });
+        if (uid) void pushSingleEntityToSupabase(uid, 'chatHistory', newMessage as unknown as Record<string, unknown>);
       },
 
       setPassiveMode: (isPassiveMode) => {
         const uid = get().authUser?.uid;
         set({ isPassiveMode });
-        if (uid) void pushToFirestore(uid, { isPassiveMode });
+        if (uid) void pushToSupabase(uid, { isPassiveMode });
       },
 
       addFailedQuestion: (input) => {
@@ -544,7 +623,7 @@ export const useAppStore = create<AppState>()(
         };
         const newList = [...get().failedQuestions, newQ];
         set({ failedQuestions: newList });
-        if (uid) void pushToFirestore(uid, { failedQuestions: newList });
+        if (uid) void pushSingleEntityToSupabase(uid, 'failedQuestions', newQ as unknown as Record<string, unknown>);
       },
 
       solveFailedQuestion: (id) => {
@@ -553,7 +632,7 @@ export const useAppStore = create<AppState>()(
           q.id === id ? { ...q, status: 'solved' as const, solveCount: q.solveCount + 1 } : q
         );
         set({ failedQuestions: newList });
-        if (uid) void pushToFirestore(uid, { failedQuestions: newList });
+        if (uid) void pushToSupabase(uid, { failedQuestions: newList });
         get().addElo(15);
       },
 
@@ -562,8 +641,8 @@ export const useAppStore = create<AppState>()(
         const newList = get().failedQuestions.filter(q => q.id !== id);
         set({ failedQuestions: newList });
         if (uid) {
-          void tombstoneEntity(uid, 'failedQuestions', id);
-          void pushToFirestore(uid, { failedQuestions: newList });
+          void tombstoneEntityInSupabase(uid, 'failedQuestions', id);
+          void pushToSupabase(uid, { failedQuestions: newList });
         }
       },
 
@@ -575,7 +654,7 @@ export const useAppStore = create<AppState>()(
           const newTrophies = [...trophies];
           newTrophies[idx] = { ...newTrophies[idx], unlockedAt: new Date().toISOString() };
           set({ trophies: newTrophies });
-          if (uid) void pushToFirestore(uid, { trophies: newTrophies });
+          if (uid) void pushToSupabase(uid, { trophies: newTrophies });
           get().addElo(50);
         }
       },
@@ -583,21 +662,21 @@ export const useAppStore = create<AppState>()(
       setMorningBlockerEnabled: (enabled) => {
         const uid = get().authUser?.uid;
         set({ isMorningBlockerEnabled: enabled });
-        if (uid) void pushToFirestore(uid, { isMorningBlockerEnabled: enabled } as any);
+        if (uid) void pushToSupabase(uid, { isMorningBlockerEnabled: enabled } as never);
       },
 
       addElo: (amount) => {
         const uid = get().authUser?.uid;
         const newScore = Math.max(0, get().eloScore + amount);
         set({ eloScore: newScore });
-        if (uid) void pushToFirestore(uid, { eloScore: newScore });
+        if (uid) void pushToSupabase(uid, { eloScore: newScore });
       },
 
       addFocusSession: (record) => {
         const uid = get().authUser?.uid;
         const newSessions = [...get().focusSessions, record];
         set({ focusSessions: newSessions });
-        if (uid) void pushToFirestore(uid, { focusSessions: newSessions });
+        if (uid) void pushSingleEntityToSupabase(uid, 'focusSessions', record as unknown as Record<string, unknown>);
       },
 
       setDrawingMode: (mode) => set({ drawingMode: mode }),
@@ -645,8 +724,8 @@ export const useAppStore = create<AppState>()(
 
           set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
           if (authUser?.uid) {
-            pushSingleEntity(authUser.uid, 'directiveHistory' as any, nr as any);
-            pushToFirestore(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
+            pushSingleEntityToSupabase(authUser.uid, 'directiveHistory', nr as unknown as Record<string, unknown>);
+            pushToSupabase(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
           }
         });
       },
@@ -664,8 +743,8 @@ export const useAppStore = create<AppState>()(
 
           set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
           if (authUser?.uid) {
-            pushSingleEntity(authUser.uid, 'directiveHistory' as any, nr as any);
-            pushToFirestore(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
+            pushSingleEntityToSupabase(authUser.uid, 'directiveHistory', nr as unknown as Record<string, unknown>);
+            pushToSupabase(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
           }
         });
       },
@@ -683,8 +762,8 @@ export const useAppStore = create<AppState>()(
 
           set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
           if (authUser?.uid) {
-            pushSingleEntity(authUser.uid, 'directiveHistory' as any, nr as any);
-            pushToFirestore(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
+            pushSingleEntityToSupabase(authUser.uid, 'directiveHistory', nr as unknown as Record<string, unknown>);
+            pushToSupabase(authUser.uid, { eloScore: newElo, coachMemory: newMemory });
           }
         });
       },
@@ -711,7 +790,7 @@ export const useAppStore = create<AppState>()(
           };
           const newHistory = [newRecord, ...directiveHistory];
           set({ directiveHistory: newHistory });
-          if (authUser?.uid) pushSingleEntity(authUser.uid, 'directiveHistory' as any, newRecord as any);
+          if (authUser?.uid) pushSingleEntityToSupabase(authUser.uid, 'directiveHistory', newRecord as unknown as Record<string, unknown>);
         });
       },
 
@@ -738,25 +817,62 @@ export const useAppStore = create<AppState>()(
         aytSubjects: s.aytSubjects.map(sub => sub.subject === name ? { ...sub, status: 'mastered' } : sub)
       })),
 
+      // TODO-038: Atomic bulk update for subject status
+      bulkUpdateTytSubjects: (updates) => set((s) => {
+        const newSubs = [...s.tytSubjects];
+        updates.forEach(({ index, status }) => {
+          if (newSubs[index]) newSubs[index] = { ...newSubs[index], status };
+        });
+        const uid = s.authUser?.uid;
+        if (uid) void pushToSupabase(uid, { tytSubjects: newSubs });
+        return { tytSubjects: newSubs };
+      }),
+      bulkUpdateAytSubjects: (updates) => set((s) => {
+        const newSubs = [...s.aytSubjects];
+        updates.forEach(({ index, status }) => {
+          if (newSubs[index]) newSubs[index] = { ...newSubs[index], status };
+        });
+        const uid = s.authUser?.uid;
+        if (uid) void pushToSupabase(uid, { aytSubjects: newSubs });
+        return { aytSubjects: newSubs };
+      }),
+
+      // TODO-008: Flashcard CRUD
+      addFlashcard: (card) => set((s) => ({
+        flashcards: [...s.flashcards, card],
+      })),
+      updateFlashcard: (id, updates) => set((s) => ({
+        flashcards: s.flashcards.map(c => c.id === id ? { ...c, ...updates } : c),
+      })),
+      removeFlashcard: (id) => set((s) => ({
+        flashcards: s.flashcards.filter(c => c.id !== id),
+      })),
+
+      // TODO-034
+      setLofiEnabled: (enabled) => set({ isLofiEnabled: enabled }),
+
+      // Daily quests
+      setDailyQuestsGeneratedDate: (date) => set({ dailyQuestsGeneratedDate: date }),
+
       addAgendaEntry: (entry) => {
         const uid = get().authUser?.uid;
         const newEntries = [...get().agendaEntries, entry];
         set({ agendaEntries: newEntries });
-        if (uid) void pushToFirestore(uid, { agendaEntries: newEntries });
+        if (uid) void pushSingleEntityToSupabase(uid, 'agendaEntries', entry as unknown as Record<string, unknown>);
       },
       updateAgendaEntry: (id, updates) => {
         const uid = get().authUser?.uid;
         const newEntries = get().agendaEntries.map(e => e.id === id ? { ...e, ...updates } : e);
         set({ agendaEntries: newEntries });
-        if (uid) void pushToFirestore(uid, { agendaEntries: newEntries });
+        if (uid) void pushToSupabase(uid, { agendaEntries: newEntries });
       },
       removeAgendaEntry: (id) => {
         const uid = get().authUser?.uid;
         const newEntries = get().agendaEntries.filter(e => e.id !== id);
         set({ agendaEntries: newEntries });
         if (uid) {
-          void tombstoneEntity(uid, 'agendaEntries', id);
-          void pushToFirestore(uid, { agendaEntries: newEntries });
+          void tombstoneEntityInSupabase(uid, 'agendaEntries', id);
+          void pushToSupabase(uid, { agendaEntries: newEntries });
         }
       },
       addTargetGoal: (goal) => set((s) => ({
@@ -775,14 +891,15 @@ export const useAppStore = create<AppState>()(
       clearNotifications: () => set({ notifications: [] }),
       setHasHydrated: (val) => set({ hasHydrated: val }),
       setSubjectViewMode: (mode) => set({ subjectViewMode: mode }),
-      setTheme: (theme) => set({ theme }),
-      setLastCoachDirective: (dir) => set({ lastCoachDirective: dir }),
-      setQaSession: (session) => set({ qaSession: session }),
-      updateQaAnswer: (idx, ans) => set((s) => s.qaSession ? ({
-        qaSession: { ...s.qaSession, answers: { ...s.qaSession.answers, [idx]: ans } }
-      }) : s),
-      setFocusSidePanelOpen: (isOpen) => set({ isFocusSidePanelOpen: isOpen }),
-      dismissAlert: (id) => set((s) => ({ activeAlerts: s.activeAlerts.filter(a => a.id !== id) })),
+       setTheme: (theme) => set({ theme }),
+       setFocusSidePanelOpen: (open) => set({ isFocusSidePanelOpen: open }),
+       setSpotifyWidgetOpen: (open) => set({ isSpotifyWidgetOpen: open }),
+       setLastCoachDirective: (dir) => set({ lastCoachDirective: dir }),
+       setQaSession: (session) => set({ qaSession: session }),
+       updateQaAnswer: (idx, ans) => set((s) => s.qaSession ? ({
+         qaSession: { ...s.qaSession, answers: { ...s.qaSession.answers, [idx]: ans } }
+       }) : s),
+       dismissAlert: (id) => set((s) => ({ activeAlerts: s.activeAlerts.filter(a => a.id !== id) })),
       detectAndSetHabits: () => {
         const alerts = detectHabitsFromLogs(get().logs);
         set({ activeAlerts: alerts });
@@ -791,13 +908,36 @@ export const useAppStore = create<AppState>()(
     {
       name: 'yks_coach_storage',
       storage: createJSONStorage(() => idbStorage),
-      merge: (persisted: any, current) => ({
-        ...current,
-        ...persisted,
-        warRoomTimeLeft: 0,
-        warRoomSession: null,
-      }),
-      onRehydrateStorage: (state) => () => state.setHasHydrated(true),
+      merge: (persisted: any, current: any) => {
+        const tyt = persisted.tytSubjects?.length > 0 ? persisted.tytSubjects : current.tytSubjects;
+        const ayt = persisted.aytSubjects?.length > 0 ? persisted.aytSubjects : current.aytSubjects;
+        return {
+          ...current,
+          ...persisted,
+          tytSubjects: tyt,
+          aytSubjects: ayt,
+          warRoomTimeLeft: 0,
+          warRoomSession: null,
+          isSyncing: false,
+          hasHydrated: false,
+        };
+      },
+      partialize: (state: AppState) => {
+        const { isSyncing, hasHydrated, ...rest } = state;
+        return rest;
+      },
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error('[Store] Rehydration error:', error);
+        }
+        // Always mark hydrated — even on partial/failed rehydration
+        if (state) {
+          state.setHasHydrated(true);
+        } else {
+          // Fallback: set directly via the store after a tick
+          setTimeout(() => useAppStore.getState().setHasHydrated(true), 0);
+        }
+      },
     }
   )
 );

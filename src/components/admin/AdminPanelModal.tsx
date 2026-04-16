@@ -3,10 +3,16 @@
  * MANTIK: Sekmeli yapı ile arama, veri silme/push'lama ve analiz fonksiyonlarına erişim.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText, RefreshCw } from 'lucide-react';
+import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText, RefreshCw, Brain, HeartPulse, TrendingDown, Zap } from 'lucide-react';
 import { useAdminPanel } from '../../hooks/useAdminPanel';
+import type { FirestoreUser } from '../../config/admin';
+import { computeHealthScore } from '../../utils/healthScore';
+import { detectAnomalies } from '../../utils/anomalyDetection';
+import type { AnomalyAlert } from '../../utils/anomalyDetection';
+import { predictChurn } from '../../utils/churnPredictor';
+import * as devService from '../../services/developerService';
 
 interface Props {
   isOpen: boolean;
@@ -15,18 +21,66 @@ interface Props {
 
 export function AdminPanelModal({ isOpen, onClose }: Props) {
   const admin = useAdminPanel();
-  const [activeTab, setActiveTab] = useState<'users' | 'tools' | 'system'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'anomaly' | 'tools' | 'system'>('users');
   const [query, setQuery] = useState('');
   const [announcementMsg, setAnnouncementMsg] = useState('');
   const [showCoachMemory, setShowCoachMemory] = useState(false);
   const [coachMemData, setCoachMemData] = useState<any>(null);
+
+  // Anomaly tab state
+  const [anomalyUsers, setAnomalyUsers] = useState<FirestoreUser[]>([]);
+  const [anomalyLoading, setAnomalyLoading] = useState(false);
+  const [selectedAnomalyUser, setSelectedAnomalyUser] = useState<FirestoreUser | null>(null);
+  const [userAnomalies, setUserAnomalies] = useState<AnomalyAlert[]>([]);
+  const [userHealth, setUserHealth] = useState<ReturnType<typeof computeHealthScore> | null>(null);
+  const [userChurn, setUserChurn] = useState<number | null>(null);
+  const [anomalyDetailLoading, setAnomalyDetailLoading] = useState(false);
 
   // Sistem verilerini yükle
   useEffect(() => {
     if (isOpen && activeTab === 'system') {
       admin.loadSystemData();
     }
+    if (isOpen && activeTab === 'anomaly' && anomalyUsers.length === 0) {
+      loadAnomalyUsers();
+    }
   }, [isOpen, activeTab]);
+
+  const loadAnomalyUsers = useCallback(async () => {
+    setAnomalyLoading(true);
+    const users = await devService.getAllUsers(50);
+    setAnomalyUsers(users);
+    setAnomalyLoading(false);
+  }, []);
+
+  const loadUserAnomalyDetail = useCallback(async (user: FirestoreUser) => {
+    setSelectedAnomalyUser(user);
+    setAnomalyDetailLoading(true);
+    setUserAnomalies([]);
+    setUserHealth(null);
+    setUserChurn(null);
+    try {
+      const sb = (await import('../../services/supabaseClient')).getSupabaseClient() as any;
+      const { data: logsData } = await sb.from('logs').select('*').eq('user_id', user.uid).is('deleted_at', null);
+      const { data: examsData } = await sb.from('exams').select('*').eq('user_id', user.uid).is('deleted_at', null);
+      const logs = logsData ?? [];
+      const exams = examsData ?? [];
+      const profile = (user as any).profile;
+
+      const anomalies = detectAnomalies(logs);
+      setUserAnomalies(anomalies);
+
+      const churnSignal = predictChurn(logs, (user as any).streak_days ?? 0); const churnRisk = churnSignal.riskScore;
+      setUserChurn(churnRisk);
+
+      if (profile) {
+        const health = computeHealthScore(logs, exams, profile, (user as any).streak_days ?? 0);
+        setUserHealth(health);
+      }
+    } finally {
+      setAnomalyDetailLoading(false);
+    }
+  }, []);
 
   // Sadece süper admin olan açabilir.
   if(!isOpen || !admin.hasAccess) return null;
@@ -58,6 +112,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
              <div className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar">
                {[
                  { id: 'users', label: 'Kullanıcı Haritası', icon: <Users size={16} /> },
+                 { id: 'anomaly', label: 'Anomali İstihbaratı', icon: <HeartPulse size={16} /> },
                  { id: 'system', label: 'Sistem Odası', icon: <Activity size={16} /> },
                  { id: 'tools', label: 'Güç Araçları', icon: <Database size={16} /> }
                ].map(t => (
@@ -163,6 +218,91 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                  )}
                </div>
             )}
+
+
+             {/* Anomaly Intelligence Tab */}
+             {activeTab === 'anomaly' && (
+               <div className="space-y-6">
+                 <div className="flex items-center justify-between">
+                   <h3 className="font-bold text-sm uppercase tracking-widest text-[#4A443C] dark:text-zinc-400">Anomali Istihbarati</h3>
+                   <button onClick={loadAnomalyUsers} disabled={anomalyLoading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 text-xs font-bold uppercase hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
+                     <RefreshCw size={12} className={anomalyLoading ? "animate-spin" : ""} /> Yenile
+                   </button>
+                 </div>
+                 {anomalyLoading ? (
+                   <div className="p-8 text-center animate-pulse text-zinc-500">Kullanicilar yukleniyor...</div>
+                 ) : (
+                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                     <div className="lg:col-span-1 space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                       {anomalyUsers.map(u => (
+                         <button key={u.uid} onClick={() => loadUserAnomalyDetail(u)}
+                           className={`w-full text-left p-3 rounded-xl border text-[11px] transition-all ${selectedAnomalyUser?.uid === u.uid ? "bg-[#C17767]/10 border-[#C17767]" : "bg-white dark:bg-zinc-900 border-[#EAE6DF] dark:border-zinc-800 hover:border-zinc-400"}`}>
+                           <div className="font-semibold truncate">{u.email}</div>
+                           <div className="text-zinc-500 font-mono text-[9px] mt-0.5">{(u as any).elo_score ?? 0} ELO</div>
+                         </button>
+                       ))}
+                     </div>
+                     <div className="lg:col-span-2">
+                       {!selectedAnomalyUser ? (
+                         <div className="flex items-center justify-center h-48 text-zinc-500 text-sm">Bir kullanici sec</div>
+                       ) : anomalyDetailLoading ? (
+                         <div className="p-8 text-center animate-pulse text-zinc-500">Veriler analiz ediliyor...</div>
+                       ) : (
+                         <div className="space-y-4">
+                           <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-2xl">
+                             <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Saglik Skoru</div>
+                             {userHealth ? (
+                               <div className="space-y-2">
+                                 <div className="flex items-end gap-3">
+                                   <span className={`text-3xl font-black font-mono ${userHealth.total >= 75 ? "text-emerald-400" : userHealth.total >= 50 ? "text-amber-400" : "text-red-400"}`}>{userHealth.total}</span>
+                                   <span className="text-sm text-zinc-500 mb-1 font-bold">/100 - {userHealth.label}</span>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-2">
+                                   {Object.entries(userHealth.breakdown).map(([k, v]) => (
+                                     <div key={k} className="bg-zinc-100 dark:bg-zinc-800 rounded-lg px-3 py-2">
+                                       <div className="text-[9px] uppercase tracking-wider text-zinc-500">{k}</div>
+                                       <div className="text-sm font-bold text-zinc-200">{v}/25</div>
+                                     </div>
+                                   ))}
+                                 </div>
+                               </div>
+                             ) : <div className="text-xs text-zinc-500 italic">Profil eksik</div>}
+                           </div>
+                           <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-2xl">
+                             <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Birakma Riski (Churn)</div>
+                             {userChurn !== null ? (
+                               <div className="flex items-center gap-3">
+                                 <div className={`text-2xl font-black font-mono ${userChurn >= 70 ? "text-red-400" : userChurn >= 40 ? "text-amber-400" : "text-emerald-400"}`}>{userChurn}%</div>
+                                 <div className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase ${userChurn >= 70 ? "bg-red-900/30 text-red-400" : userChurn >= 40 ? "bg-amber-900/30 text-amber-400" : "bg-emerald-900/30 text-emerald-400"}`}>{userChurn >= 70 ? "Yuksek Risk" : userChurn >= 40 ? "Orta Risk" : "Dusuk Risk"}</div>
+                               </div>
+                             ) : <div className="text-xs text-zinc-500 italic">Yeterli veri yok.</div>}
+                           </div>
+                           <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-2xl">
+                             <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Anomali Bayraklari</div>
+                             {userAnomalies.length === 0 ? (
+                               <div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 size={14} /> Hicbir anomali tespit edilmedi.</div>
+                             ) : (
+                               <div className="space-y-2">
+                                 {userAnomalies.map((a, i) => (
+                                   <div key={i} className={`p-3 rounded-xl border text-xs ${a.severity === "high" ? "bg-red-900/20 border-red-700/40 text-red-300" : a.severity === "medium" ? "bg-amber-900/20 border-amber-700/40 text-amber-300" : "bg-zinc-800 border-zinc-700 text-zinc-400"}`}>
+                                     <div className="font-bold uppercase text-[9px] tracking-widest opacity-70 mb-1">{a.type.replace(/_/g, " ")} - {a.severity}</div>
+                                     <div>{a.message}</div>
+                                   </div>
+                                 ))}
+                               </div>
+                             )}
+                           </div>
+                           <div className="flex gap-2">
+                             <button onClick={() => admin.addElo(selectedAnomalyUser.uid, +200)} className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase">+200 ELO Motivasyon</button>
+                             <button onClick={() => admin.banUser(selectedAnomalyUser.uid, "Anormallik tespiti")} className="flex-1 py-2 bg-red-700 text-white rounded-xl text-[10px] font-bold uppercase">Hesabi Askiya Al</button>
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 )}
+               </div>
+             )}
 
              {activeTab === 'system' && (
                 <div className="space-y-6">

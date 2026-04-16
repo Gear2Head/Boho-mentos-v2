@@ -15,6 +15,7 @@ interface AtlasExplorerProps {
 
 export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
   const [query, setQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
   const [results, setResults] = useState<AtlasProgram[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const profile = useAppStore(s => s.profile);
@@ -22,11 +23,11 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim() && !activeFilter) return;
 
     setIsLoading(true);
     try {
-      const data = await atlasService.search(query);
+      const data = await atlasService.search(query, activeFilter);
       setResults(data);
     } catch (err) {
       console.error('Search failed:', err);
@@ -71,9 +72,9 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
           </button>
         </div>
 
-        {/* Search Bar */}
+        {/* Search Bar & Filters */}
         <div className="p-6 bg-[#1A1A1A] border-b border-[#2A2A2A] shrink-0">
-          <form onSubmit={handleSearch} className="relative">
+          <form onSubmit={handleSearch} className="relative mb-4">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input 
               type="text" 
@@ -91,6 +92,35 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
               {isLoading ? <Loader2 size={14} className="animate-spin" /> : 'ARA'}
             </button>
           </form>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2">
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-2 shrink-0">Filtre:</span>
+            {['SAY', 'EA', 'SÖZ', 'DİL'].map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={async () => {
+                  const newFilter = activeFilter === f ? '' : f;
+                  setActiveFilter(newFilter);
+                  if (query.trim() || newFilter) {
+                    setIsLoading(true);
+                    try {
+                      const data = await atlasService.search(query, newFilter);
+                      setResults(data);
+                    } catch (err) {} finally {
+                      setIsLoading(false);
+                    }
+                  } else {
+                    setResults([]);
+                  }
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border transition-colors shrink-0 ${
+                  activeFilter === f ? 'bg-[#C17767] border-[#C17767] text-white' : 'bg-transparent border-[#2A2A2A] text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Results List */}

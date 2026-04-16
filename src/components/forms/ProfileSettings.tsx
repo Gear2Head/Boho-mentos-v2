@@ -12,6 +12,8 @@ import {
   Target,
   User,
 } from 'lucide-react';
+import { useAppStore } from '../../store/appStore';
+import { loginWithSpotify } from '../../services/spotifyService';
 import type { StudentProfile } from '../../types';
 import { searchYokAtlas, type YokAtlasProgram } from '../../data/yokAtlasData';
 
@@ -360,6 +362,8 @@ function SummaryRow({ label, value, last = false }: { label: string; value: Reac
 
 function EditModeForm(props: { name: string; setName: React.Dispatch<React.SetStateAction<string>>; examYear: string; setExamYear: React.Dispatch<React.SetStateAction<string>>; track: Track; setTrack: React.Dispatch<React.SetStateAction<Track>>; avatar?: string; fileRef: React.RefObject<HTMLInputElement | null>; handleAvatarChange: (e: React.ChangeEvent<HTMLInputElement>) => void; targetUni: string; setTargetUni: React.Dispatch<React.SetStateAction<string>>; targetMajor: string; setTargetMajor: React.Dispatch<React.SetStateAction<string>>; tytTarget: number; setTytTarget: React.Dispatch<React.SetStateAction<number>>; aytTarget: number; setAytTarget: React.Dispatch<React.SetStateAction<number>>; minHours: number; setMinHours: React.Dispatch<React.SetStateAction<number>>; coachPersonality: string; setCoachPersonality: React.Dispatch<React.SetStateAction<string>>; onSubmit: () => void; }) {
   const { name, setName, examYear, setExamYear, track, setTrack, avatar, fileRef, handleAvatarChange, targetUni, setTargetUni, targetMajor, setTargetMajor, tytTarget, setTytTarget, aytTarget, setAytTarget, minHours, setMinHours, coachPersonality, setCoachPersonality, onSubmit } = props;
+  const isSpotifyWidgetOpen = useAppStore(s => s.isSpotifyWidgetOpen);
+  const setSpotifyWidgetOpen = useAppStore(s => s.setSpotifyWidgetOpen);
   const tytPct = Math.round((tytTarget / 120) * 100);
   const aytPct = Math.round((aytTarget / 80) * 100);
   const minHoursPct = Math.round((minHours / 16) * 100);
@@ -369,6 +373,40 @@ function EditModeForm(props: { name: string; setName: React.Dispatch<React.SetSt
     <div className="em-section"><div className="em-title">Hedef</div><div className="em-grid"><div><span className="em-label">Üniversite</span><input className="em-input" type="text" value={targetUni} onChange={(e) => setTargetUni(e.target.value)} placeholder="Üniversite" /></div><div><span className="em-label">Bölüm</span><input className="em-input" type="text" value={targetMajor} onChange={(e) => setTargetMajor(e.target.value)} placeholder="Bölüm" /></div></div></div>
     <div className="em-section"><div className="em-title">Net Hedefleri</div><div style={{ marginBottom: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span className="em-label" style={{ margin: 0 }}>TYT Hedefi</span><span style={{ fontSize: 20, fontWeight: 800, color: '#C17767' }}>{tytTarget}</span></div><input type="range" min={40} max={120} value={tytTarget} onChange={(e) => setTytTarget(Number(e.target.value))} className="em-slider" style={{ background: `linear-gradient(to right,#C17767 0%,#C17767 ${tytPct}%,rgba(255,255,255,.1) ${tytPct}%,rgba(255,255,255,.1) 100%)` }} /></div><div style={{ marginBottom: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span className="em-label" style={{ margin: 0 }}>AYT Hedefi</span><span style={{ fontSize: 20, fontWeight: 800, color: '#E09F3E' }}>{aytTarget}</span></div><input type="range" min={20} max={80} value={aytTarget} onChange={(e) => setAytTarget(Number(e.target.value))} className="em-slider" style={{ background: `linear-gradient(to right,#E09F3E 0%,#E09F3E ${aytPct}%,rgba(255,255,255,.1) ${aytPct}%,rgba(255,255,255,.1) 100%)` }} /></div><div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span className="em-label" style={{ margin: 0 }}>Günlük Min. Saat</span><span style={{ fontSize: 20, fontWeight: 800, color: '#3B82F6' }}>{minHours}</span></div><input type="range" min={1} max={16} value={minHours} onChange={(e) => setMinHours(Number(e.target.value))} className="em-slider" style={{ background: `linear-gradient(to right,#3B82F6 0%,#3B82F6 ${minHoursPct}%,rgba(255,255,255,.1) ${minHoursPct}%,rgba(255,255,255,.1) 100%)` }} /></div></div>
     <div className="em-section"><div className="em-title">Koç Karakteri</div><div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{COACH_OPTIONS.map((option) => <button key={option.id} type="button" style={{ padding: '12px 16px', borderRadius: 12, border: `1px solid ${coachPersonality === option.id ? option.color : 'rgba(255,255,255,.07)'}`, background: coachPersonality === option.id ? option.glow : 'rgba(255,255,255,.02)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, width: '100%' }} onClick={() => setCoachPersonality(option.id)}><span style={{ fontSize: 20 }}>{option.icon}</span><div style={{ textAlign: 'left' }}><p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: coachPersonality === option.id ? option.color : 'rgba(255,255,255,.6)' }}>{option.title}</p><p style={{ margin: '1px 0 0', fontSize: 10, color: 'rgba(255,255,255,.25)' }}>{option.subtitle}</p></div>{coachPersonality === option.id && <CheckCircle2 size={14} style={{ color: option.color, marginLeft: 'auto' }} />}</button>)}</div></div>
+    
+    <div className="em-section">
+      <div className="em-title">Spotify Entegrasyonu</div>
+      <div style={{ padding: 16, borderRadius: 12, border: '1px solid rgba(34,197,94,.2)', background: 'rgba(34,197,94,.04)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#1DB954', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <strong style={{ color:'white', fontSize: 20 }}>🎵</strong>
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'white' }}>Spotify Hesabı</p>
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,.4)' }}>Odaklanma müzikleri için bağla</p>
+            </div>
+          </div>
+          <button type="button" onClick={loginWithSpotify} className="em-pill" style={{ border: 'none', background: '#1DB954', color: 'white' }}>Bağlan</button>
+        </div>
+        <p style={{ margin: '0 0 12px 0', fontSize: 10, color: 'rgba(255,255,255,.3)' }}>Dikkat: Oynatma kontrolleri için Spotify Premium gerektirebilir.</p>
+        
+        <div style={{ paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'white' }}>Mini Widget Görünümü</p>
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,.4)' }}>Spotify kısayolunu ekranda sürekli göster</p>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setSpotifyWidgetOpen(!isSpotifyWidgetOpen)} 
+            style={{ width: 44, height: 24, borderRadius: 12, background: isSpotifyWidgetOpen ? '#1DB954' : 'rgba(255,255,255,.1)', border: 'none', padding: 2, cursor: 'pointer', transition: '.2s', display: 'flex', alignItems: 'center' }}
+          >
+            <div style={{ width: 20, height: 20, borderRadius: 10, background: 'white', transform: `translateX(${isSpotifyWidgetOpen ? 20 : 0}px)`, transition: '.2s', boxShadow: '0 2px 4px rgba(0,0,0,.2)' }} />
+          </button>
+        </div>
+      </div>
+    </div>
+
     <button type="button" className="em-save" onClick={onSubmit}>Değişiklikleri Kaydet</button>
   </div>;
 }

@@ -26,10 +26,11 @@ export const atlasService = {
   /**
    * Üniversite veya bölüm arama
    */
-  async search(query: string): Promise<AtlasProgram[]> {
+  async search(query: string, scoreType?: string): Promise<AtlasProgram[]> {
     try {
       const url = new URL(`${ATLAS_API_URL}/search`, window.location.origin);
       url.searchParams.append('q', query);
+      if (scoreType) url.searchParams.append('scoreType', scoreType);
       
       const response = await fetch(url.toString());
       if (!response.ok) throw new Error(`Search failed: ${response.status}`);
@@ -44,11 +45,14 @@ export const atlasService = {
       const { YOK_ATLAS_DATA } = await import('../data/yokAtlasData');
       
       return YOK_ATLAS_DATA
-        .filter(p => 
-          p.university.toLowerCase().includes(query.toLowerCase()) || 
-          p.major.toLowerCase().includes(query.toLowerCase()) ||
-          p.city.toLowerCase().includes(query.toLowerCase())
-        )
+        .filter(p => {
+          const matchQuery = !query.trim() || 
+            p.university.toLowerCase().includes(query.toLowerCase()) || 
+            p.major.toLowerCase().includes(query.toLowerCase()) ||
+            p.city.toLowerCase().includes(query.toLowerCase());
+          const matchType = !scoreType || p.track === scoreType;
+          return matchQuery && matchType;
+        })
         .map(p => ({
           id: p.id,
           universityName: p.university,
