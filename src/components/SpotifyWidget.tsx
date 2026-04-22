@@ -177,20 +177,20 @@ export function SpotifyWidget() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[60] flex items-center gap-4 p-4 border border-white/10 rounded-2xl bg-black/60 backdrop-blur-2xl shadow-2xl"
+        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[60] flex items-center gap-4 p-4 border border-red-600/30 rounded-2xl bg-white shadow-2xl"
       >
-        <div className="w-12 h-12 bg-[#1DB954] rounded-full flex items-center justify-center text-white shadow-lg shadow-[#1DB954]/20 animate-pulse">
-          <Music size={20} />
+        <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-600/20 overflow-hidden">
+          <img src="/edevlet_login_logo_1776819878042.png" className="w-full h-full object-contain p-2" alt="e-Devlet" />
         </div>
         <div className="flex-1">
-          <h4 className="text-sm font-bold text-white tracking-tight">Müziğin Kalbi</h4>
-          <p className="text-[10px] opacity-50 text-zinc-400 font-medium">Odaklanmak için Spotify bağla</p>
+          <h4 className="text-sm font-bold text-slate-900 tracking-tight">e-Devlet Kapısı</h4>
+          <p className="text-[10px] text-slate-500 font-medium">Kimlik doğrulaması gerekli</p>
         </div>
         <button
           onClick={loginWithSpotify}
-          className="px-4 py-2 bg-[#1DB954] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#1ed760] transition-all hover:scale-105 active:scale-95"
+          className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-red-700 transition-all hover:scale-105 active:scale-95 shadow-md shadow-red-600/30"
         >
-          Bağlan
+          Giriş Yap
         </button>
       </motion.div>
     );

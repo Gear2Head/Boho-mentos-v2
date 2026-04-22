@@ -121,15 +121,15 @@ export const ChatMessage = memo(function ChatMessage({
 
           {/* Bubble */}
           <div
-            className="px-5 py-4 text-sm font-mono leading-relaxed text-[#F5F2EB]"
+            className="px-5 py-4 text-sm font-medium leading-relaxed text-[#F5F2EB] shadow-2xl relative overflow-hidden"
             style={{
-              background: 'linear-gradient(135deg, #3D1F14 0%, #5C2E1A 100%)',
-              borderRadius: '18px 18px 4px 18px',
-              border: '1px solid rgba(193,119,103,0.3)',
-              boxShadow: '0 4px 20px rgba(193,119,103,0.12)',
+              background: 'linear-gradient(135deg, #2D1B14 0%, #1A0D08 100%)',
+              borderRadius: '24px 24px 4px 24px',
+              border: '1px solid rgba(193,119,103,0.15)',
             }}
           >
-            {message.content}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+            <div className="relative z-10">{message.content}</div>
           </div>
         </div>
       </motion.div>

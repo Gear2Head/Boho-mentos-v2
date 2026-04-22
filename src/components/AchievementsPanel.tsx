@@ -72,12 +72,12 @@ export function AchievementsPanel() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="font-bold text-sm text-[#4A443C] dark:text-zinc-200 truncate">{t.title}</div>
+                          <div className="font-bold text-sm text-[#4A443C] dark:text-zinc-200 leading-tight">{t.title}</div>
                           <div className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400 shrink-0">
                             {unlocked ? new Date(t.unlockedAt!).toLocaleDateString('tr-TR') : 'Kilitli'}
                           </div>
                         </div>
-                        <div className="text-xs opacity-70 mt-1 text-[#4A443C] dark:text-zinc-300 line-clamp-2">{t.description}</div>
+                        <div className="text-xs opacity-70 mt-1 text-[#4A443C] dark:text-zinc-300 leading-normal">{t.description}</div>
                       </div>
                     </div>
                   );

@@ -76,12 +76,6 @@ export function InteractiveCalendar() {
               <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${gradient} opacity-20`} />
               <span className={`text-sm font-bold z-10 ${isToday ? 'text-white' : 'text-zinc-400'}`}>{d}</span>
               
-              {/* Exam glow marker mock */}
-              {d === 20 && currentDate.getMonth() === 5 && (
-                <div className="absolute inset-x-0 bottom-1 flex justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,1)] animate-pulse" />
-                </div>
-              )}
             </motion.button>
           );
         })}

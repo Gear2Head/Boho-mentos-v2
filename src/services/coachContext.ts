@@ -221,13 +221,13 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+import { YKS_TARGET_DATE_MAIN } from '../config/examConfig';
+
 export function calculateDaysToExam(): number {
   const now = new Date();
-  const year = now.getFullYear();
-  let examDate = new Date(year, 5, 15);
-  if (now > examDate) examDate = new Date(year + 1, 5, 15);
+  const examDate = new Date(YKS_TARGET_DATE_MAIN);
   const diff = examDate.getTime() - now.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 
 export function getForgettingCurveStatus(logs: DailyLog[]): string[] {

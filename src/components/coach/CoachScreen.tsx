@@ -113,12 +113,12 @@ export function CoachScreen({
   const isEmpty = sortedMessages.length === 0;
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden bg-[#0d0d0d]">
       {/* Sidebar - Desktop and Hidden on Mobile by default? For now keeping simple */}
       <ConversationSidebar />
 
       {/* ── Main Chat Area ──────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 relative">
+      <div className="flex flex-col flex-1 min-w-0 relative bg-gradient-to-b from-[#0d0d0d] via-[#111] to-[#0a0a0a]">
 
         {/* Scroll area */}
         <div
@@ -128,7 +128,7 @@ export function CoachScreen({
           aria-live="polite"
           aria-label="Koç sohbet geçmişi"
         >
-          <div className="p-4 md:p-6 space-y-5 pb-4">
+          <div className="p-4 md:p-8 space-y-6 pb-4 max-w-5xl mx-auto w-full">
             {isEmpty ? (
               /* Empty state — CoachBriefing */
               <CoachBriefing

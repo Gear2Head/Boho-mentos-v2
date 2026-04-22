@@ -281,13 +281,13 @@ export const YOK_ATLAS_DATA: YokAtlasProgram[] = [
  */
 export function searchYokAtlas(query: string, track?: string): YokAtlasProgram[] {
   if (!query || query.length < 2) return [];
-  const q = query.toLowerCase().trim();
+  const q = query.toLocaleLowerCase('tr-TR').trim();
 
   return YOK_ATLAS_DATA.filter(p => {
     const matchesQuery =
-      p.university.toLowerCase().includes(q) ||
-      p.major.toLowerCase().includes(q) ||
-      p.city.toLowerCase().includes(q);
+      p.university.toLocaleLowerCase('tr-TR').includes(q) ||
+      p.major.toLocaleLowerCase('tr-TR').includes(q) ||
+      p.city.toLocaleLowerCase('tr-TR').includes(q);
     const matchesTrack = !track || p.track === track;
     return matchesQuery && matchesTrack;
   }).slice(0, 15);

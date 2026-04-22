@@ -151,8 +151,15 @@ export function AdminDashboard({ onBack }: Props) {
 // ─── Users Panel ──────────────────────────────────────────────────────────────
 
 function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 'success' | 'error' | 'info', m: string) => void }) {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedCounts, setSelectedCounts] = useState<Record<string, number>>({});
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const search = async () => {
     setLoading(true);
@@ -312,6 +319,19 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
                 <ActionBtn label="Logları Sil" color="red" onClick={() => {
                   if (!confirm('Tüm loglar silinecek!')) return;
                   handleAction(() => devService.clearUserLogs(actorUid, 'super_admin', selectedUser.uid), 'Tüm loglar silindi');
+                }} />
+                <ActionBtn label="Sohbetleri Sil" color="red" onClick={() => {
+                  if (!confirm('Tüm sohbetler silinecek!')) return;
+                  handleAction(() => devService.bulkDeleteEntities(actorUid, selectedUser.uid, 'conversations', true), 'Tüm sohbetler silindi');
+                }} />
+                <ActionBtn label="TÜM VERİYİ SIFIRLA" color="red" onClick={async () => {
+                  if (!confirm('KRİTİK UYARI: Kullanıcının TÜM verileri (loglar, denemeler, chat, ajanda) kalıcı olarak silinecek! Bu işlem geri alınamaz.')) return;
+                  for (const table of devService.ENTITY_TABLE_LIST) {
+                    await devService.bulkDeleteEntities(actorUid, selectedUser.uid, table, true);
+                  }
+                  showToast('success', 'Kullanıcının tüm verileri temizlendi');
+                  setSelectedUser(null);
+                  handleSearch();
                 }} />
                 {!selectedUser.is_banned ? (
                   <ActionBtn label="Banla" color="red" onClick={() => {

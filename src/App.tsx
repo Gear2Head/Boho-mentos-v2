@@ -630,7 +630,7 @@ export default function App() {
           </div>
         </header>
 
-        <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-64 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none">
+        <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-64 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav/80 backdrop-blur-2xl saturate-150 z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none">
           <div className="hidden md:block p-4 border-b border-app">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/30 shadow-lg shadow-[#C17767]/10">
@@ -690,7 +690,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-4 px-2 md:space-y-1 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
+          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-4 px-2 md:space-y-0.5 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
             {NAV_ITEMS.map((item) => (
               <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full`}>
                 <NavItem

@@ -86,7 +86,7 @@ export function QuizEngine() {
         prompt,
         "Sen YKS soru yazarı bir yapay zekasın. Yalnızca geçerli JSON döndürürsün.",
         [],
-        { coachPersonality: profile?.coachPersonality, forceJson: true, maxTokens: 1200 }
+        { coachPersonality: profile?.coachPersonality, intent: 'quiz_generation', forceJson: true, maxTokens: 1200 }
       );
       
       const data = parseAiArray(response, validateQuizQuestion);
