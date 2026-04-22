@@ -216,6 +216,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     detectAndSetHabits();
 
     if (authUser?.uid) {
+      setDoc(doc(db, 'users', authUser.uid, 'logs', logWithId.id), cleanForFirestore(logWithId)).catch(console.error);
       setDoc(doc(db, 'users', authUser.uid), { logs: newLogs, streakDays: newStreak, trophies: newTrophies, eloScore: newEloScore }, { merge: true }).catch(console.error);
     }
   },
@@ -236,6 +237,8 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newLogs = logs.map(l => l.id === id ? { ...l, ...updates } : l);
     set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
+      const updated = newLogs.find(l => l.id === id);
+      if (updated) setDoc(doc(db, 'users', authUser.uid, 'logs', id), cleanForFirestore(updated)).catch(console.error);
       setDoc(doc(db, 'users', authUser.uid), { logs: newLogs }, { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
@@ -280,6 +283,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     });
     
     if (authUser?.uid) {
+      setDoc(doc(db, 'users', authUser.uid, 'exams', normalizedExam.id), cleanForFirestore(normalizedExam)).catch(console.error);
       setDoc(doc(db, 'users', authUser.uid), { exams: newExams, trophies: newTrophies, eloScore: newEloScore }, { merge: true }).catch(console.error);
     }
   },
@@ -299,6 +303,8 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newExams = exams.map(e => e.id === id ? { ...e, ...updates } : e);
     set({ exams: newExams, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
+      const updated = newExams.find(e => e.id === id);
+      if (updated) setDoc(doc(db, 'users', authUser.uid, 'exams', id), cleanForFirestore(updated)).catch(console.error);
       setDoc(doc(db, 'users', authUser.uid), { exams: newExams }, { merge: true }).catch(console.error);
     }
   },
@@ -326,6 +332,8 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     );
     set({ failedQuestions: newList });
     if (authUser?.uid) {
+      const updated = newList.find(q => q.id === id);
+      if (updated) setDoc(doc(db, 'users', authUser.uid, 'failedQuestions', id), cleanForFirestore(updated)).catch(console.error);
       setDoc(doc(db, 'users', authUser.uid), { failedQuestions: newList }, { merge: true }).catch(console.error);
     }
     addElo(15);

@@ -193,7 +193,7 @@ export const ChatMessage = memo(function ChatMessage({
 
         {/* Message box */}
         <div
-          className={`relative rounded-2xl rounded-tl-sm overflow-hidden border border-[#2A2A2A] shadow-sm ${classification.bgColor}`}
+          className={`relative rounded-2xl rounded-bl-sm overflow-hidden border border-[#2A2A2A] shadow-sm ${classification.bgColor}`}
           style={{
             backgroundImage: 'radial-gradient(circle at 100% 100%, rgba(255,255,255,0.01) 0%, transparent 60%)',
           }}

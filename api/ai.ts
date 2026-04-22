@@ -489,32 +489,47 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
       ];
 
   const telemetry: ProviderTelemetry[] = [];
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   for (const provider of providers) {
     for (const key of provider.keys) {
-      const t0 = Date.now();
-      try {
-        const text = await provider.call(key);
-        if (!text || text.trim().length === 0) continue;
+      let retries = 0;
+      const maxRetries = 2;
+      
+      while (retries <= maxRetries) {
+        const t0 = Date.now();
+        try {
+          const text = await provider.call(key);
+          if (!text || text.trim().length === 0) break;
 
-        let responseText = text.trim();
+          let responseText = text.trim();
 
-        if (needsJson) {
-          const parsed = safeParseDirective(responseText);
-          if (!parsed) {
-            console.warn(`[AI] ${provider.name} invalid JSON structure`);
-            telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: false, errorCode: 'JSON_PARSE_FAIL' });
+          if (needsJson) {
+            const parsed = safeParseDirective(responseText);
+            if (!parsed) {
+              console.warn(`[AI] ${provider.name} invalid JSON structure`);
+              telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: false, errorCode: 'JSON_PARSE_FAIL' });
+              break; 
+            }
+            responseText = JSON.stringify(parsed);
+          }
+
+          telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: true });
+          return { text: responseText, providerUsed: provider.name, telemetry };
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          const isRateLimit = errMsg.includes('429');
+          
+          console.error(`[AI] ${provider.name} FAIL (Attempt ${retries + 1}): ${errMsg.slice(0, 120)}`);
+          telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: false, errorCode: errMsg.slice(0, 60) });
+          
+          if (isRateLimit && retries < maxRetries) {
+            retries++;
+            await sleep(Math.pow(2, retries) * 500); 
             continue;
           }
-          responseText = JSON.stringify(parsed);
+          break;
         }
-
-        telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: true });
-        return { text: responseText, providerUsed: provider.name, telemetry };
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        console.error(`[AI] ${provider.name} FAIL: ${errMsg.slice(0, 120)}`);
-        telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: false, errorCode: errMsg.slice(0, 60) });
       }
     }
   }

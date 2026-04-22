@@ -7,6 +7,32 @@ import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
 import { parseAiObject, sanitizeAiText, validateStringArray } from '../utils/aiJson';
 import { isNonEmptyString, isRecord } from '../utils/typeGuards';
+import { useToast } from './ToastContext';
+
+// ─── Math Components ─────────────────────────────────────────────────────────
+
+function MixedMathRenderer({ text }: { text: string }) {
+  if (!text) return null;
+  // Regex to detect LaTeX patterns: \frac, \(...\), \sum, \% etc.
+  const parts = text.split(/(\\\([^\)]+\\\)|\\frac\{[^\}]+\}\{[^\}]+\}|\\\%|\\text\{[^\}]+\})/g);
+
+  return (
+    <span>
+      {parts.map((part, i) => {
+        if (part.startsWith('\\')) {
+          try {
+            // Remove \( \) if present for Katex
+            const cleaned = part.replace(/^\\\(|\\\)$/g, '');
+            return <InlineMath key={i} math={cleaned} />;
+          } catch (e) {
+            return <span key={i}>{part}</span>;
+          }
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -257,7 +283,9 @@ export function MorningBlocker({ onUnlock }: { onUnlock: () => void }) {
       const raw = await getCoachResponse(
         `Kullanıcının alanı: ${track}. Bugün için bir sabah kilidi sorusu üret. ${weakContext} SADECE JSON döndür (başka metin ekleme):
 {"topic":"...","expression":"latex_string_or_empty_string","questionStr":"...","correctAnswers":["cevap1","cevap2"],"hints":["...","...","..."]}
-Zorluk: orta. Kısa soru. Günlük sıkılmayacak kadar değişken konu seç. LaTeX'i sadece matematiksel ifade varsa kullan.`,
+Zorluk: orta. Kısa soru. Günlük sıkılmayacak kadar değişken konu seç. 
+HÜKÜM: LaTeX kullanırken \\% gibi literal kaçışlar yapma, doğrudan % kullan veya LaTeX blokları içine al. 
+Matematiksel ifadeleri mutlaka \\( ... \\) içine al.`,
         '',
         [],
         { intent: 'qa_mode', forceJson: true, maxTokens: 500 }
@@ -377,8 +405,14 @@ Zorluk: orta. Kısa soru. Günlük sıkılmayacak kadar değişken konu seç. La
                   </div>
 
                   <div className="mb-6 font-serif text-lg text-[#4A443C] dark:text-zinc-200 overflow-x-auto overflow-y-hidden pb-4">
-                    {question.expression && <BlockMath math={question.expression} />}
-                    <p className="mt-2 font-bold leading-relaxed">{question.questionStr}</p>
+                    {question.expression && (
+                      <div className="mb-2">
+                        <BlockMath math={question.expression} />
+                      </div>
+                    )}
+                    <div className="mt-2 font-bold leading-relaxed">
+                      <MixedMathRenderer text={question.questionStr} />
+                    </div>
                   </div>
 
                   {hintLevel > 0 && (

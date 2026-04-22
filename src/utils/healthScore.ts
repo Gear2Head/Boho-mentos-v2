@@ -1,7 +1,9 @@
 /**
- * TODO-013: User Health Score — kullanıcı sağlık skoru hesaplama
+ * User Health Score — kullanıcı sağlık skoru hesaplama
  * Consistency + Accuracy + Velocity + Goal Progress = 0-100
  */
+
+import { toDateMs } from './date';
 
 import type { DailyLog, ExamResult, StudentProfile } from '../types';
 
@@ -31,7 +33,10 @@ function getLast14DayStreak(logs: DailyLog[]): number {
 function getRecentAccuracy(logs: DailyLog[], days = 30): number {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
-  const recent = logs.filter((l) => new Date(l.date) >= cutoff && l.questions > 0);
+  const recent = logs.filter((l) => {
+    const ms = toDateMs(l.date);
+    return ms !== null && ms >= cutoff.getTime() && l.questions > 0;
+  });
   if (recent.length === 0) return 0;
   const totalQ = recent.reduce((s, l) => s + l.questions, 0);
   const totalC = recent.reduce((s, l) => s + l.correct, 0);
@@ -41,7 +46,10 @@ function getRecentAccuracy(logs: DailyLog[], days = 30): number {
 function getVelocityScore(logs: DailyLog[], days = 14): number {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
-  const recent = logs.filter((l) => new Date(l.date) >= cutoff);
+  const recent = logs.filter((l) => {
+    const ms = toDateMs(l.date);
+    return ms !== null && ms >= cutoff.getTime();
+  });
   if (recent.length === 0) return 0;
 
   const totalQ = recent.reduce((s, l) => s + l.questions, 0);
@@ -49,6 +57,17 @@ function getVelocityScore(logs: DailyLog[], days = 14): number {
 
   // 100 soru/gün = max puan
   return Math.min(25, Math.round((avgPerDay / 100) * 25));
+}
+
+function generateAlternativeRoute(
+  program: AtlasProgram,
+  gap: number,
+  profile: StudentProfile
+): string | null {
+  if (gap >= 0) return null; 
+  const weeksNeeded = Math.ceil(Math.abs(gap) * 1.5); 
+  const subjectsStr = Array.isArray(profile.weakSubjects) ? profile.weakSubjects.join(', ') : (profile.weakSubjects || 'temel konular');
+  return `Hedef nete ulaşmak için yaklaşık ${weeksNeeded} haftalık stratejik çalışma planlanmalı. Özellikle ${subjectsStr} üzerinde durulmalı.`;
 }
 
 function getGoalProgress(exams: ExamResult[], profile: StudentProfile): number {

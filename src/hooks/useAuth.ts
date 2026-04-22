@@ -13,6 +13,7 @@ import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { useAppStore } from '../store/appStore';
 import { parseAuthError } from '../utils/parseAuthError';
+import { loginWithSpotify } from '../services/spotifyService';
 
 type AuthMode = 'login' | 'register';
 
@@ -81,6 +82,12 @@ export function useAuth() {
            ...(data.dailyAiRequests !== undefined && { dailyAiRequests: data.dailyAiRequests }),
            ...(data.lastCoachDirective && { lastCoachDirective: data.lastCoachDirective }),
            ...(data.coachMemory && { coachMemory: data.coachMemory }),
+           ...(data.exams && { exams: data.exams }),
+           ...(data.logs && { logs: data.logs }),
+           ...(data.failedQuestions && { failedQuestions: data.failedQuestions }),
+           ...(data.agendaEntries && { agendaEntries: data.agendaEntries }),
+           ...(data.focusSessions && { focusSessions: data.focusSessions }),
+           ...(data.flashcards && { flashcards: data.flashcards }),
          });
       }
     });
@@ -99,7 +106,7 @@ export function useAuth() {
   }, []);
 
   const signInWithSpotify = useCallback(async () => {
-    setAuthError('Spotify girişi şu an Firebase üzerinden desteklenmiyor.');
+    loginWithSpotify();
   }, []);
 
   const signInWithEmail = useCallback(

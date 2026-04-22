@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Search, Users, Database, Shield, Settings, Activity,
-  Trash2, Edit3, Eye, RefreshCw, Loader2, ChevronDown, ChevronRight,
+  Trash2, Edit3, Eye, RefreshCw, Loader2, ChevronDown, ChevronRight, ChevronLeft,
   AlertTriangle, CheckCircle2, X, Save, MessageSquare, BookOpen,
   CalendarDays, Target, Brain, Zap, FileText, Clock, Eraser, Bell
 } from 'lucide-react';
@@ -161,7 +161,7 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
   const [selectedCounts, setSelectedCounts] = useState<Record<string, number>>({});
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const search = async () => {
+  const handleSearch = async () => {
     setLoading(true);
     const res = query.length >= 3 ? await devService.searchUsers(query) : await devService.getAllUsers(100);
     setUsers(res);
@@ -186,7 +186,7 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
     else showToast('error', res.error ?? 'Hata');
   };
 
-  useEffect(() => { search(); }, []);
+  useEffect(() => { handleSearch(); }, []);
   useEffect(() => { setPage(1); }, [query, users.length]);
 
   return (
@@ -197,11 +197,11 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && search()}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
             placeholder="Email, UID veya isim ara..."
             className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-zinc-600"
           />
-          <button onClick={search} className="px-4 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition">
+          <button onClick={handleSearch} className="px-4 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition">
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
           </button>
         </div>

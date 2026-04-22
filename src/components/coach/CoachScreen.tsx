@@ -13,6 +13,8 @@ import { TypingIndicator } from './TypingIndicator';
 import { InputZone } from './InputZone';
 import { ConversationSidebar } from './ConversationSidebar';
 import type { CoachIntent } from '../../types/coach';
+import { CoachBriefing } from '../CoachBriefing';
+import { ContextBar } from './ContextBar';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 

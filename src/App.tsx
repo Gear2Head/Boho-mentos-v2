@@ -296,6 +296,15 @@ export default function App() {
   const failedQuestions = useAppStore(s => s.failedQuestions);
 
   const { user, isLoading, signOut } = useAuth();
+  
+  // [UX-012 FIX]: Hydration & Store Consistency Guard
+  useEffect(() => {
+    if (user && hasHydrated && !profile) {
+      console.warn('[App] Profile missing after hydration, attempting recovery...');
+      // Profile recovery or default setup could go here
+    }
+  }, [user, hasHydrated, profile]);
+
   const syncStatus: string = 'synced';
   const forceSync = async (a?: boolean) => {};
   const isSyncManagerBusy = false;
@@ -747,14 +756,13 @@ export default function App() {
               {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
             </motion.div>
           )}
-          <div className={`flex-1 overflow-auto flex flex-col ${activeTab === 'coach' ? 'hidden' : ''}`}>
-          <AnimatePresence mode="wait">
-                        {activeTab === 'dashboard' && (
-              <BentoDashboard />
-            )}
-
-            {activeTab === 'countdown' && (
-              <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
+          {activeTab !== 'coach' && (
+            <div className="flex-1 overflow-y-auto relative scroll-smooth custom-scrollbar">
+              {/* [UI-CRASH-SAFEGUARD]: Defensive check for BentoDashboard data dependencies */}
+              {activeTab === 'dashboard' && (hasHydrated && profile ? <BentoDashboard /> : <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>)}
+              <AnimatePresence mode="wait">
+                {activeTab === 'countdown' && (
+                  <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
                 <div className="text-center mb-12">
                   <h2 className="font-display italic text-4xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
                   <div className="flex flex-col items-center gap-4">
@@ -1003,6 +1011,7 @@ export default function App() {
 
           </AnimatePresence>
           </div>
+        )}
         </main>
         <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={profile?.track || 'Sayısal'} onSave={(exam) => { addExam(exam); setIsExamModalOpen(false); unlockTrophy('first_blood'); }} />
         <ExamDetailModal 

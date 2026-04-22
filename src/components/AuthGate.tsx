@@ -95,6 +95,17 @@ export function AuthGate() {
             <span>E-Devlet ile {mode === 'register' ? 'Kayıt Ol' : 'Giriş Yap'}</span>
           </button>
 
+          <button
+            onClick={signInWithSpotify}
+            disabled={isLoading}
+            className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-[#1DB954] py-3 text-sm font-bold text-white transition-all hover:bg-[#1ed760] disabled:opacity-50 shadow-lg shadow-green-900/20 px-6 border border-white/10"
+          >
+            <div className="bg-white p-1 rounded-md">
+                   <Music className="h-5 w-auto text-[#1DB954]" />
+            </div>
+            <span>Spotify ile {mode === 'register' ? 'Kayıt Ol' : 'Giriş Yap'}</span>
+          </button>
+
           <div className="mb-4 flex items-center gap-3">
             <div className="h-px flex-1 bg-[#2A2A2A]" />
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">veya</span>

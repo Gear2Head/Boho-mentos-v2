@@ -1,10 +1,8 @@
 import { StateCreator } from 'zustand';
 import { AppState } from '../appStore';
-import { ChatMessage, AppNotification } from '../../types';
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../../services/firebase";
-
 import { Conversation, ChatMessage, AppNotification } from '../../types';
+import { doc, setDoc, deleteDoc } from "firebase/firestore";
+import { db } from "../../services/firebase";
 
 export interface SocialSlice {
   conversations: Conversation[];
@@ -13,6 +11,7 @@ export interface SocialSlice {
   dailyQuestsGeneratedDate: string;
   dailyAiRequests: number;
   lastAiRequestDate: string;
+  chatHistory: ChatMessage[]; // [LEGACY COMPAT]
 
   // Actions
   addChatMessage: (message: ChatMessage) => void;
@@ -38,6 +37,7 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
   dailyQuestsGeneratedDate: '',
   dailyAiRequests: 0,
   lastAiRequestDate: new Date().toISOString().split('T')[0],
+  chatHistory: [],
 
   migrateLegacyChat: () => {
     const s = get() as any;
@@ -52,14 +52,17 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
         conversations: [legacyConv], 
         activeConversationId: 'legacy_genel',
         // Clear old array to avoid re-migration
-        chatHistory: undefined 
+        chatHistory: [] 
       } as any);
     } else if (get().conversations.length > 0 && !get().activeConversationId) {
       set({ activeConversationId: get().conversations[0].id });
     }
   },
 
-  setActiveConversation: (id) => set({ activeConversationId: id }),
+  setActiveConversation: (id) => {
+    const conv = get().conversations.find(c => c.id === id);
+    set({ activeConversationId: id, chatHistory: conv?.messages || [] });
+  },
 
   createNewConversation: (title) => {
     const id = `conv_${Date.now()}`;
@@ -133,6 +136,9 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
         lastMessage: message.content.slice(0, 50)
       }, { merge: true }).catch(console.error);
     }
+    // Update legacy pointer
+    const active = get().conversations.find(c => c.id === targetId);
+    set({ chatHistory: active?.messages || [] });
   },
 
   addNotification: (notif) => {

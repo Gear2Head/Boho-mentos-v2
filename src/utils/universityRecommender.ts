@@ -1,5 +1,5 @@
 /**
- * TODO-018: University Recommendation Engine
+ * University Recommendation Engine
  * Öğrencinin mevcut netleri ve profil tercihlerine göre üniversite önerir.
  */
 
@@ -72,9 +72,10 @@ function generateAlternativeRoute(
   gap: number,
   profile: StudentProfile
 ): string | null {
-  if (gap >= 0) return null; // Already reachable
-  const weeksNeeded = Math.ceil(Math.abs(gap) * 2); // rough estimate
-  return `Hedef nete ulaşmak için yaklaşık ${weeksNeeded} haftalık yoğun çalışma gerekiyor. ${profile.weakSubjects || 'Zayıf konular'} önceliklendirilmeli.`;
+  if (gap >= 0) return null; 
+  const weeksNeeded = Math.ceil(Math.abs(gap) * 1.5); 
+  const subjectsStr = Array.isArray(profile.weakSubjects) ? profile.weakSubjects.join(', ') : (profile.weakSubjects || 'temel konular');
+  return `Hedef nete ulaşmak için yaklaşık ${weeksNeeded} haftalık stratejik çalışma planlanmalı. Özellikle ${subjectsStr} üzerinde durulmalı.`;
 }
 
 export function getRecommendations(

@@ -80,8 +80,22 @@ async function generateCodeChallenge(codeVerifier: string) {
 
 export async function loginWithSpotify() {
   if (!SPOTIFY_ENABLED) return;
-  // ŞAKA EKLEMESİ: E-devlet yönlendirmesi
-  window.location.href = 'https://giris.turkiye.gov.tr/Giris/gir';
+
+  const verifier = generateRandomString(128);
+  const challenge = await generateCodeChallenge(verifier);
+
+  sessionStorage.setItem('spotify_verifier', verifier);
+
+  const params = new URLSearchParams({
+    client_id: SPOTIFY_CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: REDIRECT_URI,
+    scope: SCOPES,
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+  });
+
+  window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
 export function getSpotifyTokenFromUrl(): string | null {

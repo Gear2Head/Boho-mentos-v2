@@ -33,7 +33,8 @@ export type CoachIntent =
   | 'forgetting_curve_reminder'
   | 'daily_quest'
   | 'vision_archive_parse'
-  | 'generate_weekly_strategy';
+  | 'generate_weekly_strategy'
+  | 'quiz_generation';
 
 // ─── Task (Görev Nesnesi) ────────────────────────────────────────────────────
 
