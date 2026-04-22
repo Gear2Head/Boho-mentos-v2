@@ -11,6 +11,10 @@ import { SocialSlice, createSocialSlice } from './slices/socialSlice';
 import { WarRoomSlice, createWarRoomSlice } from './slices/warRoomSlice';
 import { CoachSlice, createCoachSlice } from './slices/coachSlice';
 import { UISlice, createUISlice } from './slices/uiSlice';
+import { SubjectStatus } from '../types';
+
+export const COACH_NAME = 'Kübra';
+export const COACH_SYSTEM_NAME = 'kübra_v2';
 
 export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & WarRoomSlice & CoachSlice & UISlice & {
   lastLocalUpdateAt: string;
@@ -20,6 +24,8 @@ export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & 
   dismissAlert: (id: string) => void;
   detectAndSetHabits: () => void;
   analyzeUserData: () => string;
+  bulkMasterTytSubjectsByName: (names: string[]) => void;
+  bulkMasterAytSubjectsByName: (names: string[]) => void;
 };
 
 // IndexDB Storage Setup
@@ -135,6 +141,20 @@ export const useAppStore = create<AppState>()(
         const aytTarget = state.profile?.aytTarget || 0;
         const lastLogs = state.logs.slice(-10).map(l => `${l.subject}: %${Math.round((l.correct / (l.questions || 1)) * 100)}`).join(' | ');
         return `HEDEF: ${state.profile?.targetUniversity}. TYT: ${tytTarget}, AYT: ${aytTarget}. ELO: ${state.eloScore}. LOGLAR: ${lastLogs}`;
+      },
+
+      bulkMasterTytSubjectsByName: (names) => {
+        const { tytSubjects, updateTytSubject } = get();
+        tytSubjects.forEach((s, idx) => {
+          if (names.includes(s.subject)) updateTytSubject(idx, { status: 'mastered' });
+        });
+      },
+
+      bulkMasterAytSubjectsByName: (names) => {
+        const { aytSubjects, updateAytSubject } = get();
+        aytSubjects.forEach((s, idx) => {
+          if (names.includes(s.subject)) updateAytSubject(idx, { status: 'mastered' });
+        });
       },
     }),
     {

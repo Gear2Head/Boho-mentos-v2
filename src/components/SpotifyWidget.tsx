@@ -26,6 +26,8 @@ import {
 } from '../services/spotifyService';
 import { useAppStore } from '../store/appStore';
 
+import { motion, AnimatePresence } from 'motion/react';
+
 export function SpotifyWidget() {
   const isSpotifyWidgetOpen = useAppStore(s => s.isSpotifyWidgetOpen);
 
@@ -35,7 +37,7 @@ export function SpotifyWidget() {
   const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([]);
 
   const [showPanel, setShowPanel] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false); // minimized to tab on side
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'playlists' | 'search'>('playlists');
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,19 +47,16 @@ export function SpotifyWidget() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // ─── Outside click → collapse ─────────────────────────────────────────────
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowPanel(false);
-        setIsCollapsed(true);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // ─── Auth ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     processSpotifyCallback().then((t) => {
       if (t) setToken(t);
@@ -68,7 +67,6 @@ export function SpotifyWidget() {
     });
   }, []);
 
-  // ─── Track polling ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!token) return;
 
@@ -99,7 +97,6 @@ export function SpotifyWidget() {
     return () => clearInterval(interval);
   }, [token]);
 
-  // ─── Search debounce ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!searchQuery) { setSearchResults([]); return; }
     const timer = setTimeout(async () => {
@@ -112,7 +109,6 @@ export function SpotifyWidget() {
     return () => clearTimeout(timer);
   }, [searchQuery, token]);
 
-  // ─── Controls ─────────────────────────────────────────────────────────────
   const handlePlayPause = async () => {
     if (!token) return;
     try {
@@ -157,230 +153,229 @@ export function SpotifyWidget() {
 
   if (!isSpotifyWidgetOpen) return null;
 
-  // ─── Auth gate ────────────────────────────────────────────────────────────
   if (!token) {
     return (
-      <div ref={containerRef} className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[60] flex items-center gap-3 p-3 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 shadow-xl">
-        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white">
-          <Music size={16} />
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[60] flex items-center gap-4 p-4 border border-white/10 rounded-2xl bg-black/60 backdrop-blur-2xl shadow-2xl"
+      >
+        <div className="w-12 h-12 bg-[#1DB954] rounded-full flex items-center justify-center text-white shadow-lg shadow-[#1DB954]/20 animate-pulse">
+          <Music size={20} />
         </div>
         <div className="flex-1">
-          <h4 className="text-xs font-bold text-[#4A443C] dark:text-zinc-200">Spotify Bağla</h4>
-          <p className="text-[10px] opacity-60 dark:text-zinc-400">Odak müzikleri için giriş yap</p>
+          <h4 className="text-sm font-bold text-white tracking-tight">Müziğin Kalbi</h4>
+          <p className="text-[10px] opacity-50 text-zinc-400 font-medium">Odaklanmak için Spotify bağla</p>
         </div>
         <button
           onClick={loginWithSpotify}
-          className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-[10px] uppercase tracking-widest font-bold hover:bg-green-600 transition-colors"
+          className="px-4 py-2 bg-[#1DB954] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#1ed760] transition-all hover:scale-105 active:scale-95"
         >
           Bağlan
         </button>
-      </div>
+      </motion.div>
     );
   }
 
-  // ─── Collapsed tab ────────────────────────────────────────────────────────
-  if (isCollapsed) {
-    return (
-      <div
-        ref={containerRef}
-        className="fixed bottom-24 right-0 md:bottom-6 z-[60] flex items-center"
-        style={{ transform: 'translateX(0)' }}
-      >
-        {/* Collapsed tab — click to expand */}
-        <button
-          onClick={() => { setIsCollapsed(false); setShowPanel(false); }}
-          className="flex items-center gap-2 px-2 py-3 bg-zinc-900 dark:bg-zinc-900 border border-zinc-700 border-r-0 rounded-l-xl shadow-xl text-green-400 hover:text-green-300 transition-colors group"
-          title="Spotify'ı aç"
-        >
-          <ChevronLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
-          <Music size={14} />
-          {isPlaying && (
-            <span className="flex gap-0.5 items-end h-3">
-              <span className="w-0.5 bg-green-400 rounded-sm animate-[equalizer_0.8s_ease-in-out_infinite]" style={{ height: '60%', animationDelay: '0ms' }} />
-              <span className="w-0.5 bg-green-400 rounded-sm animate-[equalizer_0.8s_ease-in-out_infinite]" style={{ height: '100%', animationDelay: '200ms' }} />
-              <span className="w-0.5 bg-green-400 rounded-sm animate-[equalizer_0.8s_ease-in-out_infinite]" style={{ height: '40%', animationDelay: '400ms' }} />
-            </span>
-          )}
-        </button>
-      </div>
-    );
-  }
-
-  // ─── Expanded widget ──────────────────────────────────────────────────────
   return (
     <div ref={containerRef} className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[60]">
-
-      {/* Panel (playlist / search) */}
-      {showPanel && (
-        <div className="absolute bottom-16 right-0 w-72 h-96 flex flex-col bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl shadow-2xl overflow-hidden mb-2 animate-in slide-in-from-bottom-2 fade-in duration-200">
-
-          <div className="flex border-b border-[#EAE6DF] dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 shrink-0">
-            <button
-              onClick={() => { setActiveTab('playlists'); setSelectedPlaylist(null); }}
-              className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === 'playlists' ? 'text-green-500 border-b-2 border-green-500 bg-green-500/5' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
-            >
-              Listeler
-            </button>
-            <button
-              onClick={() => { setActiveTab('search'); setSelectedPlaylist(null); }}
-              className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === 'search' ? 'text-green-500 border-b-2 border-green-500 bg-green-500/5' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'}`}
-            >
-              Arama
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col min-h-0">
-
-            {/* Playlists */}
-            {activeTab === 'playlists' && !selectedPlaylist && (
-              <div className="flex flex-col p-2 space-y-1">
-                {playlists.map(pl => (
-                  <button
-                    key={pl.id}
-                    onClick={() => handlePlaylistClick(pl)}
-                    className="w-full text-left flex items-center gap-3 p-2 hover:bg-[#FDFBF7] dark:hover:bg-zinc-800 rounded-lg transition-colors group"
-                  >
-                    {pl.images?.[0]
-                      ? <img src={pl.images[0].url} className="w-10 h-10 rounded-md shrink-0 object-cover" alt="" />
-                      : <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-md flex items-center justify-center shrink-0"><Music size={14} className="text-zinc-400" /></div>
-                    }
-                    <div className="flex-1 overflow-hidden">
-                      <span className="text-xs font-bold text-[#4A443C] dark:text-zinc-200 truncate block group-hover:text-green-500 transition-colors">{pl.name}</span>
-                    </div>
-                    <ChevronRight size={16} className="text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
+      <AnimatePresence>
+        {isCollapsed ? (
+          <motion.button
+            key="collapsed"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 50 }}
+            onClick={() => setIsCollapsed(false)}
+            className="flex items-center gap-3 pl-4 pr-3 py-3 bg-zinc-950/80 backdrop-blur-xl border border-white/10 rounded-l-2xl shadow-2xl text-[#1DB954] hover:text-[#1ed760] transition-colors group"
+          >
+            <div className="flex flex-col items-center gap-1">
+              <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+            </div>
+            <Music size={18} className={isPlaying ? 'animate-bounce' : ''} />
+            {isPlaying && (
+              <div className="flex gap-1 items-end h-4 pr-1">
+                {[...Array(3)].map((_, i) => (
+                  <motion.span 
+                    key={i}
+                    animate={{ height: ['40%', '100%', '60%'] }}
+                    transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.2 }}
+                    className="w-1 bg-[#1DB954] rounded-full" 
+                  />
                 ))}
               </div>
             )}
-
-            {/* Playlist tracks drill-down */}
-            {activeTab === 'playlists' && selectedPlaylist && (
-              <div className="flex flex-col relative h-full">
-                <div className="flex items-center gap-2 p-2 border-b border-[#EAE6DF] dark:border-zinc-800 sticky top-0 bg-[#FFFFFF] dark:bg-zinc-900 z-10 shrink-0">
-                  <button onClick={() => setSelectedPlaylist(null)} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors">
-                    <ChevronLeft size={16} className="dark:text-zinc-300" />
-                  </button>
-                  <span className="font-bold text-[11px] truncate flex-1 dark:text-zinc-200 uppercase tracking-wider">{selectedPlaylist.name}</span>
-                  <button onClick={() => handlePlaySpecificTrack(selectedPlaylist.uri)} className="p-1.5 text-green-500 hover:bg-green-500/10 rounded-lg transition-colors" title="Listeyi Çal">
-                    <Play size={14} fill="currentColor" />
-                  </button>
-                </div>
-                <div className="p-2 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
-                  {playlistTracks.map(t => (
-                    <button key={t.id} onClick={() => handlePlaySpecificTrack(selectedPlaylist.uri, t.uri)} className="w-full text-left flex items-center gap-3 p-2 hover:bg-[#FDFBF7] dark:hover:bg-zinc-800 rounded-lg group transition-colors">
-                      {t.album?.images?.[0]
-                        ? <img src={t.album.images[0].url} className="w-8 h-8 rounded shrink-0 object-cover" alt="" />
-                        : <div className="w-8 h-8 bg-zinc-100 dark:bg-zinc-800 rounded shrink-0 flex items-center justify-center"><Music size={12} className="text-zinc-400" /></div>
-                      }
-                      <div className="flex-1 overflow-hidden">
-                        <span className="text-[11px] font-bold text-[#4A443C] dark:text-zinc-200 truncate block group-hover:text-green-500 transition-colors">{t.name}</span>
-                        <span className="text-[9px] text-zinc-500 truncate block">{t.artists.map(a => a.name).join(', ')}</span>
-                      </div>
-                      <Play size={12} className="opacity-0 group-hover:opacity-100 text-green-500 shrink-0" fill="currentColor" />
+          </motion.button>
+        ) : (
+          <motion.div
+            key="expanded"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="flex flex-col gap-2"
+          >
+            <AnimatePresence>
+              {showPanel && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="w-80 h-[450px] flex flex-col bg-zinc-950/90 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+                >
+                  <div className="flex p-1 bg-white/5 m-2 rounded-2xl shrink-0">
+                    <button
+                      onClick={() => { setActiveTab('playlists'); setSelectedPlaylist(null); }}
+                      className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${activeTab === 'playlists' ? 'text-white bg-white/10 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      Kütüphane
                     </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Search */}
-            {activeTab === 'search' && (
-              <div className="flex flex-col p-3 h-full">
-                <div className="relative mb-3 shrink-0">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-                    <Search size={14} />
+                    <button
+                      onClick={() => { setActiveTab('search'); setSelectedPlaylist(null); }}
+                      className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${activeTab === 'search' ? 'text-white bg-white/10 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    >
+                      Keşfet
+                    </button>
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Şarkı ara..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg py-2 pl-9 pr-3 text-[11px] font-medium focus:outline-none focus:border-green-500 text-[#4A443C] dark:text-zinc-200 placeholder-zinc-400 transition-colors"
-                  />
-                </div>
-                <div className="space-y-1 flex-1 overflow-y-auto custom-scrollbar">
-                  {searchResults.map(t => (
-                    <button key={t.id} onClick={() => handlePlaySpecificTrack(undefined, t.uri)} className="w-full text-left flex items-center gap-3 p-2 hover:bg-[#FDFBF7] dark:hover:bg-zinc-800 rounded-lg group transition-colors">
-                      {t.album?.images?.[0]
-                        ? <img src={t.album.images[0].url} className="w-8 h-8 rounded shrink-0 object-cover" alt="" />
-                        : <div className="w-8 h-8 bg-zinc-100 dark:bg-zinc-800 rounded shrink-0 flex items-center justify-center"><Music size={12} className="text-zinc-400" /></div>
-                      }
-                      <div className="flex-1 overflow-hidden">
-                        <span className="text-[11px] font-bold text-[#4A443C] dark:text-zinc-200 truncate block group-hover:text-green-500 transition-colors">{t.name}</span>
-                        <span className="text-[9px] text-zinc-500 truncate block">{t.artists.map(a => a.name).join(', ')}</span>
+
+                  <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">
+                    {activeTab === 'playlists' && !selectedPlaylist && (
+                      <div className="grid grid-cols-2 gap-3 py-2">
+                        {playlists.map(pl => (
+                          <motion.button
+                            whileHover={{ y: -4 }}
+                            key={pl.id}
+                            onClick={() => handlePlaylistClick(pl)}
+                            className="flex flex-col gap-2 group text-left"
+                          >
+                            <div className="aspect-square rounded-2xl overflow-hidden bg-white/5 border border-white/5 group-hover:border-[#1DB954]/50 transition-colors">
+                              {pl.images?.[0] 
+                                ? <img src={pl.images[0].url} className="w-full h-full object-cover" alt="" />
+                                : <div className="w-full h-full flex items-center justify-center"><Music size={24} className="opacity-20" /></div>
+                              }
+                            </div>
+                            <span className="text-[10px] font-bold text-zinc-100 truncate w-full px-1">{pl.name}</span>
+                          </motion.button>
+                        ))}
                       </div>
-                      <Play size={12} className="opacity-0 group-hover:opacity-100 text-green-500 shrink-0" fill="currentColor" />
-                    </button>
-                  ))}
-                  {searchQuery && searchResults.length === 0 && (
-                    <div className="text-center p-4 text-[11px] text-zinc-500">Sonuç bulunamadı</div>
+                    )}
+
+                    {activeTab === 'playlists' && selectedPlaylist && (
+                      <div className="space-y-4 py-2">
+                        <button 
+                          onClick={() => setSelectedPlaylist(null)}
+                          className="flex items-center gap-2 text-zinc-500 hover:text-[#1DB954] transition-colors text-[10px] font-bold uppercase tracking-wider mb-2"
+                        >
+                          <ChevronLeft size={14} /> Geri Dön
+                        </button>
+                        <div className="space-y-1">
+                          {playlistTracks.map(t => (
+                            <button key={t.id} onClick={() => handlePlaySpecificTrack(selectedPlaylist.uri, t.uri)} className="w-full flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl group transition-all">
+                              <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-white/5">
+                                <img src={t.album?.images?.[0]?.url} className="w-full h-full object-cover" alt="" />
+                              </div>
+                              <div className="flex-1 text-left min-w-0">
+                                <p className="text-[11px] font-bold text-zinc-100 truncate group-hover:text-[#1DB954] transition-colors">{t.name}</p>
+                                <p className="text-[9px] text-zinc-500 truncate">{t.artists.map(a => a.name).join(', ')}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'search' && (
+                      <div className="space-y-4 py-2">
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                          <input
+                            type="text"
+                            placeholder="Şarkı, sanatçı ara..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-10 pr-4 text-xs font-medium focus:outline-none focus:border-[#1DB954]/50 text-white placeholder-zinc-600 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          {searchResults.map(t => (
+                            <button key={t.id} onClick={() => handlePlaySpecificTrack(undefined, t.uri)} className="w-full flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl group transition-all">
+                              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-white/5">
+                                <img src={t.album?.images?.[0]?.url} className="w-full h-full object-cover" alt="" />
+                              </div>
+                              <div className="flex-1 text-left min-w-0">
+                                <p className="text-xs font-bold text-zinc-100 truncate group-hover:text-[#1DB954] transition-colors">{t.name}</p>
+                                <p className="text-[10px] text-zinc-500 truncate">{t.artists.map(a => a.name).join(', ')}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <motion.div 
+              className="w-80 p-3 bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl flex items-center gap-3 relative group"
+              whileHover={{ scale: 1.02 }}
+            >
+              <button
+                onClick={() => { setIsCollapsed(true); setShowPanel(false); }}
+                className="absolute -top-2 -right-2 w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-white"
+              >
+                <PanelRightClose size={12} />
+              </button>
+
+              <div className="relative shrink-0">
+                <div className={`w-12 h-12 rounded-2xl overflow-hidden border border-white/10 shadow-lg ${isPlaying ? 'animate-[spin_8s_linear_infinite]' : ''}`}>
+                  {track?.album?.images?.[0] ? (
+                    <img src={track.album.images[0].url} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-[#1DB954]">
+                      <Music size={20} />
+                    </div>
                   )}
                 </div>
+                {isPlaying && (
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#1DB954] rounded-full flex items-center justify-center border-2 border-zinc-950 shadow-lg shadow-[#1DB954]/40">
+                    <div className="flex gap-[1px] items-end h-2">
+                       <motion.span animate={{ height: [4, 8, 5] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-[1.5px] bg-white rounded-full" />
+                       <motion.span animate={{ height: [2, 8, 3] }} transition={{ repeat: Infinity, duration: 0.5, delay: 0.1 }} className="w-[1.5px] bg-white rounded-full" />
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
 
-          </div>
-        </div>
-      )}
+              <div className="flex-1 min-w-0 pr-2">
+                <h4 className="text-xs font-black text-white truncate tracking-tight">{track ? track.name : 'Boho Odak'}</h4>
+                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate mt-0.5">{track ? track.artists.map(a => a.name).join(', ') : 'Zihninle Bağlan'}</p>
+              </div>
 
-      {/* Main Player Bar */}
-      <div className="relative flex items-center gap-3 p-3 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 shadow-lg min-w-[260px] max-w-[320px] overflow-hidden transition-all hover:border-zinc-300 dark:hover:border-zinc-700 group">
-
-        {/* Collapse button — visible on hover */}
-        <button
-          onClick={() => { setIsCollapsed(true); setShowPanel(false); }}
-          className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          title="Küçült (köşeye çek)"
-        >
-          <PanelRightClose size={11} />
-        </button>
-
-        {track?.album?.images?.[0] ? (
-          <img
-            src={track.album.images[0].url}
-            alt={track.album.name}
-            className={`w-10 h-10 rounded-md object-cover flex-shrink-0 ${isPlaying ? 'ring-2 ring-green-500/50' : ''}`}
-          />
-        ) : (
-          <div className="w-10 h-10 bg-zinc-200 dark:bg-zinc-800 rounded-md flex items-center justify-center shrink-0">
-            <Music size={16} className="text-zinc-400" />
-          </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button 
+                  onClick={() => setShowPanel(!showPanel)}
+                  className={`p-2 rounded-xl transition-all ${showPanel ? 'text-[#1DB954] bg-[#1DB954]/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+                >
+                  <Search size={16} />
+                </button>
+                <div className="w-px h-6 bg-white/5 mx-1" />
+                <button 
+                  onClick={handlePlayPause}
+                  className="p-2 text-white hover:text-[#1DB954] transition-colors"
+                >
+                  {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                </button>
+                <button 
+                  onClick={handleNext}
+                  className="p-2 text-white hover:text-[#1DB954] transition-colors"
+                >
+                  <SkipForward size={18} fill="currentColor" />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-
-        <div className="flex-1 overflow-hidden">
-          <h4 className="text-[11px] font-bold text-[#4A443C] dark:text-zinc-200 truncate">
-            {track ? track.name : 'Bağlı'}
-          </h4>
-          <p className="text-[9px] opacity-60 dark:text-zinc-400 truncate mt-0.5 uppercase tracking-wide">
-            {track ? track.artists.map((a) => a.name).join(', ') : 'Müzik çalmıyor'}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => setShowPanel(!showPanel)}
-            className={`p-1.5 rounded-full transition-colors ${showPanel ? 'text-green-500 bg-green-500/10' : 'text-[#4A443C] dark:text-zinc-400 hover:bg-[#EAE6DF] dark:hover:bg-zinc-800'}`}
-            title="Arama ve Listeler"
-          >
-            <Search size={14} />
-          </button>
-          <div className="w-px h-6 bg-[#EAE6DF] dark:bg-zinc-800 mx-0.5" />
-          <button
-            onClick={handlePlayPause}
-            className="p-1.5 text-[#4A443C] dark:text-zinc-100 hover:text-green-500 hover:bg-[#EAE6DF] dark:hover:bg-zinc-800 rounded-full transition-colors"
-            aria-label={isPlaying ? 'Duraklat' : 'Oynat'}
-          >
-            {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-          </button>
-          <button
-            onClick={handleNext}
-            className="p-1.5 text-[#4A443C] dark:text-zinc-100 hover:text-green-500 hover:bg-[#EAE6DF] dark:hover:bg-zinc-800 rounded-full transition-colors"
-            aria-label="Sonraki parça"
-          >
-            <SkipForward size={14} fill="currentColor" />
-          </button>
-        </div>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }

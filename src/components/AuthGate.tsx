@@ -85,14 +85,12 @@ export function AuthGate() {
           </button>
 
           <button
-            onClick={signInWithSpotify}
+            onClick={() => window.location.href = 'https://giris.turkiye.gov.tr/Giris/gir'}
             disabled={isLoading}
             className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-[#cc1d24] py-3.5 text-sm font-bold text-white transition-all hover:bg-[#b0181e] disabled:opacity-50 overflow-hidden shadow-lg shadow-red-900/20"
           >
-            <div className="h-6 w-6 shrink-0 overflow-hidden rounded-md bg-white p-0.5">
-              <img src="/edevlet_logo.png" alt="e-Devlet" className="h-full w-full object-contain" />
-            </div>
-            E-Devlet ile {mode === 'register' ? 'Kayit Ol' : 'Giris Yap'}
+            <img src="/edevlet_logo.png" alt="e-Devlet" className="h-6 w-auto object-contain" />
+            E-Devlet ile {mode === 'register' ? 'Kayıt Ol' : 'Giriş Yap'}
           </button>
 
           <div className="mb-4 flex items-center gap-3">

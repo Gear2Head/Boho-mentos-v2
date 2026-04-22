@@ -70,14 +70,14 @@ export function AchievementsPanel() {
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${unlocked ? 'border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400' : 'border-[#EAE6DF] dark:border-zinc-800 bg-white/40 dark:bg-black/20 text-[#C17767]'}`}>
                         {ICONS[t.icon] ?? <TrophyIcon size={18} />}
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="font-bold text-sm text-[#4A443C] dark:text-zinc-200">{t.title}</div>
-                          <div className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400">
+                          <div className="font-bold text-sm text-[#4A443C] dark:text-zinc-200 truncate">{t.title}</div>
+                          <div className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400 shrink-0">
                             {unlocked ? new Date(t.unlockedAt!).toLocaleDateString('tr-TR') : 'Kilitli'}
                           </div>
                         </div>
-                        <div className="text-xs opacity-70 mt-1 text-[#4A443C] dark:text-zinc-300">{t.description}</div>
+                        <div className="text-xs opacity-70 mt-1 text-[#4A443C] dark:text-zinc-300 line-clamp-2">{t.description}</div>
                       </div>
                     </div>
                   );

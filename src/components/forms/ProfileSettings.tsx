@@ -360,8 +360,39 @@ function SummaryRow({ label, value, last = false }: { label: string; value: Reac
   return <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: last ? 'none' : '1px solid rgba(255,255,255,.05)' }}><span style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase' }}>{label}</span>{value}</div>;
 }
 
-function EditModeForm(props: { name: string; setName: React.Dispatch<React.SetStateAction<string>>; examYear: string; setExamYear: React.Dispatch<React.SetStateAction<string>>; track: Track; setTrack: React.Dispatch<React.SetStateAction<Track>>; avatar?: string; fileRef: React.RefObject<HTMLInputElement | null>; handleAvatarChange: (e: React.ChangeEvent<HTMLInputElement>) => void; targetUni: string; setTargetUni: React.Dispatch<React.SetStateAction<string>>; targetMajor: string; setTargetMajor: React.Dispatch<React.SetStateAction<string>>; tytTarget: number; setTytTarget: React.Dispatch<React.SetStateAction<number>>; aytTarget: number; setAytTarget: React.Dispatch<React.SetStateAction<number>>; minHours: number; setMinHours: React.Dispatch<React.SetStateAction<number>>; coachPersonality: string; setCoachPersonality: React.Dispatch<React.SetStateAction<string>>; onSubmit: () => void; }) {
+function EditModeForm(props: {
+  name: string; setName: React.Dispatch<React.SetStateAction<string>>;
+  examYear: string; setExamYear: React.Dispatch<React.SetStateAction<string>>;
+  track: Track; setTrack: React.Dispatch<React.SetStateAction<Track>>;
+  avatar?: string; fileRef: React.RefObject<HTMLInputElement | null>; handleAvatarChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  targetUni: string; setTargetUni: React.Dispatch<React.SetStateAction<string>>;
+  targetMajor: string; setTargetMajor: React.Dispatch<React.SetStateAction<string>>;
+  tytTarget: number; setTytTarget: React.Dispatch<React.SetStateAction<number>>;
+  aytTarget: number; setAytTarget: React.Dispatch<React.SetStateAction<number>>;
+  minHours: number; setMinHours: React.Dispatch<React.SetStateAction<number>>;
+  coachPersonality: string; setCoachPersonality: React.Dispatch<React.SetStateAction<string>>;
+  onSubmit: () => void;
+}) {
   const { name, setName, examYear, setExamYear, track, setTrack, avatar, fileRef, handleAvatarChange, targetUni, setTargetUni, targetMajor, setTargetMajor, tytTarget, setTytTarget, aytTarget, setAytTarget, minHours, setMinHours, coachPersonality, setCoachPersonality, onSubmit } = props;
+  
+  const [showUniDrop, setShowUniDrop] = useState(false);
+  const [uniSuggestions, setUniSuggestions] = useState<YokAtlasProgram[]>([]);
+
+  useEffect(() => {
+    if (targetUni.length >= 2 && showUniDrop) {
+      setUniSuggestions(searchYokAtlas(targetUni, track).slice(0, 8));
+    } else {
+      setUniSuggestions([]);
+    }
+  }, [targetUni, showUniDrop, track]);
+
+  const handleSelectUni = (program: YokAtlasProgram) => {
+    setTargetUni(program.university);
+    setTargetMajor(program.major);
+    setTytTarget(program.tytNet);
+    setAytTarget(program.aytNet);
+    setShowUniDrop(false);
+  };
   const isSpotifyWidgetOpen = useAppStore(s => s.isSpotifyWidgetOpen);
   const setSpotifyWidgetOpen = useAppStore(s => s.setSpotifyWidgetOpen);
   const tytPct = Math.round((tytTarget / 120) * 100);
@@ -370,7 +401,41 @@ function EditModeForm(props: { name: string; setName: React.Dispatch<React.SetSt
   return <div style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
     <style>{`.em-label{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:8px;display:block}.em-input{width:100%;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 16px;font-size:14px;color:rgba(255,255,255,.9);outline:none;box-sizing:border-box}.em-input:focus{border-color:rgba(193,119,103,.5)}.em-section{margin-bottom:24px}.em-title{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#C17767;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:16px}.em-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.em-pill{padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);cursor:pointer;font-size:12px;font-weight:700;color:rgba(255,255,255,.4)}.em-pill.sel{border-color:#C17767;background:rgba(193,119,103,.1);color:#C17767}.em-slider{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer}.em-slider::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#C17767;cursor:pointer}.em-save{width:100%;padding:14px;background:#C17767;color:white;border:none;border-radius:12px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}`}</style>
     <div className="em-section"><div className="em-title">Kimlik</div><div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 16 }}><div onClick={() => fileRef.current?.click()} style={{ width: 64, height: 64, borderRadius: 16, border: '1.5px solid rgba(255,255,255,.1)', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}>{avatar ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Camera size={20} style={{ color: 'rgba(255,255,255,.2)' }} />}</div><input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} /><div style={{ flex: 1 }}><span className="em-label">İsim / Mahlas</span><input className="em-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="İsmin" /></div></div><div className="em-grid"><div><span className="em-label">Sınav Yılı</span><select className="em-input" value={examYear} onChange={(e) => setExamYear(e.target.value)}><option value="2025">YKS 2025</option><option value="2026">YKS 2026</option><option value="2027">YKS 2027</option></select></div><div><span className="em-label">Alan</span><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{TRACKS.map((trackOption) => <button key={trackOption.value} type="button" className={`em-pill ${track === trackOption.value ? 'sel' : ''}`} onClick={() => setTrack(trackOption.value)}>{trackOption.label}</button>)}</div></div></div></div>
-    <div className="em-section"><div className="em-title">Hedef</div><div className="em-grid"><div><span className="em-label">Üniversite</span><input className="em-input" type="text" value={targetUni} onChange={(e) => setTargetUni(e.target.value)} placeholder="Üniversite" /></div><div><span className="em-label">Bölüm</span><input className="em-input" type="text" value={targetMajor} onChange={(e) => setTargetMajor(e.target.value)} placeholder="Bölüm" /></div></div></div>
+    <div className="em-section">
+      <div className="em-title">Hedef</div>
+      <div className="em-grid">
+        <div style={{ position: 'relative' }}>
+          <span className="em-label">Üniversite</span>
+          <input 
+            className="em-input" 
+            type="text" 
+            value={targetUni} 
+            onChange={(e) => { setTargetUni(e.target.value); setShowUniDrop(true); }} 
+            onFocus={() => setShowUniDrop(true)}
+            onBlur={() => setTimeout(() => setShowUniDrop(false), 200)}
+            placeholder="Üniversite" 
+          />
+          {showUniDrop && uniSuggestions.length > 0 && (
+            <div className="ps-drop" style={{ top: '100%', left: 0, right: 0 }}>
+              {uniSuggestions.map((program) => (
+                <div key={program.id} className="ps-drop-item" onMouseDown={() => handleSelectUni(program)}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,.85)' }}>{program.university}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,.35)' }}>{program.major}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <span className="em-label">Bölüm</span>
+          <input className="em-input" type="text" value={targetMajor} onChange={(e) => setTargetMajor(e.target.value)} placeholder="Bölüm" />
+        </div>
+      </div>
+    </div>
     <div className="em-section"><div className="em-title">Net Hedefleri</div><div style={{ marginBottom: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span className="em-label" style={{ margin: 0 }}>TYT Hedefi</span><span style={{ fontSize: 20, fontWeight: 800, color: '#C17767' }}>{tytTarget}</span></div><input type="range" min={40} max={120} value={tytTarget} onChange={(e) => setTytTarget(Number(e.target.value))} className="em-slider" style={{ background: `linear-gradient(to right,#C17767 0%,#C17767 ${tytPct}%,rgba(255,255,255,.1) ${tytPct}%,rgba(255,255,255,.1) 100%)` }} /></div><div style={{ marginBottom: 16 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span className="em-label" style={{ margin: 0 }}>AYT Hedefi</span><span style={{ fontSize: 20, fontWeight: 800, color: '#E09F3E' }}>{aytTarget}</span></div><input type="range" min={20} max={80} value={aytTarget} onChange={(e) => setAytTarget(Number(e.target.value))} className="em-slider" style={{ background: `linear-gradient(to right,#E09F3E 0%,#E09F3E ${aytPct}%,rgba(255,255,255,.1) ${aytPct}%,rgba(255,255,255,.1) 100%)` }} /></div><div><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span className="em-label" style={{ margin: 0 }}>Günlük Min. Saat</span><span style={{ fontSize: 20, fontWeight: 800, color: '#3B82F6' }}>{minHours}</span></div><input type="range" min={1} max={16} value={minHours} onChange={(e) => setMinHours(Number(e.target.value))} className="em-slider" style={{ background: `linear-gradient(to right,#3B82F6 0%,#3B82F6 ${minHoursPct}%,rgba(255,255,255,.1) ${minHoursPct}%,rgba(255,255,255,.1) 100%)` }} /></div></div>
     <div className="em-section"><div className="em-title">Koç Karakteri</div><div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{COACH_OPTIONS.map((option) => <button key={option.id} type="button" style={{ padding: '12px 16px', borderRadius: 12, border: `1px solid ${coachPersonality === option.id ? option.color : 'rgba(255,255,255,.07)'}`, background: coachPersonality === option.id ? option.glow : 'rgba(255,255,255,.02)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, width: '100%' }} onClick={() => setCoachPersonality(option.id)}><span style={{ fontSize: 20 }}>{option.icon}</span><div style={{ textAlign: 'left' }}><p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: coachPersonality === option.id ? option.color : 'rgba(255,255,255,.6)' }}>{option.title}</p><p style={{ margin: '1px 0 0', fontSize: 10, color: 'rgba(255,255,255,.25)' }}>{option.subtitle}</p></div>{coachPersonality === option.id && <CheckCircle2 size={14} style={{ color: option.color, marginLeft: 'auto' }} />}</button>)}</div></div>
     
