@@ -115,22 +115,22 @@ export function CoachScreen({
   const isEmpty = sortedMessages.length === 0;
 
   return (
-    <div className="flex h-full overflow-hidden bg-[#0d0d0d]">
-      {/* Sidebar - Desktop and Hidden on Mobile by default? For now keeping simple */}
+    <div className="flex h-full overflow-hidden bg-app">
+      {/* Sidebar - Desktop */}
       <ConversationSidebar />
 
       {/* ── Main Chat Area ──────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 relative bg-gradient-to-b from-[#0d0d0d] via-[#111] to-[#0a0a0a]">
+      <div className="flex flex-col flex-1 min-w-0 relative bg-app">
 
         {/* Scroll area */}
         <div
           ref={scrollAreaRef}
-          className="flex-1 overflow-y-auto"
+          className="flex-1 overflow-y-auto custom-scrollbar"
           role="log"
           aria-live="polite"
           aria-label="Koç sohbet geçmişi"
         >
-          <div className="p-4 md:p-8 space-y-6 pb-4 max-w-5xl mx-auto w-full">
+          <div className="p-4 md:p-6 space-y-5 pb-4 max-w-3xl mx-auto w-full">
             {isEmpty ? (
               /* Empty state — CoachBriefing */
               <CoachBriefing
@@ -140,12 +140,12 @@ export function CoachScreen({
             ) : (
               <>
                 {/* Date separator — "Bugün" */}
-                <div className="flex items-center gap-3 py-1">
-                  <div className="flex-1 h-px bg-[#2A2A2A]" />
-                  <span className="text-[9px] uppercase tracking-widest text-zinc-700 font-bold">
+                <div className="flex items-center gap-3 py-4">
+                  <div className="flex-1 h-px bg-app-subtle/50" />
+                  <span className="text-[9px] uppercase tracking-[0.3em] text-accent font-black bg-surface px-4 py-1.5 rounded-full border border-app shadow-sm">
                     {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </span>
-                  <div className="flex-1 h-px bg-[#2A2A2A]" />
+                  <div className="flex-1 h-px bg-app-subtle/50" />
                 </div>
 
                 {/* Messages */}
@@ -192,7 +192,7 @@ export function CoachScreen({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.9 }}
               onClick={() => scrollToBottom()}
-              className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-[#C17767] text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-[#C17767]/30 hover:bg-[#A56253] transition-colors z-10"
+              className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-accent/20 hover:bg-accent/90 active:scale-95 transition-all z-10 border border-white/10"
             >
               <ArrowDown size={12} />
               {newMsgCount > 0 ? `${newMsgCount} yeni mesaj` : 'Aşağı kaydır'}

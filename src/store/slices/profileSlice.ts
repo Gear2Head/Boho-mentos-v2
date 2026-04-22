@@ -28,6 +28,7 @@ export interface ProfileSlice {
   updateHealthScore: () => void;
   dismissAlert: (id: string) => void;
   detectAndSetHabits: () => void;
+  buyStreakFreeze: () => boolean;
 }
 
 export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = (set, get) => ({
@@ -105,5 +106,16 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
   detectAndSetHabits: () => {
     const alerts = detectHabitsFromLogs(get().logs);
     set({ activeAlerts: alerts });
+  },
+
+  buyStreakFreeze: () => {
+    const { eloScore, addElo, profile, setProfile } = get();
+    if (eloScore >= 500 && profile) {
+      addElo(-500); // Cost for a shield
+      const currentShields = profile.streakShields || 0;
+      setProfile({ ...profile, streakShields: currentShields + 1 });
+      return true;
+    }
+    return false;
   },
 });

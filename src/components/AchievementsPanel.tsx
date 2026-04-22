@@ -42,10 +42,10 @@ export function AchievementsPanel() {
   if (keys.length === 0) return null;
 
   return (
-    <section className="border border-[#EAE6DF] dark:border-zinc-800 rounded-xl bg-[#FFFFFF] dark:bg-zinc-900 p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-5 border-b border-[#EAE6DF] dark:border-zinc-800 pb-3">
-        <h3 className="font-display italic text-xl uppercase tracking-tight text-[#C17767] dark:text-rose-400">Başarımlar</h3>
-        <span className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400">
+    <section className="border border-app rounded-xl bg-surface p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-5 border-b border-app pb-3">
+        <h3 className="font-serif text-xl uppercase tracking-tight text-accent font-black">Başarımlar</h3>
+        <span className="text-[10px] uppercase tracking-widest text-ink-muted font-black">
           Açılan: {trophies.filter(t => !!t.unlockedAt).length}/{trophies.length}
         </span>
       </div>
@@ -53,7 +53,7 @@ export function AchievementsPanel() {
       <div className="space-y-6">
         {keys.map((k) => (
           <div key={k}>
-            <div className="text-[10px] uppercase tracking-widest font-bold opacity-60 text-[#4A443C] dark:text-zinc-400 mb-3">
+            <div className="text-[10px] uppercase tracking-widest font-black text-ink-muted mb-3 opacity-60">
               {groupLabel(k as any)}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -65,19 +65,19 @@ export function AchievementsPanel() {
                   return (
                     <div
                       key={t.id}
-                      className={`flex items-start gap-3 p-4 rounded-xl border ${unlocked ? 'border-green-500/30 bg-green-500/5' : 'border-[#EAE6DF] dark:border-zinc-800 bg-[#F5F2EB] dark:bg-zinc-950 opacity-70'}`}
+                      className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${unlocked ? 'border-green-500/20 bg-green-500/5' : 'border-app bg-surface-2 opacity-70'}`}
                     >
-                      <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border transition-all ${unlocked ? 'border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400' : 'border-[#EAE6DF] dark:border-zinc-800 bg-white/40 dark:bg-black/20 text-[#C17767]'}`}>
+                      <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border transition-all ${unlocked ? 'border-green-500/20 bg-green-500/10 text-green-600' : 'border-app bg-surface text-accent'}`}>
                         {ICONS[t.icon] ?? <TrophyIcon size={18} />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="font-bold text-sm text-[#4A443C] dark:text-zinc-200 leading-tight truncate">{t.title}</div>
-                          <div className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400 shrink-0">
-                            {unlocked ? new Date(t.unlockedAt!).toLocaleDateString('tr-TR') : 'Kilitli'}
+                          <div className="font-black text-sm text-ink leading-tight truncate uppercase tracking-tight">{t.title}</div>
+                          <div className="text-[9px] uppercase tracking-widest text-ink-muted shrink-0 font-black">
+                            {unlocked ? new Date(t.unlockedAt!).toLocaleDateString('tr-TR') : 'KİLİTLİ'}
                           </div>
                         </div>
-                        <div className="text-xs opacity-70 mt-1 text-[#4A443C] dark:text-zinc-300 leading-normal">{t.description}</div>
+                        <div className="text-[11px] mt-1 text-ink-muted leading-relaxed font-medium">{t.description}</div>
                       </div>
                     </div>
                   );

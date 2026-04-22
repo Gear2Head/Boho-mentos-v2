@@ -82,17 +82,16 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
   );
 
   // ─── Render ───────────────────────────────────────────────────────────────
-
   return (
     <div className="flex flex-col h-full overflow-y-auto p-4 md:p-8 space-y-6 pb-32">
       {/* ── Durum Özeti ── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3"
       >
         <StatusCard
-          icon={<Zap size={16} className="text-[#C17767]" />}
+          icon={<Zap size={16} className="text-accent" />}
           label="ELO"
           value={eloScore.toString()}
           sub="Puan"
@@ -126,10 +125,10 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0 }}
-            className="flex items-start gap-3 p-4 bg-red-950/20 border border-red-900/40 rounded-2xl"
+            className="flex items-start gap-3 p-4 bg-red-950/10 border border-red-500/20 rounded-2xl"
           >
             <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-200 font-mono leading-relaxed">{alert.message}</p>
+            <p className="text-xs text-ink-muted font-mono leading-relaxed">{alert.message}</p>
           </motion.div>
         ))}
       </AnimatePresence>
@@ -139,23 +138,23 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6"
+          className="bento-card p-6"
         >
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-[#C17767] font-bold mb-1">
+              <div className="text-[9px] uppercase tracking-widest text-[#C17767] font-black mb-1">
                 AKTİF DİREKTİF
               </div>
-              <h3 className="text-base font-bold text-zinc-200 leading-snug">
+              <h3 className="text-lg font-bold text-ink leading-snug">
                 {lastCoachDirective.headline}
               </h3>
             </div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-widest shrink-0">
+            <div className="text-[9px] text-ink-muted uppercase tracking-widest shrink-0 font-bold">
               {latestRecord.completedTaskCount}/{lastCoachDirective.tasks.length} TAMAMLANDI
             </div>
           </div>
 
-          <p className="text-sm text-zinc-400 font-mono leading-relaxed mb-6">
+          <p className="text-xs text-ink-muted font-mono leading-relaxed mb-6">
             {lastCoachDirective.summary}
           </p>
 
@@ -172,10 +171,10 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
                   key={i}
                   className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
                     isDone
-                      ? 'border-green-900/40 bg-green-900/10 opacity-60'
+                      ? 'border-green-500/20 bg-green-500/5 opacity-60'
                       : isSkipped
-                      ? 'border-zinc-800 bg-zinc-900/30 opacity-40'
-                      : 'border-[#2A2A2A] bg-[#1A1A1A]'
+                      ? 'border-border bg-surface-2 opacity-50'
+                      : 'border-border bg-surface'
                   }`}
                 >
                   {/* Priority dot */}
@@ -294,7 +293,7 @@ function StatusCard({
   label,
   value,
   sub,
-  valueClass = 'text-zinc-200',
+  valueClass = 'text-ink',
 }: {
   icon: React.ReactNode;
   label: string;
@@ -303,15 +302,15 @@ function StatusCard({
   valueClass?: string;
 }) {
   return (
-    <div className="bg-[#121212] border border-[#2A2A2A] rounded-xl p-4">
+    <div className="bento-card p-4">
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">
+        <span className="text-[9px] uppercase tracking-widest text-ink-muted font-black">
           {label}
         </span>
       </div>
       <div className={`text-2xl font-mono font-bold ${valueClass}`}>{value}</div>
-      <div className="text-[10px] text-zinc-600 uppercase tracking-widest mt-1">{sub}</div>
+      <div className="text-[9px] text-ink-muted uppercase tracking-widest mt-1 font-medium">{sub}</div>
     </div>
   );
 }

@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Mic, Camera, BookOpen } from 'lucide-react';
+import { X, Mic, Camera, BookOpen, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from '../../constants';
 import type { DailyLog } from '../../types';
@@ -66,7 +66,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
       particleCount: 100,
       spread: 70,
       origin: { y: 0.8 },
-      colors: ['#C17767', '#A56253', '#ffffff']
+      colors: ['var(--color-accent)', 'var(--color-accent-subtle)', '#ffffff']
     });
 
     onSubmit(log);
@@ -105,40 +105,39 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
             onCancel();
           }
         }}
-        className="relative bg-[#1A1A1A] border-t border-[#2A2A2A] rounded-t-3xl p-6 pb-safe w-full max-w-3xl mx-auto shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="relative bg-surface border-t border-app rounded-t-[3rem] p-8 pb-safe w-full max-w-3xl mx-auto shadow-2xl max-h-[95vh] overflow-y-auto"
       >
         {/* Drag handle line */}
-        <div className="w-12 h-1.5 bg-zinc-700 rounded-full mx-auto mb-6 opacity-50 cursor-grab active:cursor-grabbing" />
+        <div className="w-16 h-1.5 bg-ink-muted/20 rounded-full mx-auto mb-8 opacity-50 cursor-grab active:cursor-grabbing" />
         
-        <div className="flex justify-between items-center mb-6 pb-4 border-b border-[#2A2A2A]">
-          <h4 className="font-serif italic text-xl text-[#C17767]">Günlük Çalışma Logu</h4>
-          <div className="flex items-center gap-2">
-            <button onClick={handleVoiceLog} className="flex items-center gap-2 px-3 py-1.5 bg-[#2A2A2A] text-[#C17767] rounded hover:bg-[#333] transition-colors text-[10px] font-bold tracking-widest uppercase">
+        <div className="flex justify-between items-center mb-8 pb-6 border-b border-app">
+          <h4 className="font-serif italic text-2xl text-accent">Günlük Çalışma Logu</h4>
+          <div className="flex items-center gap-3">
+            <button onClick={handleVoiceLog} className="flex items-center gap-2 px-4 py-2 bg-surface-2 text-accent rounded-xl hover:bg-accent/10 transition-all text-[10px] font-black tracking-widest uppercase border border-app shadow-sm">
               <Mic size={14} /> Sesli Log
             </button>
-            <button onClick={handleOcrLog} className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#2A2A2A] text-zinc-300 rounded hover:bg-[#333] transition-colors text-[10px] font-bold tracking-widest uppercase">
+            <button onClick={handleOcrLog} className="hidden md:flex items-center gap-2 px-4 py-2 bg-surface-2 text-ink-muted rounded-xl hover:bg-ink/5 transition-all text-[10px] font-black tracking-widest uppercase border border-app shadow-sm">
               <Camera size={14} /> OCR
             </button>
-            <button onClick={onCancel} className="p-1.5 ml-2 text-zinc-500 hover:text-white transition-colors bg-zinc-900 rounded-full">
-              <X size={18}/>
+            <button onClick={onCancel} className="p-2 ml-2 text-ink-muted hover:text-accent transition-all bg-surface-2 rounded-full border border-app">
+              <X size={20}/>
             </button>
           </div>
         </div>
 
       <div className="space-y-5">
-        {/* Sınav Tipi */}
         <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <label className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] md:w-48">Sınav</label>
-          <div className="flex flex-1 gap-2">
+          <label className="text-[10px] uppercase font-black tracking-[0.3em] text-accent md:w-32">Sınav Tipi</label>
+          <div className="flex flex-1 gap-3">
             <button 
               onClick={() => { setExamType('TYT'); setSubject(''); setTopic(''); }}
-              className={`flex-1 py-3 rounded-xl text-xs font-bold tracking-widest uppercase transition-colors ${examType === 'TYT' ? 'bg-[#C17767] text-white' : 'bg-[#2A2A2A] text-zinc-400 hover:bg-[#333]'}`}
+              className={`flex-1 py-4 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all shadow-sm ${examType === 'TYT' ? 'bg-accent text-white shadow-accent/20' : 'bg-surface-2 text-ink-muted border border-app hover:bg-ink/5'}`}
             >
               TYT
             </button>
             <button 
               onClick={() => { setExamType('AYT'); setSubject(''); setTopic(''); }}
-              className={`flex-1 py-3 rounded-xl text-xs font-bold tracking-widest uppercase transition-colors ${examType === 'AYT' ? 'bg-[#C17767] text-white' : 'bg-[#2A2A2A] text-zinc-400 hover:bg-[#333]'}`}
+              className={`flex-1 py-4 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all shadow-sm ${examType === 'AYT' ? 'bg-accent text-white shadow-accent/20' : 'bg-surface-2 text-ink-muted border border-app hover:bg-ink/5'}`}
             >
               AYT
             </button>
@@ -147,12 +146,12 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
 
         {/* Ders ve Konu */}
         <div className="flex flex-col md:flex-row gap-4">
-          <label className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] md:w-48 pt-3">Ders / Konu</label>
-          <div className="flex flex-1 gap-2">
+          <label className="text-[10px] uppercase font-black tracking-[0.3em] text-accent md:w-32 pt-4">Ders / Konu</label>
+          <div className="flex flex-1 gap-3">
             <select 
               value={subject} 
               onChange={e => { setSubject(e.target.value); setTopic(''); }}
-              className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors"
+              className="flex-1 bg-surface-2 border border-app text-ink p-4 rounded-xl text-sm focus:outline-none focus:border-accent transition-all shadow-sm"
             >
               <option value="" disabled>Ders Seç...</option>
               {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
@@ -161,7 +160,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
               value={topic} 
               onChange={e => setTopic(e.target.value)}
               disabled={!subject}
-              className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors disabled:opacity-50"
+              className="flex-1 bg-surface-2 border border-app text-ink p-4 rounded-xl text-sm focus:outline-none focus:border-accent transition-all disabled:opacity-30 shadow-sm"
             >
               <option value="" disabled>Konu Seç...</option>
               {availableTopics.map((t: string) => <option key={t} value={t}>{t}</option>)}
@@ -171,47 +170,47 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
 
         {/* Dağılım */}
         <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div>
-            <label className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] block">D / Y / B</label>
-            <span className="text-[8px] opacity-40 uppercase">Top: {(Number(correct) || 0) + (Number(wrong) || 0) + (Number(empty) || 0)}</span>
+          <div className="md:w-32">
+            <label className="text-[10px] uppercase font-black tracking-[0.3em] text-accent block">D / Y / B</label>
+            <span className="text-[9px] uppercase tracking-widest text-ink-muted/50 font-black">Top: {(Number(correct) || 0) + (Number(wrong) || 0) + (Number(empty) || 0)}</span>
           </div>
-          <div className="flex flex-1 gap-2 md:ml-[54px]">
+          <div className="flex flex-1 gap-3">
              <div className="flex-1 relative">
-               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-500 font-bold text-xs font-mono">D</span>
-               <input type="number" min="0" value={correct} onChange={e => setCorrect(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 pl-10 rounded-xl text-sm focus:outline-none focus:border-green-500 transition-colors" />
+               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-black text-xs font-mono">D</span>
+               <input type="number" min="0" value={correct} onChange={e => setCorrect(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full bg-surface-2 border border-app text-ink p-4 pl-10 rounded-xl text-sm focus:outline-none focus:border-emerald-500 transition-all font-mono font-bold shadow-sm" />
              </div>
              <div className="flex-1 relative">
-               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-xs font-mono">Y</span>
-               <input type="number" min="0" value={wrong} onChange={e => setWrong(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 pl-10 rounded-xl text-sm focus:outline-none focus:border-red-500 transition-colors" />
+               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-500 font-black text-xs font-mono">Y</span>
+               <input type="number" min="0" value={wrong} onChange={e => setWrong(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full bg-surface-2 border border-app text-ink p-4 pl-10 rounded-xl text-sm focus:outline-none focus:border-rose-500 transition-all font-mono font-bold shadow-sm" />
              </div>
              <div className="flex-1 relative">
-               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs font-mono">B</span>
-               <input type="number" min="0" value={empty} onChange={e => setEmpty(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 pl-10 rounded-xl text-sm focus:outline-none focus:border-gray-500 transition-colors" />
+               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted/40 font-black text-xs font-mono">B</span>
+               <input type="number" min="0" value={empty} onChange={e => setEmpty(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-full bg-surface-2 border border-app text-ink p-4 pl-10 rounded-xl text-sm focus:outline-none focus:border-ink-muted/40 transition-all font-mono font-bold shadow-sm" />
              </div>
           </div>
         </div>
 
         {/* Süre */}
         <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <label className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] md:w-48">Süre (dk)</label>
+          <label className="text-[10px] uppercase font-black tracking-[0.3em] text-accent md:w-32">Süre (dk)</label>
           <input 
             type="number" 
             placeholder="Kaç dakika çalıştın?" 
             value={time} 
             onChange={e => setTime(e.target.value === '' ? '' : parseInt(e.target.value))} 
-            className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors" 
+            className="flex-1 bg-surface-2 border border-app text-ink p-4 rounded-xl text-sm focus:outline-none focus:border-accent transition-all font-mono font-bold shadow-sm" 
           />
         </div>
 
         {/* Optional Details Accordion */}
-        <div className="border border-[#2A2A2A] rounded-xl overflow-hidden">
+        <div className="border border-app rounded-2xl overflow-hidden bg-surface-2 shadow-sm">
           <button
             type="button"
             onClick={() => setShowDetails(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-[10px] uppercase font-bold tracking-widest text-zinc-500 hover:text-zinc-300 hover:bg-[#2A2A2A] transition-colors"
+            className="w-full flex items-center justify-between px-6 py-4 text-[10px] uppercase font-black tracking-[0.2em] text-ink-muted hover:text-ink hover:bg-ink/5 transition-all"
           >
-            <span>+ Detaylar (kaynak, yorgunluk, etiket)</span>
-            <span className={`transition-transform text-base leading-none ${showDetails ? 'rotate-180' : ''}`}>▾</span>
+            <span className="flex items-center gap-3"><Plus size={14} className={`transition-transform duration-300 ${showDetails ? 'rotate-45' : ''}`} /> Detaylar (Kaynak, Yorgunluk, Etiket)</span>
+            <span className={`transition-transform text-lg leading-none ${showDetails ? 'rotate-180' : ''}`}>▾</span>
           </button>
 
           <AnimatePresence initial={false}>
@@ -224,48 +223,48 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="p-4 space-y-4 border-t border-[#2A2A2A]">
+                <div className="p-6 space-y-5 border-t border-app bg-surface/50">
                   {/* Kaynak */}
-                  <div className="flex flex-col md:flex-row md:items-center gap-3">
-                    <label className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 md:w-48">Kaynak</label>
+                  <div className="flex flex-col md:flex-row md:items-center gap-4">
+                    <label className="text-[10px] uppercase font-black tracking-widest text-ink-muted md:w-32">Kaynak</label>
                     <div className="relative flex-1">
-                      <BookOpen size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <BookOpen size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted/50" />
                       <input
                         type="text"
                         placeholder="Kitap / Kanal / Hoca adı"
                         value={sourceName}
                         onChange={e => setSourceName(e.target.value)}
-                        className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 pl-10 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors"
+                        className="w-full bg-surface-2 border border-app text-ink p-4 pl-12 rounded-xl text-sm focus:outline-none focus:border-accent transition-all shadow-sm"
                       />
                     </div>
                   </div>
 
                   {/* Yorgunluk */}
-                  <div className="flex flex-col md:flex-row md:items-center gap-3">
-                    <label className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 md:w-48">Yorgunluk</label>
-                    <div className="flex flex-1 items-center gap-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-4">
+                    <label className="text-[10px] uppercase font-black tracking-widest text-ink-muted md:w-32">Yorgunluk</label>
+                    <div className="flex flex-1 items-center gap-6">
                       <input 
                         type="range" 
                         min="1" max="10" 
                         value={fatigue} 
                         onChange={e => setFatigue(parseInt(e.target.value))}
-                        className="w-full accent-[#C17767]" 
+                        className="w-full accent-accent h-1.5 rounded-full bg-app-subtle cursor-pointer transition-all" 
                       />
-                      <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs border shrink-0 ${fatigue > 7 ? 'text-red-500 border-red-500/50 bg-red-500/10' : 'text-[#C17767] border-[#C17767]/50 bg-[#C17767]/10'}`}>
+                      <span className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-xs border-2 shrink-0 shadow-sm transition-all ${fatigue > 7 ? 'text-rose-500 border-rose-500/30 bg-rose-500/5 shadow-rose-500/10' : 'text-accent border-accent/30 bg-accent/5 shadow-accent/10'}`}>
                         {fatigue}
                       </span>
                     </div>
                   </div>
 
                   {/* Etiketler */}
-                  <div className="flex flex-col md:flex-row md:items-center gap-3">
-                    <label className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 md:w-48">Etiketler</label>
+                  <div className="flex flex-col md:flex-row md:items-center gap-4">
+                    <label className="text-[10px] uppercase font-black tracking-widest text-ink-muted md:w-32">Etiketler</label>
                     <input 
                       type="text" 
                       placeholder="#HESAP, #DİKKAT, #SÜRE" 
                       value={tags} 
                       onChange={e => setTags(e.target.value)} 
-                      className="flex-1 bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-3 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors" 
+                      className="flex-1 bg-surface-2 border border-app text-ink p-4 rounded-xl text-sm focus:outline-none focus:border-accent transition-all font-mono font-black placeholder:font-sans placeholder:font-medium shadow-sm" 
                     />
                   </div>
                 </div>
@@ -276,7 +275,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
 
         <button 
           onClick={handleManualSubmit}
-          className="w-full mt-2 py-4 bg-[#C17767] text-[#FDFBF7] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] transition-colors shadow-lg shadow-[#C17767]/20"
+          className="w-full mt-6 py-5 bg-accent text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] hover:bg-accent/90 transition-all shadow-xl shadow-accent/20 border border-white/10 active:scale-[0.98]"
         >
           LOG KAYDET VE ANALİZ ET
         </button>

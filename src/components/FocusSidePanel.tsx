@@ -46,17 +46,20 @@ export function FocusSidePanel() {
   }, [sessionSeconds, mode, isRunning, pause]);
 
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
     <>
       <AnimatePresence>
         {isFocusSidePanelOpen && (
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            initial={isMobile ? { y: '100%' } : { x: '100%' }}
+            animate={{ x: 0, y: 0 }}
+            exit={isMobile ? { y: '100%' } : { x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-full md:w-96 bg-[#FDFBF7] dark:bg-zinc-950 border-l border-[#EAE6DF] dark:border-zinc-800 z-50 shadow-2xl flex flex-col"
+            className="fixed bottom-0 md:top-0 right-0 h-[85dvh] md:h-full w-full md:w-96 bg-zinc-950/95 backdrop-blur-2xl md:bg-[#FDFBF7] dark:md:bg-zinc-950 border-t md:border-t-0 md:border-l border-white/10 md:border-[#EAE6DF] dark:md:border-zinc-800 z-50 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-2xl flex flex-col rounded-t-[2.5rem] md:rounded-none"
           >
+            {isMobile && <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mt-4 mb-2 shrink-0 max-md:block hidden" />}
             {/* Header */}
             <div className="p-6 border-b border-[#EAE6DF] dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-3">

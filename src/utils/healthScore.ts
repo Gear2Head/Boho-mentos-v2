@@ -5,7 +5,7 @@
 
 import { toDateMs } from './date';
 
-import type { DailyLog, ExamResult, StudentProfile } from '../types';
+import type { DailyLog, ExamResult, StudentProfile, AtlasProgram } from '../types';
 
 export interface HealthScore {
   total: number;

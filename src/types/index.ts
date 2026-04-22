@@ -38,6 +38,7 @@ export interface StudentProfile {
   targetGoals?: AtlasProgram[];
   lastSyncAt?: string; // [SYNC-FIX]: Son başarılı eşitleme zamanı
   coachMemory?: CoachMemory; // [Faz 2 - Hafıza]
+  streakShields?: number; // [Faz 2 - Streak Freeze]
 }
 
 export interface AppNotification {

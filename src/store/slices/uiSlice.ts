@@ -15,6 +15,16 @@ export interface UISlice {
   qaSession: QASession | null;
   hasHydrated: boolean;
   isSyncing: boolean;
+  
+  // Refactored from App.tsx (Faz 3)
+  activeTab: string;
+  isMobileMenuOpen: boolean;
+  isExamModalOpen: boolean;
+  isLogWidgetOpen: boolean;
+  isArchiveWidgetOpen: boolean;
+  isEditingProfile: boolean;
+  isNotifOpen: boolean;
+  isAdminPanelOpen: boolean;
 
   setPassiveMode: (isPassive: boolean) => void;
   setLofiEnabled: (enabled: boolean) => void;
@@ -27,6 +37,15 @@ export interface UISlice {
   updateQaAnswer: (questionIndex: number, answer: string) => void;
   setHasHydrated: (val: boolean) => void;
   setSyncing: (isSyncing: boolean) => void;
+
+  setActiveTab: (tab: string) => void;
+  setMobileMenuOpen: (open: boolean) => void;
+  setExamModalOpen: (open: boolean) => void;
+  setLogWidgetOpen: (open: boolean) => void;
+  setArchiveWidgetOpen: (open: boolean) => void;
+  setEditingProfile: (open: boolean) => void;
+  setNotifOpen: (open: boolean) => void;
+  setAdminPanelOpen: (open: boolean) => void;
 }
 
 export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get) => ({
@@ -40,6 +59,15 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   qaSession: null,
   hasHydrated: false,
   isSyncing: false,
+
+  activeTab: 'dashboard',
+  isMobileMenuOpen: false,
+  isExamModalOpen: false,
+  isLogWidgetOpen: false,
+  isArchiveWidgetOpen: false,
+  isEditingProfile: false,
+  isNotifOpen: false,
+  isAdminPanelOpen: false,
 
   setPassiveMode: (isPassive) => {
     const { authUser } = get();
@@ -69,4 +97,13 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   }) : s),
   setHasHydrated: (val) => set({ hasHydrated: val }),
   setSyncing: (isSyncing) => set({ isSyncing }),
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
+  setMobileMenuOpen: (o) => set({ isMobileMenuOpen: o }),
+  setExamModalOpen: (o) => set({ isExamModalOpen: o }),
+  setLogWidgetOpen: (o) => set({ isLogWidgetOpen: o }),
+  setArchiveWidgetOpen: (o) => set({ isArchiveWidgetOpen: o }),
+  setEditingProfile: (o) => set({ isEditingProfile: o }),
+  setNotifOpen: (o) => set({ isNotifOpen: o }),
+  setAdminPanelOpen: (o) => set({ isAdminPanelOpen: o }),
 });

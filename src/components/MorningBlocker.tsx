@@ -368,21 +368,21 @@ Matematiksel ifadeleri mutlaka \\( ... \\) içine al.`,
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#C17767]/30 rounded-2xl p-8 max-w-xl w-full text-center relative overflow-hidden shadow-[0_0_50px_rgba(193,119,103,0.15)]"
+        className="bg-surface border border-app rounded-[3rem] p-8 md:p-12 max-w-xl w-full text-center relative overflow-hidden shadow-2xl"
       >
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#C17767] to-[#E09F3E]" />
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-accent to-accent-subtle" />
 
-        <div className="w-16 h-16 bg-[#F5F2EB] dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6 text-[#C17767] dark:text-rose-400">
-          {success ? <CheckCircle2 size={32} /> : <Lock size={32} />}
+        <div className="w-20 h-20 bg-surface-2 rounded-3xl flex items-center justify-center mx-auto mb-8 text-accent border border-app shadow-inner">
+          {success ? <CheckCircle2 size={40} className="text-emerald-500" /> : <Lock size={40} />}
         </div>
 
-        <h2 className="font-serif italic text-3xl text-[#4A443C] dark:text-zinc-200 mb-2">
-          {success ? 'Günün Kilidi Açıldı!' : 'Sabah Direktifi: Kilitli Ekran'}
+        <h2 className="font-serif italic text-3xl md:text-4xl text-ink mb-3 font-black">
+          {success ? 'Günün Kilidi Açıldı!' : 'Morning Directive'}
         </h2>
 
-        <p className="text-sm opacity-60 mb-8 max-w-md mx-auto dark:text-zinc-400">
-          Güne başlamak için anahtar soruyu çöz. Hedeflerinden kaçamazsın.
-          <span className="ml-2 text-xs font-bold text-[#C17767]">[{track}]</span>
+        <p className="text-[10px] uppercase tracking-[0.3em] font-black text-ink-muted mb-10 max-w-md mx-auto">
+          Güne başlamak için anahtar soruyu çöz. 
+          <span className="ml-2 text-accent">[{track}]</span>
         </p>
 
         <AnimatePresence mode="wait">
@@ -390,39 +390,39 @@ Matematiksel ifadeleri mutlaka \\( ... \\) içine al.`,
             <motion.div
               key="question"
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 text-left"
+              className="bg-surface-2 border border-app rounded-2xl p-6 md:p-8 text-left shadow-inner"
             >
               {isLoadingQ ? (
-                <div className="flex flex-col items-center gap-3 py-8 text-[#C17767]">
+                <div className="flex flex-col items-center gap-3 py-8 text-accent">
                   <Loader2 size={32} className="animate-spin" />
-                  <span className="text-sm opacity-70">Kübra soruyu hazırlıyor...</span>
+                  <span className="text-[10px] uppercase font-black tracking-widest opacity-70">Kübra soruyu hazırlıyor...</span>
                 </div>
               ) : question ? (
                 <>
-                  <div className="flex items-center gap-2 mb-4 text-[#C17767] dark:text-rose-400">
+                  <div className="flex items-center gap-2 mb-6 text-accent">
                     <Calculator size={16} />
-                    <span className="text-[10px] uppercase font-bold tracking-widest">{question.topic}</span>
+                    <span className="text-[10px] uppercase font-black tracking-[0.3em]">{question.topic}</span>
                   </div>
 
-                  <div className="mb-6 font-serif text-lg text-[#4A443C] dark:text-zinc-200 overflow-x-auto overflow-y-hidden pb-4">
+                  <div className="mb-8 font-serif text-xl border-l-[3px] border-accent pl-6 py-1 text-ink-muted leading-relaxed">
                     {question.expression && (
-                      <div className="mb-2">
+                      <div className="mb-4 bg-app-subtle p-4 rounded-xl">
                         <BlockMath math={question.expression} />
                       </div>
                     )}
-                    <div className="mt-2 font-bold leading-relaxed">
+                    <div className="font-serif italic font-medium">
                       <MixedMathRenderer text={question.questionStr} />
                     </div>
                   </div>
 
                   {hintLevel > 0 && (
-                    <div className="mb-6 space-y-2">
+                    <div className="mb-8 space-y-3">
                       {question.hints.slice(0, hintLevel).map((hint, i) => (
                         <div
                           key={i}
-                          className="text-xs bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-400 p-2 rounded border border-orange-200 dark:border-orange-800 flex items-start gap-2"
+                          className="text-[10px] bg-amber-500/5 text-amber-600 p-4 rounded-xl border border-amber-500/20 flex items-start gap-3  font-medium italic leading-relaxed shadow-sm"
                         >
-                          <Lightbulb size={14} className="mt-0.5 flex-shrink-0" />
+                          <Lightbulb size={14} className="mt-0.5 flex-shrink-0 text-amber-500" />
                           <span>{hint}</span>
                         </div>
                       ))}
@@ -435,37 +435,37 @@ Matematiksel ifadeleri mutlaka \\( ... \\) içine al.`,
                       value={answer}
                       onChange={(e) => setAnswer(e.target.value)}
                       placeholder="Cevabını gir..."
-                      className={`flex-1 bg-[#FFFFFF] dark:bg-zinc-900 border py-3 px-4 rounded-xl text-[#4A443C] dark:text-zinc-200 focus:outline-none transition-colors ${
+                      className={`flex-1 bg-surface border py-4 px-6 rounded-2xl text-ink focus:outline-none transition-all font-mono font-bold shadow-sm ${
                         error
-                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                          : 'border-[#EAE6DF] dark:border-zinc-800 focus:border-[#C17767]'
+                          ? 'border-red-500 bg-red-500/5'
+                          : 'border-app focus:border-accent'
                       }`}
                     />
                     <button
                       type="submit"
-                      className="px-6 bg-[#C17767] text-[#FDFBF7] font-bold rounded-xl hover:opacity-90 transition-opacity uppercase text-xs tracking-widest"
+                      className="px-8 bg-accent text-white font-black rounded-2xl hover:bg-accent/90 transition-all uppercase text-[10px] tracking-widest shadow-xl shadow-accent/20 border border-white/10 active:scale-95"
                     >
                       Doğrula
                     </button>
                   </form>
 
-                  <div className="mt-4 flex justify-between items-center text-xs">
+                  <div className="mt-8 flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
                     <button
                       type="button"
                       onClick={() => setHintLevel((prev) => Math.min(prev + 1, question.hints.length))}
                       disabled={hintLevel >= question.hints.length}
-                      className="text-orange-600 dark:text-orange-400 hover:underline disabled:opacity-50 disabled:no-underline flex items-center gap-1 font-bold"
+                      className="text-amber-600 hover:text-amber-700 disabled:opacity-30 flex items-center gap-1.5 transition-colors p-2 rounded-lg hover:bg-amber-500/5"
                     >
                       <Lightbulb size={12} /> İpucu İstiyorum
                     </button>
                     <button
                       type="button"
                       onClick={() => onUnlock()}
-                      className="flex items-center gap-1 opacity-40 hover:opacity-100 transition-opacity text-[#4A443C] dark:text-zinc-400 font-bold"
+                      className="flex items-center gap-1.5 opacity-30 hover:opacity-100 transition-all text-ink-muted p-2 rounded-lg hover:bg-ink/5"
                       title="Admin Yetkisi ile Atla"
                     >
                       <Shuffle size={12} />
-                      <span>Soruyu Geç (Admin)</span>
+                      <span>Atla (Admin)</span>
                     </button>
                   </div>
                 </>

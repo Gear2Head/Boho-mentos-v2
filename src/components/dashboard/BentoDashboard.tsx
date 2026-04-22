@@ -57,9 +57,27 @@ export function BentoDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <div className="md:col-span-3 bg-white/5 dark:bg-black/20 backdrop-blur-xl border border-white/10 dark:border-zinc-800/50 rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-[#C17767]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-          <h2 className="font-display italic text-5xl text-[#4A443C] dark:text-zinc-100 mb-2 z-10">Hoş geldin, <span className="text-[#C17767]">{profile?.name}</span></h2>
-          <div className="flex gap-4 text-sm font-mono tracking-widest opacity-60 text-zinc-400 z-10">
-            <span>TYT: {profile?.tytTarget} Net</span><span>—</span><span>AYT: {profile?.aytTarget} Net</span>
+          <h2 className="font-display italic text-5xl text-[#4A443C] dark:text-zinc-100 mb-6 z-10">Hoş geldin, <span className="text-[#C17767]">{profile?.name}</span></h2>
+          <div className="flex flex-col md:flex-row gap-6 text-sm font-medium z-10">
+            <div className="flex-1">
+              <div className="flex justify-between mb-2 text-zinc-400 font-mono tracking-wider">
+                <span>TYT Sınavı Hedefi</span>
+                <span className="text-zinc-200">Max: {profile?.tytTarget}</span>
+              </div>
+              <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]" style={{ width: `70%` }} />
+              </div>
+            </div>
+            
+            <div className="flex-1">
+              <div className="flex justify-between mb-2 text-zinc-400 font-mono tracking-wider">
+                <span>AYT Sınavı Hedefi</span>
+                <span className="text-zinc-200">Max: {profile?.aytTarget}</span>
+              </div>
+              <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                <div className="h-full bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.3)]" style={{ width: `45%` }} />
+              </div>
+            </div>
           </div>
         </div>
 

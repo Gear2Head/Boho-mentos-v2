@@ -35,6 +35,8 @@ export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   vision_archive_parse: `Arşivlenmiş vizyon notlarını analiz et. Öğrencinin uzun vadeli hedefleriyle mevcut çalışma disiplini arasındaki uyumu değerlendir. 3 maddelik stratejik düzeltme önerisi sun.`,
 
   generate_weekly_strategy: `Öğrencinin son 7 günlük verisini (loglar, denemeler, ELO) kullanarak önümüzdeki hafta için stratejik bir yol haritası çıkar. Odaklanılacak 3 ana konu, 2 kritik risk ve 1 büyük hedef belirle.`,
+
+  quiz_generation: `Öğrencinin anladığı konuları pekiştirmek için zorlayıcı ve analitik becerilerini ölçecek çoktan seçmeli YKS tipinde sorular üret. Gerekli yerlerde çeldiriciler kullan. SADECE JSON formatında bir seçenek listesi döndür.`,
 };
 
 const STRUCTURED_JSON_INSTRUCTION = `
