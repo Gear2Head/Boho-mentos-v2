@@ -67,7 +67,7 @@ export function AchievementsPanel() {
                       key={t.id}
                       className={`flex items-start gap-3 p-4 rounded-xl border ${unlocked ? 'border-green-500/30 bg-green-500/5' : 'border-[#EAE6DF] dark:border-zinc-800 bg-[#F5F2EB] dark:bg-zinc-950 opacity-70'}`}
                     >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${unlocked ? 'border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400' : 'border-[#EAE6DF] dark:border-zinc-800 bg-white/40 dark:bg-black/20 text-[#C17767]'}`}>
+                      <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border transition-all ${unlocked ? 'border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400' : 'border-[#EAE6DF] dark:border-zinc-800 bg-white/40 dark:bg-black/20 text-[#C17767]'}`}>
                         {ICONS[t.icon] ?? <TrophyIcon size={18} />}
                       </div>
                       <div className="flex-1 min-w-0">

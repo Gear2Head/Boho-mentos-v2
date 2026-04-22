@@ -255,7 +255,7 @@ export function ProfileShowcase() {
               return (
                 <div key={trophy.id} className={`p-4 rounded-xl border relative overflow-hidden transition-all duration-300 ${isUnlocked ? 'bg-[#121212] border-[#C17767]/30 shadow-sm' : 'bg-[#121212]/50 border-[#2A2A2A] opacity-60 grayscale'}`}>
                   {isUnlocked && <div className="absolute top-0 right-0 w-8 h-8 bg-[#C17767] rotate-45 transform translate-x-4 -translate-y-4" />}
-                  <Icon size={24} className={`mb-3 ${isUnlocked ? 'text-[#C17767]' : 'text-zinc-600'}`} />
+                  <Icon size={24} className={`mb-3 shrink-0 ${isUnlocked ? 'text-[#C17767]' : 'text-zinc-600'}`} />
                   <h4 className={`text-sm font-bold mb-1 ${isUnlocked ? 'text-zinc-200' : 'text-zinc-500'}`}>{trophy.title}</h4>
                   <p className="text-[10px] leading-relaxed opacity-80 text-zinc-400">{trophy.description}</p>
                   {isUnlocked && (
