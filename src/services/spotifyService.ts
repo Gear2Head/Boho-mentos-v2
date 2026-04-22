@@ -9,7 +9,7 @@
 
 const SPOTIFY_ENABLED = import.meta.env.VITE_SPOTIFY_ENABLED !== 'false';
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || 'a68cc587844042c79aff35aa97261a14';
-const REDIRECT_URI = typeof window !== 'undefined' ? (window.location.host.includes('localhost') ? 'http://localhost:3000/callback' : `${window.location.origin}/callback`) : '';
+const REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/callback` : '';
 
 const SCOPES = [
   'user-read-playback-state',
