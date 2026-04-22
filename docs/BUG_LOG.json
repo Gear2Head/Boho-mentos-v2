@@ -1,0 +1,22 @@
+[
+  {
+    "slug": "redeclaration_error",
+    "description": "Identifier 'X' has already been declared",
+    "solution_strategy": "Regex ile dosyayı tara, sondaki (mükerrer) declare alanını sil. (BOHO Doctor tarafından handle ediliyor)"
+  },
+  {
+    "slug": "api_404_error",
+    "description": "Vite dev server üzerinde '/api/ai' vb. proxy rotalarının 404 (Not Found) vermesi",
+    "solution_strategy": "vite.config.ts içindeki proxy adresini (target) 'http://127.0.0.1:port' olarak güncelle."
+  },
+  {
+    "slug": "vite_white_screen",
+    "description": "Herhangi bir React component parse erroru sebebiyle veya .vite cache takılması dolayısıyla boş ekran alınması",
+    "solution_strategy": "Derleyici (Tersine Mühendislik) çöktüyse node_modules/.vite klasörünü otomatik sil (rm -rf) ve restart at."
+  },
+  {
+    "slug": "canvas_block_pointer",
+    "description": "War Room'daki çizim (Canvas) katmanının sayfa altındaki butonlara, şıklara (A,B,C) tıklamayı engellemesi.",
+    "solution_strategy": "CSS katmanlarını (z-index) kontrol et ve pointer-events değerini (pointer-events-none ile) devre dışı bırak/resetle."
+  }
+]

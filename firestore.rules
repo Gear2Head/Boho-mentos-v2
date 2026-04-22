@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Yardımcı fonskiyonlar
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isSuperAdmin() {
+      // super_admin rolünü doğrulayan güvenli kontrol
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    match /users/{userId} {
+      // Profil
+      allow get: if isOwner(userId) || isSuperAdmin();
+      allow list: if isSuperAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+      
+      // -- Alt Koleksiyonlar (Subcollections) --
+      
+      match /logs/{logId} {
+        allow read, delete: if isOwner(userId) || isSuperAdmin();
+        // Schema Validation
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) && 
+                              request.resource.data.keys().hasAll(['id', 'date', 'subject', 'topic', 'questions', 'correct', 'wrong', 'empty', 'avgTime', 'fatigue', 'stress', 'motivation']);
+      }
+      
+      match /exams/{examId} {
+        allow read, delete: if isOwner(userId) || isSuperAdmin();
+        // Schema Validation
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
+                              request.resource.data.keys().hasAll(['id', 'date', 'title', 'type', 'net', 'duration']); 
+      }
+
+      // Diğer veriler için standart sahiplik kontrolü
+      match /chatHistory/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /agendaEntries/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /focusSessions/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /failedQuestions/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /directiveHistory/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /flashcards/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+    }
+    
+    // Sistem config dışa açık, admin yetkili
+    match /system_config/{document=**} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+    
+    // Admin logları (audit)
+    match /admin_logs/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

@@ -1,0 +1,117 @@
+# ===================================================
+# BOHO MENTOS V2 - ULTIMATE .GITIGNORE
+# ===================================================
+
+# ---------------------------------------------------
+# 1. Çevre Değişkenleri & Gizli Dosyalar (CRITICAL SECURITY)
+# ---------------------------------------------------
+.env
+.env.*
+*.local
+!.env.example
+secrets/
+keys/
+credentials.json
+service-account-file.json
+*.pem
+
+# ---------------------------------------------------
+# 2. Bağımlılıklar & Önbellekler (Dependencies & Caches)
+# ---------------------------------------------------
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+.cache/
+
+# ---------------------------------------------------
+# 3. Derleme & Çıktı Dosyaları (Build & Output - Vite/React)
+# ---------------------------------------------------
+dist/
+dist-ssr/
+build/
+out/
+.vite/
+*.tsbuildinfo
+
+# ---------------------------------------------------
+# 4. Firebase & Bulut Servisleri (Cloud Services)
+# ---------------------------------------------------
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# ---------------------------------------------------
+# 5. Loglar & Hata Çıktıları
+# ---------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------------------------------------------------
+# 6. Mobil / Capacitor (Gelecek Planları)
+# ---------------------------------------------------
+android/
+ios/
+capacitor.config.json
+capacitor.config.ts
+
+# ---------------------------------------------------
+# 7. Test Raporları & Araçları
+# ---------------------------------------------------
+coverage/
+.nyc_output/
+__snapshots__/
+.cypress/
+playwright-report/
+test-results/
+
+# ---------------------------------------------------
+# 8. Geliştirici Ortamları (IDEs & Editors)
+# ---------------------------------------------------
+.idea/
+.vscode/
+.zed/
+.fleet/
+*.swp
+*.swo
+.project
+.settings/
+
+# ---------------------------------------------------
+# 9. İşletim Sistemi Kalıntıları (OS Specific)
+# ---------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------
+# 10. AI Ajanları & Prompt Bağlamları (AI Tools & Workflow)
+# ---------------------------------------------------
+.cursor/
+.cline/
+.windsurfrules
+.ai-context/
+.ai context/
+promt/
+prompt/
+prompts/
+context.md
+contex.md
+
+# ---------------------------------------------------
+# 11. Kod Biçimlendirici (Linter & Formatter) Önbellekleri
+# ---------------------------------------------------
+.eslintcache
+.prettiercache
+.stylelintcache
