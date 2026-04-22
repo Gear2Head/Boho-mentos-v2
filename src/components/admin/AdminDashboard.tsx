@@ -37,6 +37,7 @@ const ENTITY_LABELS: Record<EntityTable, { label: string; icon: React.ReactNode 
   failedQuestions: { label: 'Hatalı Sorular', icon: <AlertTriangle size={14} /> },
   directiveHistory: { label: 'Direktif Geçmişi', icon: <Brain size={14} /> },
   flashcards: { label: 'Flashcard\'lar', icon: <BookOpen size={14} /> },
+  conversations: { label: 'Sohbet Odaları', icon: <MessageSquare size={14} /> },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -150,19 +151,18 @@ export function AdminDashboard({ onBack }: Props) {
 // ─── Users Panel ──────────────────────────────────────────────────────────────
 
 function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 'success' | 'error' | 'info', m: string) => void }) {
-  const [query, setQuery] = useState('');
-  const [users, setUsers] = useState<FirestoreUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [selectedCounts, setSelectedCounts] = useState<Record<string, number>>({});
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const search = async () => {
     setLoading(true);
-    const res = query.length >= 3 ? await devService.searchUsers(query) : await devService.getAllUsers(30);
+    const res = query.length >= 3 ? await devService.searchUsers(query) : await devService.getAllUsers(100);
     setUsers(res);
     setLoading(false);
   };
+
+  const pagedUsers = users.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(users.length / pageSize);
 
   const loadUserDetail = async (uid: string) => {
     setDetailLoading(true);
@@ -180,6 +180,7 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
   };
 
   useEffect(() => { search(); }, []);
+  useEffect(() => { setPage(1); }, [query, users.length]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -198,25 +199,51 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
           </button>
         </div>
 
-        <div className="space-y-1 max-h-[calc(100vh-240px)] overflow-y-auto">
-          {users.map((u: any) => (
+        <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar pr-1">
+          {pagedUsers.map((u: any) => (
             <button
               key={u.uid}
               onClick={() => loadUserDetail(u.uid)}
               className={`w-full text-left p-3 rounded-xl transition text-sm ${
-                selectedUser?.uid === u.uid ? 'bg-zinc-800 border border-zinc-700' : 'hover:bg-zinc-900'
+                selectedUser?.uid === u.uid ? 'bg-zinc-800 border border-zinc-700 shadow-inner' : 'hover:bg-zinc-900 border border-transparent'
               }`}
             >
-              <div className="font-medium truncate">{u.display_name || u.email || u.uid.slice(0, 12)}</div>
-              <div className="text-xs text-zinc-500 truncate">{u.email}</div>
-              <div className="flex gap-2 mt-1 text-xs">
-                <span className="text-emerald-400">ELO: {u.elo_score ?? '-'}</span>
-                <span className={u.is_banned ? 'text-red-400' : 'text-zinc-600'}>{u.is_banned ? '🚫 Banned' : u.role}</span>
+              <div className="font-bold truncate">{u.display_name || u.email?.split('@')[0] || u.uid.slice(0, 12)}</div>
+              <div className="text-[10px] text-zinc-500 truncate mb-2">{u.email}</div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-emerald-400">ELO: {u.elo_score ?? '-'}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-tighter ${
+                  u.is_banned ? 'bg-red-500/20 text-red-500' : 
+                  u.role === 'super_admin' ? 'bg-red-500 text-white' : 'bg-zinc-800 text-zinc-400'
+                }`}>
+                  {u.is_banned ? 'Banned' : u.role.split('_')[0]}
+                </span>
               </div>
             </button>
           ))}
           {users.length === 0 && !loading && <p className="text-center text-zinc-600 py-8 text-sm">Kullanıcı bulunamadı</p>}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-2 py-3 bg-zinc-900/30 rounded-xl border border-zinc-800/50">
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage(p => p - 1)}
+              className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 disabled:opacity-20 transition-all active:scale-90"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">SAYFA {page} / {totalPages}</span>
+            <button 
+              disabled={page === totalPages} 
+              onClick={() => setPage(p => p + 1)}
+              className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 disabled:opacity-20 transition-all active:scale-90"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* User Detail */}
@@ -556,6 +583,14 @@ function EntityPreview({ entity, table }: { entity: any; table: EntityTable }) {
       return (
         <div className="text-sm">
           <span className="text-yellow-400 font-medium">{(payload.front || payload.question || '').slice(0, 60)}</span>
+        </div>
+      );
+    case 'conversations':
+      return (
+        <div className="text-sm">
+          <span className="text-[#C17767] font-bold">{payload.title || 'Başlıksız Sohbet'}</span>
+          <span className="text-zinc-500 ml-2">— {payload.lastMessage || 'Mesaj yok'}</span>
+          {payload.updatedAt && <span className="text-zinc-600 ml-2 text-[10px]">{new Date(payload.updatedAt).toLocaleDateString()}</span>}
         </div>
       );
     default:
@@ -900,21 +935,27 @@ function AnalyticsPanel() {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
           <Activity size={32} className="text-emerald-400 mb-2" />
           <div className="text-3xl font-bold">{stats?.activeUsers24h ?? 0}</div>
-          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Son 24s Aktif Kullanıcı</div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">24S Aktif</div>
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
           <Target size={32} className="text-blue-400 mb-2" />
           <div className="text-3xl font-bold">{stats?.totalQuestionsSolved ?? 0}</div>
-          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Toplam Çözülen Soru</div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Çözülen Soru</div>
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
           <Zap size={32} className="text-amber-400 mb-2" />
-          <div className="text-3xl font-bold">%{Math.round(Math.random() * 20) + 70}</div>
-          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Sistem Sağlık Skoru</div>
+          <div className="text-3xl font-bold">{stats?.systemHealth ?? '98%'}</div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Sistem Sağlığı</div>
+        </div>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+          <Database size={32} className="text-rose-400 mb-2" />
+          <div className="text-3xl font-bold">{stats?.totalRecords ?? '~5k'}</div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Toplam Kayıt</div>
         </div>
       </div>
 

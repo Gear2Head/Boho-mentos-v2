@@ -9,7 +9,9 @@ import { parseFlexibleDate, toISODateOnly } from '../../utils/date';
 import { MiniFlapClock } from '../FlapClock';
 import { calculateDaysToExam, getForgettingCurveStatus } from '../../services/coachContext';
 
-const YKS_DATE = '2026-06-14T10:15:00+03:00';
+import { YKS_TARGET_DATE_MAIN } from '../../config/examConfig';
+
+const YKS_DATE = YKS_TARGET_DATE_MAIN;
 const getAytSubjectsForTrack = (track: string) => {
   if (track === 'EA') return ['Matematik', 'Edebiyat', 'Tarih-1', 'Coğrafya-1'];
   if (track === 'SÖZ') return ['Edebiyat', 'Tarih-1', 'Coğrafya-1', 'Tarih-2', 'Coğrafya-2', 'Felsefe Grubu', 'Din Kültürü'];

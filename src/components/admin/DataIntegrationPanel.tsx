@@ -3,6 +3,7 @@ import { Database, UploadCloud, Link as LinkIcon, Download, Loader2, FileJson, T
 import { useAppStore } from '../../store/appStore';
 import { importDataFromFile } from '../../utils/dataImport';
 import { pushLogsToNotion } from '../../services/notionService';
+import { exportService } from '../../services/exportService';
 
 export function DataIntegrationPanel() {
   const [notionKey, setNotionKey] = useState('');
@@ -16,16 +17,20 @@ export function DataIntegrationPanel() {
   const chatHistory = useAppStore(s => s.chatHistory);
   const profile = useAppStore(s => s.profile);
 
-  const handleExport = () => {
+  const handleExportJson = () => {
     const data = { profile, logs, exams, chatHistory };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `boho_mentos_export_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setMessage('Veriler JSON olarak indirildi.');
+    exportService.exportToJson(data, `boho_mentos_export_${new Date().toISOString().split('T')[0]}`);
+    setMessage('Tüm veriler JSON olarak hazırlandı.');
+  };
+
+  const handleExportLogsCsv = () => {
+    exportService.exportLogsToCsv(logs);
+    setMessage('Çalışma logları CSV olarak hazırlandı.');
+  };
+
+  const handleExportExamsCsv = () => {
+    exportService.exportExamsToCsv(exams);
+    setMessage('Deneme sonuçları CSV olarak hazırlandı.');
   };
 
   const handleNotionSync = async () => {
@@ -119,13 +124,24 @@ export function DataIntegrationPanel() {
         </label>
         {importing && <div className="mt-4 flex items-center justify-center gap-2 text-sm text-emerald-400"><Loader2 size={16} className="animate-spin"/> Yükleniyor...</div>}
 
-        <div className="mt-6 border-t border-zinc-800 pt-6">
+        <div className="mt-6 border-t border-zinc-800 pt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
           <button 
-            onClick={handleExport}
-            className="flex items-center gap-2 w-full justify-center bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-3 rounded-xl font-bold transition"
+            onClick={handleExportJson}
+            className="flex items-center gap-2 justify-center bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl font-bold transition text-xs"
           >
-            <Download size={18} />
-            Tüm Verilerimi Dışa Aktar (.json)
+            <FileJson size={16} /> JSON Export
+          </button>
+          <button 
+            onClick={handleExportLogsCsv}
+            className="flex items-center gap-2 justify-center bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl font-bold transition text-xs"
+          >
+            <Table size={16} /> Loglar (CSV)
+          </button>
+          <button 
+            onClick={handleExportExamsCsv}
+            className="flex items-center gap-2 justify-center bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl font-bold transition text-xs"
+          >
+            <Table size={16} /> Denemeler (CSV)
           </button>
         </div>
       </div>

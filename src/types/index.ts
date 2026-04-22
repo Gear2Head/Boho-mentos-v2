@@ -142,6 +142,17 @@ export interface ChatMessage {
   directive?: CoachDirective;
 }
 
+export interface ConversationBrief {
+  id: string;
+  title: string;
+  updatedAt: string;
+  lastMessage?: string;
+}
+
+export interface Conversation extends ConversationBrief {
+  messages: ChatMessage[];
+}
+
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';
 
 export interface Trophy {

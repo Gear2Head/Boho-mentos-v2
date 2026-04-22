@@ -22,22 +22,22 @@ interface QuizQuestion {
 function validateQuizQuestion(value: unknown): Omit<QuizQuestion, 'id'> | null {
   if (!isRecord(value)) return null;
 
-  const topic = isNonEmptyString(value.topic) ? sanitizeAiText(value.topic, 80) : '';
+  const topic = isNonEmptyString(value.topic) ? sanitizeAiText(value.topic, 80) : 'Genel';
   const questionStr = isNonEmptyString(value.questionStr) ? String(value.questionStr).trim() : '';
   const options = validateStringArray(value.options, 5);
-  const correctAnswerIndex = Number(value.correctAnswerIndex);
-  const explanation = isNonEmptyString(value.explanation) ? sanitizeAiText(value.explanation, 500) : '';
+  const correctAnswerIndex = parseInt(String(value.correctAnswerIndex), 10);
+  const explanation = isNonEmptyString(value.explanation) ? sanitizeAiText(value.explanation, 600) : '';
 
-  if (!topic || !questionStr || options.length !== 5 || !Number.isInteger(correctAnswerIndex) || correctAnswerIndex < 0 || correctAnswerIndex > 4 || !explanation) {
+  if (!questionStr || options.length < 2 || isNaN(correctAnswerIndex) || !explanation) {
     return null;
   }
 
   return {
     topic,
-    expression: isNonEmptyString(value.expression) ? String(value.expression).trim().slice(0, 160) : '',
+    expression: isNonEmptyString(value.expression) ? String(value.expression).trim() : '',
     questionStr,
     options,
-    correctAnswerIndex,
+    correctAnswerIndex: Math.max(0, Math.min(correctAnswerIndex, options.length - 1)),
     explanation,
   };
 }
@@ -66,12 +66,14 @@ export function QuizEngine() {
     try {
       const weakSubjects = profile?.weakSubjects || 'Matematik';
       const prompt = `Lütfen öğrencinin zayıf olduğu '${weakSubjects}' konularından 3 adet zorlayıcı YKS tarzı çoktan seçmeli soru hazırla.
+      MATEMATIKSEL IFADELERI MUTLAKA \\\\( ... \\\\) veya katekse uygun formatta yaz. 
+      Örn: "x^2" yerine "\\\\x^2\\\\" kullanma, doğrudan LaTeX stringi gönder.
       Çıktı FORMATI KESİNLİKLE JSON DİZİSİ olmalıdır. 
       Örnek Format:
       [
         {
           "topic": "Trigonometri",
-          "expression": "f(x) = \\\\sin(2x) + \\\\cos(2x)",
+          "expression": "\\\\sin(2x) + \\\\cos(2x)",
           "questionStr": "Fonksiyonun en büyük değeri nedir?",
           "options": ["1", "\\\\sqrt{2}", "2", "0", "-1"],
           "correctAnswerIndex": 1,

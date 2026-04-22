@@ -11,8 +11,7 @@ import { useAppStore } from '../../store/appStore';
 import { ChatMessage } from './ChatMessage';
 import { TypingIndicator } from './TypingIndicator';
 import { InputZone } from './InputZone';
-import { ContextBar } from './ContextBar';
-import { CoachBriefing } from '../CoachBriefing';
+import { ConversationSidebar } from './ConversationSidebar';
 import type { CoachIntent } from '../../types/coach';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -36,17 +35,27 @@ export function CoachScreen({
   onLogClick,
   onExamClick,
 }: CoachScreenProps) {
-  const chatHistory = useAppStore((s) => s.chatHistory);
+  const conversations = useAppStore((s) => s.conversations);
+  const activeId = useAppStore((s) => s.activeConversationId);
+  const migrate = useAppStore((s) => s.migrateLegacyChat);
   const profile = useAppStore((s) => s.profile);
+  
+  const activeConversation = conversations.find(c => c.id === activeId);
+  const messages = activeConversation?.messages || [];
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0);
-  const prevLengthRef = useRef(chatHistory.length);
+  const prevLengthRef = useRef(messages.length);
+
+  useEffect(() => {
+    migrate();
+  }, [migrate]);
 
   // Sıralı mesajlar
-  const sortedMessages = [...chatHistory].sort(
+  const sortedMessages = [...messages].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
@@ -65,7 +74,7 @@ export function CoachScreen({
       return el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     })();
 
-    if (chatHistory.length > prevLengthRef.current) {
+    if (messages.length > prevLengthRef.current) {
       if (isAtBottom) {
         const raf = requestAnimationFrame(() => scrollToBottom('smooth'));
         return () => cancelAnimationFrame(raf);
@@ -74,8 +83,8 @@ export function CoachScreen({
         setShowScrollBtn(true);
       }
     }
-    prevLengthRef.current = chatHistory.length;
-  }, [chatHistory.length, scrollToBottom]);
+    prevLengthRef.current = messages.length;
+  }, [messages.length, scrollToBottom]);
 
   useEffect(() => {
     if (isTyping) {
@@ -105,6 +114,9 @@ export function CoachScreen({
 
   return (
     <div className="flex h-full overflow-hidden">
+      {/* Sidebar - Desktop and Hidden on Mobile by default? For now keeping simple */}
+      <ConversationSidebar />
+
       {/* ── Main Chat Area ──────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 relative">
 

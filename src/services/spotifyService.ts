@@ -96,8 +96,40 @@ export async function loginWithSpotify() {
 }
 
 export function getSpotifyTokenFromUrl(): string | null {
-  // Backwards compatibility for implicit / token fetch
-  return sessionStorage.getItem('spotify_token');
+  return localStorage.getItem('spotify_token');
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem('spotify_refresh_token');
+  if (!refreshToken || !SPOTIFY_ENABLED) return null;
+
+  try {
+    const body = new URLSearchParams({
+      client_id: SPOTIFY_CLIENT_ID,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    });
+
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      localStorage.setItem('spotify_token', data.access_token);
+      if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
+      return data.access_token;
+    } else if (response.status === 400 || response.status === 401) {
+      // Refresh token invalid, clear everything
+      localStorage.removeItem('spotify_token');
+      localStorage.removeItem('spotify_refresh_token');
+    }
+  } catch (e) {
+    console.error('[Spotify] Refresh token error:', e);
+  }
+  return null;
 }
 
 export async function processSpotifyCallback(): Promise<string | null> {
@@ -122,32 +154,60 @@ export async function processSpotifyCallback(): Promise<string | null> {
       });
       if (response.ok) {
         const data = await response.json();
-        sessionStorage.setItem('spotify_token', data.access_token);
+        localStorage.setItem('spotify_token', data.access_token);
+        if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token);
         return data.access_token;
       }
     } catch(e) { console.error('[Spotify] Callback error:', e); }
   }
-  return sessionStorage.getItem('spotify_token');
+  return localStorage.getItem('spotify_token');
+}
+
+// ─── API Calls Helper ─────────────────────────────────────────────────────────
+
+async function spotifyFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  let token = localStorage.getItem('spotify_token');
+  if (!token) throw new Error('No spotify token');
+
+  const headers = {
+    ...options.headers,
+    Authorization: `Bearer ${token}`
+  };
+
+  let response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    // Attempt refresh
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      const newHeaders = { ...options.headers, Authorization: `Bearer ${newToken}` };
+      response = await fetch(url, { ...options, headers: newHeaders });
+    } else {
+      // Refresh failed or no refresh token - clear and reload
+      localStorage.removeItem('spotify_token');
+      localStorage.removeItem('spotify_refresh_token');
+      if (typeof window !== 'undefined') window.location.assign('/');
+    }
+  }
+
+  return response;
 }
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
 
-export async function getCurrentTrack(
-  token: string
-): Promise<SpotifyCurrentlyPlaying | null> {
+export async function getCurrentTrack(): Promise<SpotifyCurrentlyPlaying | null> {
   if (!SPOTIFY_ENABLED) return null;
-  const response = await fetch(
-    'https://api.spotify.com/v1/me/player/currently-playing',
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (response.status === 204) return null;
-  if (!response.ok) throw new Error(`Spotify API ${response.status}`);
-  // V19 BUILD-002: cast to typed interface — no more `any` or `unknown` access
-  return response.json() as Promise<SpotifyCurrentlyPlaying>;
+  try {
+    const response = await spotifyFetch('https://api.spotify.com/v1/me/player/currently-playing');
+    if (response.status === 204) return null;
+    if (!response.ok) return null;
+    return response.json() as Promise<SpotifyCurrentlyPlaying>;
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function playTrack(
-  token: string,
   contextUri?: string,
   uris?: string[],
   offsetUri?: string
@@ -161,70 +221,59 @@ export async function playTrack(
     body.uris = uris;
   }
 
-  await fetch('https://api.spotify.com/v1/me/player/play', {
+  await spotifyFetch('https://api.spotify.com/v1/me/player/play', {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: (contextUri || uris) ? JSON.stringify(body) : undefined,
   });
 }
 
-export async function pauseTrack(token: string): Promise<void> {
+export async function pauseTrack(): Promise<void> {
   if (!SPOTIFY_ENABLED) return;
-  await fetch('https://api.spotify.com/v1/me/player/pause', {
+  await spotifyFetch('https://api.spotify.com/v1/me/player/pause', {
     method: 'PUT',
-    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-export async function nextTrack(token: string): Promise<void> {
+export async function nextTrack(): Promise<void> {
   if (!SPOTIFY_ENABLED) return;
-  await fetch('https://api.spotify.com/v1/me/player/next', {
+  await spotifyFetch('https://api.spotify.com/v1/me/player/next', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-export async function getUserPlaylists(token: string): Promise<SpotifyPlaylist[]> {
+export async function getUserPlaylists(): Promise<SpotifyPlaylist[]> {
   if (!SPOTIFY_ENABLED) return [];
-  const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=20', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!response.ok) return [];
-  const data = await response.json();
-  return data.items as SpotifyPlaylist[];
+  try {
+    const response = await spotifyFetch('https://api.spotify.com/v1/me/playlists?limit=20');
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.items as SpotifyPlaylist[];
+  } catch {
+    return [];
+  }
 }
 
-export async function searchTracks(token: string, query: string): Promise<SpotifyTrack[]> {
+export async function searchTracks(query: string): Promise<SpotifyTrack[]> {
   if (!SPOTIFY_ENABLED || !query) return [];
-  const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    console.error(`[Spotify Search 400/Error] q=${query}:`, err);
+  try {
+    const response = await spotifyFetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.tracks?.items || [];
+  } catch {
     return [];
   }
-  const data = await response.json();
-  return data.tracks?.items || [];
 }
 
-export async function getPlaylistTracks(token: string, playlistId: string): Promise<SpotifyTrack[]> {
+export async function getPlaylistTracks(playlistId: string): Promise<SpotifyTrack[]> {
   if (!SPOTIFY_ENABLED) return [];
-  const response = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?market=from_token&additional_types=track`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      sessionStorage.removeItem('spotify_token');
-      if (typeof window !== 'undefined') window.location.reload();
-    }
-    const err = await response.text();
-    console.error(`[Spotify Playlist 403/Error] id=${playlistId}:`, err);
+  try {
+    const response = await spotifyFetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (data.items || []).filter((i: any) => i.track).map((i: any) => i.track);
+  } catch {
     return [];
   }
-  const data = await response.json();
-  return (data.items || []).filter((i: any) => i.track).map((i: any) => i.track);
 }

@@ -206,24 +206,30 @@ export function calculatePredictedNet(
   logs: DailyLog[],
   targetDate: Date,
   examType: 'TYT' | 'AYT',
-  currentElo: number
+  currentElo: number,
+  targetNet?: number
 ): { predictedNet: number; confidence: number } {
   const filteredExams = exams.filter(e => e.type === examType);
   const maxNet = examType === 'TYT' ? 120 : 80;
   
+  // Fallback to target or a reasonable starting point if no exams exist
   if (filteredExams.length < 2) {
     const relatedLogs = logs.filter(l => l.questions > 0);
-    if (relatedLogs.length === 0) return { predictedNet: 0, confidence: 0 };
+    let basePred = targetNet || (examType === 'TYT' ? 70 : 40); // Standard midpoint fallbacks
     
-    const avgScore = relatedLogs.reduce((acc, l) => acc + (l.correct / l.questions), 0) / relatedLogs.length;
-    let basePred = avgScore * maxNet;
-    basePred += (currentElo / 1000); 
+    if (relatedLogs.length > 0) {
+      const avgScore = relatedLogs.reduce((acc, l) => acc + ((l.correct || 0) / (l.questions || 1)), 0) / relatedLogs.length;
+      basePred = (basePred * 0.4) + (avgScore * maxNet * 0.6); // Blend target with log performance
+    }
     
-    return { predictedNet: Math.round(basePred), confidence: 30 }; 
+    basePred += (currentElo - 1000) / 100; // Small ELO alignment
+    
+    return { predictedNet: Math.round(Math.max(0, Math.min(basePred, maxNet)) * 10) / 10, confidence: 20 }; 
   }
 
-  const baseDate = toDateMs(filteredExams[0].date) ?? 0;
-  const points = filteredExams.map(e => ({
+  const sortedExams = [...filteredExams].sort((a,b) => (toDateMs(a.date) ?? 0) - (toDateMs(b.date) ?? 0));
+  const baseDate = toDateMs(sortedExams[0].date) ?? Date.now();
+  const points = sortedExams.map(e => ({
     x: (((toDateMs(e.date) ?? 0) - baseDate) / (1000 * 60 * 60 * 24)),
     y: e.totalNet,
   }));
@@ -231,19 +237,21 @@ export function calculatePredictedNet(
   const { slope, intercept } = linearRegression(points);
   const targetDays = (targetDate.getTime() - baseDate) / (1000 * 60 * 60 * 24);
   
-  const recentLogs = logs.slice(-14);
-  const recentAccuracy = recentLogs.reduce((acc, l) => acc + ((l.correct || 0) / (l.questions || 1)), 0) / (recentLogs.length || 1);
-  const logBonus = recentAccuracy > 0.70 ? 5 : (recentAccuracy < 0.40 ? -5 : 0);
-  const eloBonus = (currentElo - 1000) / 1000; 
+  const recentLogs = logs.slice(-20);
+  const recentAccuracy = recentLogs.length > 0 
+    ? recentLogs.reduce((acc, l) => acc + ((l.correct || 0) / (l.questions || 1)), 0) / recentLogs.length 
+    : 0.5;
+    
+  const eloBonus = (currentElo - 1000) / 500; 
 
-  let predictedNet = slope * targetDays + intercept + logBonus + eloBonus;
+  let predictedNet = slope * targetDays + intercept + eloBonus;
   
-  if(slope < 0 && recentAccuracy > 0.75) {
-     predictedNet += 10;
-  }
+  // Logical clamping based on recent trajectory
+  if (slope > 0 && recentAccuracy < 0.45) predictedNet -= 5;
+  if (slope < 0 && recentAccuracy > 0.75) predictedNet += 5;
 
   predictedNet = Math.max(0, Math.min(predictedNet, maxNet));
-  const confidence = Math.min(95, filteredExams.length * 8 + 35); 
+  const confidence = Math.min(95, filteredExams.length * 10 + 20); 
   
   return { 
     predictedNet: Math.round(predictedNet * 10) / 10,

@@ -87,10 +87,12 @@ export function AuthGate() {
           <button
             onClick={() => window.location.href = 'https://giris.turkiye.gov.tr/Giris/gir'}
             disabled={isLoading}
-            className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-[#cc1d24] py-3.5 text-sm font-bold text-white transition-all hover:bg-[#b0181e] disabled:opacity-50 overflow-hidden shadow-lg shadow-red-900/20"
+            className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-[#cc1d24] py-3 text-sm font-bold text-white transition-all hover:bg-[#b0181e] disabled:opacity-50 shadow-lg shadow-red-900/20 px-6 border border-white/10"
           >
-            <img src="/edevlet_logo.png" alt="e-Devlet" className="h-6 w-auto object-contain" />
-            E-Devlet ile {mode === 'register' ? 'Kayıt Ol' : 'Giriş Yap'}
+            <div className="bg-white p-1 rounded-md">
+                   <img src="https://upload.wikimedia.org/wikipedia/commons/b/bb/Logo-e-Devlet.png" alt="e-Devlet" className="h-6 w-auto object-contain" />
+            </div>
+            <span>E-Devlet ile {mode === 'register' ? 'Kayıt Ol' : 'Giriş Yap'}</span>
           </button>
 
           <div className="mb-4 flex items-center gap-3">

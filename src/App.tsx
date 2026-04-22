@@ -70,8 +70,10 @@ import { BentoDashboard } from './components/dashboard/BentoDashboard';
 
 // --- Helper ---
 
-const YKS_2026_TYT_DATE = '2026-06-20T10:15:00+03:00';
-const YKS_2026_AYT_DATE = '2026-06-21T10:15:00+03:00';
+import { YKS_TARGET_DATE_TYT, YKS_TARGET_DATE_AYT } from './config/examConfig';
+
+const YKS_2026_TYT_DATE = YKS_TARGET_DATE_TYT;
+const YKS_2026_AYT_DATE = YKS_TARGET_DATE_AYT;
 
 const getAytSubjectsForTrack = (track: string) => {
   if (track === 'Sayısal') return ['Matematik', 'Fizik', 'Kimya', 'Biyoloji'];
@@ -413,8 +415,8 @@ export default function App() {
     const avgTimeValue = dayLogs.length > 0 ? Math.round(dayLogs.reduce((acc, log) => acc + log.avgTime, 0) / dayLogs.length) : null;
     return { day: dateStr, actual: avgTimeValue, target: 45 };
   });
-  const tytProjection = calculatePredictedNet(exams, logs, new Date(YKS_2026_TYT_DATE), 'TYT', eloScore);
-  const aytProjection = calculatePredictedNet(exams, logs, new Date(YKS_2026_AYT_DATE), 'AYT', eloScore);
+  const tytProjection = calculatePredictedNet(exams, logs, new Date(YKS_2026_TYT_DATE), 'TYT', eloScore, profile?.tytTarget);
+  const aytProjection = calculatePredictedNet(exams, logs, new Date(YKS_2026_AYT_DATE), 'AYT', eloScore, profile?.aytTarget);
   const activeHabitAlertsValue = detectHabitAlerts(logs);
 
   const summarizeLogs = (logs: DailyLog[]) => {
@@ -628,13 +630,16 @@ export default function App() {
           </div>
         </header>
 
-        <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-56 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-lg md:shadow-none">
+        <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-64 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav backdrop-blur-xl z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none">
           <div className="hidden md:block p-4 border-b border-app">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/20">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/30 shadow-lg shadow-[#C17767]/10">
                 <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
               </div>
-              <h1 className="font-display italic text-xl font-bold tracking-tight text-[#C17767]">Boho Mentosluk</h1>
+              <div>
+                <h1 className="font-display italic text-lg font-bold tracking-tight text-[#C17767] leading-tight">Boho Mentos</h1>
+                <p className="text-[8px] uppercase tracking-[0.2em] opacity-40 font-bold text-zinc-500">Akademik OS</p>
+              </div>
             </div>
             <div className="flex items-center justify-between mt-1">
               <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
@@ -671,10 +676,9 @@ export default function App() {
               </div>
             )}
           </div>
-          {/* Desktop: Avatar Mini Profil Kartı */}
-          <div className="hidden md:block p-4 border-b border-app cursor-pointer group" onClick={() => setActiveTab('profile')}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-[#C17767]/30 shrink-0 group-hover:border-[#C17767]/70 transition-colors">
+          <div className="hidden md:block p-4 border-b border-app space-y-4">
+             <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setActiveTab('profile')}>
+              <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-[#C17767]/20 shrink-0 group-hover:border-[#C17767]/60 transition-all shadow-md">
                 {profile.avatar
                   ? <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
                   : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full bg-surface" />
@@ -682,28 +686,13 @@ export default function App() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{profile.name}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <p className="text-[9px] uppercase tracking-widest text-ink-muted truncate">{profile.track}</p>
-                  {user?.uid && (
-                    <span
-                      title="Tıkla ve Tam UID Kopyala"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard.writeText(user.uid);
-                        toast.success('Kullanıcı ID (UID) kopyalandı.');
-                      }}
-                      className="text-[8px] bg-zinc-200 dark:bg-zinc-800 text-zinc-500 hover:text-white hover:bg-[#C17767] px-1.5 py-0.5 rounded transition-colors"
-                    >
-                      #{user.uid.slice(0, 5)}
-                    </span>
-                  )}
-                </div>
+                <p className="text-[9px] uppercase tracking-widest text-[#C17767] font-bold">{profile.track}</p>
               </div>
             </div>
           </div>
-          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 justify-around md:justify-start overflow-x-auto md:overflow-visible no-scrollbar">
+          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-4 px-2 md:space-y-1 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
             {NAV_ITEMS.map((item) => (
-              <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full md:mb-0.5`}>
+              <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full`}>
                 <NavItem
                   icon={item.icon}
                   label={item.label}
@@ -713,8 +702,8 @@ export default function App() {
               </div>
             ))}
             {/* Mobil Menü (Daha fazla sekmesi) */}
-            <div className="md:hidden block w-full">
-              <NavItem icon={<Menu size={18} />} label="Daha Fazla" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
+            <div className="md:hidden block w-full px-1">
+              <NavItem icon={<Menu size={18} />} label="Menü" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
             </div>
           </div>
 

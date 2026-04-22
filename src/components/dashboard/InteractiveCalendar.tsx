@@ -8,7 +8,7 @@ export function InteractiveCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   const logs = useAppStore(s => s.logs);
-  // (In a real scenario, we'd map logs to dates. For now we just create a visual grid)
+  const agendaEntries = useAppStore(s => s.agendaEntries);
   
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -53,10 +53,13 @@ export function InteractiveCalendar() {
           const isToday = new Date().getDate() === d && new Date().getMonth() === currentDate.getMonth() && new Date().getFullYear() === currentDate.getFullYear();
           const isSelected = selectedDate?.getDate() === d && selectedDate?.getMonth() === currentDate.getMonth();
 
-          // Mock Data logic for gradients
-          const logCount = logs.length % (d + 1); // Mock randomish value
-          const gradient = logCount > 10 ? 'from-[#C17767] to-[#8C5245]' : 
-                           logCount > 5 ? 'from-amber-600/40 to-[#C17767]/40' : 
+          // Real Data logic for gradients
+          const dayDateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), d).toISOString().split('T')[0];
+          const dayLogs = logs.filter(l => l.date.split('T')[0] === dayDateStr);
+          const logCount = dayLogs.length;
+          
+          const gradient = logCount > 5 ? 'from-[#C17767] to-[#8C5245]' : 
+                           logCount > 0 ? 'from-amber-600/40 to-[#C17767]/40' : 
                            'bg-zinc-800/30';
 
           return (
@@ -102,30 +105,30 @@ export function InteractiveCalendar() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
               <div className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 flex items-center gap-2 mb-2">
-                <Clock size={12} /> ZAMAN ÇİZELGESİ
+                <Clock size={12} /> GÜNLÜK KAYITLAR
               </div>
               
-              {/* Task Mock */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 hover:border-[#C17767]/30 transition-colors cursor-pointer group">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-widest">MATEMATİK</span>
-                  <span className="text-[10px] text-zinc-500 font-mono">10:00</span>
-                </div>
-                <p className="text-sm font-bold text-zinc-300">Türev Soru Çözümü</p>
-                <div className="mt-2 h-1 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 w-1/2 group-hover:w-full transition-all duration-500" />
-                </div>
-              </div>
-
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 hover:border-[#C17767]/30 transition-colors cursor-pointer group">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] bg-[#C17767]/10 text-[#C17767] px-1.5 py-0.5 rounded uppercase font-bold tracking-widest">KÜBRA</span>
-                  <span className="text-[10px] text-zinc-500 font-mono">15:00</span>
-                </div>
-                <p className="text-sm font-bold text-zinc-300 flex items-center gap-1"><Sparkles size={12} className="text-[#C17767]" /> Deneme Analizi</p>
-              </div>
+              {agendaEntries
+                .filter(e => e.date.split('T')[0] === selectedDate.toISOString().split('T')[0])
+                .map(e => (
+                  <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 hover:border-[#C17767]/30 transition-colors group">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[8px] bg-[#C17767]/10 text-[#C17767] px-1.5 py-0.5 rounded uppercase font-bold tracking-widest">
+                        {e.parsedExam ? e.parsedExam.type : 'AJANDA'}
+                      </span>
+                      <span className="text-[10px] text-zinc-500 font-mono">
+                        {new Date(e.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-300 break-words">{e.content.slice(0, 100)}{e.content.length > 100 ? '...' : ''}</p>
+                  </div>
+                ))}
+              
+              {agendaEntries.filter(e => e.date.split('T')[0] === selectedDate.toISOString().split('T')[0]).length === 0 && (
+                <p className="text-[10px] text-zinc-600 italic text-center py-8">Bu güne ait kayıt bulunamadı.</p>
+              )}
             </div>
           </motion.div>
         )}

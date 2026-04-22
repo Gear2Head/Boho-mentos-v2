@@ -18,11 +18,11 @@ export const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick }
     onClick={onClick}
     className={`
       relative flex items-center w-full transition-all duration-150 select-none
-      md:flex-row md:gap-3 md:px-5 md:py-2.5 md:rounded-xl md:mx-2 md:w-[calc(100%-16px)]
+      md:flex-row md:gap-4 md:px-6 md:py-3 md:rounded-xl md:w-full
       flex-col gap-1 px-1 py-1.5 flex-1 justify-center
       ${active 
-        ? 'text-[#C17767] md:bg-[#C17767]/10 md:border-l-4 md:border-[#C17767]' 
-        : 'text-[#8C857B] dark:text-zinc-500 hover:text-[#C17767] md:hover:bg-zinc-100 dark:md:hover:bg-[#1A1A1A]/50'
+        ? 'text-[#C17767] md:bg-[#C17767]/10' 
+        : 'text-[#8C857B] dark:text-zinc-500 hover:text-[#C17767] md:hover:bg-black/5 dark:md:hover:bg-white/5'
       }
     `}
   >

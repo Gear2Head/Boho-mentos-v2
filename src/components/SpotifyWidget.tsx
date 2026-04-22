@@ -44,8 +44,11 @@ export function SpotifyWidget() {
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState<SpotifyPlaylist | null>(null);
   const [playlistTracks, setPlaylistTracks] = useState<SpotifyTrack[]>([]);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const progressIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -72,10 +75,12 @@ export function SpotifyWidget() {
 
     const fetchTrack = async () => {
       try {
-        const data: SpotifyCurrentlyPlaying | null = await getCurrentTrack(token);
+        const data: SpotifyCurrentlyPlaying | null = await getCurrentTrack();
         if (data?.item) {
           setTrack(data.item);
           setIsPlaying(data.is_playing);
+          setProgress(data.progress_ms || 0);
+          setDuration(data.item.duration_ms);
         }
       } catch (err) {
         console.error('[Spotify] Token hatası:', err);
@@ -84,7 +89,7 @@ export function SpotifyWidget() {
 
     const fetchPlaylists = async () => {
       try {
-        const pl = await getUserPlaylists(token);
+        const pl = await getUserPlaylists();
         setPlaylists(pl);
       } catch (e) {
         console.error(e);
@@ -93,16 +98,30 @@ export function SpotifyWidget() {
 
     fetchTrack();
     fetchPlaylists();
-    const interval = setInterval(fetchTrack, 10_000);
+    const interval = setInterval(fetchTrack, 5_000);
     return () => clearInterval(interval);
   }, [token]);
+
+  // Local progress ticker
+  useEffect(() => {
+    if (isPlaying) {
+      progressIntervalRef.current = window.setInterval(() => {
+        setProgress(p => Math.min(p + 1000, duration));
+      }, 1000);
+    } else if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+    return () => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
+  }, [isPlaying, duration]);
 
   useEffect(() => {
     if (!searchQuery) { setSearchResults([]); return; }
     const timer = setTimeout(async () => {
       if (!token) return;
       try {
-        const res = await searchTracks(token, searchQuery);
+        const res = await searchTracks(searchQuery);
         setSearchResults(res);
       } catch (e) { console.error(e); }
     }, 500);
@@ -112,17 +131,17 @@ export function SpotifyWidget() {
   const handlePlayPause = async () => {
     if (!token) return;
     try {
-      if (isPlaying) { await pauseTrack(token); setIsPlaying(false); }
-      else           { await playTrack(token);  setIsPlaying(true);  }
+      if (isPlaying) { await pauseTrack(); setIsPlaying(false); }
+      else           { await playTrack();  setIsPlaying(true);  }
     } catch (e) { console.error('[Spotify] Play/pause error:', e); }
   };
 
   const handleNext = async () => {
     if (!token) return;
     try {
-      await nextTrack(token);
+      await nextTrack();
       setTimeout(async () => {
-        const d = await getCurrentTrack(token);
+        const d = await getCurrentTrack();
         if (d?.item) { setTrack(d.item); setIsPlaying(d.is_playing); }
       }, 1000);
     } catch (e) { console.error('[Spotify] Next error', e); }
@@ -132,7 +151,7 @@ export function SpotifyWidget() {
     setSelectedPlaylist(pl);
     if (!token) return;
     try {
-      const tracks = await getPlaylistTracks(token, pl.id);
+      const tracks = await getPlaylistTracks(pl.id);
       setPlaylistTracks(tracks);
     } catch (e) { console.error(e); }
   };
@@ -140,12 +159,12 @@ export function SpotifyWidget() {
   const handlePlaySpecificTrack = async (contextUri?: string, trackUri?: string) => {
     if (!token) return;
     try {
-      if (contextUri && trackUri) await playTrack(token, contextUri, undefined, trackUri);
-      else if (trackUri)          await playTrack(token, undefined, [trackUri]);
-      else if (contextUri)        await playTrack(token, contextUri);
+      if (contextUri && trackUri) await playTrack(contextUri, undefined, trackUri);
+      else if (trackUri)          await playTrack(undefined, [trackUri]);
+      else if (contextUri)        await playTrack(contextUri);
       setIsPlaying(true);
       setTimeout(async () => {
-        const d = await getCurrentTrack(token);
+        const d = await getCurrentTrack();
         if (d?.item) setTrack(d.item);
       }, 1000);
     } catch (e) { console.error(e); }
@@ -316,61 +335,72 @@ export function SpotifyWidget() {
             </AnimatePresence>
 
             <motion.div 
-              className="w-80 p-3 bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl flex items-center gap-3 relative group"
-              whileHover={{ scale: 1.02 }}
+              className="w-80 bg-zinc-950/80 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden relative group"
+              whileHover={{ scale: 1.01 }}
             >
               <button
                 onClick={() => { setIsCollapsed(true); setShowPanel(false); }}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-white"
+                className="absolute top-2 right-2 w-6 h-6 bg-zinc-800/50 border border-white/10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-white z-20"
               >
                 <PanelRightClose size={12} />
               </button>
 
-              <div className="relative shrink-0">
-                <div className={`w-12 h-12 rounded-2xl overflow-hidden border border-white/10 shadow-lg ${isPlaying ? 'animate-[spin_8s_linear_infinite]' : ''}`}>
-                  {track?.album?.images?.[0] ? (
-                    <img src={track.album.images[0].url} className="w-full h-full object-cover" alt="" />
-                  ) : (
-                    <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-[#1DB954]">
-                      <Music size={20} />
+              <div className="p-3 flex items-center gap-3">
+                <div className="relative shrink-0">
+                  <div className={`w-12 h-12 rounded-2xl overflow-hidden border border-white/10 shadow-lg ${isPlaying ? 'animate-[spin_12s_linear_infinite]' : ''}`}>
+                    {track?.album?.images?.[0] ? (
+                      <img src={track.album.images[0].url} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-[#1DB954]">
+                        <Music size={20} />
+                      </div>
+                    )}
+                  </div>
+                  {isPlaying && (
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#1DB954] rounded-full flex items-center justify-center border-2 border-zinc-950 shadow-lg shadow-[#1DB954]/40">
+                      <div className="flex gap-[1px] items-end h-2">
+                         <motion.span animate={{ height: [4, 8, 5] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-[1.5px] bg-white rounded-full" />
+                         <motion.span animate={{ height: [2, 8, 3] }} transition={{ repeat: Infinity, duration: 0.5, delay: 0.1 }} className="w-[1.5px] bg-white rounded-full" />
+                      </div>
                     </div>
                   )}
                 </div>
-                {isPlaying && (
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#1DB954] rounded-full flex items-center justify-center border-2 border-zinc-950 shadow-lg shadow-[#1DB954]/40">
-                    <div className="flex gap-[1px] items-end h-2">
-                       <motion.span animate={{ height: [4, 8, 5] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-[1.5px] bg-white rounded-full" />
-                       <motion.span animate={{ height: [2, 8, 3] }} transition={{ repeat: Infinity, duration: 0.5, delay: 0.1 }} className="w-[1.5px] bg-white rounded-full" />
-                    </div>
-                  </div>
-                )}
+
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-[11px] font-black text-white truncate tracking-tight">{track ? track.name : 'Boho Odak'}</h4>
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest truncate mt-0.5">{track ? track.artists.map(a => a.name).join(', ') : 'Zihninle Bağlan'}</p>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button 
+                    onClick={() => setShowPanel(!showPanel)}
+                    className={`p-2 rounded-xl transition-all ${showPanel ? 'text-[#1DB954] bg-[#1DB954]/10' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                  >
+                    <Search size={16} />
+                  </button>
+                  <button 
+                    onClick={handlePlayPause}
+                    className="p-2 text-white hover:text-[#1DB954] transition-all transform active:scale-90"
+                  >
+                    {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+                  </button>
+                  <button 
+                    onClick={handleNext}
+                    className="p-2 text-white hover:text-[#1DB954] transition-all transform active:scale-90"
+                  >
+                    <SkipForward size={18} fill="currentColor" />
+                  </button>
+                </div>
               </div>
 
-              <div className="flex-1 min-w-0 pr-2">
-                <h4 className="text-xs font-black text-white truncate tracking-tight">{track ? track.name : 'Boho Odak'}</h4>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate mt-0.5">{track ? track.artists.map(a => a.name).join(', ') : 'Zihninle Bağlan'}</p>
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0">
-                <button 
-                  onClick={() => setShowPanel(!showPanel)}
-                  className={`p-2 rounded-xl transition-all ${showPanel ? 'text-[#1DB954] bg-[#1DB954]/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
-                >
-                  <Search size={16} />
-                </button>
-                <div className="w-px h-6 bg-white/5 mx-1" />
-                <button 
-                  onClick={handlePlayPause}
-                  className="p-2 text-white hover:text-[#1DB954] transition-colors"
-                >
-                  {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-                </button>
-                <button 
-                  onClick={handleNext}
-                  className="p-2 text-white hover:text-[#1DB954] transition-colors"
-                >
-                  <SkipForward size={18} fill="currentColor" />
-                </button>
+              {/* Progress Bar */}
+              <div className="h-1 bg-white/5 w-full overflow-hidden">
+                <motion.div 
+                   className="h-full bg-[#1DB954] rounded-r-full shadow-[0_0_8px_#1DB954]"
+                   initial={{ width: 0 }}
+                   animate={{ width: duration > 0 ? `${(progress / duration) * 100}%` : 0 }}
+                   transition={{ ease: "linear", duration: 1 }}
+                />
               </div>
             </motion.div>
           </motion.div>
