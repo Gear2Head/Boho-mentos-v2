@@ -935,7 +935,6 @@ function AnalyticsPanel() {
 
   return (
     <div className="space-y-8">
-    <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
           <Activity size={32} className="text-emerald-400 mb-2" />
