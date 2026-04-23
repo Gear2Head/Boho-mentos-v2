@@ -119,6 +119,10 @@ export function useWarRoom() {
       try {
         setIsGenerating(true);
         setError(null);
+        
+        // Show skeleton state immediately
+        setWarRoomMode('solve');
+        setWarRoomSession(null);
 
         const qs: WarRoomQuestion[] = await generateWarRoomQuestions(opts);
         const now = Date.now();
@@ -126,7 +130,7 @@ export function useWarRoom() {
         const newSession: WarRoomSession = {
           id: `sess_${now}`,
           startTime: now,
-          endTime: now + timeLimitSeconds * 1000, // [TIMER-FIX]: absolute wall-clock deadline
+          endTime: now + timeLimitSeconds * 1000,
           examType: opts.examType,
           difficulty: opts.difficulty || 'medium',
           questions: qs,
@@ -134,12 +138,12 @@ export function useWarRoom() {
         };
 
         setWarRoomSession(newSession);
-        setWarRoomTimeLeft(timeLimitSeconds); // initial display value
-        setWarRoomMode('solve');
+        setWarRoomTimeLeft(timeLimitSeconds);
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'Savaş odası başlatılamadı.';
         setError(message);
+        setWarRoomMode('setup'); // Fallback if generation fails
       } finally {
         setIsGenerating(false);
       }

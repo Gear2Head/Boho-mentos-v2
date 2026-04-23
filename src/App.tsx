@@ -4,7 +4,7 @@ import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
   Settings, CheckCircle2, AlertTriangle, Send, Loader2,
   Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2, LogOut,
-  Bell, RefreshCcw, CloudOff
+  Bell, RefreshCcw, CloudOff, Pin, Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -330,6 +330,15 @@ export default function App() {
   const [isArchiveWidgetOpen, setIsArchiveWidgetOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarPinned, setIsSidebarPinned] = useState(() => localStorage.getItem('sidebar_pinned') === 'true');
+  const [isNavHovered, setIsNavHovered] = useState(false);
+  const isSidebarExpanded = isSidebarPinned || isNavHovered;
+
+  const toggleSidebarPin = () => {
+    const next = !isSidebarPinned;
+    setIsSidebarPinned(next);
+    localStorage.setItem('sidebar_pinned', String(next));
+  };
 
   // [BUG-010 FIX]: Morning Blocker kilidi artık persist'e bağlı — aynı gün refresh'te kapanmaz
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -639,67 +648,73 @@ export default function App() {
           </div>
         </header>
 
-        <nav className="fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative md:w-64 border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav/80 backdrop-blur-2xl saturate-150 z-[90] transition-all duration-300 pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none">
-          <div className="hidden md:block p-4 border-b border-app">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/30 shadow-lg shadow-[#C17767]/10">
+        <nav
+          className={`fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav/80 backdrop-blur-2xl saturate-150 z-[90] pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none transition-all duration-300 ${
+            isSidebarExpanded ? 'md:w-64' : 'md:w-16'
+          }`}
+          onMouseEnter={() => setIsNavHovered(true)}
+          onMouseLeave={() => setIsNavHovered(false)}
+        >
+          {/* Logo area */}
+          <div className="hidden md:flex p-3 border-b border-app items-center justify-between gap-2 overflow-hidden">
+            <div className={`flex items-center gap-3 min-w-0 ${isSidebarExpanded ? '' : 'justify-center w-full'}`}>
+              <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/30 shadow-lg shrink-0">
                 <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
               </div>
-              <div>
-                <h1 className="font-display italic text-lg font-bold tracking-tight text-[#C17767] leading-tight">Boho Mentos</h1>
-                <p className="text-[8px] uppercase tracking-[0.2em] opacity-40 font-bold text-zinc-500">Akademik OS</p>
-              </div>
+              {isSidebarExpanded && (
+                <div className="min-w-0">
+                  <h1 className="font-display italic text-base font-bold tracking-tight text-[#C17767] leading-tight whitespace-nowrap">Boho Mentos</h1>
+                  <p className="text-[7px] uppercase tracking-[0.2em] opacity-40 font-bold text-zinc-500">YKS Mentörlük v5</p>
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-[10px] uppercase tracking-widest opacity-50 text-ink-muted">YKS Mentörlük v5</p>
-              <button
-                onClick={() => forceSync()}
-                disabled={isCurrentlySyncing}
-                className={`p-1.5 hover:bg-white/5 rounded-lg transition-all relative group ${
-                  isCurrentlySyncing ? 'text-[#C17767]' : 'text-zinc-500 hover:text-[#C17767]'
-                }`}
-                title={syncButtonTitle}
-                aria-label="Bulutla Eşitle"
-              >
-                {syncStatus === 'offline' ? (
-                  <CloudOff size={16} className="text-amber-500" />
-                ) : (
-                  <RefreshCcw size={16} className={isCurrentlySyncing ? 'animate-spin' : ''} />
-                )}
-              </button>
-              <button
-                onClick={() => setIsNotifOpen(true)}
-                className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-[#C17767] transition-all relative group"
-                aria-label={`Bildirimler (${unreadCount} okunmamış)`}
-              >
-                <Bell size={16} />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-[#C17767] rounded-full border border-[#121212] shadow-[0_0_8px_#C17767]" />
-                )}
-              </button>
-            </div>
-            {isPassiveMode && (
-              <div className="mt-4 px-3 py-2 bg-rose-100 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-lg flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                <span className="text-xs font-bold text-rose-600 dark:text-rose-400">PASİF MOD AKTİF</span>
+            {isSidebarExpanded && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => forceSync()} disabled={isCurrentlySyncing} className="p-1 hover:bg-white/5 rounded-lg transition-all text-zinc-500 hover:text-[#C17767]" title={syncButtonTitle}>
+                  {syncStatus === 'offline' ? <CloudOff size={14} className="text-amber-500" /> : <RefreshCcw size={14} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
+                </button>
+                <button
+                  onClick={toggleSidebarPin}
+                  className={`p-1 rounded-lg transition-all ${ isSidebarPinned ? 'text-[#C17767] bg-[#C17767]/10' : 'text-zinc-500 hover:text-[#C17767] hover:bg-white/5' }`}
+                  title={isSidebarPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle'}
+                >
+                  <Pin size={14} />
+                </button>
               </div>
             )}
           </div>
-          <div className="hidden md:block p-4 border-b border-app space-y-4">
-             <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setActiveTab('profile')}>
-              <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-[#C17767]/20 shrink-0 group-hover:border-[#C17767]/60 transition-all shadow-md">
+
+          {/* Profile area */}
+          <div className="hidden md:flex p-3 border-b border-app items-center gap-3 overflow-hidden cursor-pointer group" onClick={() => setActiveTab('profile')}>
+            <div className="relative shrink-0">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border-2 border-[#C17767]/20 group-hover:border-[#C17767]/60 transition-all shadow-md">
                 {profile.avatar
                   ? <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
                   : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full bg-surface" />
                 }
               </div>
+              {/* T-009: Rank badge on avatar corner */}
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#C17767] border border-nav flex items-center justify-center" title="ELO Rank">
+                <Trophy size={8} className="text-white" />
+              </div>
+            </div>
+            {isSidebarExpanded && (
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{profile.name}</p>
                 <p className="text-[9px] uppercase tracking-widest text-[#C17767] font-bold">{profile.track}</p>
               </div>
-            </div>
+            )}
           </div>
-          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-4 px-2 md:space-y-0.5 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
+
+          {isPassiveMode && isSidebarExpanded && (
+            <div className="hidden md:flex mx-3 mt-2 px-3 py-2 bg-rose-900/30 border border-rose-800 rounded-lg items-center gap-2">
+              <AlertTriangle className="w-3 h-3 text-rose-400" />
+              <span className="text-[9px] font-bold text-rose-400">PASİF MOD</span>
+            </div>
+          )}
+
+          {/* Nav items */}
+          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 px-1 md:space-y-0.5 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
             {NAV_ITEMS.map((item) => (
               <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full`}>
                 <NavItem
@@ -707,30 +722,34 @@ export default function App() {
                   label={item.label}
                   active={activeTab === item.id}
                   onClick={() => setActiveTab(item.id)}
+                  collapsed={!isSidebarExpanded}
                 />
               </div>
             ))}
-            {/* Mobil Menü (Daha fazla sekmesi) */}
+            {/* Mobile menu */}
             <div className="md:hidden block w-full px-1">
               <NavItem icon={<Menu size={18} />} label="Menü" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
             </div>
           </div>
 
-          {/* Nav Alt İşlemler */}
+          {/* Bottom actions */}
           <div className="hidden md:flex flex-col border-t border-app">
             {isSuperAdmin(user?.uid, user?.email) && (
               <div
-                className="p-4 text-[9px] uppercase tracking-[0.3em] text-[#C17767] opacity-60 hover:opacity-100 transition-opacity cursor-pointer font-bold text-center border-b border-app/50"
+                className={`p-3 text-[9px] uppercase tracking-[0.3em] text-[#C17767] opacity-60 hover:opacity-100 transition-opacity cursor-pointer font-bold border-b border-app/50 ${ isSidebarExpanded ? 'text-center' : 'flex justify-center' }`}
                 onClick={() => setActiveTab('admin_dashboard')}
+                title="Admin Dashboard"
               >
-                ⬡ ADMIN DASHBOARD
+                {isSidebarExpanded ? '⬡ ADMIN' : '⬡'}
               </div>
             )}
             <button
               onClick={async () => { if (await confirmDialog('Çıkış yapmak istediğine emin misin?')) signOut(); }}
-              className="p-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all"
+              className={`p-3 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all`}
+              title="Çıkış Yap"
             >
-              <LogOut size={14} /> ÇIKIŞ YAP
+              <LogOut size={14} />
+              {isSidebarExpanded && 'ÇIKIŞ YAP'}
             </button>
           </div>
         </nav>

@@ -83,6 +83,10 @@ export function CanvasLayer() {
     };
   };
 
+  if (!dims.width || !dims.height) {
+    return <div ref={containerRef} className="absolute inset-0 pointer-events-none" />;
+  }
+
   return (
     <div 
       ref={containerRef} 

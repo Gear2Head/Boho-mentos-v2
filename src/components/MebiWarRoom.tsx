@@ -30,7 +30,27 @@ export function MebiWarRoom() {
 
   if (warRoomMode === 'setup') return <WarRoomSetupScreen />;
   if (warRoomMode === 'result') return <WarRoomResultScreen />;
-  if (!warRoomSession || !warRoomSession.questions.length) return <WarRoomSetupScreen />;
+  
+  if (!warRoomSession || !warRoomSession.questions.length) {
+    if (warRoomMode === 'solve') {
+      return (
+        <div className="fixed inset-0 z-[100] bg-app flex flex-col items-center justify-center font-sans">
+          <div className="flex flex-col items-center gap-6 animate-pulse">
+            <Target className="text-[#C17767] w-16 h-16 animate-spin-slow" />
+            <div className="space-y-4 w-full max-w-md">
+              <div className="h-6 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-3/4 mx-auto" />
+              <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-1/2 mx-auto" />
+              <div className="h-40 bg-zinc-200 dark:bg-zinc-800 rounded-2xl w-full mt-8" />
+            </div>
+            <p className="text-sm font-bold tracking-widest uppercase text-[#4A443C] dark:text-zinc-500 mt-8">
+              Savaş Odası Kuruluyor...
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return <WarRoomSetupScreen />;
+  }
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

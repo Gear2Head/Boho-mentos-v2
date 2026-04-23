@@ -1,44 +1,62 @@
 /**
  * AMAÇ: Sol Bar (Desktop) veya Alt Bar (Mobile) içerisindeki buton tasarımı
- * MANTIK: Mobilde yazıları simgenin altında göster, destkopta yan yana göster ve eskiye nazaran boyut küçültüldü.
+ * MANTIK: collapsed=true → sadece ikon + sağ tooltip. collapsed=false → ikon + label.
+ * T-002: Pin sistemi desteği eklendi.
  */
 
 import React from 'react';
-import { motion } from 'framer-motion';
 
 interface NavItemProps {
   icon: React.ReactNode;
   label: string;
   active: boolean;
   onClick: () => void;
+  collapsed?: boolean;
 }
 
-export const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick }) => (
+export const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick, collapsed = false }) => (
   <button
     onClick={onClick}
+    title={collapsed ? label : undefined}
+    aria-label={label}
     className={`
-      relative flex items-center w-full transition-all duration-150 select-none
-      md:flex-row md:gap-4 md:px-6 md:py-3 md:rounded-xl md:w-full
+      relative flex items-center w-full transition-all duration-150 select-none group
+      md:rounded-xl md:w-full
       flex-col gap-1 px-1 py-1.5 flex-1 justify-center
-      ${active 
-        ? 'text-[#C17767] md:bg-[#C17767]/10' 
+      ${collapsed ? 'md:justify-center md:px-2 md:py-3' : 'md:flex-row md:gap-3 md:px-4 md:py-2.5 md:justify-start'}
+      ${active
+        ? 'text-[#C17767] md:bg-[#C17767]/10'
         : 'text-[#8C857B] dark:text-zinc-500 hover:text-[#C17767] md:hover:bg-black/5 dark:md:hover:bg-white/5'
       }
     `}
   >
-    {/* Mobil Glow Indicator */}
+    {/* Desktop: active left strip */}
     {active && (
-      <span className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 w-6 h-1 bg-[#C17767] rounded-b-full shadow-[0_2px_8px_rgba(193,119,103,0.5)]" />
+      <span className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#C17767] rounded-r-full" />
     )}
 
-    {/* Simge - Sabit Font İle */}
-    <span className={`transition-transform duration-300 ${active ? 'scale-110' : ''}`}>
+    {/* Mobile: active top strip */}
+    {active && (
+      <span className="md:hidden absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-[#C17767] rounded-b-full" />
+    )}
+
+    {/* Icon */}
+    <span className={`transition-transform duration-150 shrink-0 ${active ? 'scale-110' : 'group-hover:scale-105'}`}>
       {icon}
     </span>
-    
-    {/* Etiket Yazısı - Mobilde küçük, pc'de normal */}
-    <span className="font-bold tracking-widest uppercase leading-none text-[8px] md:text-[10px]">
-      {label}
-    </span>
+
+    {/* Label — hidden when collapsed on desktop */}
+    {!collapsed && (
+      <span className="font-semibold tracking-wide leading-none text-[9px] md:text-[13px] md:normal-case md:tracking-normal truncate">
+        {label}
+      </span>
+    )}
+
+    {/* Mobile label always visible */}
+    {collapsed && (
+      <span className="md:hidden font-bold tracking-widest uppercase leading-none text-[8px]">
+        {label}
+      </span>
+    )}
   </button>
 );

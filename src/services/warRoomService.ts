@@ -30,14 +30,14 @@ function validateAndNormalizeQuestion(
 ): WarRoomQuestion | null {
   if (!raw || typeof raw !== 'object') {
     console.warn(`[WarRoom] Soru ${index}: geçersiz nesne`, raw);
-    return null;
+    return buildFallbackQuestion(fallbackExamType, 'Geçersiz Obje', fallbackDifficulty);
   }
 
   const q = raw as Record<string, unknown>;
 
   if (!q.text || typeof q.text !== 'string' || q.text.trim().length < 5) {
     console.warn(`[WarRoom] Soru ${index}: "text" eksik`, q.text);
-    return null;
+    return buildFallbackQuestion(fallbackExamType, 'Geçersiz Soru', fallbackDifficulty);
   }
 
   let options: string[] = [];
@@ -208,9 +208,16 @@ export async function generateWarRoomQuestions(
       }
     } catch {}
 
+    console.log('[WarRoom] Raw AI response:', raw.substring(0, 500));
+
     const parsedData = parseAiArray(jsonString, (question) =>
       validateAndNormalizeQuestion(question, 1, examType, difficulty)
     );
+
+    console.log('[WarRoom] Parsed questions count:', parsedData?.length || 0);
+    if (parsedData && parsedData.length > 0) {
+      console.log('[WarRoom] First question:', parsedData[0]);
+    }
 
     if (!parsedData || parsedData.length === 0) {
       console.error('[WarRoom] JSON parse/validation hatası. Raw:', raw.substring(0, 50) + '...');

@@ -4,12 +4,14 @@
  * UX-TODO §2: Koç header briefing şeridi, mesaj tipi badge, animasyonlu slide-in.
  */
 
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Target, Play, FileText, Link as LinkIcon } from 'lucide-react';
+import { Target, Play, FileText, Link as LinkIcon, Bot, Skull, Flame, BarChart3 } from 'lucide-react';
 import { classifyMessage } from '../../utils/classifyMessage';
 import { getResourcesForSubject } from '../../utils/resourceEngine';
 import { CoachParser } from './CoachParser';
+import { FlashcardBubble } from './FlashcardBubble';
+import type { Flashcard } from './FlashcardBubble';
 import type { ChatMessage as ChatMessageType } from '../../types';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -24,13 +26,13 @@ interface ChatMessageProps {
 
 // ─── Coach Avatar ──────────────────────────────────────────────────────────────
 
-const COACH_AVATAR: Record<string, { emoji: string; color: string; name: string }> = {
-  harsh: { emoji: '💀', color: 'bg-red-900/10 border-red-500/20', name: 'Koç Kübra' },
-  motivational: { emoji: '🔥', color: 'bg-orange-900/10 border-orange-500/20', name: 'Koç Kübra' },
-  analytical: { emoji: '📊', color: 'bg-blue-900/10 border-blue-500/20', name: 'Koç Kübra' },
+const COACH_AVATAR: Record<string, { icon: React.ReactNode; color: string; name: string }> = {
+  harsh:        { icon: <Skull size={16} className="text-red-400" />,       color: 'bg-red-900/10 border-red-500/20',    name: 'Koç Kübra' },
+  motivational: { icon: <Flame size={16} className="text-orange-400" />,    color: 'bg-orange-900/10 border-orange-500/20',name: 'Koç Kübra' },
+  analytical:   { icon: <BarChart3 size={16} className="text-blue-400" />,   color: 'bg-blue-900/10 border-blue-500/20',  name: 'Koç Kübra' },
 };
 
-const DEFAULT_AVATAR = { emoji: '⚡', color: 'bg-surface-2 border-app-subtle', name: 'BOḦO.' };
+const DEFAULT_AVATAR = { icon: <Bot size={16} className="text-[#C17767]" />, color: 'bg-surface-2 border-app-subtle', name: 'BOHO.' };
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -95,10 +97,10 @@ export const ChatMessage = memo(function ChatMessage({
       {/* Avatar (gizle grouped mesajda) */}
       {!isGrouped ? (
         <div
-          className={`w-9 h-9 rounded-xl border flex items-center justify-center text-base shrink-0 mb-1 ${avatar.color}`}
+          className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 mb-1 ${avatar.color}`}
           aria-hidden="true"
         >
-          {avatar.emoji}
+          {avatar.icon}
         </div>
       ) : (
         <div className="w-9 shrink-0" />
@@ -153,6 +155,22 @@ export const ChatMessage = memo(function ChatMessage({
             <div className="text-sm leading-relaxed text-ink font-medium">
               <CoachParser content={message.content} />
             </div>
+
+            {/* Flashcard detection */}
+            {useMemo(() => {
+              try {
+                const match = message.content.match(/```(?:json)?\s*([\s\S]*?)```/);
+                if (match) {
+                  const parsed = JSON.parse(match[1]);
+                  const cards: Flashcard[] = Array.isArray(parsed?.flashcards) ? parsed.flashcards
+                    : Array.isArray(parsed) ? parsed : [];
+                  if (cards.length > 0 && cards[0].front && cards[0].back) {
+                    return <FlashcardBubble cards={cards} />;
+                  }
+                }
+              } catch { /* not flashcard json */ }
+              return null;
+            }, [message.content])}
 
             {/* Inline Directive */}
             {message.directive && (

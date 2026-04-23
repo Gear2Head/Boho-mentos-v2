@@ -1,20 +1,23 @@
 /**
- * AMAÇ: Gelişmiş input zone — auto-resize, slash commands, pill suggestions, send animasyonu.
- * MANTIK: Textarea ile multiline destek, / prefix ile komut dropdown, karakter sayacı.
- * UX-TODO §4: Input zone tam yeniden tasarım.
+ * AMAÇ: Gelişmiş input zone — auto-resize, slash commands, pill suggestions, OCR, dosya ekleme.
+ * T-003: IconButton pattern, Tooltip, emoji → ikon.
+ * T-005: OCR entegrasyonu (kamera ikonu → file pick → vision_archive_parse).
+ * T-008: Dosya ekleme + attachment preview.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Plus, X, Image as ImageIcon } from 'lucide-react';
+import { Send, Plus, X, Paperclip, ScanLine, ClipboardList, BarChart3, CalendarDays, BookOpen, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { CoachIntent } from '../../types/coach';
+import { imageFileToBase64 } from '../../utils/imageToBase64';
+import { toast as toastAPI } from '../../contexts/ToastContext';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface InputZoneProps {
   value: string;
   onChange: (val: string) => void;
-  onSubmit: (msg: string, intent?: CoachIntent) => void;
+  onSubmit: (msg: string, intent?: CoachIntent, attachment?: { base64: string; mediaType: string; name: string }) => void;
   isTyping: boolean;
   onLogClick: () => void;
   onExamClick: () => void;
@@ -23,45 +26,47 @@ interface InputZoneProps {
 // ─── Slash Commands ─────────────────────────────────────────────────────────────
 
 const SLASH_COMMANDS: Array<{ cmd: string; label: string; desc: string; intent: CoachIntent }> = [
-  { cmd: '/plan', label: 'Günlük Plan', desc: 'Bugünkü çalışma planını oluştur', intent: 'daily_plan' },
-  { cmd: '/analiz', label: 'Analiz Et', desc: 'Son logları analiz et', intent: 'log_analysis' },
-  { cmd: '/haftalik', label: 'Haftalık Rapor', desc: 'Haftalık performans özeti', intent: 'weekly_review' },
-  { cmd: '/anla', label: 'Konu Anlat', desc: 'Bir konuyu derinlemesine anlat', intent: 'topic_explain' },
-  { cmd: '/savaş', label: 'Savaş Analizi', desc: 'War Room sonrası analiz', intent: 'war_room_analysis' },
-  { cmd: '/flashcard', label: 'Flashcard Üret', desc: 'PDF/Metinden soru kartları oluştur', intent: 'flashcard_generation' },
+  { cmd: '/plan',      label: 'Günlük Plan',    desc: 'Bugünkü çalışma planını oluştur',  intent: 'daily_plan' },
+  { cmd: '/analiz',   label: 'Analiz Et',      desc: 'Son logları analiz et',            intent: 'log_analysis' },
+  { cmd: '/haftalik', label: 'Haftalık Rapor', desc: 'Haftalık performans özeti',        intent: 'weekly_review' },
+  { cmd: '/anla',     label: 'Konu Anlat',     desc: 'Bir konuyu derinlemesine anlat',  intent: 'topic_explain' },
+  { cmd: '/savaş',   label: 'Savaş Analizi',  desc: 'War Room sonrası analiz',          intent: 'war_room_analysis' },
+  { cmd: '/flashcard',label: 'Flashcard Üret', desc: 'PDF/Metinden soru kartları üret', intent: 'flashcard_generation' },
 ];
 
-// ─── Quick Pill Suggestions ────────────────────────────────────────────────────
+// ─── Quick Pills ────────────────────────────────────────────────────────────────
 
-const PILL_SUGGESTIONS: Array<{ label: string; value: string; intent: CoachIntent }> = [
-  { label: '📋 PLAN', value: 'PLAN', intent: 'daily_plan' },
-  { label: '🔬 ANALİZ', value: 'ANALİZ ET', intent: 'log_analysis' },
-  { label: '📅 HAFTALIK', value: 'HAFTALIK RAPOR', intent: 'weekly_review' },
-  { label: '🃏 KART ÜRET', value: 'FLASHCARD YAZ', intent: 'flashcard_generation' },
+const PILL_SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; value: string; intent: CoachIntent }> = [
+  { label: 'Plan',     icon: <ClipboardList size={12} />, value: 'PLAN',          intent: 'daily_plan' },
+  { label: 'Analiz',  icon: <BarChart3 size={12} />,     value: 'ANALİZ ET',     intent: 'log_analysis' },
+  { label: 'Haftalık',icon: <CalendarDays size={12} />,  value: 'HAFTALIK RAPOR',intent: 'weekly_review' },
+  { label: 'Flashcard',icon: <BookOpen size={12} />,     value: 'FLASHCARD YAZ', intent: 'flashcard_generation' },
 ];
 
-const MAX_CHARS = 10000; // Increased characters for PDF texts
+const MAX_CHARS = 10000;
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function InputZone({
-  value,
-  onChange,
-  onSubmit,
-  isTyping,
-  onLogClick,
-  onExamClick,
-}: InputZoneProps) {
+export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onExamClick }: InputZoneProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const ocrInputRef  = useRef<HTMLInputElement>(null);
+
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState('');
   const [selectedSlash, setSelectedSlash] = useState(0);
   const [isSending, setIsSending] = useState(false);
+  const [isOCRLoading, setIsOCRLoading] = useState(false);
+  const [attachment, setAttachment] = useState<{ base64: string; mediaType: string; name: string } | null>(null);
 
-  const isEmpty = !value.trim();
+  const showToast = useCallback((msg: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    toastAPI[type](msg);
+  }, []);
+
+  const isEmpty = !value.trim() && !attachment;
   const charCount = value.length;
 
-  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -69,135 +74,144 @@ export function InputZone({
     ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
   }, [value]);
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value;
-      if (val.length > MAX_CHARS) return;
-      onChange(val);
-
-      // Slash command detection
-      if (val.startsWith('/') && !val.includes(' ')) {
-        setSlashFilter(val.slice(1).toLowerCase());
-        setSlashOpen(true);
-        setSelectedSlash(0);
-      } else {
-        setSlashOpen(false);
-      }
-    },
-    [onChange]
-  );
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (slashOpen) {
-        const filtered = SLASH_COMMANDS.filter((c) =>
-          c.cmd.includes(slashFilter) || c.label.toLowerCase().includes(slashFilter)
-        );
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setSelectedSlash((prev) => (prev + 1) % filtered.length);
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setSelectedSlash((prev) => (prev - 1 + filtered.length) % filtered.length);
-          return;
-        }
-        if (e.key === 'Enter' && filtered[selectedSlash]) {
-          e.preventDefault();
-          applySlashCommand(filtered[selectedSlash]);
-          return;
-        }
-        if (e.key === 'Escape') {
-          setSlashOpen(false);
-          return;
-        }
-      }
-
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-      if (e.key === 'Escape') {
-        onChange('');
-        textareaRef.current?.blur();
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [slashOpen, slashFilter, selectedSlash, value]
-  );
-
-  const applySlashCommand = useCallback(
-    (cmd: (typeof SLASH_COMMANDS)[0]) => {
-      onChange(cmd.label);
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    if (val.length > MAX_CHARS) return;
+    onChange(val);
+    if (val.startsWith('/') && !val.includes(' ')) {
+      setSlashFilter(val.slice(1).toLowerCase());
+      setSlashOpen(true);
+      setSelectedSlash(0);
+    } else {
       setSlashOpen(false);
-      setTimeout(() => textareaRef.current?.focus(), 50);
-    },
-    [onChange]
+    }
+  }, [onChange]);
+
+  const filteredSlash = SLASH_COMMANDS.filter(
+    c => c.cmd.includes(slashFilter) || c.label.toLowerCase().includes(slashFilter)
   );
+
+  const applySlashCommand = useCallback((cmd: typeof SLASH_COMMANDS[0]) => {
+    onChange(cmd.label);
+    setSlashOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [onChange]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedSlash(p => (p + 1) % filteredSlash.length); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setSelectedSlash(p => (p - 1 + filteredSlash.length) % filteredSlash.length); return; }
+      if (e.key === 'Enter' && filteredSlash[selectedSlash]) { e.preventDefault(); applySlashCommand(filteredSlash[selectedSlash]); return; }
+      if (e.key === 'Escape') { setSlashOpen(false); return; }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Escape') { onChange(''); textareaRef.current?.blur(); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slashOpen, slashFilter, selectedSlash, filteredSlash, value]);
 
   const handleSend = useCallback(async () => {
     if (isEmpty || isTyping) return;
     setIsSending(true);
-    onSubmit(value);
+    onSubmit(value, undefined, attachment ?? undefined);
     onChange('');
-    await new Promise((r) => setTimeout(r, 300));
+    setAttachment(null);
+    await new Promise(r => setTimeout(r, 300));
     setIsSending(false);
-  }, [isEmpty, isTyping, value, onSubmit, onChange]);
+  }, [isEmpty, isTyping, value, attachment, onSubmit, onChange]);
 
-  const handlePill = useCallback(
-    (pill: (typeof PILL_SUGGESTIONS)[0]) => {
-      onSubmit(pill.value, pill.intent);
-    },
-    [onSubmit]
-  );
+  const handlePill = useCallback((pill: typeof PILL_SUGGESTIONS[0]) => {
+    onSubmit(pill.value, pill.intent);
+  }, [onSubmit]);
 
-  const filteredSlash = SLASH_COMMANDS.filter(
-    (c) => c.cmd.includes(slashFilter) || c.label.toLowerCase().includes(slashFilter)
-  );
+  // ─── File Attachment ──────────────────────────────────────────────────────
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) { showToast("Dosya boyutu 5MB'ı aşamaz", 'warning'); return; }
+    try {
+      const { base64, mediaType } = await imageFileToBase64(file);
+      setAttachment({ base64, mediaType, name: file.name });
+    } catch {
+      showToast('Dosya yüklenemedi.', 'error');
+    }
+    e.target.value = '';
+  }, [showToast]);
+
+  // ─── OCR ──────────────────────────────────────────────────────────────────
+
+  const handleOCR = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) { showToast("Dosya boyutu 5MB'ı aşamaz", 'warning'); return; }
+
+    setIsOCRLoading(true);
+    try {
+      const { base64, mediaType } = await imageFileToBase64(file);
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intent: 'vision_archive_parse',
+          userMessage: 'Bu görüntüdeki soruyu veya içeriği analiz et',
+          imageBase64: base64,
+          imageMediaType: mediaType,
+          forceJson: true,
+        }),
+      });
+      const data = await res.json();
+      const parsed = typeof data.text === 'string' ? JSON.parse(data.text) : data.text;
+      const summary = [parsed.subject, parsed.topic, parsed.difficulty].filter(Boolean).join(' · ');
+      onChange(`[OCR Sonucu] ${summary}\n${parsed.reason || ''}`);
+      showToast('Soru OCR ile tarandı!', 'success');
+    } catch {
+      showToast('OCR taraması başarısız. Lütfen tekrar deneyin.', 'error');
+    } finally {
+      setIsOCRLoading(false);
+      e.target.value = '';
+    }
+  }, [onChange, showToast]);
 
   return (
-    <div className="bg-app flex flex-col p-4 w-full">
-      {/* Search/Command Container */}
+    <div className="bg-app flex flex-col p-3 w-full">
       <div className="relative max-w-4xl mx-auto w-full flex flex-col gap-2">
-        
-        {/* Suggested Actions (Pills) */}
+
+        {/* Pills */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-          {PILL_SUGGESTIONS.map((pill) => (
+          {PILL_SUGGESTIONS.map(pill => (
             <button
               key={pill.value}
               onClick={() => handlePill(pill)}
-              title={pill.label}
-              className="flex items-center gap-2 px-4 py-2 bg-surface-2 border border-app rounded-xl text-[9px] font-black uppercase tracking-[0.2em] text-ink-muted hover:border-accent/40 hover:bg-accent/5 hover:text-accent transition-all whitespace-nowrap shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-2 border border-app rounded-lg text-[10px] font-semibold text-ink-muted hover:border-[#C17767]/40 hover:bg-[#C17767]/5 hover:text-[#C17767] transition-all whitespace-nowrap"
             >
-              {pill.label}
+              {pill.icon} {pill.label}
             </button>
           ))}
         </div>
 
-        {/* Slash command dropdown */}
+        {/* Slash dropdown */}
         <AnimatePresence>
           {slashOpen && filteredSlash.length > 0 && (
             <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.98 }}
-              className="absolute bottom-full left-0 mb-3 w-[min(480px,calc(100vw-32px))] bg-surface border border-app rounded-2xl overflow-hidden shadow-2xl z-50 text-sm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="absolute bottom-full left-0 mb-3 w-[min(480px,calc(100vw-32px))] bg-surface border border-app rounded-xl overflow-hidden shadow-2xl z-50"
             >
-              <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-1 max-h-68 overflow-y-auto custom-scrollbar">
+              <div className="p-1.5 grid grid-cols-1 md:grid-cols-2 gap-1 max-h-60 overflow-y-auto">
                 {filteredSlash.map((cmd, idx) => (
                   <button
                     key={cmd.cmd}
                     onClick={() => applySlashCommand(cmd)}
-                    className={`w-full flex flex-col items-start px-4 py-3 rounded-xl text-left transition-all ${
-                      idx === selectedSlash ? 'bg-accent/10 border border-accent/20' : 'hover:bg-ink/5 border border-transparent'
+                    className={`w-full flex flex-col items-start px-3 py-2.5 rounded-lg text-left transition-all ${
+                      idx === selectedSlash ? 'bg-[#C17767]/10 border border-[#C17767]/20' : 'hover:bg-white/5 border border-transparent'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-[11px] text-accent font-black tracking-widest">{cmd.cmd}</span>
-                      <span className={`text-[11px] font-black uppercase tracking-tight ${idx === selectedSlash ? 'text-accent' : 'text-ink'}`}>{cmd.label}</span>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="font-mono text-[11px] text-[#C17767] font-bold">{cmd.cmd}</span>
+                      <span className="text-[11px] font-semibold text-ink">{cmd.label}</span>
                     </div>
-                    <span className="text-[10px] text-ink-muted line-clamp-1 font-medium italic opacity-80">{cmd.desc}</span>
+                    <span className="text-[10px] text-ink-muted">{cmd.desc}</span>
                   </button>
                 ))}
               </div>
@@ -205,29 +219,45 @@ export function InputZone({
           )}
         </AnimatePresence>
 
-        {/* Input Field */}
-        <div className="relative flex items-end bg-surface-2 border border-app rounded-[2rem] shadow-inner focus-within:border-accent/30 focus-within:bg-surface transition-all p-1.5 md:p-2">
-          
-          {/* Prefix Actions */}
-          <div className="flex items-center text-ink-muted shrink-0 self-end mb-1 md:mb-0 ml-1">
-             <ActionBtn
-              label="Log Ekle"
-              onClick={onLogClick}
-              icon={<span className="text-base">📋</span>}
-            />
-            <ActionBtn
-              label="Deneme Ekle"
-              onClick={onExamClick}
-              icon={<span className="text-base">📝</span>}
-            />
-            <ActionBtn
-              label="Resim Yükle"
-              onClick={() => alert("Multimodal Optik Analiz yakında eklenecek!")}
-              icon={<ImageIcon size={18} />}
-            />
+        {/* Attachment preview */}
+        {attachment && (
+          <div className="flex items-center gap-2 px-1">
+            <div className="flex items-center gap-2 bg-surface-2 border border-app rounded-lg px-3 py-1.5 text-xs">
+              <Paperclip size={12} className="text-[#C17767]" />
+              <span className="text-ink truncate max-w-[200px]">{attachment.name}</span>
+              <button onClick={() => setAttachment(null)}>
+                <X size={12} className="text-ink-muted hover:text-red-400 transition-colors" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Input field */}
+        <div className="relative flex items-end bg-surface-2 border border-app rounded-2xl shadow-inner focus-within:border-[#C17767]/30 transition-all p-1.5">
+
+          {/* Left buttons */}
+          <div className="flex items-center shrink-0 self-end mb-1 ml-1 gap-0.5">
+            {/* Log */}
+            <IconBtn label="Log Ekle" onClick={onLogClick}>
+              <ClipboardList size={16} />
+            </IconBtn>
+            {/* Dosya */}
+            <label title="Dosya Ekle">
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleFileSelect} />
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center transition-all text-ink-muted hover:bg-[#C17767]/10 hover:text-[#C17767] cursor-pointer">
+                <Paperclip size={16} />
+              </span>
+            </label>
+            {/* OCR */}
+            <label title="OCR — Görsel tara">
+              <input ref={ocrInputRef} type="file" accept="image/*" className="hidden" onChange={handleOCR} />
+              <span className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isOCRLoading ? 'text-[#C17767] animate-pulse' : 'text-ink-muted hover:bg-[#C17767]/10 hover:text-[#C17767]'} cursor-pointer`}>
+                <ScanLine size={16} />
+              </span>
+            </label>
           </div>
 
-          <div className="w-px h-8 bg-app-subtle mx-1 md:mx-2 self-end mb-2" />
+          <div className="w-px h-7 bg-app mx-1.5 self-end mb-2" />
 
           {/* Textarea */}
           <textarea
@@ -235,48 +265,40 @@ export function InputZone({
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="Mesaj yaz veya / ile araçları kullan..."
+            placeholder={isOCRLoading ? 'OCR taranıyor...' : 'Mesaj yaz veya / ile araçları kullan...'}
             rows={1}
-            className="flex-1 bg-transparent text-ink px-3 py-3 md:py-4 text-[13px] md:text-sm tracking-wide resize-none font-mono leading-relaxed focus:outline-none placeholder:text-ink-muted no-scrollbar self-center font-semibold"
-            style={{ minHeight: '52px', maxHeight: '160px' }}
+            className="flex-1 bg-transparent text-ink px-2 py-3 text-sm resize-none focus:outline-none placeholder:text-ink-muted no-scrollbar self-center"
+            style={{ minHeight: '44px', maxHeight: '160px' }}
           />
 
-          {/* Clear btn */}
+          {/* Clear */}
           {value && (
-            <button
-              onClick={() => onChange('')}
-              className="absolute right-20 bottom-7 text-ink-muted/30 hover:text-accent transition-colors hidden md:block"
-              aria-label="Temizle"
-            >
-              <X size={16} />
+            <button onClick={() => onChange('')} className="absolute right-16 bottom-5 text-ink-muted/30 hover:text-[#C17767] transition-colors hidden md:block">
+              <X size={14} />
             </button>
           )}
 
-          {/* Postfix Actions */}
-          <div className="flex items-center px-1 shrink-0 self-end mb-1 md:mb-1">
-            <span
-              className={`mr-3 text-[10px] pr-2 font-mono transition-colors hidden md:block font-black ${
-                charCount > MAX_CHARS * 0.8 ? 'text-red-500' : 'text-ink-muted'
-              }`}
-            >
-              {charCount > 0 ? charCount : ''}
-            </span>
+          {/* Char counter + send */}
+          <div className="flex items-center px-1 shrink-0 self-end mb-1 gap-1">
+            {charCount > MAX_CHARS * 0.8 && (
+              <span className="text-[10px] font-mono text-red-500">{charCount}</span>
+            )}
             <button
               onClick={handleSend}
               disabled={isSending || isEmpty}
-              className={`w-11 h-11 md:w-14 md:h-14 rounded-2xl flex items-center justify-center transition-all ${
-                !isEmpty && !isSending 
-                  ? 'bg-accent text-white hover:scale-105 shadow-xl shadow-accent/20 border border-white/10' 
-                  : 'bg-surface text-ink-muted cursor-not-allowed border border-app shadow-inner opacity-40'
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                !isEmpty && !isSending
+                  ? 'bg-[#C17767] text-white hover:scale-105 shadow-lg shadow-[#C17767]/20'
+                  : 'bg-surface text-ink-muted cursor-not-allowed opacity-40'
               }`}
               title="Gönder (Enter)"
             >
               {isSending ? (
                 <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                  <Plus size={18} className="rotate-45" />
+                  <Plus size={16} className="rotate-45" />
                 </motion.div>
               ) : (
-                <Send size={18} className={!isEmpty ? 'translate-x-0.5 transform -translate-y-[0.5px]' : ''} />
+                <ArrowUp size={16} />
               )}
             </button>
           </div>
@@ -286,27 +308,17 @@ export function InputZone({
   );
 }
 
-// ─── Action Button ──────────────────────────────────────────────────────────────
+// ─── Icon Button ───────────────────────────────────────────────────────────────
 
-function ActionBtn({
-  label,
-  onClick,
-  icon,
-  color,
-}: {
-  label: string;
-  onClick: () => void;
-  icon: React.ReactNode;
-  color?: string;
-}) {
+function IconBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-ink-muted hover:bg-accent/10 hover:text-accent ${color}`}
+      className="w-8 h-8 rounded-lg flex items-center justify-center transition-all text-ink-muted hover:bg-[#C17767]/10 hover:text-[#C17767]"
     >
-      {icon}
+      {children}
     </button>
   );
 }
