@@ -148,6 +148,7 @@ KRİTERLER:
 - Zorluk Seviyesi: ${diffMap[difficulty] || diffMap.medium}
 - Şıklar: 5 seçenek (A, B, C, D, E)
 - Format: Matematiksel ifadelerde LaTeX kullan: \\(x^2\\)
+- ÇOK ÖNEMLİ: Tüm JSON içi LaTeX kodları ÇİFT TERS BÖLÜ (\\\\) ile yazılmalıdır! (Örn: \\\\frac, \\\\begin, \\\\Rightarrow, \\\\mu) Tek bölü (\f, \n, \r) JSON syntax hatası yaratır!
 
 ZORUNLU ÇIKTI FORMATI (SADECE SAF JSON OBJESİ):
 {
@@ -159,7 +160,7 @@ ZORUNLU ÇIKTI FORMATI (SADECE SAF JSON OBJESİ):
       "difficulty": "${difficulty}",
       "examType": "${examType}",
       "text": "Soru metni.",
-      "options": ["A Şıkkı", "B Şıkkı", "C Şıkkı", "D Şıkkı", "E Şıkkı"],
+      "options": ["Gerçek Seçenek 1", "Gerçek Seçenek 2", "Gerçek Seçenek 3", "Gerçek Seçenek 4", "Gerçek Seçenek 5"],
       "correctAnswer": "C",
       "analysis": "Çözüm açıklaması."
     }
@@ -206,7 +207,7 @@ export async function generateWarRoomQuestions(
       if (match) {
         jsonString = match[1] || match[0];
       }
-    } catch {}
+    } catch (e) { console.warn('[WarRoom] JSON regex fallback failed:', e); }
 
     console.log('[WarRoom] Raw AI response:', raw.substring(0, 500));
 

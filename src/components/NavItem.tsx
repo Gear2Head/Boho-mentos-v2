@@ -45,18 +45,14 @@ export const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick, 
       {icon}
     </span>
 
-    {/* Label — hidden when collapsed on desktop */}
-    {!collapsed && (
-      <span className="font-semibold tracking-wide leading-none text-[9px] md:text-[13px] md:normal-case md:tracking-normal truncate">
-        {label}
-      </span>
-    )}
+    {/* Desktop Label — animated width and opacity */}
+    <span className={`hidden md:block font-semibold leading-none text-[13px] whitespace-nowrap overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${collapsed ? 'max-w-0 opacity-0' : 'max-w-[150px] opacity-100'}`}>
+      {label}
+    </span>
 
     {/* Mobile label always visible */}
-    {collapsed && (
-      <span className="md:hidden font-bold tracking-widest uppercase leading-none text-[8px]">
-        {label}
-      </span>
-    )}
+    <span className="md:hidden font-bold tracking-widest uppercase leading-none text-[8px] mt-1 text-center w-full truncate">
+      {label}
+    </span>
   </button>
 );

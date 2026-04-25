@@ -135,6 +135,15 @@ export async function refreshAccessToken(): Promise<string | null> {
   return null;
 }
 
+let refreshWorkerInterval: number | null = null;
+export function startTokenRefreshWorker() {
+  if (refreshWorkerInterval) clearInterval(refreshWorkerInterval);
+  // Auto refresh token every 45 minutes (45 * 60 * 1000 = 2700000ms)
+  refreshWorkerInterval = window.setInterval(() => {
+    refreshAccessToken();
+  }, 45 * 60 * 1000);
+}
+
 export async function processSpotifyCallback(): Promise<string | null> {
   if (!SPOTIFY_ENABLED || typeof window === 'undefined') return null;
   const urlParams = new URLSearchParams(window.location.search);

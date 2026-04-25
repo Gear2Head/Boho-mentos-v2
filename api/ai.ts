@@ -30,7 +30,7 @@ type CoachIntent =
   | 'generate_weekly_strategy'
   | 'quiz_generation';
 
-type ChatHistoryItem = { role: 'user' | 'coach'; content: string };
+type ChatHistoryItem = { role: 'user' | 'coach' | 'system'; content: string };
 type OpenAIMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 interface AiRequestBody {
@@ -327,9 +327,9 @@ function safeParseDirective(rawText: string): Record<string, unknown> | null {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 const GEMINI_MODEL = 'gemini-2.0-flash';
-const GROQ_MODEL = 'llama-3.1-8b-instant';
-const OPENROUTER_MODEL = 'meta-llama/llama-3.2-3b-instruct:free';
-const CEREBRAS_MODEL = 'llama3.1-8b';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const CEREBRAS_MODEL = 'llama-3.3-70b';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -382,7 +382,7 @@ async function callGemini(
 ): Promise<string> {
   const ai = new GoogleGenAI({ apiKey });
   const contents = chatHistory.map((msg) => ({
-    role: msg.role === 'coach' ? 'model' : 'user',
+    role: msg.role === 'user' ? 'user' : 'model',
     parts: [{ text: msg.content }],
   }));
 
@@ -452,7 +452,7 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
   const openAIMsgs: OpenAIMessage[] = [
     { role: 'system', content: systemInstruction },
     ...chatHistory.map((m): OpenAIMessage => ({
-      role: m.role === 'coach' ? 'assistant' : 'user',
+      role: m.role === 'system' ? 'system' : m.role === 'coach' ? 'assistant' : 'user',
       content: m.content,
     })),
     { role: 'user', content: fullPrompt },

@@ -36,11 +36,11 @@ const SLASH_COMMANDS: Array<{ cmd: string; label: string; desc: string; intent: 
 
 // ─── Quick Pills ────────────────────────────────────────────────────────────────
 
-const PILL_SUGGESTIONS: Array<{ label: string; icon: React.ReactNode; value: string; intent: CoachIntent }> = [
-  { label: 'Plan',     icon: <ClipboardList size={12} />, value: 'PLAN',          intent: 'daily_plan' },
-  { label: 'Analiz',  icon: <BarChart3 size={12} />,     value: 'ANALİZ ET',     intent: 'log_analysis' },
-  { label: 'Haftalık',icon: <CalendarDays size={12} />,  value: 'HAFTALIK RAPOR',intent: 'weekly_review' },
-  { label: 'Flashcard',icon: <BookOpen size={12} />,     value: 'FLASHCARD YAZ', intent: 'flashcard_generation' },
+const QUICK_REPLIES: Array<{ label: string; icon: React.ReactNode; value: string; intent: CoachIntent }> = [
+  { label: '🎯 Hedefe ne kadar uzağım?', icon: <BarChart3 size={12} />, value: 'Hedeflerime kalan net ihtiyacım ve durumum nedir?', intent: 'log_analysis' },
+  { label: '🔥 Zayıf konularım?', icon: <ClipboardList size={12} />, value: 'Son netlere göre en çok hata yaptığım konular hangileri?', intent: 'log_analysis' },
+  { label: '📅 Bugünün programı', icon: <CalendarDays size={12} />, value: 'Bana bugünün çalışma programını oluşturur musun?', intent: 'daily_plan' },
+  { label: '💡 Hızlı deneme özeti', icon: <BookOpen size={12} />, value: 'Girdiğim son denemelerin kısa bir de-briefing (özet) analizini yapar mısın?', intent: 'exam_debrief' },
 ];
 
 const MAX_CHARS = 10000;
@@ -119,7 +119,7 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
     setIsSending(false);
   }, [isEmpty, isTyping, value, attachment, onSubmit, onChange]);
 
-  const handlePill = useCallback((pill: typeof PILL_SUGGESTIONS[0]) => {
+  const handlePill = useCallback((pill: typeof QUICK_REPLIES[0]) => {
     onSubmit(pill.value, pill.intent);
   }, [onSubmit]);
 
@@ -178,13 +178,13 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
 
         {/* Pills */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-          {PILL_SUGGESTIONS.map(pill => (
+          {QUICK_REPLIES.map(chip => (
             <button
-              key={pill.value}
-              onClick={() => handlePill(pill)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-2 border border-app rounded-lg text-[10px] font-semibold text-ink-muted hover:border-[#C17767]/40 hover:bg-[#C17767]/5 hover:text-[#C17767] transition-all whitespace-nowrap"
+              key={chip.label}
+              onClick={() => handlePill(chip)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-2 border border-app rounded-full text-[11px] font-medium text-ink-muted hover:border-[#C17767]/40 hover:bg-[#C17767]/5 hover:text-[#C17767] transition-all whitespace-nowrap shadow-sm"
             >
-              {pill.icon} {pill.label}
+              <span className="opacity-70">{chip.icon}</span> {chip.label}
             </button>
           ))}
         </div>

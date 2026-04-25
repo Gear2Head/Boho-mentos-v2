@@ -3,6 +3,7 @@ import { AppState } from '../appStore';
 import { CoachDirective, DirectiveRecord, CoachMemory } from '../../types/coach';
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import { triggerConfetti } from '../../utils/confetti';
 
 export interface CoachSlice {
   lastCoachDirective: CoachDirective | null;
@@ -38,6 +39,9 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       
       const bonus = task.priority === 'high' ? 40 : 25;
       const newElo = Math.min(eloScore + bonus, 20000); // Max ELO increased for scaling
+
+      // Confetti effect for task completion
+      triggerConfetti();
 
       set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
       if (authUser?.uid) {

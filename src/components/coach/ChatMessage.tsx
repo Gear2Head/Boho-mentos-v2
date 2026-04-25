@@ -11,7 +11,7 @@ import { classifyMessage } from '../../utils/classifyMessage';
 import { getResourcesForSubject } from '../../utils/resourceEngine';
 import { CoachParser } from './CoachParser';
 import { FlashcardBubble } from './FlashcardBubble';
-import type { Flashcard } from './FlashcardBubble';
+import type { FlashcardBubbleData } from './FlashcardBubble';
 import type { ChatMessage as ChatMessageType } from '../../types';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ export const ChatMessage = memo(function ChatMessage({
                 const match = message.content.match(/```(?:json)?\s*([\s\S]*?)```/);
                 if (match) {
                   const parsed = JSON.parse(match[1]);
-                  const cards: Flashcard[] = Array.isArray(parsed?.flashcards) ? parsed.flashcards
+                  const cards: FlashcardBubbleData[] = Array.isArray(parsed?.flashcards) ? parsed.flashcards
                     : Array.isArray(parsed) ? parsed : [];
                   if (cards.length > 0 && cards[0].front && cards[0].back) {
                     return <FlashcardBubble cards={cards} />;

@@ -70,4 +70,9 @@ export interface FirestoreUser {
   developerGrantedAt?: string;
 
   notes?: string;
+
+  // Admin panel fields from Firestore document
+  profile?: Record<string, unknown>;
+  elo_score?: number;
+  streak_days?: number;
 }

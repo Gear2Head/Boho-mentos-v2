@@ -12,9 +12,12 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      // super_admin rolünü doğrulayan güvenli kontrol
-      return isAuthenticated() && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+      return isAuthenticated() && (
+        request.auth.token.email == 'senerkadiralper@gmail.com' ||
+        request.auth.token.email == 'kadiralper0340@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
+      );
     }
 
     match /users/{userId} {
@@ -43,6 +46,7 @@ service cloud.firestore {
 
       // Diğer veriler için standart sahiplik kontrolü
       match /chatHistory/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /conversations/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
       match /agendaEntries/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
       match /focusSessions/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
       match /failedQuestions/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }

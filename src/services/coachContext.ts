@@ -9,6 +9,8 @@
 import type { CoachSystemContext, CoachIntent, CoachDirective } from '../types/coach';
 import type { StudentProfile, DailyLog, ExamResult, HabitAlert } from '../types';
 import { toISODateOnly, toDateMs, parseFlexibleDate } from '../utils/date';
+import { detectAnomalies } from '../utils/anomalyDetection';
+import { predictChurn } from '../utils/churnPredictor';
 
 // ─── Context Builder ──────────────────────────────────────────────────────────
 
@@ -112,6 +114,28 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
       .map(l => l.date.slice(0, 10))
   ).size;
 
+  // [AI-003]: Study Velocity — son 7 gündeki ortalama günlük soru sayısı
+  const weekLogs = logs.filter(l => { const ms = toDateMs(l.date); return ms !== null && ms >= weekAgoMs; });
+  const weeklyQuestions = weekLogs.reduce((sum, l) => sum + (l.questions || 0), 0);
+  const dailyQuestionAvg = daysWorkedThisWeek > 0 ? Math.round(weeklyQuestions / daysWorkedThisWeek) : 0;
+  const weeklyAccuracy = weekLogs.length > 0
+    ? Math.round((weekLogs.reduce((sum, l) => sum + l.correct, 0) / Math.max(weekLogs.reduce((sum, l) => sum + (l.questions || 1), 0), 1)) * 100)
+    : 0;
+
+  // [AI-003]: Subject Accuracy Ranking — en düşük başarı oranına sahip dersler
+  const subjectAccMap = new Map<string, { correct: number; total: number }>();
+  logs.slice(-30).forEach(l => {
+    const existing = subjectAccMap.get(l.subject) || { correct: 0, total: 0 };
+    existing.correct += l.correct;
+    existing.total += (l.questions || 0);
+    subjectAccMap.set(l.subject, existing);
+  });
+  const subjectRanking = Array.from(subjectAccMap.entries())
+    .map(([subject, { correct, total }]) => ({ subject, accuracy: total > 0 ? Math.round((correct / total) * 100) : 0, total }))
+    .filter(s => s.total >= 5) // ASSUME: en az 5 soru çözülmüş olmalı
+    .sort((a, b) => a.accuracy - b.accuracy)
+    .slice(0, 5);
+
   // ─── Son direktif durumu ──────────────────────────────────────────────────
   let lastDirectiveStatus: CoachSystemContext['lastDirectiveStatus'] = 'none';
   if (lastDirective) {
@@ -127,14 +151,6 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
   // ─── Ebbinghaus Unutma Eğrisi Analizi ─────────────────────────────────────
   const forgettingCurve = getForgettingCurveStatus(logs);
   
-  // ─── Ghost Rival Karşılaştırması ──────────────────────────────────────────
-  const ghostRival = {
-    name: 'Gölge Rakip',
-    tytNet: lastTytNet + 5,
-    aytNet: lastAytNet + 5,
-    eloScore: eloScore + 500,
-  };
-
   const actualDaysToExam = daysToExam ?? calculateDaysToExam();
 
   // ─── UserState nesnesi ────────────────────────────────────────────────────
@@ -167,48 +183,62 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     eloTrend,
   };
 
-  // ─── Context string ───────────────────────────────────────────────────────
+  // ─── Context string (compact — sadece veri varsa yaz) ─────────────────────
   const lines: string[] = [
     `[ÖĞRENCİ]`,
-    `İsim: ${profile.name} | Alan: ${profile.track}`,
+    `İsim: ${profile.name} | Alan: ${profile.track} | Sınava ${actualDaysToExam} gün`,
     `Hedef: ${profile.targetUniversity} / ${profile.targetMajor}`,
-    `TYT Hedef: ${profile.tytTarget} | AYT Hedef: ${profile.aytTarget}`,
-    `Mevcut: TYT ${lastTytNet.toFixed(1)} (${tytGap > 0 ? `-${tytGap.toFixed(1)} net geride` : `+${Math.abs(tytGap).toFixed(1)} net önde`})`,
-    `        AYT ${lastAytNet.toFixed(1)} (${aytGap > 0 ? `-${aytGap.toFixed(1)} net geride` : `+${Math.abs(aytGap).toFixed(1)} net önde`})`,
-    `ELO: ${eloScore} | Seri: ${streakDays} gün`,
-    `Müfredat: TYT %${tytPct} / AYT %${aytPct}`,
-    ``,
-    `[UNUTMA EĞRİSİ - KRİTİK]`,
-    forgettingCurve.length > 0 ? forgettingCurve.join(' | ') : 'Tüm konular taze.',
-    ``,
-    `[GÖLGE RAKİP (GHOST RIVAL)]`,
-    `Rakip: ${ghostRival.name} | TYT Net: ${ghostRival.tytNet} | AYT Net: ${ghostRival.aytNet} | ELO: ${ghostRival.eloScore}`,
-    ``,
-    `[KRİTİK AÇIKLAR]`,
-    `TYT: ${tytGap > 0 ? `HEDEFiN ${tytGap.toFixed(1)} NET GERiSiNDE` : `HEDEFi ${Math.abs(tytGap).toFixed(1)} NET GEÇTiN`}`,
-    `AYT: ${aytGap > 0 ? `HEDEFiN ${aytGap.toFixed(1)} NET GERiSiNDE` : `HEDEFi ${Math.abs(aytGap).toFixed(1)} NET GEÇTiN`}`,
-    weakTopics.length > 0 ? `[SON LOGLARDAN ZAYIF KONULAR]: ${weakTopics.join(', ')}` : '',
-    `[BU HAFTA ÇALIŞILAN GÜNLER]: ${daysWorkedThisWeek}/7`,
-    ``,
-    `[SON LOGLAR]`,
-    last5Logs.length > 0 ? last5Logs.join(' | ') : 'Log yok',
-    ``,
-    `[SON DENEMELER]`,
-    last3Exams.length > 0 ? last3Exams.join(' | ') : 'Deneme yok',
-    ``,
-    `[UYARILAR]`,
-    activeAlerts.length > 0
-      ? activeAlerts.map((a) => a.message).join(' | ')
-      : 'Aktif uyarı yok',
-  ].filter(l => l !== '');
+    `TYT: ${lastTytNet.toFixed(1)}/${profile.tytTarget} (${tytGap > 0 ? `-${tytGap.toFixed(1)} geride` : `+${Math.abs(tytGap).toFixed(1)} önde`})`,
+    `AYT: ${lastAytNet.toFixed(1)}/${profile.aytTarget} (${aytGap > 0 ? `-${aytGap.toFixed(1)} geride` : `+${Math.abs(aytGap).toFixed(1)} önde`})`,
+    `ELO: ${eloScore} | Seri: ${streakDays}G | Müfredat: TYT %${tytPct} / AYT %${aytPct}`,
+    `Çalışma: ${daysWorkedThisWeek}/7 gün | ${dailyQuestionAvg} soru/gün | Haftalık Başarı: %${weeklyAccuracy}`,
+  ];
+
+  // ASSUME: Unutma eğrisi sadece alert varsa gönderilir
+  if (forgettingCurve.length > 0) {
+    lines.push(``, `[UNUTMA EĞRİSİ]`, forgettingCurve.join(' | '));
+  }
+
+  if (weakTopics.length > 0) {
+    lines.push(``, `[ZAYIF KONULAR]`, weakTopics.join(', '));
+  }
+
+  if (subjectRanking.length > 0) {
+    lines.push(``, `[DERS BAŞARI SIRASI (EN DÜŞÜKTEN)]`, subjectRanking.map(s => `${s.subject}: %${s.accuracy} (${s.total}s)`).join(' | '));
+  }
+
+  if (last5Logs.length > 0) {
+    lines.push(``, `[SON LOGLAR]`, last5Logs.join(' | '));
+  }
+
+  if (last3Exams.length > 0) {
+    lines.push(``, `[SON DENEMELER]`, last3Exams.join(' | '));
+  }
+
+  if (activeAlerts.length > 0) {
+    lines.push(``, `[UYARILAR]`, activeAlerts.map((a) => a.message).join(' | '));
+  }
+
+  // ASSUME: Anomali/burnout sadece tespit edilmişse gönderilir
+  const anomalies = detectAnomalies(logs);
+  const churn = predictChurn(logs, streakDays);
+  const anomalyParts: string[] = [];
+  if (anomalies.length > 0) {
+    anomalyParts.push(...anomalies.map(a => `⚠️ ${a.type}: ${a.message}`));
+  }
+  if (churn.riskLevel !== 'low') {
+    anomalyParts.push(`🔴 Terk Riski: ${churn.riskLevel.toUpperCase()} (%${churn.riskScore})`);
+  }
+  if (anomalyParts.length > 0) {
+    lines.push(``, `[ANOMALİ TESPİTİ]`, anomalyParts.join(' | '));
+  }
 
   if (lastDirective) {
-    lines.push(``, `[SON PLAN DURUMU]`, `${lastDirectiveStatus}`);
+    lines.push(``, `[SON PLAN: ${lastDirectiveStatus}]`);
     const incompleteTasks = lastDirective.tasks
       .filter(t => t.status !== 'completed')
       .map(t => `- [${t.status?.toUpperCase() || 'BEKLEMEDE'}] ${t.title}`);
     if (incompleteTasks.length > 0) {
-      lines.push(`[TAMAMLANMAMIŞ GÖREVLER (TAŞINMALI)]`);
       lines.push(...incompleteTasks);
     }
   }

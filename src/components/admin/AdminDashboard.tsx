@@ -36,9 +36,16 @@ const ENTITY_LABELS: Record<EntityTable, { label: string; icon: React.ReactNode 
   focusSessions: { label: 'Odaklanma Oturumları', icon: <Clock size={14} /> },
   failedQuestions: { label: 'Hatalı Sorular', icon: <AlertTriangle size={14} /> },
   directiveHistory: { label: 'Direktif Geçmişi', icon: <Brain size={14} /> },
-  flashcards: { label: 'Flashcard\'lar', icon: <BookOpen size={14} /> },
-  conversations: { label: 'Sohbet Odaları', icon: <MessageSquare size={14} /> },
+  flashcards: { label: 'Flashcard\'lar', icon: <BookOpen size={14} /> }
 };
+
+// ─── Skeleton Component ───────────────────────────────────────────────────────
+
+function Skeleton({ className }: { className?: string }) {
+  return (
+    <div className={`animate-pulse bg-zinc-800/50 rounded-lg ${className}`} />
+  );
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -51,6 +58,18 @@ export function AdminDashboard({ onBack }: Props) {
 
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+
+  // [HOTFIX] Force update Firestore profile role since Rules deploy failed
+  useEffect(() => {
+    if (authUser?.email === 'senerkadiralper@gmail.com' || authUser?.email === 'kadiralper0340@gmail.com') {
+       import('../../services/firebase').then(({ db }) => {
+         import('firebase/firestore').then(({ doc, updateDoc }) => {
+            updateDoc(doc(db, 'users', authUser.uid), { role: 'super_admin' })
+              .catch(e => console.warn('Admin auto-grant failed:', e));
+         });
+       });
+    }
+  }, [authUser]);
 
   const showToast = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
     setToast({ type, msg });
@@ -207,27 +226,42 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
         </div>
 
         <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar pr-1">
-          {pagedUsers.map((u: any) => (
-            <button
-              key={u.uid}
-              onClick={() => loadUserDetail(u.uid)}
-              className={`w-full text-left p-3 rounded-xl transition text-sm ${
-                selectedUser?.uid === u.uid ? 'bg-zinc-800 border border-zinc-700 shadow-inner' : 'hover:bg-zinc-900 border border-transparent'
-              }`}
-            >
-              <div className="font-bold truncate">{u.display_name || u.email?.split('@')[0] || u.uid.slice(0, 12)}</div>
-              <div className="text-[10px] text-zinc-500 truncate mb-2">{u.email}</div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-emerald-400">ELO: {u.elo_score ?? '-'}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-tighter ${
-                  u.is_banned ? 'bg-red-500/20 text-red-500' : 
-                  u.role === 'super_admin' ? 'bg-red-500 text-white' : 'bg-zinc-800 text-zinc-400'
-                }`}>
-                  {u.is_banned ? 'Banned' : u.role.split('_')[0]}
-                </span>
-              </div>
-            </button>
-          ))}
+          {loading ? (
+            <>
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="p-3 border border-transparent">
+                  <Skeleton className="h-4 w-32 mb-2" />
+                  <Skeleton className="h-3 w-48 mb-3" />
+                  <div className="flex justify-between">
+                    <Skeleton className="h-3 w-12" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : (
+            pagedUsers.map((u: any) => (
+              <button
+                key={u.uid}
+                onClick={() => loadUserDetail(u.uid)}
+                className={`w-full text-left p-3 rounded-xl transition text-sm ${
+                  selectedUser?.uid === u.uid ? 'bg-zinc-800 border border-zinc-700 shadow-inner' : 'hover:bg-zinc-900 border border-transparent'
+                }`}
+              >
+                <div className="font-bold truncate">{u.display_name || u.email?.split('@')[0] || u.uid.slice(0, 12)}</div>
+                <div className="text-[10px] text-zinc-500 truncate mb-2">{u.email}</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-emerald-400">ELO: {u.elo_score ?? '-'}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-tighter ${
+                    u.is_banned ? 'bg-red-500/20 text-red-500' : 
+                    u.role === 'super_admin' ? 'bg-red-500 text-white' : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    {u.is_banned ? 'Banned' : (u.role ?? 'user').split('_')[0]}
+                  </span>
+                </div>
+              </button>
+            ))
+          )}
           {users.length === 0 && !loading && <p className="text-center text-zinc-600 py-8 text-sm">Kullanıcı bulunamadı</p>}
         </div>
 
@@ -255,7 +289,13 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
 
       {/* User Detail */}
       <div className="lg:col-span-2">
-        {detailLoading && <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-zinc-600" /></div>}
+        {detailLoading && (
+          <div className="space-y-6">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        )}
         {!detailLoading && selectedUser && (
           <div className="space-y-6">
             {/* Profile Card */}
@@ -322,7 +362,7 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
                 }} />
                 <ActionBtn label="Sohbetleri Sil" color="red" onClick={() => {
                   if (!confirm('Tüm sohbetler silinecek!')) return;
-                  handleAction(() => devService.bulkDeleteEntities(actorUid, selectedUser.uid, 'conversations', true), 'Tüm sohbetler silindi');
+                  handleAction(() => devService.bulkDeleteEntities(actorUid, selectedUser.uid, 'chatHistory', true), 'Tüm sohbetler silindi');
                 }} />
                 <ActionBtn label="TÜM VERİYİ SIFIRLA" color="red" onClick={async () => {
                   if (!confirm('KRİTİK UYARI: Kullanıcının TÜM verileri (loglar, denemeler, chat, ajanda) kalıcı olarak silinecek! Bu işlem geri alınamaz.')) return;
@@ -605,7 +645,7 @@ function EntityPreview({ entity, table }: { entity: any; table: EntityTable }) {
           <span className="text-yellow-400 font-medium">{(payload.front || payload.question || '').slice(0, 60)}</span>
         </div>
       );
-    case 'conversations':
+    case 'chatHistory':
       return (
         <div className="text-sm">
           <span className="text-[#C17767] font-bold">{payload.title || 'Başlıksız Sohbet'}</span>

@@ -76,7 +76,7 @@ export function EloRankCard() {
   const IconComponent = iconMap[iconName] || Trophy;
 
   return (
-    <div className="bg-[#1A1A1A] border border-[#2A2A2A] p-4 md:p-5 rounded-2xl shadow-xl flex flex-col gap-3 md:gap-4">
+    <div className="glass-card p-4 md:p-5 rounded-2xl flex flex-col gap-3 md:gap-4 hover:border-[#C17767]/30 transition-colors">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3 md:gap-4">
           <div className={`w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-xl bg-[#121212] border border-[#2A2A2A] shadow-inner ${color}`}>

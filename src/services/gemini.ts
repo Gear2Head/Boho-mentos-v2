@@ -27,6 +27,23 @@ async function hashPayload(payload: any): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// ASSUME: Intent'e göre cache süresi — taze veri gereken intent'lerde kısa, statik konularda uzun
+const CACHE_TTL_MAP: Record<string, number> = {
+  daily_plan: 2 * 60 * 60 * 1000,      // 2 saat
+  log_analysis: 2 * 60 * 60 * 1000,    // 2 saat
+  weekly_review: 4 * 60 * 60 * 1000,   // 4 saat
+  exam_analysis: 4 * 60 * 60 * 1000,   // 4 saat
+  topic_explain: 12 * 60 * 60 * 1000,  // 12 saat
+  qa_mode: 12 * 60 * 60 * 1000,        // 12 saat
+  flashcard_generation: 24 * 60 * 60 * 1000, // 24 saat
+  quiz_generation: 4 * 60 * 60 * 1000, // 4 saat
+};
+const DEFAULT_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 saat fallback
+
+function getCacheTTL(intent: string): number {
+  return CACHE_TTL_MAP[intent] ?? DEFAULT_CACHE_TTL;
+}
+
 function getCache(key: string): string | null {
   try {
     const raw = localStorage.getItem(`ai_cache_${key}`);
@@ -40,9 +57,9 @@ function getCache(key: string): string | null {
   } catch { return null; }
 }
 
-function setCache(key: string, data: string) {
+function setCache(key: string, data: string, intent: string) {
   try {
-    const exp = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    const exp = Date.now() + getCacheTTL(intent);
     localStorage.setItem(`ai_cache_${key}`, JSON.stringify({ exp, data }));
   } catch { /* ignore full quota */ }
 }
@@ -89,7 +106,7 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function getCoachResponse(
   userMessage: string,
   context: string,
-  chatHistory: Array<{ role: 'user' | 'coach'; content: string }> = [],
+  chatHistory: Array<{ role: 'user' | 'coach' | 'system'; content: string }> = [],
   options: {
     intent?: CoachIntent;
     coachPersonality?: string;
@@ -101,8 +118,7 @@ export async function getCoachResponse(
 ): Promise<string> {
   if (!userMessage.trim()) return '';
 
-  // Rate limit guard — client-side check before hitting the API
-  const AI_DAILY_LIMIT = 50;
+  const AI_DAILY_LIMIT = 100;
   const { dailyAiRequests, lastAiRequestDate } = useAppStore.getState();
   const today = new Date().toISOString().split('T')[0];
   const effectiveCount = lastAiRequestDate === today ? dailyAiRequests : 0;
@@ -117,7 +133,7 @@ export async function getCoachResponse(
     intent,
     userMessage,
     context,
-    chatHistory: chatHistory.slice(-6),
+    chatHistory: chatHistory.slice(-6) as any,
     coachPersonality: options.coachPersonality,
     forceJson: options.forceJson,
     maxTokens: options.maxTokens,
@@ -128,9 +144,11 @@ export async function getCoachResponse(
   try {
     const cacheKey = await hashPayload(payload);
     const cachedResponse = getCache(cacheKey);
-    // free_chat gibi diyalog ağırlıklı konularda cache'i atlıyoruz, statik analizlerde cache kullanıyoruz
-    if (cachedResponse && !['free_chat', 'inverse_coaching'].includes(intent)) {
-      console.log(`[SemanticCache] Hatırlanan yanıt dönüldü: ${intent}`);
+    // Cache hit — free_chat ve inverse_coaching hariç cache kontrol ediyoruz
+    const NO_CACHE_INTENTS = ['free_chat', 'inverse_coaching', 'intervention'];
+    if (cachedResponse && !NO_CACHE_INTENTS.includes(intent)) {
+      console.log(`[SemanticCache] Hit: ${intent}`);
+      // ASSUME: Cache'den dönen yanıtlar daily limit'i tüketmez
       return cachedResponse;
     }
 
@@ -157,8 +175,8 @@ export async function getCoachResponse(
     }
 
     const finalResponse = data.text ?? 'Yanıt oluşturulamadı. Tekrar dene.';
-    if (data.text && !['free_chat', 'inverse_coaching'].includes(intent)) {
-      setCache(cacheKey, finalResponse);
+    if (data.text && !NO_CACHE_INTENTS.includes(intent)) {
+      setCache(cacheKey, finalResponse, intent);
     }
     useAppStore.getState().incrementAiRequest();
     return finalResponse;

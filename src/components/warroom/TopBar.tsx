@@ -74,6 +74,20 @@ export function ModeSwitcher() {
            <span className="hidden sm:inline">{m.label}</span>
          </button>
        ))}
+
+       {drawingMode !== 'pointer' && (
+         <button
+           onClick={() => {
+              if ((window as any)._canvasAPI) {
+                (window as any)._canvasAPI.clear();
+              }
+           }}
+           className="flex items-center justify-center px-4 py-2.5 rounded-2xl text-[10px] uppercase font-bold tracking-widest text-zinc-500 hover:text-red-400 hover:bg-white/5 transition-all ml-2 border-l border-white/10"
+           title="Tüm Çizimleri Sil"
+         >
+           TEMİZLE
+         </button>
+       )}
     </div>
   );
 }

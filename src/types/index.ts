@@ -137,10 +137,11 @@ import type { CoachDirective } from './coach';
 
 export interface ChatMessage {
   id?: string;
-  role: 'user' | 'coach';
+  role: 'user' | 'coach' | 'system';
   content: string;
   timestamp: string;
   directive?: CoachDirective;
+  isSystemEvent?: boolean;
 }
 
 export interface ConversationBrief {

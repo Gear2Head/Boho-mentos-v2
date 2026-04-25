@@ -6,24 +6,29 @@
 import React from 'react';
 import { useAppStore } from '../../store/appStore';
 import { InlineMath, BlockMath } from 'react-katex';
+import { KaTeXBoundary } from '../KaTeXBoundary';
 
-// LaTeX Renderer (MebiWarRoom.tsx içindekinin aynısı, buraya taşındı)
+// LaTeX Renderer — KaTeXBoundary ile sarılı
 const LaTeXRenderer = ({ text }: { text: string }) => {
   if (!text) return null;
-  const parts = text.split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g);
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$|\\\([\s\S]*?\\\)|\\[[\s\S]*?\\])/g);
   return (
-    <div className="leading-relaxed whitespace-pre-line text-lg flex flex-wrap items-center">
-      {parts.map((p, i) => {
-        try {
-          if (p.startsWith('\\(') && p.endsWith('\\)')) return <InlineMath key={i}>{p.slice(2, -2)}</InlineMath>;
-          if (p.startsWith('\\[') && p.endsWith('\\]')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
-          return <span key={i}>{p}</span>;
-        } catch (err) {
-          console.error('[LaTeX Error]', err, p);
-          return <span key={i} className="text-red-500 line-through" title="LaTeX Parse Hatası">{p}</span>;
-        }
-      })}
-    </div>
+    <KaTeXBoundary>
+      <div className="leading-relaxed whitespace-pre-line text-lg flex flex-wrap items-center">
+        {parts.map((p, i) => {
+          try {
+            if (p.startsWith('$$') && p.endsWith('$$')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
+            if (p.startsWith('$') && p.endsWith('$')) return <InlineMath key={i}>{p.slice(1, -1)}</InlineMath>;
+            if (p.startsWith('\\(') && p.endsWith('\\)')) return <InlineMath key={i}>{p.slice(2, -2)}</InlineMath>;
+            if (p.startsWith('\\[') && p.endsWith('\\]')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
+            return <span key={i} dangerouslySetInnerHTML={{ __html: p }} />;
+          } catch (err) {
+            console.error('[LaTeX Error]', err, p);
+            return <span key={i} className="text-red-500 line-through" title="LaTeX Parse Hatası">{p}</span>;
+          }
+        })}
+      </div>
+    </KaTeXBoundary>
   );
 };
 

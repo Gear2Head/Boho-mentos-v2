@@ -21,6 +21,7 @@ import type {
 } from './types';
 
 import { NotificationCenter } from './components/NotificationCenter';
+import { NetworkBanner } from './components/NetworkBanner';
 import { SpotifyWidget } from './components/SpotifyWidget';
 
 import { DataIntegrationPanel } from './components/admin/DataIntegrationPanel';
@@ -61,6 +62,7 @@ import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
 
 import { useVisualViewportHeight } from './hooks/useViewport';
+import { useScrollDirection } from './hooks/useScrollDirection';
 import { useToast } from './contexts/ToastContext';
 import { subscribeToSystemConfig, SystemConfig } from './services/systemService';
 import { MaintenanceBlocker } from './components/MaintenanceBlocker';
@@ -313,6 +315,7 @@ export default function App() {
 
   // [UX-003 FIX]: Mobil klavye --vh senkronizasyonu
   useVisualViewportHeight();
+  const scrollDirection = useScrollDirection();
 
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
@@ -476,6 +479,9 @@ export default function App() {
       // Sesi, state'i kaydet - Supabase debouncedPush hallediyor
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
+    import('./services/spotifyService').then(({ startTokenRefreshWorker }) => {
+      startTokenRefreshWorker();
+    });
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
@@ -651,37 +657,33 @@ export default function App() {
         <nav
           className={`fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav/80 backdrop-blur-2xl saturate-150 z-[90] pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none transition-all duration-300 ${
             isSidebarExpanded ? 'md:w-64' : 'md:w-16'
-          }`}
+          } ${scrollDirection === 'down' ? 'translate-y-full md:translate-y-0' : 'translate-y-0'}`}
           onMouseEnter={() => setIsNavHovered(true)}
           onMouseLeave={() => setIsNavHovered(false)}
         >
           {/* Logo area */}
           <div className="hidden md:flex p-3 border-b border-app items-center justify-between gap-2 overflow-hidden">
-            <div className={`flex items-center gap-3 min-w-0 ${isSidebarExpanded ? '' : 'justify-center w-full'}`}>
+            <div className={`flex items-center gap-3 min-w-0 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isSidebarExpanded ? '' : 'justify-center w-full'}`}>
               <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/30 shadow-lg shrink-0">
                 <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
               </div>
-              {isSidebarExpanded && (
-                <div className="min-w-0">
-                  <h1 className="font-display italic text-base font-bold tracking-tight text-[#C17767] leading-tight whitespace-nowrap">Boho Mentos</h1>
-                  <p className="text-[7px] uppercase tracking-[0.2em] opacity-40 font-bold text-zinc-500">YKS Mentörlük v5</p>
-                </div>
-              )}
-            </div>
-            {isSidebarExpanded && (
-              <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => forceSync()} disabled={isCurrentlySyncing} className="p-1 hover:bg-white/5 rounded-lg transition-all text-zinc-500 hover:text-[#C17767]" title={syncButtonTitle}>
-                  {syncStatus === 'offline' ? <CloudOff size={14} className="text-amber-500" /> : <RefreshCcw size={14} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
-                </button>
-                <button
-                  onClick={toggleSidebarPin}
-                  className={`p-1 rounded-lg transition-all ${ isSidebarPinned ? 'text-[#C17767] bg-[#C17767]/10' : 'text-zinc-500 hover:text-[#C17767] hover:bg-white/5' }`}
-                  title={isSidebarPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle'}
-                >
-                  <Pin size={14} />
-                </button>
+              <div className={`flex flex-col justify-center min-w-0 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isSidebarExpanded ? 'max-w-[150px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                <h1 className="font-display italic text-base font-bold tracking-tight text-[#C17767] leading-tight whitespace-nowrap">Boho Mentos</h1>
+                <p className="text-[7px] uppercase tracking-[0.2em] opacity-40 font-bold text-zinc-500 whitespace-nowrap">YKS Mentörlük v5</p>
               </div>
-            )}
+            </div>
+            <div className={`flex items-center gap-1 shrink-0 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isSidebarExpanded ? 'max-w-[60px] opacity-100' : 'max-w-0 opacity-0'}`}>
+              <button onClick={() => forceSync()} disabled={isCurrentlySyncing} className="p-1 hover:bg-white/5 rounded-lg transition-all text-zinc-500 hover:text-[#C17767]" title={syncButtonTitle}>
+                {syncStatus === 'offline' ? <CloudOff size={14} className="text-amber-500" /> : <RefreshCcw size={14} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
+              </button>
+              <button
+                onClick={toggleSidebarPin}
+                className={`p-1 rounded-lg transition-all ${ isSidebarPinned ? 'text-[#C17767] bg-[#C17767]/10' : 'text-zinc-500 hover:text-[#C17767] hover:bg-white/5' }`}
+                title={isSidebarPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle'}
+              >
+                <Pin size={14} />
+              </button>
+            </div>
           </div>
 
           {/* Profile area */}
@@ -777,9 +779,13 @@ export default function App() {
           )}
           {activeTab !== 'coach' && (
             <div className="flex-1 overflow-y-auto relative scroll-smooth custom-scrollbar">
-              {/* [UI-CRASH-SAFEGUARD]: Defensive check for BentoDashboard data dependencies */}
-              {activeTab === 'dashboard' && (hasHydrated && profile ? <BentoDashboard /> : <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>)}
               <AnimatePresence mode="wait">
+                {activeTab === 'dashboard' && (
+                  <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="h-full">
+                    {hasHydrated && profile ? <BentoDashboard /> : <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}
+                  </motion.div>
+                )}
+                
                 {activeTab === 'countdown' && (
                   <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
                 <div className="text-center mb-12">
@@ -1060,6 +1066,7 @@ export default function App() {
           onNavigate={setActiveTab}
           onSignOut={signOut}
         />
+        <NetworkBanner />
         <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
         <SpotifyWidget />
       </div>

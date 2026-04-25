@@ -48,6 +48,7 @@ export const FlapUnit: React.FC<FlapUnitProps> = ({ value, label }) => {
 };
 
 export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
+  const [isMounted, setIsMounted] = useState(false);
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -56,11 +57,18 @@ export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
   });
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    
     const updateTimer = () => {
       const now = new Date().getTime();
       const distance = new Date(targetDate).getTime() - now;
 
       if (distance < 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
         return;
       }
 
@@ -75,7 +83,18 @@ export const FlapClock: React.FC<{ targetDate: string }> = ({ targetDate }) => {
     updateTimer();
     const timer = setInterval(updateTimer, 1000);
     return () => clearInterval(timer);
-  }, [targetDate]);
+  }, [targetDate, isMounted]);
+
+  if (!isMounted) {
+    return (
+      <div className="flex gap-1.5 md:gap-4 p-4 items-center justify-center scale-[0.85] md:scale-100 origin-center">
+        <div className="h-24 w-16 md:w-24 md:h-32 bg-[#1A1A1A] rounded-lg animate-pulse" />
+        <div className="h-24 w-16 md:w-24 md:h-32 bg-[#1A1A1A] rounded-lg animate-pulse" />
+        <div className="h-24 w-16 md:w-24 md:h-32 bg-[#1A1A1A] rounded-lg animate-pulse" />
+        <div className="h-24 w-16 md:w-24 md:h-32 bg-[#1A1A1A] rounded-lg animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex gap-1.5 md:gap-4 p-4 items-center justify-center scale-[0.85] md:scale-100 origin-center">

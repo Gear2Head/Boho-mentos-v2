@@ -215,11 +215,11 @@ export async function repairProfileDoc(
 
 // ─── FULL CRUD: Entity Operations ─────────────────────────────────────────────
 
-export type EntityTable = 'logs' | 'exams' | 'chatHistory' | 'agendaEntries' | 'focusSessions' | 'failedQuestions' | 'directiveHistory' | 'flashcards' | 'conversations';
+export type EntityTable = 'logs' | 'exams' | 'chatHistory' | 'agendaEntries' | 'focusSessions' | 'failedQuestions' | 'directiveHistory' | 'flashcards';
 
 const ENTITY_TABLE_LIST: EntityTable[] = [
   'logs', 'exams', 'chatHistory', 'agendaEntries',
-  'focusSessions', 'failedQuestions', 'directiveHistory', 'flashcards', 'conversations'
+  'focusSessions', 'failedQuestions', 'directiveHistory', 'flashcards'
 ];
 
 export { ENTITY_TABLE_LIST };

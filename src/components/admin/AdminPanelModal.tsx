@@ -69,10 +69,10 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
       const examsData = examsSnap.docs.map(d => d.data());
       const logs = logsData ?? [];
       const exams = examsData ?? [];
-      const profile = (user as any).profile;
+      const profile = user.profile;
 
       if (profile) {
-        const health = computeHealthScore(logs as any, exams as any, profile, (user as any).streak_days ?? 0);
+        const health = computeHealthScore(logs as DailyLog[], exams as any[], profile as any, user.streak_days ?? 0);
         setUserHealth(health);
       }
 
@@ -80,7 +80,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
       const worker = new AnalyticsWorker();
       worker.postMessage({
         type: 'ANALYZE_USER',
-        payload: { logs, streakDays: (user as any).streak_days ?? 0, uid: user.uid }
+        payload: { logs, streakDays: user.streak_days ?? 0, uid: user.uid }
       });
       
       worker.onmessage = (e) => {
@@ -140,7 +140,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                ].map(t => (
                  <button
                    key={t.id}
-                   onClick={() => setActiveTab(t.id as any)}
+                   onClick={() => setActiveTab(t.id as typeof activeTab)}
                    className={`flex items-center gap-3 px-4 py-3 rounded-xl tracking-widest uppercase font-bold text-[10px] transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#C17767] text-white shadow-lg shadow-[#C17767]/20 scale-[1.02]' : 'bg-transparent text-[#4A443C] dark:text-zinc-500 hover:bg-black/5 dark:hover:bg-white/5'}`}
                  >
                    {t.icon} {t.label}
@@ -259,7 +259,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                          <button key={u.uid} onClick={() => loadUserAnomalyDetail(u)}
                            className={`w-full text-left p-3 rounded-xl border text-[11px] transition-all ${selectedAnomalyUser?.uid === u.uid ? "bg-[#C17767]/10 border-[#C17767]" : "bg-white dark:bg-zinc-900 border-[#EAE6DF] dark:border-zinc-800 hover:border-zinc-400"}`}>
                            <div className="font-semibold truncate">{u.email}</div>
-                           <div className="text-zinc-500 font-mono text-[9px] mt-0.5">{(u as any).elo_score ?? 0} ELO</div>
+                           <div className="text-zinc-500 font-mono text-[9px] mt-0.5">{u.elo_score ?? u.eloScore ?? 0} ELO</div>
                          </button>
                        ))}
                      </div>
@@ -304,7 +304,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                                <div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 size={14} /> Hicbir anomali tespit edilmedi.</div>
                              ) : (
                                <div className="space-y-2">
-                                 {userAnomalies.map((a: any, i) => (
+                                 {userAnomalies.map((a: AnomalyAlert, i) => (
                                    <div key={i} className={`p-3 rounded-xl border text-xs ${a.severity === "high" ? "bg-red-900/20 border-red-700/40 text-red-300" : a.severity === "medium" ? "bg-amber-900/20 border-amber-700/40 text-amber-300" : "bg-zinc-800 border-zinc-700 text-zinc-400"}`}>
                                      <div className="font-bold uppercase text-[9px] tracking-widest opacity-70 mb-1">{a.type.replace(/_/g, " ")} - {a.severity}</div>
                                      <div>{a.message}</div>

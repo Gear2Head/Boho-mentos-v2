@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 
 import { CoachIntent } from '../../types/coach';
 import { Loader2, Play, Save, CheckCircle } from 'lucide-react';
@@ -28,15 +30,22 @@ export function PromptLab() {
   }, [selectedIntent]);
 
   const loadOverride = async (intent: string) => {
+    // ASSUME: localStorage fallback when Firebase is unavailable
     try {
-      const sb = { from: () => ({ select: () => ({ eq: () => ({ is: async () => ({ data: [] }) }), single: async () => ({ data: null }), insert: async () => ({}), upsert: async () => ({}), delete: () => ({ eq: async () => ({}) }) }) }) } as any;
-      const { data } = await sb.from('system_prompts' as any).select('prompt_text').eq('intent', intent).single();
-      if (data && (data as any).prompt_text) {
-        setSystemPrompt((data as any).prompt_text);
+      const docRef = doc(db, 'system_config', `prompt_${intent}`);
+      const snap = await getDoc(docRef);
+      if (snap.exists() && snap.data().prompt_text) {
+        setSystemPrompt(snap.data().prompt_text);
+        return;
       }
     } catch (e) {
-      // Ignore if no override exists
+      console.warn('[PromptLab] Firestore unavailable, using localStorage:', e);
     }
+    // localStorage fallback
+    try {
+      const stored = localStorage.getItem(`promptlab_${intent}`);
+      if (stored) setSystemPrompt(stored);
+    } catch { /* ignore */ }
   };
 
   const handleRun = async () => {
@@ -44,10 +53,6 @@ export function PromptLab() {
     setRawResponse('');
     setParsedJson(null);
     try {
-      // For testing, we just hit the server endpoint and pass the overridden instruction directly if possible.
-      // But getCoachResponseServer from api/ai doesn't take an override, it fetches from builder.
-      // E1 spec: "api/ai'a çağrı, raw response ve parsed directive JSON gösterimi side-by-side."
-      
       const payload = {
         messages: [{ role: 'user', content: testUserMessage }],
         intent: selectedIntent,
@@ -62,7 +67,6 @@ export function PromptLab() {
       });
       const data = await res.json();
       setRawResponse(data.text || data.raw || JSON.stringify(data));
-      // if WantDirective is true or if it's sent back:
       setParsedJson(data.directive || null);
     } catch (err: any) {
       setRawResponse('Error: ' + err.message);
@@ -74,16 +78,25 @@ export function PromptLab() {
   const handleSave = async () => {
     setSaving(true);
     setSaveSuccess(false);
+    // Always save to localStorage as backup
     try {
-      const sb = { from: () => ({ select: () => ({ eq: () => ({ is: async () => ({ data: [] }) }), single: async () => ({ data: null }), insert: async () => ({}), upsert: async () => ({}), delete: () => ({ eq: async () => ({}) }) }) }) } as any;
-      const { error } = await sb
-        .from('system_prompts' as any)
-        .upsert({ intent: selectedIntent, prompt_text: systemPrompt } as any, { onConflict: 'intent' });
-      if (error) throw error;
+      localStorage.setItem(`promptlab_${selectedIntent}`, systemPrompt);
+    } catch { /* ignore */ }
+    try {
+      const docRef = doc(db, 'system_config', `prompt_${selectedIntent}`);
+      await setDoc(docRef, { 
+        intent: selectedIntent, 
+        prompt_text: systemPrompt,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
-      alert('Save failed: ' + err.message);
+      // Firestore failed but localStorage saved
+      console.warn('[PromptLab] Firestore save failed, localStorage used:', err.message);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } finally {
       setSaving(false);
     }

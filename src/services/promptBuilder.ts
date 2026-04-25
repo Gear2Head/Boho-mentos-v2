@@ -1,13 +1,17 @@
 /**
- * AMAÇ: Merkezi Koç Prompt Builder — tüm AI yüzeyleri bu modülden türetilir.
- * MANTIK: Intent bazlı tip-güvenli prompt şablonları + context enjeksiyonu + JSON format talimatı.
- * V20: inverse_coaching, flashcard_generation, forgetting_curve_reminder, daily_quest eklendi.
- *      parseStructuredDirective bracket-balance parser ile yeniden yazıldı (TODO-001 fix).
+ * AMAÇ: Client-side prompt yardımcıları — parseStructuredDirective ve PromptLab gösterimi.
+ * 
+ * ⚠️ DİKKAT: COACH_PERSONA_BASE ve INTENT_INSTRUCTIONS burada SADECE referans/görüntüleme amaçlı.
+ * Gerçek AI çağrılarında kullanılan otorite kopya api/ai.ts'dedir.
+ * Bu dosyadaki sabitleri AI çağrıları için KULLANMA — api/ai.ts'deki versiyonu kullan.
  */
 
 import type { CoachIntent, CoachSystemContext } from '../types/coach';
 
-export const COACH_PERSONA_BASE = `Sen "Kübra"sın — YKS koçusun. Sert, analitik, mazeret kabul etmeyen ama toksik olmayan bir disiplin anlayışıyla çalışırsın. Veriyle konuşursun, duyguyla değil.`;
+export const COACH_PERSONA_BASE = `Sen "Kübra"sın — Türkiye'nin en gelişmiş, veriye dayalı YKS mentörüsün. 
+FELSEFE: Mazeretlerin istatistiksel bir değeri yoktur. Boş motivasyon ve "yaparsın" edebiyatı KESİNLİKLE YASAKTIR. 
+DİL: Soğuk, profesyonel, analitik ve sarkastik bir dürüstlükle konuşursun. 
+ANALİZ: Öğrencinin ELO puanı, unutma eğrisi ve net hedefleri arasındaki korelasyonu sürekli gözetirsin. Veri uyuşmazlığı yakalarsan sertçe uyar.`;
 
 export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   daily_plan: `Öğrencinin mevcut durumunu analiz ederek bugün için somut bir çalışma planı oluştur. Konu, süre ve öncelik sırasını belirt. Gerekçeni göster.`,
@@ -20,7 +24,7 @@ export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   free_chat: `Öğrenci seninle serbest konuşuyor. YKS hedefleriyle ilişkilendirerek yanıt ver ama zorlama. Kısa ve samimi ol.`,
   war_room_analysis: `War Room simülasyonu bitti. Soru bazlı hata analizi yap: hatalı soruların ortak paydası nedir, hangi konu/tip tuzak, doğruluk oranı ve hız dengesi nasıl. Konuya özgü 3 somut aksiyon ver.`,
   weekly_review: `Haftalık retrospektif: Ne oldu (veri), neden oldu (örüntü analizi), gelecek hafta ne değişecek (somut 3 karar). Net veriyle konuş, tahmin değil gözlem.`,
-  micro_feedback: `Log kaydedildi. KURAL: Övme yasak. Format — kesinlikle 3 cümle: 1. [Gerçek veri]: ne yapıldı, doğruluk oranı, hız. 2. [Risk]: bu seansın gösterdiği tek kritik tehlike. 3. [Sonraki adım]: bugün yapılacak tek spesifik şey (ders+konu+soru sayısı). Toplam 3 cümle, fazlası yasak.`,
+  micro_feedback: `Log kaydedildi. KURAL: Övme yasak. Format — kesinlikle 3 cümle: 1. [Veri Analizi]: net sayısı, doğruluk oranı ve hızın müfredat ortalamasına kıyasla durumu. 2. [Anomali]: bu seansın gösterdiği tek kritik metodolojik hata veya risk. 3. [Acil Emir]: bugün yatmadan önce yapılacak tek spesifik şey. Toplam 3 cümle, fazlası yasak.`,
 
   // TODO-007: Kübra v2 intent'leri
   inverse_coaching: `Artık öğrenci rolünü oynuyorsun. Kullanıcı sana konuyu anlatacak. Sen meraklı ama kavramsal boşlukları yakalayan bir öğrenci gibi sorular sor. Yanlış anlar gibi davran, net olmayan noktaları zorla. Anlatım bittiğinde: 3 maddeli güçlü/zayıf özet ve tespit ettiğin 1 gerçek hata yaz.`,
@@ -40,37 +44,34 @@ export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
 };
 
 const STRUCTURED_JSON_INSTRUCTION = `
-ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:
+ZORUNLU JSON ŞEMASI (Sadece bu objeyi döndür, Markdown kod bloğu KULLANMA):
 {
-  "headline": "Tek cümlelik genel değerlendirme",
-  "summary": "2-3 cümlelik özet",
+  "headline": "...",
+  "summary": "...",
   "tasks": [
     {
-      "id": "uuid-benzeri-id",
-      "title": "Kısa görev başlığı",
+      "id": "...",
+      "title": "...",
       "priority": "high|medium|low",
-      "subject": "ders",
-      "topic": "konu",
-      "action": "yapılacak iş detayı",
+      "subject": "...",
+      "topic": "...",
+      "action": "...",
       "targetMinutes": 45,
       "targetQuestions": 20,
       "dueWindow": "today|tomorrow|this_week",
-      "rationale": "1 satır veri temelli gerekçe",
-      "successCriteria": "başarı ölçütü",
-      "originSurface": "coach|strategy|warroom|system"
+      "rationale": "Analitik gerekçe (Örn: TYT Mat %40 başarı riski)",
+      "successCriteria": "...",
+      "originSurface": "coach"
     }
   ],
   "warnings": [
-    {
-      "type": "avoidance|memorization_risk|time_loss|low_accuracy|streak_break|burnout_risk|target_gap",
-      "message": "uyarı",
-      "severity": "info|warning|critical"
-    }
+    { "type": "avoidance", "message": "...", "severity": "critical" }
   ],
-  "followUpQuestion": "Bir sonraki seansta sorulacak soru",
-  "confidence": 75
+  "followUpQuestion": "...",
+  "confidence": 90,
+  "detectedLogs": [] 
 }
-`;
+NOT: Eğer mesajda bir çalışma logu (Örn: 2 saat kimya çalıştım, 50 soru çözdüm) tespit edersen "detectedLogs" dizisine [ { "subject": "...", "topic": "...", "questions": 50, "duration": 120 } ] şeklinde ekle.`;
 
 export function buildSystemInstruction(
   intent: CoachIntent = 'free_chat',
@@ -170,6 +171,7 @@ export function parseStructuredDirective(
         tasks,
         warnings: parsed.warnings,
         followUpQuestion: parsed.followUpQuestion,
+        detectedLogs: parsed.detectedLogs,
         text: rawText,
         createdAt: new Date().toISOString(),
         intent,

@@ -4,6 +4,7 @@ import { Lock, Shuffle, Lightbulb, Calculator, CheckCircle2, Loader2 } from 'luc
 import 'katex/dist/katex.min.css';
 import { BlockMath, InlineMath } from 'react-katex';
 import { useAppStore } from '../store/appStore';
+import { KaTeXBoundary } from './KaTeXBoundary';
 import { getCoachResponse } from '../services/gemini';
 import { parseAiObject, sanitizeAiText, validateStringArray } from '../utils/aiJson';
 import { isNonEmptyString, isRecord } from '../utils/typeGuards';
@@ -17,6 +18,7 @@ function MixedMathRenderer({ text }: { text: string }) {
   const parts = text.split(/(\\\([^\)]+\\\)|\\frac\{[^\}]+\}\{[^\}]+\}|\\\%|\\text\{[^\}]+\})/g);
 
   return (
+    <KaTeXBoundary>
     <span>
       {parts.map((part, i) => {
         if (part.startsWith('\\')) {
@@ -31,6 +33,7 @@ function MixedMathRenderer({ text }: { text: string }) {
         return <span key={i}>{part}</span>;
       })}
     </span>
+    </KaTeXBoundary>
   );
 }
 
@@ -266,9 +269,16 @@ export function MorningBlocker({ onUnlock }: { onUnlock: () => void }) {
     const cached = sessionStorage.getItem(sessionKey);
     if (cached) {
       try {
-        setQuestion(JSON.parse(cached) as MorningQuestion);
-        setIsLoadingQ(false);
-        return;
+        const parsed = JSON.parse(cached) as MorningQuestion;
+        // Evict cache if expression is non-empty but not LaTeX (prevents 656/656 rendering bug)
+        const expressionIsValid = !parsed.expression || /[\\^_{}]/.test(parsed.expression);
+        if (expressionIsValid) {
+          setQuestion(parsed);
+          setIsLoadingQ(false);
+          return;
+        }
+        // Bad cache — remove it and fall through to regenerate
+        sessionStorage.removeItem(sessionKey);
       } catch { /* fallthrough */ }
     }
 
@@ -281,11 +291,14 @@ export function MorningBlocker({ onUnlock }: { onUnlock: () => void }) {
       const weakContext = randomWeak ? `Şu zayıf konulardan birini seç: ${randomWeak}.` : `Rastgele bir konudan seç.`;
 
       const raw = await getCoachResponse(
-        `Kullanıcının alanı: ${track}. Bugün için bir sabah kilidi sorusu üret. ${weakContext} SADECE JSON döndür (başka metin ekleme):
-{"topic":"...","expression":"latex_string_or_empty_string","questionStr":"...","correctAnswers":["cevap1","cevap2"],"hints":["...","...","..."]}
-Zorluk: orta. Kısa soru. Günlük sıkılmayacak kadar değişken konu seç. 
-HÜKÜM: LaTeX kullanırken \\% gibi literal kaçışlar yapma, doğrudan % kullan veya LaTeX blokları içine al. 
-Matematiksel ifadeleri mutlaka \\( ... \\) içine al.`,
+        `Kullanıcının alanı: ${track}. Öğrencinin zayıf konuları: ${weakContext} 
+Güne başlamak için bu zayıf konulardan birinden TEK BİR kısa çalışma sorusu üret. 
+Motivasyonel veya "Nasılsın" gibi genel/sohbet tarzı sorular KESİNLİKLE YASAKTIR. Sadece direkt, net bir bilgi veya işlem sorusu sor.
+SADECE aşağıdaki JSON formatını döndür (öncesine veya sonrasına hiçbir metin ekleme):
+{"topic":"...","expression":"gerçek_latex_formülü_veya_BOŞ_string","questionStr":"Soru metni...","correctAnswers":["cevap1","cevap2"],"hints":["...","...","..."]}
+Zorluk: orta. Kısa soru. 
+ÖNEMLİ: "expression" alanı YA gerçek bir LaTeX formülü olmalıdır (\\frac, \\sqrt gibi komutlar içermeli) YA da tamamen boş string ("") olmalıdır. Asla düz sayı, kelime veya cevap YAZMAYACEKSİN bu alana.
+HÜKÜM: LaTeX kullanırken \\% gibi literal kaçışlar yapma, doğrudan % kullan. Matematiksel ifadeleri mutlaka \\( ... \\) içine al.`,
         '',
         [],
         { intent: 'qa_mode', forceJson: true, maxTokens: 500 }
@@ -405,7 +418,7 @@ Matematiksel ifadeleri mutlaka \\( ... \\) içine al.`,
                   </div>
 
                   <div className="mb-8 font-serif text-xl border-l-[3px] border-accent pl-6 py-1 text-ink-muted leading-relaxed">
-                    {question.expression && (
+                    {question.expression && /[\\^_{}]/.test(question.expression) && (
                       <div className="mb-4 bg-app-subtle p-4 rounded-xl">
                         <BlockMath math={question.expression} />
                       </div>

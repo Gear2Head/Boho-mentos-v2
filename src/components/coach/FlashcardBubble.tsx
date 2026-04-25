@@ -6,8 +6,9 @@
 import React, { useState } from 'react';
 import { BookOpen, RotateCw, CheckCircle2 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
+import type { Flashcard } from '../../types/coach';
 
-export interface Flashcard {
+export interface FlashcardBubbleData {
   front: string;
   back: string;
   difficulty: 'easy' | 'medium' | 'hard';
@@ -21,16 +22,28 @@ const DIFF_STYLES = {
   hard:   { border: 'border-red-500/30 bg-red-500/5',        tag: 'text-red-400 bg-red-400/10',         label: 'Zor'   },
 };
 
-function FlipCard({ card, index }: { card: Flashcard; index: number; key?: React.Key }) {
+function FlipCard({ card, index }: { card: FlashcardBubbleData; index: number; key?: React.Key }) {
   const [flipped, setFlipped] = useState(false);
   const [saved, setSaved] = useState(false);
-  const addFlashcard = useAppStore(s => (s as any).addFlashcard);
+  const addFlashcard = useAppStore(s => s.addFlashcard);
 
   const style = DIFF_STYLES[card.difficulty];
 
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (addFlashcard) addFlashcard(card);
+    const fullCard: Flashcard = {
+      id: `fc_${Date.now()}_${index}`,
+      front: card.front,
+      back: card.back,
+      difficulty: card.difficulty,
+      subject: card.subject,
+      topic: card.topic,
+      createdAt: new Date().toISOString(),
+      nextReviewAt: new Date().toISOString(),
+      reviewCount: 0,
+      lastCorrect: null,
+    };
+    if (addFlashcard) addFlashcard(fullCard);
     setSaved(true);
   };
 
@@ -87,7 +100,7 @@ function FlipCard({ card, index }: { card: Flashcard; index: number; key?: React
   );
 }
 
-export function FlashcardBubble({ cards }: { cards: Flashcard[] }) {
+export function FlashcardBubble({ cards }: { cards: FlashcardBubbleData[] }) {
   if (!cards || cards.length === 0) return null;
 
   return (

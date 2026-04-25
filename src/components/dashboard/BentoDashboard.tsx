@@ -47,15 +47,15 @@ export function BentoDashboard() {
   const totalMastery = tytSubjects.length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)).length;
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }} 
-      animate={{ opacity: 1, y: 0 }} 
-      exit={{ opacity: 0, y: -10 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
       className="p-4 md:p-8 max-w-7xl mx-auto"
     >
       {/* 1. Header & Welcome (Bento Row 1) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="md:col-span-3 bg-white/5 dark:bg-black/20 backdrop-blur-xl border border-white/10 dark:border-zinc-800/50 rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group">
+        <div className="md:col-span-3 glass-card rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-br from-[#C17767]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
           <h2 className="font-display italic text-5xl text-[#4A443C] dark:text-zinc-100 mb-6 z-10">Hoş geldin, <span className="text-[#C17767]">{profile?.name}</span></h2>
           <div className="flex flex-col md:flex-row gap-6 text-sm font-medium z-10">
@@ -68,7 +68,7 @@ export function BentoDashboard() {
                 <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]" style={{ width: `70%` }} />
               </div>
             </div>
-            
+
             <div className="flex-1">
               <div className="flex justify-between mb-2 text-zinc-400 font-mono tracking-wider">
                 <span>AYT Sınavı Hedefi</span>
@@ -81,7 +81,7 @@ export function BentoDashboard() {
           </div>
         </div>
 
-        <div className="md:col-span-1 bg-white/5 dark:bg-black/20 backdrop-blur-xl border border-white/10 dark:border-zinc-800/50 rounded-3xl p-6 flex flex-col items-center justify-center relative hover:scale-[1.02] transition-transform">
+        <div className="md:col-span-1 glass-card rounded-3xl p-6 flex flex-col items-center justify-center relative hover:scale-[1.02] transition-transform">
           <MiniFlapClock targetDate={YKS_DATE} />
           <p className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase mt-4">{calculateDaysToExam()} Gün Kaldı</p>
         </div>
@@ -104,7 +104,7 @@ export function BentoDashboard() {
 
       {/* 3. Main Action & Coach (Bento Row 3) */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
-        
+
         {/* Odak Modu / Müfredat */}
         <div className="md:col-span-4 flex flex-col gap-6">
           <button
@@ -123,7 +123,7 @@ export function BentoDashboard() {
             </div>
           </button>
 
-          <div className="flex-1 bg-white/5 dark:bg-zinc-900 border border-white/10 dark:border-zinc-800/50 backdrop-blur-md rounded-3xl p-6 shadow-md flex flex-col justify-center">
+          <div className="flex-1 glass-card rounded-3xl p-6 shadow-md flex flex-col justify-center">
             <div className="flex justify-between items-center mb-4">
               <span className="text-xs uppercase font-bold tracking-widest text-[#C17767]">Müfredat Yükü</span>
               <span className="text-xl font-mono font-bold text-zinc-100">%{wp.completedPercent}</span>
@@ -136,10 +136,10 @@ export function BentoDashboard() {
         </div>
 
         {/* Coach Directive */}
-        <div className="md:col-span-8 bg-white/5 dark:bg-[#111111] backdrop-blur-xl border border-white/10 dark:border-zinc-800/50 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        <div className="md:col-span-8 glass-card rounded-3xl p-8 shadow-2xl relative overflow-hidden">
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#C17767] blur-[120px] rounded-full opacity-10 pointer-events-none" />
           <h3 className="font-display italic text-2xl mb-6 uppercase tracking-tight text-[#C17767] flex items-center gap-2"><Activity size={20} /> Günün Direktifi</h3>
-          
+
           <div className="prose prose-invert max-w-none text-zinc-300">
             {lastCoachDirective ? (
               <div className="space-y-6">
@@ -147,7 +147,7 @@ export function BentoDashboard() {
                   <h4 className="text-white font-bold text-xl leading-snug">{lastCoachDirective.headline}</h4>
                   <p className="text-zinc-400 text-sm mt-2">{lastCoachDirective.summary}</p>
                 </div>
-                
+
                 {lastCoachDirective.tasks && lastCoachDirective.tasks.length > 0 && (
                   <div className="bg-black/30 rounded-2xl p-4 border border-white/5">
                     <ul className="space-y-3 m-0 p-0 list-none">
@@ -186,10 +186,10 @@ export function BentoDashboard() {
           <EloRankCard />
           <GhostRivalWidget eloScore={useAppStore.getState().eloScore} />
         </div>
-        
+
         <div className="lg:col-span-1 space-y-6">
           <MemoryDecayWidget logs={logs} />
-          <div className="bg-white/5 dark:bg-black/20 backdrop-blur-xl border border-white/10 dark:border-zinc-800/50 rounded-3xl p-6">
+          <div className="glass-card rounded-3xl p-6">
             <h3 className="font-bold text-sm tracking-widest uppercase text-zinc-500 mb-4">Aktivite Haritası</h3>
             <div className="h-40">
               <StreakHeatmap logs={logs} />
@@ -207,7 +207,7 @@ export function BentoDashboard() {
 
 function BentoStatCard({ title, value, total, unit, icon }: { title: string; value: string | number; total?: number; unit?: string; icon: React.ReactNode }) {
   return (
-    <div className="bg-white/5 dark:bg-[#151515] hover:bg-zinc-800/50 transition-colors backdrop-blur-md border border-white/10 dark:border-zinc-800/50 rounded-3xl p-6 relative overflow-hidden group">
+    <div className="glass-card hover:border-[#C17767]/30 transition-colors rounded-3xl p-6 relative overflow-hidden group">
       <div className="flex justify-between items-start mb-4">
         <span className="p-2 bg-black/20 rounded-xl">{icon}</span>
         {unit && <span className="text-[10px] font-mono uppercase tracking-widest text-[#C17767]">{unit}</span>}
@@ -248,7 +248,7 @@ function GhostRivalWidget({ eloScore }: { eloScore: number }) {
 function MemoryDecayWidget({ logs }: { logs: any[] }) {
   const decayTopics = getForgettingCurveStatus(logs);
   return (
-    <div className="bg-white/5 dark:bg-black/20 backdrop-blur-xl border border-white/10 dark:border-zinc-800/50 rounded-3xl p-6">
+    <div className="glass-card rounded-3xl p-6">
       <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
         <Zap size={14} className="text-amber-400" /> Kalıcı Hafıza (Ebbinghaus)
       </h3>

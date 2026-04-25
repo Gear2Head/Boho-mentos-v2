@@ -156,6 +156,13 @@ export interface CoachDirective {
   intent: CoachIntent;
   /** Güven skoru: 0-100 */
   confidence?: number;
+  /** AI tarafından konuşmadan yakalanan çalışma logları */
+  detectedLogs?: Array<{
+    subject: string;
+    topic: string;
+    questions: number;
+    duration: number;
+  }>;
 }
 
 // ─── Directive Record (Tarihsel Kayıt) ───────────────────────────────────────
@@ -265,7 +272,7 @@ export interface CoachApiRequest {
   intent: CoachIntent;
   userMessage: string;
   context: string;
-  chatHistory?: Array<{ role: 'user' | 'coach'; content: string }>;
+  chatHistory?: Array<{ role: 'user' | 'coach' | 'system'; content: string }>;
   coachPersonality?: string;
   forceJson?: boolean;
   maxTokens?: number;
@@ -307,6 +314,7 @@ export interface Flashcard {
   back: string;
   difficulty: 'easy' | 'medium' | 'hard';
   subject: string;
+  topic?: string;
   createdAt: string;
   nextReviewAt: string;
   reviewCount: number;

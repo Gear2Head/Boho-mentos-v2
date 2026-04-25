@@ -19,6 +19,7 @@ import {
   addToHistory,
   updateCoachMemory,
 } from '../services/directiveHistory';
+import { compactChatHistory } from '../services/contextSummarizer';
 import type { CoachIntent, CoachDirective } from '../types/coach';
 import type { DailyLog, ExamResult } from '../types';
 import { cleanForFirestore } from '../utils/firebaseHelpers';
@@ -97,11 +98,11 @@ export function useCoachCore(): UseCoachCoreReturn {
           callerSurface: callerSurface ?? intent,
         });
 
-        // 2. AI çağrısı — intent bazlı (BUILD-001, COACH-003)
+        // 2. AI çağrısı — intent bazlı (BUILD-001, COACH-003, AI-005)
         const rawText = await getCoachResponse(
           userMessage,
           contextString,
-          chatHistory,
+          compactChatHistory(chatHistory),
           {
             intent,
             coachPersonality: profile?.coachPersonality,
@@ -137,6 +138,25 @@ export function useCoachCore(): UseCoachCoreReturn {
             coachMemory: newMemory,
           });
           setLastCoachDirective(directive);
+
+          // [AI-004] NLP Log Extraction: Yakalanan logları otomatik kaydet
+          if (directive.detectedLogs && directive.detectedLogs.length > 0) {
+            const addLog = useAppStore.getState().addLog;
+            directive.detectedLogs.forEach(dl => {
+              addLog({
+                date: new Date().toISOString(),
+                subject: dl.subject,
+                topic: dl.topic,
+                questions: dl.questions || 0,
+                correct: Math.floor((dl.questions || 0) * 0.8), // Varsayılan %80 başarı
+                wrong: Math.floor((dl.questions || 0) * 0.2),
+                empty: 0,
+                avgTime: dl.questions ? Math.round(dl.duration / dl.questions) : dl.duration,
+                fatigue: 3,
+                notes: '🤖 Kübra: Sohbetten otomatik yakalanan çalışma kaydı.'
+              });
+            });
+          }
         }
 
         // 6. Chat'e ekle

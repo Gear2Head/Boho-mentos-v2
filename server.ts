@@ -14,7 +14,7 @@ dotenv.config({ path: '.env' });
 const app = express();
 const port = 3001;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 /**
  * adaptExpressToVercel: Express Request/Response → api/ai.ts handler kontratına dönüştürür.

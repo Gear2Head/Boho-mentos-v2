@@ -191,26 +191,26 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm font-medium leading-snug ${
-                        isDimmed ? 'line-through text-zinc-500' : 'text-zinc-200'
+                        isDimmed ? 'line-through text-ink-muted' : 'text-ink'
                       }`}
                     >
                       {task.action}
                     </p>
                     {task.subject && (
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] uppercase tracking-widest text-zinc-600">
+                        <span className="text-[10px] uppercase tracking-widest text-ink-muted">
                           {task.subject}
                           {task.targetMinutes ? ` • ${task.targetMinutes}dk` : ''}
                         </span>
                         {task.dueWindow && (
-                          <span className="text-[9px] bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                          <span className="text-[9px] bg-surface-2 text-ink-muted px-1.5 py-0.5 rounded uppercase tracking-widest">
                             {task.dueWindow === 'today' ? 'BUGÜN' : task.dueWindow === 'tomorrow' ? 'YARIN' : 'HAFTA'}
                           </span>
                         )}
                       </div>
                     )}
                     {task.rationale && (
-                      <p className="text-[10px] text-zinc-600 italic mt-1">{task.rationale}</p>
+                      <p className="text-[10px] text-ink-muted italic mt-1">{task.rationale}</p>
                     )}
                   </div>
 
@@ -249,17 +249,17 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-8 text-center"
+          className="bg-surface border border-app rounded-2xl p-8 text-center"
         >
-          <Target size={40} className="mx-auto mb-4 text-[#C17767] opacity-60" />
-          <h3 className="text-lg font-bold text-zinc-300 mb-2">Bugün için direktif yok</h3>
-          <p className="text-sm text-zinc-500 mb-6">
+          <Target size={40} className="mx-auto mb-4 text-accent opacity-60" />
+          <h3 className="text-lg font-bold text-ink mb-2">Bugün için direktif yok</h3>
+          <p className="text-sm text-ink-muted mb-6">
             Günlük planını oluşturmak için aşağıdaki butona bas.
           </p>
           <button
             onClick={() => onSendMessage('PLAN', 'daily_plan')}
             disabled={isTyping}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#C17767] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#A56253] transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-accent/80 transition-colors disabled:opacity-50"
           >
             {isTyping ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
             Günlük Plan Al
@@ -274,7 +274,7 @@ export function CoachBriefing({ onSendMessage, isTyping }: CoachBriefingProps) {
             key={cmd.intent}
             onClick={() => onSendMessage(cmd.message, cmd.intent)}
             disabled={isTyping}
-            className="flex items-center gap-2 p-3 bg-[#121212] border border-[#2A2A2A] rounded-xl text-xs font-bold uppercase tracking-widest text-zinc-400 hover:border-[#C17767] hover:text-[#C17767] transition-all disabled:opacity-50 group"
+            className="flex items-center gap-2 p-3 bg-surface border border-app rounded-xl text-xs font-bold uppercase tracking-widest text-ink-muted hover:border-accent hover:text-accent transition-all disabled:opacity-50 group"
           >
             <span className="text-base">{cmd.emoji}</span>
             <span>{cmd.label}</span>

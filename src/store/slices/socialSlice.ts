@@ -89,7 +89,7 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     set({ conversations: newConvs, activeConversationId: nextActive });
     
     if (authUser?.uid) {
-      deleteDoc(doc(db, 'users', authUser.uid, 'conversations', id)).catch(console.error);
+      deleteDoc(doc(db, 'users', authUser.uid, 'chatHistory', id)).catch(console.error);
     }
   },
 
@@ -129,8 +129,8 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     }));
 
     if (authUser?.uid && targetId) {
-      setDoc(doc(db, 'users', authUser.uid, 'conversations', targetId, 'messages', newMessage.id), newMessage).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid, 'conversations', targetId), { 
+      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId, 'messages', newMessage.id), newMessage).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId), { 
         id: targetId, 
         updatedAt: new Date().toISOString(),
         lastMessage: message.content.slice(0, 50)

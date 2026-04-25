@@ -7,18 +7,23 @@ import React from 'react';
 import { InlineMath, BlockMath } from 'react-katex';
 import CanvasDraw from 'react-canvas-draw';
 import { useAppStore } from '../../store/appStore';
+import { KaTeXBoundary } from '../KaTeXBoundary';
 
 const LaTeXRenderer = ({ text }: { text: string }) => {
   if (!text) return null;
-  const parts = text.split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g);
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$|\\\([\s\S]*?\\\)|\\[[\s\S]*?\\])/g);
   return (
-    <div className="leading-relaxed whitespace-pre-line text-lg flex flex-wrap items-center">
-      {parts.map((p, i) => {
-        if (p.startsWith('\\(') && p.endsWith('\\)')) return <InlineMath key={i}>{p.slice(2, -2)}</InlineMath>;
-        if (p.startsWith('\\[') && p.endsWith('\\]')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
-        return <span key={i} dangerouslySetInnerHTML={{ __html: p }} />;
-      })}
-    </div>
+    <KaTeXBoundary>
+      <div className="leading-relaxed whitespace-pre-line text-lg flex flex-wrap items-center">
+        {parts.map((p, i) => {
+          if (p.startsWith('$$') && p.endsWith('$$')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
+          if (p.startsWith('$') && p.endsWith('$')) return <InlineMath key={i}>{p.slice(1, -1)}</InlineMath>;
+          if (p.startsWith('\\(') && p.endsWith('\\)')) return <InlineMath key={i}>{p.slice(2, -2)}</InlineMath>;
+          if (p.startsWith('\\[') && p.endsWith('\\]')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
+          return <span key={i} dangerouslySetInnerHTML={{ __html: p }} />;
+        })}
+      </div>
+    </KaTeXBoundary>
   );
 };
 
@@ -53,7 +58,7 @@ export function CanvasLayer({ canvasRef }: { canvasRef: React.RefObject<any> }) 
       className="absolute inset-0 z-30 transition-opacity duration-300 pointer-events-none"
       style={{ 
         pointerEvents: isDrawing ? 'auto' : 'none',
-        opacity: isDrawing ? 0.7 : 0.3, // Çizim modunda daha opak, çözüm modunda silik
+        opacity: isDrawing ? 0.7 : 0.3,
       }}
     >
       <div className="w-[2000px] h-[3000px]">
