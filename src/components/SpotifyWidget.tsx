@@ -26,6 +26,12 @@ import {
 } from '../services/spotifyService';
 import { useAppStore } from '../store/appStore';
 
+const SpotifyLogo = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} fill="currentColor" className={`bi bi-spotify ${className}`} viewBox="0 0 16 16">
+    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0m3.669 11.538a.5.5 0 0 1-.686.165c-1.879-1.147-4.243-1.407-7.028-.77a.499.499 0 0 1-.222-.973c3.048-.696 5.662-.397 7.77.892a.5.5 0 0 1 .166.686m.979-2.178a.624.624 0 0 1-.858.205c-2.15-1.321-5.428-1.704-7.972-.932a.625.625 0 0 1-.362-1.194c2.905-.881 6.517-.454 8.986 1.063a.624.624 0 0 1 .206.858m.084-2.268C10.154 5.56 5.9 5.419 3.438 6.166a.748.748 0 1 1-.434-1.432c2.825-.857 7.523-.692 10.492 1.07a.747.747 0 1 1-.764 1.288"/>
+  </svg>
+);
+
 import { motion, AnimatePresence } from 'motion/react';
 
 export function SpotifyWidget() {
@@ -180,7 +186,7 @@ export function SpotifyWidget() {
         className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[60] flex items-center gap-4 p-4 border border-[#1DB954]/30 rounded-2xl bg-zinc-950/80 backdrop-blur-xl shadow-2xl"
       >
         <div className="w-12 h-12 bg-[#1DB954] rounded-full flex items-center justify-center text-white shadow-lg shadow-[#1DB954]/20 overflow-hidden">
-          <Music size={24} />
+          <SpotifyLogo size={24} />
         </div>
         <div className="flex-1">
           <h4 className="text-sm font-bold text-white tracking-tight">Spotify Bağlantısı</h4>
@@ -211,7 +217,7 @@ export function SpotifyWidget() {
             <div className="flex flex-col items-center gap-1">
               <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
             </div>
-            <Music size={18} className={isPlaying ? 'animate-bounce' : ''} />
+            <SpotifyLogo size={18} className={isPlaying ? 'animate-bounce' : ''} />
             {isPlaying && (
               <div className="flex gap-1 items-end h-4 pr-1">
                 {[...Array(3)].map((_, i) => (
@@ -269,7 +275,7 @@ export function SpotifyWidget() {
                             <div className="aspect-square rounded-2xl overflow-hidden bg-white/5 border border-white/5 group-hover:border-[#1DB954]/50 transition-colors">
                               {pl.images?.[0] 
                                 ? <img src={pl.images[0].url} className="w-full h-full object-cover" alt="" />
-                                : <div className="w-full h-full flex items-center justify-center"><Music size={24} className="opacity-20" /></div>
+                                : <div className="w-full h-full flex items-center justify-center"><SpotifyLogo size={24} className="opacity-20" /></div>
                               }
                             </div>
                             <span className="text-[10px] font-bold text-zinc-100 truncate w-full px-1">{pl.name}</span>
@@ -352,7 +358,7 @@ export function SpotifyWidget() {
                       <img src={track.album.images[0].url} className="w-full h-full object-cover" alt="" />
                     ) : (
                       <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-[#1DB954]">
-                        <Music size={20} />
+                        <SpotifyLogo size={20} />
                       </div>
                     )}
                   </div>
