@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
@@ -9,13 +10,16 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-import { parseStructuredDirective } from './services/promptBuilder';
 import { uploadImageFile } from './services/storageService';
+import MobileMenuModal from './components/layout/MobileMenuModal';
+import { MainLayout } from './components/layout/MainLayout';
+import { SkeletonScreen } from './components/layout/SkeletonScreen';
 import { buildCoachContext, summarizeLogsForPrompt, summarizeExamsForPrompt } from './services/coachContext';
 import { useCoachCore } from './hooks/useCoachCore';
 import type { CoachIntent } from './types/coach';
 import { TYT_SUBJECTS, AYT_SUBJECTS } from './constants';
 import { useAppStore, COACH_NAME, COACH_SYSTEM_NAME } from './store/appStore';
+import { useAppSelectors } from './store/selectors';
 import type {
   StudentProfile, DailyLog, ExamResult, FailedQuestion
 } from './types';
@@ -41,6 +45,8 @@ const MebiWarRoom = React.lazy(() => import('./components/MebiWarRoom').then(m =
 
 import { AchievementsPanel } from './components/AchievementsPanel';
 import { GraveyardPanel } from './components/GraveyardPanel';
+import { ArchiveWidget } from './components/warroom/ArchiveWidget';
+import { markdownComponents } from './config/markdownConfig';
 import { CoachInterventionModal } from './components/CoachInterventionModal';
 import { CoachScreen } from './components/coach/CoachScreen';
 import { calcWorkloadRemaining, calcSourceROI, calculatePredictedNet, detectHabitAlerts } from './utils/statistics';
@@ -87,246 +93,38 @@ const getAytSubjectsForTrack = (track: string) => {
 
 // --- Sub Components ---
 
-
-function ArchiveWidget({ onSubmit, onCancel, subjects }: { onSubmit: (q: FailedQuestion) => void, onCancel: () => void, subjects: string[] }) {
-  const [subject, setSubject] = useState(subjects[0] || '');
-  const [topic, setTopic] = useState('');
-  const [book, setBook] = useState('');
-  const [page, setPage] = useState('');
-  const [questionNumber, setQuestionNumber] = useState('');
-  const [reason, setReason] = useState('');
-  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-
-  const handleImageSelect = async (f: File) => {
-    setFile(f);
-    setIsUploading(true);
-    try {
-      // 1. Base64
-      const reader = new FileReader();
-      const b64 = await new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(f);
-      });
-      // 2. Call AI
-      const resp = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          intent: 'vision_archive_parse',
-          userMessage: 'Parse this image',
-          imageBase64: b64,
-          imageMediaType: f.type,
-          forceJson: true
-        })
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        let parsed = data;
-        if(data.text) {
-          try { parsed = JSON.parse(data.text); } catch(e){}
-        }
-        if (parsed.subject) setSubject(parsed.subject);
-        if (parsed.topic) setTopic(parsed.topic);
-        if (parsed.difficulty) setDifficulty(parsed.difficulty);
-        if (parsed.reason) setReason(parsed.reason);
-      }
-    } catch(e) {
-      console.error('Vision OCR failed', e);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-6 shadow-lg mb-6 max-w-2xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h3 className="font-display italic text-2xl text-[#C17767] dark:text-rose-400">Yeni Mezar Kaz</h3>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 text-zinc-500 font-bold">Hatalı soruyu arşive gönder</p>
-        </div>
-        <button onClick={onCancel} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"><X size={20} className="text-[#4A443C] dark:text-zinc-200" /></button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">DERS</label>
-          <select value={subject} onChange={e => setSubject(e.target.value)} className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200">
-            {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">ZORLUK</label>
-          <select value={difficulty} onChange={e => setDifficulty(e.target.value as any)} className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200">
-            <option value="easy">KOLAY (DİKKAT HATASI)</option>
-            <option value="medium">ORTA (SÜRE/BİLGİ)</option>
-            <option value="hard">ZOR (MANTIK/ÜST DÜZEY)</option>
-          </select>
-        </div>
-        <input type="text" placeholder="Konu Başlığı" value={topic} onChange={e => setTopic(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
-        <input type="text" placeholder="Kitap / Kaynak Adı" value={book} onChange={e => setBook(e.target.value)} className="bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
-        <div className="flex gap-2">
-          <input type="text" placeholder="Sayfa" value={page} onChange={e => setPage(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
-          <input type="text" placeholder="Soru No" value={questionNumber} onChange={e => setQuestionNumber(e.target.value)} className="w-1/2 bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] text-[#4A443C] dark:text-zinc-200" />
-        </div>
-      </div>
-
-      
-      <div className="mb-4">
-        <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1 block mb-1">SORU FOTOĞRAFI (OPSİYONEL - MAX 5MB)</label>
-        <input 
-          type="file" 
-          accept="image/*" 
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f && f.size < 5 * 1024 * 1024) handleImageSelect(f);
-            else if (f) alert('Dosya boyutu 5 MB\'ı geçemez.');
-          }}
-          className="block w-full text-sm text-[#4A443C] dark:text-zinc-200 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#C17767]/10 file:text-[#C17767] hover:file:bg-[#C17767]/20"
-        />
-      </div>
-
-      <textarea
-        placeholder="Neden yanlış yaptın? Hangi bilgi eksikti veya hangi tuzağa düştün?"
-        value={reason} onChange={e => setReason(e.target.value)}
-        className="w-full bg-[#F5F2EB] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-lg p-3 text-sm focus:outline-none focus:border-[#C17767] mb-6 h-24 resize-none text-[#4A443C] dark:text-zinc-200"
-      />
-
-      <button
-        onClick={async () => {
-          if (subject && topic && book) {
-            let imageUrl: string | undefined = undefined;
-            if (file) {
-              setIsUploading(true);
-              try {
-                  const uid = useAppStore.getState().authUser?.uid || 'unknown';
-                imageUrl = await uploadImageFile(file, `failed_questions/${uid}/${Date.now()}_${file.name}`);
-              } catch (e) {
-                console.error("Resim yüklenemedi", e);
-                alert("Resim yüklenemedi, ancak soru eklenecek.");
-              } finally {
-                setIsUploading(false);
-              }
-            }
-            onSubmit({
-              id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-              date: new Date().toISOString(),
-              subject, topic, book, page, questionNumber, reason,
-              difficulty,
-              status: 'active',
-              solveCount: 0,
-              imageUrl
-            });
-          }
-        }}
-        disabled={isUploading}
-        className="w-full py-4 bg-[#C17767] text-[#FDFBF7] rounded-xl text-xs font-bold tracking-[0.3em] uppercase hover:bg-[#A56253] transition-all hover:shadow-xl hover:shadow-[#C17767]/20 active:scale-[0.98]"
-      >
-        {isUploading ? "YÜKLENİYOR..." : "MEZARA GÖNDER"}
-      </button>
-    </motion.div>
-  );
-}
-
-const markdownComponents = {
-  p: ({ node, ...props }: any) => <p className="leading-relaxed mb-4 text-[#4A443C] dark:text-zinc-200 text-base" {...props} />,
-  li: ({ node, ...props }: any) => <li className="mb-2 leading-relaxed" {...props} />,
-  ul: ({ node, ...props }: any) => <ul className="list-disc pl-5 mb-4 space-y-2 opacity-90" {...props} />,
-  ol: ({ node, ...props }: any) => <ol className="list-decimal pl-5 mb-4 space-y-2 opacity-90" {...props} />,
-  strong: ({ node, ...props }: any) => <strong className="font-bold text-[#C17767] dark:text-rose-400" {...props} />,
-  h3: ({ node, ...props }: any) => <h3 className="text-lg font-bold font-display italic mt-6 mb-2 border-b border-[#EAE6DF] dark:border-zinc-800 pb-1" {...props} />,
-};
-
 // --- Main App ---
 
 export default function App() {
-  // --- STORE SELECTORS (PERF-003) ---
-  const morningUnlockedDate = useAppStore(s => s.morningUnlockedDate);
-  const notifications = useAppStore(s => s.notifications);
-  const isSyncing = useAppStore(s => s.isSyncing);
-  const theme = useAppStore(s => s.theme);
-  const addLog = useAppStore(s => s.addLog);
-  const addExam = useAppStore(s => s.addExam);
-  const isPassiveMode = useAppStore(s => s.isPassiveMode);
-  const setPassiveMode = useAppStore(s => s.setPassiveMode);
-  const logs = useAppStore(s => s.logs);
-  const setTheme = useAppStore(s => s.setTheme);
-  const hardReset = useAppStore(s => s.hardReset);
-  const trophies = useAppStore(s => s.trophies);
-  const unlockTrophy = useAppStore(s => s.unlockTrophy);
-  const addChatMessage = useAppStore(s => s.addChatMessage);
-  const profile = useAppStore(s => s.profile);
-  const chatHistory = useAppStore(s => s.chatHistory);
-  const activeAlerts = useAppStore(s => s.activeAlerts);
-  const qaSession = useAppStore(s => s.qaSession);
-  const setQaSession = useAppStore(s => s.setQaSession);
-  const updateQaAnswer = useAppStore(s => s.updateQaAnswer);
-  const tytSubjects = useAppStore(s => s.tytSubjects);
-  const aytSubjects = useAppStore(s => s.aytSubjects);
-  const lastCoachDirective = useAppStore(s => s.lastCoachDirective);
-  const setLastCoachDirective = useAppStore(s => s.setLastCoachDirective);
-  
-  const hasHydrated = useAppStore(s => s.hasHydrated);
-  const setHasHydrated = useAppStore(s => s.setHasHydrated);
-  useEffect(() => {
-    if (!hasHydrated) {
-      const timer = setTimeout(() => {
-        setHasHydrated(true);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [hasHydrated, setHasHydrated]);
-  const setProfile = useAppStore(s => s.setProfile);
-  const isMorningBlockerEnabled = useAppStore(s => s.isMorningBlockerEnabled);
-  const setMorningUnlockedDate = useAppStore(s => s.setMorningUnlockedDate);
-  const exams = useAppStore(s => s.exams);
-  const eloScore = useAppStore(s => s.eloScore);
-  const streakDays = useAppStore(s => s.streakDays);
-  const setFocusSidePanelOpen = useAppStore(s => s.setFocusSidePanelOpen);
-  const subjectViewMode = useAppStore(s => s.subjectViewMode);
-  const setSubjectViewMode = useAppStore(s => s.setSubjectViewMode);
-  const updateTytSubject = useAppStore(s => s.updateTytSubject);
-  const updateAytSubject = useAppStore(s => s.updateAytSubject);
-  const bulkMasterTytSubjectsByName = useAppStore(s => s.bulkMasterTytSubjectsByName);
-  const bulkMasterAytSubjectsByName = useAppStore(s => s.bulkMasterAytSubjectsByName);
-  const addFailedQuestion = useAppStore(s => s.addFailedQuestion);
-  const solveFailedQuestion = useAppStore(s => s.solveFailedQuestion);
-  const removeFailedQuestion = useAppStore(s => s.removeFailedQuestion);
-  const isDevMode = useAppStore(s => s.isDevMode);
-  const failedQuestions = useAppStore(s => s.failedQuestions);
+  // --- STORE SELECTORS ---
+  const selectors = useAppSelectors();
+  const {
+    morningUnlockedDate, notifications, isSyncing, theme, addLog, addExam, isPassiveMode,
+    setPassiveMode, logs, setTheme, hardReset, trophies, unlockTrophy, addChatMessage, profile,
+    chatHistory, activeAlerts, qaSession, setQaSession, updateQaAnswer, tytSubjects, aytSubjects,
+    lastCoachDirective, setLastCoachDirective, hasHydrated, setHasHydrated, setProfile,
+    isMorningBlockerEnabled, setMorningUnlockedDate, exams, eloScore, streakDays, setFocusSidePanelOpen,
+    subjectViewMode, setSubjectViewMode, updateTytSubject, updateAytSubject,
+    bulkMasterTytSubjectsByName, bulkMasterAytSubjectsByName, addFailedQuestion, solveFailedQuestion,
+    removeFailedQuestion, isDevMode, failedQuestions, migrateLegacyChat
+  } = selectors;
 
+  // --- CORE HOOKS ---
   const { user, isLoading, signOut } = useAuth();
-  
-  // [UX-012 FIX]: Hydration & Store Consistency Guard
-  useEffect(() => {
-    if (user && hasHydrated && !profile) {
-      console.warn('[App] Profile missing after hydration, attempting recovery...');
-      // Profile recovery or default setup could go here
-    }
-  }, [user, hasHydrated, profile]);
-
-  const syncStatus: string = 'synced';
-  const forceSync = async (a?: boolean) => {};
-  const isSyncManagerBusy = false;
-
   const { triggerLogAnalysis, triggerExamDebrief, sendMessage, isTyping: coachIsTyping } = useCoachCore();
+  const { toast: toastAPI } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // [UX-003 FIX]: Mobil klavye --vh senkronizasyonu
+  // --- UTILITY HOOKS ---
   useVisualViewportHeight();
   const scrollDirection = useScrollDirection();
 
+  // --- STATE HOOKS ---
   const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
-  const isTyping = coachIsTyping;
   const [inputMessage, setInputMessage] = useState('');
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
   const [isLogWidgetOpen, setIsLogWidgetOpen] = useState(false);
@@ -335,30 +133,38 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarPinned, setIsSidebarPinned] = useState(() => localStorage.getItem('sidebar_pinned') === 'true');
   const [isNavHovered, setIsNavHovered] = useState(false);
-  const isSidebarExpanded = isSidebarPinned || isNavHovered;
-
-  const toggleSidebarPin = () => {
-    const next = !isSidebarPinned;
-    setIsSidebarPinned(next);
-    localStorage.setItem('sidebar_pinned', String(next));
-  };
-
-  // [BUG-010 FIX]: Morning Blocker kilidi artık persist'e bağlı — aynı gün refresh'te kapanmaz
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const isMorningUnlocked = morningUnlockedDate === todayIso;
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const isCurrentlySyncing = isSyncing || isSyncManagerBusy;
-  const syncButtonTitle = syncStatus === 'offline'
-    ? 'Çevrimdışı - eşitleme internet gelince yeniden denenebilir'
-    : isCurrentlySyncing
-      ? 'Bulutla eşitleniyor'
-      : 'Bulutla Eşitle';
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
 
-  // --- HYDRATION SAFETY TIMEOUT ---
-  // If IDB never fires onRehydrateStorage, force unblock after 4s
+  // --- REFS ---
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const lastAnnouncementRef = useRef<string | null>(null);
+  const chatInitializedRef = useRef(false);
+
+  // --- EFFECTS ---
+  useEffect(() => {
+    if (!hasHydrated) {
+      const timer = setTimeout(() => {
+        setHasHydrated(true);
+        migrateLegacyChat();
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else {
+      migrateLegacyChat();
+    }
+  }, [hasHydrated, setHasHydrated, migrateLegacyChat]);
+
+  useEffect(() => {
+    if (user && hasHydrated && !profile) {
+      console.warn('[App] Profile missing after hydration, attempting recovery...');
+    }
+  }, [user, hasHydrated, profile]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   useEffect(() => {
     if (hasHydrated) return;
     const t = setTimeout(() => {
@@ -367,26 +173,17 @@ export default function App() {
     return () => clearTimeout(t);
   }, [hasHydrated]);
 
-  // --- SYSTEM STATE & BROADCAST ---
-  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
-  const lastAnnouncementRef = useRef<string | null>(null);
-  const { toast: toastAPI } = useToast();
-
   useEffect(() => {
-    if (!user) return; // FIX: Giriş yapmamış kullanıcılar için abonelik başlatma (Permission Denied önleme)
-    
+    if (!user) return;
     return subscribeToSystemConfig((config) => {
       setSystemConfig(config);
-
-      // Yeni bir duyuru varsa ve daha önce gösterilmemişse göster
       if (config.globalAnnouncement && config.globalAnnouncement !== lastAnnouncementRef.current) {
         lastAnnouncementRef.current = config.globalAnnouncement;
-        toastAPI.info(config.globalAnnouncement, 10000); // 10 saniye göster
+        toastAPI.info(config.globalAnnouncement, 10000);
       }
     });
   }, [toastAPI, user]);
 
-  // --- TEMA FLASHBANG ENGELLEYİCİ ---
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {
@@ -397,6 +194,29 @@ export default function App() {
       root.style.colorScheme = 'light';
     }
   }, [theme]);
+
+  // --- DERIVED STATE ---
+  const isSidebarExpanded = isSidebarPinned || isNavHovered;
+  const isTyping = coachIsTyping;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isMorningUnlocked = morningUnlockedDate === todayIso;
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const isCurrentlySyncing = isSyncing;
+  const syncStatus = 'synced' as string;
+  const forceSync = async (a?: boolean) => console.log('Force sync called', a);
+  const syncButtonTitle = syncStatus === 'offline'
+    ? 'Çevrimdışı - eşitleme internet gelince yeniden denenebilir'
+    : isCurrentlySyncing
+      ? 'Bulutla eşitleniyor'
+      : 'Bulutla Eşitle';
+  const activeTab = location.pathname === '/' ? 'dashboard' : location.pathname.substring(1);
+
+  const toggleSidebarPin = () => {
+    const next = !isSidebarPinned;
+    setIsSidebarPinned(next);
+    localStorage.setItem('sidebar_pinned', String(next));
+  };
+
 
 
   const handleLogSubmit = async (log: DailyLog) => {
@@ -500,7 +320,6 @@ export default function App() {
   // REF GUARD: Sadece bir kez çalışır, forceSync referansı değişince yeniden çalışmaz
 
   // ERR-002: İlk açılış mesajı
-  const chatInitializedRef = useRef(false);
   useEffect(() => {
     if (activeTab === 'coach' && !chatInitializedRef.current && chatHistory.length === 0) {
       chatInitializedRef.current = true;
@@ -517,18 +336,16 @@ export default function App() {
     const userMsg = messageOverride || inputMessage;
     if (!userMsg.trim() || isTyping) return;
 
-    // YENİ: Q&A Tetikleyiciler
+    if (!messageOverride) setInputMessage('');
+
+    // --- Intent & Q&A Logic ---
     const upperMsg = userMsg.trim().toUpperCase();
     const isQAStarter = ['PLAN', 'LOG', 'DENEME', 'ANLA', 'ANLAT'].includes(upperMsg);
 
-    if (!messageOverride) setInputMessage('');
-
-    // Mevcut bir Q&A seansı var mı?
-    const activeQA = qaSession;
     let intent: CoachIntent = overrideIntent || 'free_chat';
 
-    if (isQAStarter && !activeQA) {
-      // Yeni Q&A Başlat
+    // Sadece intent yoksa ve Q&A starter ise qa_mode'a gir
+    if (!overrideIntent && isQAStarter && !qaSession) {
       intent = "qa_mode";
       setQaSession({
         scenario: upperMsg.includes('PLAN') ? 'plan' : upperMsg.includes('LOG') ? 'log' : upperMsg.includes('DENEME') ? 'exam' : 'topic',
@@ -537,15 +354,14 @@ export default function App() {
         answers: {},
         isComplete: false
       });
-    } else if (activeQA) {
-      // Devam eden Q&A
+    } else if (qaSession) {
       intent = "qa_mode";
-      const qIdx = activeQA.currentQuestion;
+      const qIdx = qaSession.currentQuestion;
       updateQaAnswer(qIdx, userMsg);
-      if (qIdx >= activeQA.totalQuestions) {
+      if (qIdx >= qaSession.totalQuestions) {
         setQaSession(null);
       } else {
-        setQaSession({ ...activeQA, currentQuestion: qIdx + 1 });
+        setQaSession({ ...qaSession, currentQuestion: qIdx + 1 });
       }
     }
 
@@ -555,6 +371,7 @@ export default function App() {
       await sendMessage({
         userMessage: userMsg,
         intent: intent,
+        wantDirective: intent !== 'free_chat' && intent !== 'qa_mode',
       });
     } catch (err) {
       console.error("AI Error:", err);
@@ -598,174 +415,17 @@ export default function App() {
     return <MorningBlocker onUnlock={() => setMorningUnlockedDate(todayIso)} />;
   }
 
+  const scrollCls = "flex-1 overflow-y-auto relative scroll-smooth custom-scrollbar";
+
   return (
     <MobileGuard className="h-[100dvh]">
-      <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <MainLayout>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app bg-header backdrop-blur-xl z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-[#1F2A36] border border-white/10">
-              <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
-            </div>
-            <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => forceSync()}
-              disabled={isCurrentlySyncing}
-              className={`p-2 rounded-lg transition-all ${
-                syncStatus === 'offline'
-                  ? 'text-amber-500 hover:text-amber-400'
-                  : isCurrentlySyncing
-                    ? 'text-[#C17767]'
-                    : 'text-zinc-400 hover:text-[#C17767]'
-              }`}
-              title={syncButtonTitle}
-              aria-label="Bulutla Eşitle"
-            >
-              {syncStatus === 'offline' ? (
-                <CloudOff size={20} />
-              ) : (
-                <RefreshCcw size={20} className={isCurrentlySyncing ? 'animate-spin' : ''} />
-              )}
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setIsNotifOpen(true)}
-                className="p-2 text-zinc-400 hover:text-[#C17767] transition-all relative"
-                aria-label={`Bildirimler (${unreadCount} okunmamış)`}
-              >
-                <Bell size={20} />
-                {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#C17767] rounded-full border-2 border-[#121212] animate-pulse shadow-[0_0_8px_#C17767]" />}
-              </button>
-            </div>
-            <ThemeToggle />
-            <div
-              className="w-8 h-8 rounded-full border-2 border-[#C17767]/30 p-0.5 cursor-pointer"
-              onClick={() => setActiveTab('profile')}
-              role="button"
-              aria-label="Profil Git"
-            >
-              {profile.avatar
-                ? <img src={profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />
-                : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
-              }
-            </div>
-          </div>
-        </header>
-
-        <nav
-          className={`fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative border-t md:border-t-0 md:border-r border-app flex flex-row md:flex-col bg-nav/80 backdrop-blur-2xl saturate-150 z-[90] pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none transition-all duration-300 ${
-            isSidebarExpanded ? 'md:w-64' : 'md:w-16'
-          } ${scrollDirection === 'down' ? 'translate-y-full md:translate-y-0' : 'translate-y-0'}`}
-          onMouseEnter={() => setIsNavHovered(true)}
-          onMouseLeave={() => setIsNavHovered(false)}
-        >
-          {/* Logo area */}
-          <div className="hidden md:flex p-3 border-b border-app items-center justify-between gap-2 overflow-hidden">
-            <div className={`flex items-center gap-3 min-w-0 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isSidebarExpanded ? '' : 'justify-center w-full'}`}>
-              <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#1F2A36] border border-[#C17767]/30 shadow-lg shrink-0">
-                <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
-              </div>
-              <div className={`flex flex-col justify-center min-w-0 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isSidebarExpanded ? 'max-w-[150px] opacity-100' : 'max-w-0 opacity-0'}`}>
-                <h1 className="font-display italic text-base font-bold tracking-tight text-[#C17767] leading-tight whitespace-nowrap">Boho Mentos</h1>
-                <p className="text-[7px] uppercase tracking-[0.2em] opacity-40 font-bold text-zinc-500 whitespace-nowrap">YKS Mentörlük v5</p>
-              </div>
-            </div>
-            <div className={`flex items-center gap-1 shrink-0 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isSidebarExpanded ? 'max-w-[60px] opacity-100' : 'max-w-0 opacity-0'}`}>
-              <button onClick={() => forceSync()} disabled={isCurrentlySyncing} className="p-1 hover:bg-white/5 rounded-lg transition-all text-zinc-500 hover:text-[#C17767]" title={syncButtonTitle}>
-                {syncStatus === 'offline' ? <CloudOff size={14} className="text-amber-500" /> : <RefreshCcw size={14} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
-              </button>
-              <button
-                onClick={toggleSidebarPin}
-                className={`p-1 rounded-lg transition-all ${ isSidebarPinned ? 'text-[#C17767] bg-[#C17767]/10' : 'text-zinc-500 hover:text-[#C17767] hover:bg-white/5' }`}
-                title={isSidebarPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle'}
-              >
-                <Pin size={14} />
-              </button>
-            </div>
-          </div>
-
-          {/* Profile area */}
-          <div className="hidden md:flex p-3 border-b border-app items-center gap-3 overflow-hidden cursor-pointer group" onClick={() => setActiveTab('profile')}>
-            <div className="relative shrink-0">
-              <div className="w-9 h-9 rounded-xl overflow-hidden border-2 border-[#C17767]/20 group-hover:border-[#C17767]/60 transition-all shadow-md">
-                {profile.avatar
-                  ? <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
-                  : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full bg-surface" />
-                }
-              </div>
-              {/* T-009: Rank badge on avatar corner */}
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#C17767] border border-nav flex items-center justify-center" title="ELO Rank">
-                <Trophy size={8} className="text-white" />
-              </div>
-            </div>
-            {isSidebarExpanded && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-ink truncate group-hover:text-[#C17767] transition-colors">{profile.name}</p>
-                <p className="text-[9px] uppercase tracking-widest text-[#C17767] font-bold">{profile.track}</p>
-              </div>
-            )}
-          </div>
-
-          {isPassiveMode && isSidebarExpanded && (
-            <div className="hidden md:flex mx-3 mt-2 px-3 py-2 bg-rose-900/30 border border-rose-800 rounded-lg items-center gap-2">
-              <AlertTriangle className="w-3 h-3 text-rose-400" />
-              <span className="text-[9px] font-bold text-rose-400">PASİF MOD</span>
-            </div>
-          )}
-
-          {/* Nav items */}
-          <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 px-1 md:space-y-0.5 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
-            {NAV_ITEMS.map((item) => (
-              <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full`}>
-                <NavItem
-                  icon={item.icon}
-                  label={item.label}
-                  active={activeTab === item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  collapsed={!isSidebarExpanded}
-                />
-              </div>
-            ))}
-            {/* Mobile menu */}
-            <div className="md:hidden block w-full px-1">
-              <NavItem icon={<Menu size={18} />} label="Menü" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
-            </div>
-          </div>
-
-          {/* Bottom actions */}
-          <div className="hidden md:flex flex-col border-t border-app">
-            {isSuperAdmin(user?.uid, user?.email) && (
-              <div
-                className={`p-3 text-[9px] uppercase tracking-[0.3em] text-[#C17767] opacity-60 hover:opacity-100 transition-opacity cursor-pointer font-bold border-b border-app/50 ${ isSidebarExpanded ? 'text-center' : 'flex justify-center' }`}
-                onClick={() => setActiveTab('admin_dashboard')}
-                title="Admin Dashboard"
-              >
-                {isSidebarExpanded ? '⬡ ADMIN' : '⬡'}
-              </div>
-            )}
-            <button
-              onClick={async () => { if (await confirmDialog('Çıkış yapmak istediğine emin misin?')) signOut(); }}
-              className={`p-3 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 transition-all`}
-              title="Çıkış Yap"
-            >
-              <LogOut size={14} />
-              {isSidebarExpanded && 'ÇIKIŞ YAP'}
-            </button>
-          </div>
-        </nav>
-
-        <main className="flex-1 overflow-hidden relative flex flex-col bg-app pb-16 md:pb-0 pt-0">
-          {/* Coach tab renders outside overflow-auto div to maintain full height */}
-          {activeTab === 'coach' && (
-            <motion.div
-              key="coach-standalone"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 overflow-hidden h-full"
-            >
+          {/* ── Coach: full-height, no scroll ── */}
+          <Route path="/coach" element={
+            <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 overflow-hidden h-full">
               <CoachScreen
                 isTyping={isTyping}
                 inputMessage={inputMessage}
@@ -776,106 +436,74 @@ export default function App() {
               />
               {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
             </motion.div>
-          )}
-          {activeTab !== 'coach' && (
-            <div className="flex-1 overflow-y-auto relative scroll-smooth custom-scrollbar">
-              <AnimatePresence mode="wait">
-                {activeTab === 'dashboard' && (
-                  <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="h-full">
-                    {hasHydrated && profile ? <BentoDashboard /> : <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}
-                  </motion.div>
-                )}
-                
-                {activeTab === 'countdown' && (
-                  <motion.div key="countdown" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} className="p-8 flex flex-col items-center justify-center min-h-full">
+          } />
+
+          {/* ── Admin Dashboard ── */}
+          <Route path="/admin_dashboard" element={
+            <React.Suspense fallback={<div className="fixed inset-0 bg-black z-[200] flex items-center justify-center"><div className="text-zinc-500">Yükleniyor...</div></div>}>
+              <AdminDashboard onBack={() => navigate('/dashboard')} />
+            </React.Suspense>
+          } />
+
+          {/* ── Scrollable routes ── */}
+          <Route path="/dashboard" element={
+            <div className={scrollCls}>
+              <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }} className="h-full">
+                {hasHydrated && profile ? <BentoDashboard /> : <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}
+              </motion.div>
+            </div>
+          } />
+
+          <Route path="/countdown" element={
+            <div className={scrollCls}>
+              <motion.div key="countdown" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="p-8 flex flex-col items-center justify-center min-h-full">
                 <div className="text-center mb-12">
-                  <h2 className="font-display italic text-4xl md:text-7xl text-[#C17767] mb-4">Büyük Seferberlik</h2>
+                  <h2 className="font-display italic text-4xl md:text-7xl text-[#C17767] mb-4">Mokoko'ya Kaç Gün Var?</h2>
                   <div className="flex flex-col items-center gap-4">
                     <div className="flex bg-black/30 p-1 rounded-xl border border-white/10">
-                      <button
-                        onClick={() => setCountdownSession('TYT')}
-                        className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'TYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
-                      >
-                        2026 TYT
-                      </button>
-                      <button
-                        onClick={() => setCountdownSession('AYT')}
-                        className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'AYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}
-                      >
-                        2026 AYT
-                      </button>
+                      <button onClick={() => setCountdownSession('TYT')} className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'TYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}>2026 TYT</button>
+                      <button onClick={() => setCountdownSession('AYT')} className={`px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${countdownSession === 'AYT' ? 'bg-[#C17767] text-white' : 'text-zinc-400 hover:text-white'}`}>2026 AYT</button>
                     </div>
-                    <p className="text-[10px] md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">
-                      {(countdownSession === 'TYT' ? "20 HAZİRAN 2026, 10:15 (İSTANBUL)" : "21 HAZİRAN 2026, 10:15 (İSTANBUL)") + "'E KALAN SÜRE"}
-                    </p>
+                    <p className="text-[10px] md:text-sm uppercase tracking-[0.4em] opacity-40 font-bold">{(countdownSession === 'TYT' ? "20 HAZİRAN 2026, 10:15" : "21 HAZİRAN 2026, 10:15") + "'E KALAN SÜRE"}</p>
                   </div>
                 </div>
                 <FlapClock targetDate={countdownSession === 'TYT' ? YKS_2026_TYT_DATE : YKS_2026_AYT_DATE} />
                 <div className="mt-8 text-center space-y-2">
-                  <p className="text-sm text-zinc-300">
-                    Bu tempoda devam edersen TYT beklenen net: <span className="font-bold text-[#C17767]">{tytProjection.predictedNet}</span>
-                  </p>
-                  <p className="text-sm text-zinc-300">
-                    Bu tempoda devam edersen AYT beklenen net: <span className="font-bold text-[#E09F3E]">{aytProjection.predictedNet}</span>
-                  </p>
+                  <p className="text-sm text-zinc-300">TYT beklenen net: <span className="font-bold text-[#C17767]">{tytProjection.predictedNet}</span></p>
+                  <p className="text-sm text-zinc-300">AYT beklenen net: <span className="font-bold text-[#E09F3E]">{aytProjection.predictedNet}</span></p>
                 </div>
-                <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-display">
-                  "Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin. Harcadığın her saniye hedefine yaklaşmak için bir fırsattır."
-                </p>
+                <p className="mt-16 max-w-lg text-center text-sm md:text-base italic opacity-60 leading-relaxed font-display">"Zaman en kıymetli madenin; onu her gün daha verimli işlemelisin."</p>
               </motion.div>
-            )}
+            </div>
+          } />
 
-            {activeTab === 'war_room' && (
-              <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}>
-                <MebiWarRoom />
-              </Suspense>
-            )}
+          <Route path="/war_room" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><MebiWarRoom /></Suspense></div>} />
+          <Route path="/questions" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><QuizEngine /></Suspense></div>} />
+          <Route path="/explain" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><TopicExplain /></Suspense></div>} />
+          <Route path="/agenda" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><AgendaPage /></Suspense></div>} />
+          <Route path="/strategy" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><StrategyHub /></Suspense></div>} />
 
-            {activeTab === 'questions' && (
-              <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}>
-                <QuizEngine />
-              </Suspense>
-            )}
-
-            {activeTab === 'explain' && (
-              <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}>
-                <TopicExplain />
-              </Suspense>
-            )}
-
-            {activeTab === 'agenda' && (
-              <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}>
-                <AgendaPage />
-              </Suspense>
-            )}
-
-            {activeTab === 'strategy' && (
-              <Suspense fallback={<div className="flex items-center justify-center p-20"><Loader2 className="animate-spin text-[#C17767]" /></div>}>
-                <StrategyHub />
-              </Suspense>
-            )}
-
-            {activeTab === 'logs' && (
-              <motion.div key="logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 md:p-8 space-y-6">
+          <Route path="/logs" element={
+            <div className={scrollCls}>
+              <motion.div key="logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
                 <header>
                   <h2 className="font-display italic text-3xl text-[#C17767]">Çalışma Kayıtları</h2>
                   <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Tüm seanslarının detaylı dökümü</p>
                 </header>
                 <LogHistory logs={logs} onLogClick={setSelectedLog} />
               </motion.div>
-            )}
+            </div>
+          } />
 
-            {activeTab === 'exams' && (
-              <motion.div key="exams" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 md:p-8 space-y-6">
+          <Route path="/exams" element={
+            <div className={scrollCls}>
+              <motion.div key="exams" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
                 <header className="flex justify-between items-end">
                   <div>
                     <h2 className="font-display italic text-3xl text-[#C17767]">Deneme Analizleri</h2>
                     <p className="text-xs opacity-50 uppercase tracking-widest mt-1">TYT & AYT Performance Tracker</p>
                   </div>
-                  <button 
-                    onClick={() => setIsExamModalOpen(true)}
-                    className="px-4 py-2 bg-[#C17767] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-[#C17767]/20 flex items-center gap-2"
-                  >
+                  <button onClick={() => setIsExamModalOpen(true)} className="px-4 py-2 bg-[#C17767] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-[#C17767]/20 flex items-center gap-2">
                     <Plus size={14} /> YENİ DENEME
                   </button>
                 </header>
@@ -883,16 +511,10 @@ export default function App() {
                   {exams.length === 0 ? (
                     <div className="text-center py-20 opacity-30 italic">Henüz deneme kaydı girmedin.</div>
                   ) : (
-                    exams.slice().sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(exam => (
-                      <button 
-                        key={exam.id} 
-                        onClick={() => setSelectedExam(exam)}
-                        className="p-6 bg-white dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl flex justify-between items-center group hover:border-[#C17767]/50 transition-all shadow-sm"
-                      >
+                    exams.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(exam => (
+                      <button key={exam.id} onClick={() => setSelectedExam(exam)} className="p-6 bg-white dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl flex justify-between items-center group hover:border-[#C17767]/50 transition-all shadow-sm">
                         <div className="flex gap-4 items-center">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold font-display text-lg ${exam.type === 'TYT' ? 'bg-blue-500/10 text-blue-500' : 'bg-[#E09F3E]/10 text-[#E09F3E]'}`}>
-                            {exam.type}
-                          </div>
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold font-display text-lg ${exam.type === 'TYT' ? 'bg-blue-500/10 text-blue-500' : 'bg-[#E09F3E]/10 text-[#E09F3E]'}`}>{exam.type}</div>
                           <div className="text-left">
                             <h4 className="font-bold text-[#4A443C] dark:text-zinc-200">{new Date(exam.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</h4>
                             <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">{exam.source || 'MANUEL GİRİŞ'}</p>
@@ -907,46 +529,52 @@ export default function App() {
                   )}
                 </div>
               </motion.div>
-            )}
+            </div>
+          } />
 
-            {activeTab === 'archive' && (
-              <motion.div key="archive" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 md:p-8 space-y-6">
+          <Route path="/archive" element={
+            <div className={scrollCls}>
+              <motion.div key="archive" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
                 <header>
                   <h2 className="font-display italic text-3xl text-[#C17767]">Mezarlık (Hatalı Sorular)</h2>
                   <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Eleyemediğin her soru, seninle burada yüzleşir</p>
                 </header>
                 <GraveyardPanel />
               </motion.div>
-            )}
+            </div>
+          } />
 
-            {activeTab === 'profile' && (
-              <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 md:p-8 space-y-12">
+          <Route path="/profile" element={
+            <div className={scrollCls}>
+              <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-12">
                 <header>
                   <h2 className="font-display italic text-3xl text-[#C17767]">Profil & Karakter</h2>
                   <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Gelişim istatistiklerin ve başarımların</p>
                 </header>
-                
                 <ProfileShowcase />
-                
                 <div className="space-y-6">
                   <h3 className="font-display italic text-2xl text-[#C17767]">Başarımlar</h3>
                   <AchievementsPanel />
                 </div>
               </motion.div>
-            )}
+            </div>
+          } />
 
-            {activeTab === 'subjects' && (
-              <motion.div key="subjects" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-4 md:p-8 space-y-6">
-                 <header>
+          <Route path="/subjects" element={
+            <div className={scrollCls}>
+              <motion.div key="subjects" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
+                <header>
                   <h2 className="font-display italic text-3xl text-[#C17767]">Müfredat Haritası</h2>
                   <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Fethedilmeyi bekleyen tüm kaleler</p>
                 </header>
                 <SubjectMapAdvanced />
               </motion.div>
-            )}
+            </div>
+          } />
 
-            {activeTab === 'settings' && (
-              <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8 max-w-3xl mx-auto space-y-12">
+          <Route path="/settings" element={
+            <div className={scrollCls}>
+              <motion.div key="settings" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 max-w-3xl mx-auto space-y-12">
                 <div>
                   <h2 className="font-display italic text-4xl mb-8">Ayarlar & Profil</h2>
                   <div className="space-y-8">
@@ -957,123 +585,61 @@ export default function App() {
                           <p className="text-sm text-zinc-500">Konu listesinin varsayılan gösterim biçimi</p>
                         </div>
                         <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
-                          <button
-                            onClick={() => setSubjectViewMode('list')}
-                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${subjectViewMode === 'list' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                          >
-                            Liste
-                          </button>
-                          <button
-                            onClick={() => setSubjectViewMode('map')}
-                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${subjectViewMode === 'map' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                          >
-                            Gelişmiş Liste
-                          </button>
+                          <button onClick={() => setSubjectViewMode('list')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${subjectViewMode === 'list' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}>Liste</button>
+                          <button onClick={() => setSubjectViewMode('map')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${subjectViewMode === 'map' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}>Gelişmiş Liste</button>
                         </div>
                       </div>
-                      <div className="col-span-2 flex justify-between items-center opacity-100">
-                        <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#C17767]">Arayüz Teması</p><p className="text-sm text-zinc-500">Karanlık veya Aydınlık mod arasında geçiş yap</p></div>
+                      <div className="col-span-2 flex justify-between items-center">
+                        <div><p className="text-[10px] uppercase opacity-40 mb-1 tracking-widest font-bold text-[#C17767]">Arayüz Teması</p><p className="text-sm text-zinc-500">Karanlık veya Aydınlık mod</p></div>
                         <div className="flex bg-black p-1 rounded-xl border border-zinc-800">
-                          <button
-                            onClick={() => setTheme('dark')}
-                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${theme === 'dark' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                          >
-                            Dark
-                          </button>
-                          <button
-                            onClick={() => setTheme('light')}
-                            className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${theme === 'light' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}
-                          >
-                            Light
-                          </button>
+                          <button onClick={() => setTheme('dark')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${theme === 'dark' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}>Dark</button>
+                          <button onClick={() => setTheme('light')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${theme === 'light' ? 'bg-[#C17767] text-white' : 'text-zinc-500'}`}>Light</button>
                         </div>
                       </div>
                     </ProfileSection>
-
-                    <ProfileSection title="Soru Hedeflerİ">
+                    <ProfileSection title="Soru Hedefleri">
                       <div className="grid grid-cols-2 gap-4 col-span-2">
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MİN. GÜNLÜK SORU</label>
-                          <input
-                            type="number"
-                            value={profile?.minDailyQuestions || 100}
-                            onChange={e => setProfile({ ...profile!, minDailyQuestions: parseInt(e.target.value) })}
-                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
-                          />
+                          <input type="number" value={profile?.minDailyQuestions || 100} onChange={e => setProfile({ ...profile!, minDailyQuestions: parseInt(e.target.value) })} className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">MAKS. GÜNLÜK SORU</label>
-                          <input
-                            type="number"
-                            value={profile?.maxDailyQuestions || 300}
-                            onChange={e => setProfile({ ...profile!, maxDailyQuestions: parseInt(e.target.value) })}
-                            className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none"
-                          />
+                          <input type="number" value={profile?.maxDailyQuestions || 300} onChange={e => setProfile({ ...profile!, maxDailyQuestions: parseInt(e.target.value) })} className="w-full bg-[#121212] border border-zinc-800 rounded-xl p-3 text-sm focus:border-[#C17767] outline-none" />
                         </div>
                       </div>
                     </ProfileSection>
-
-                    <ProfileSection title="Veri Yönetimi & Tehlİke Bölgesİ">
+                    <ProfileSection title="Veri Yönetimi & Tehlike Bölgesi">
                       <div className="col-span-2 flex justify-between items-center bg-red-950/20 p-4 border border-red-900/50 rounded-xl">
-                        <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı olarak silinir.</p></div>
-                        <button onClick={async () => { if (await confirmDialog('Verilerin SİLİNECEK! Hiçbir dönüşü yok. Emin misin?')) { hardReset(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
+                        <div><p className="text-[10px] uppercase text-red-500 mb-1 tracking-widest font-bold">Kalıcı Sıfırlama</p><p className="text-sm text-zinc-400">Tüm loglar, denemeler ve başarımlar kalıcı silinir.</p></div>
+                        <button onClick={async () => { if (await confirmDialog('Verilerin SİLİNECEK! Emin misin?')) { hardReset(); window.location.reload(); } }} className="px-6 py-3 bg-red-600/10 text-red-500 border border-red-500/20 text-xs tracking-widest font-bold uppercase rounded-xl hover:bg-red-600 hover:text-white transition-colors">SİSTEMİ SIFIRLA</button>
                       </div>
                     </ProfileSection>
                   </div>
                 </div>
-
                 <div>
                   <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Profil Yönetimi</h3>
                   <ProfileSettings onSubmit={(p) => setProfile(p)} initialData={profile} isEditMode={true} />
                 </div>
-
                 <div className="mt-8">
                   <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Veri Entegrasyonu</h3>
                   <DataIntegrationPanel />
                 </div>
               </motion.div>
-            )}
+            </div>
+          } />
+        </Routes>
 
-          </AnimatePresence>
-          </div>
-        )}
-        </main>
         <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={profile?.track || 'Sayısal'} onSave={(exam) => { addExam(exam); setIsExamModalOpen(false); unlockTrophy('first_blood'); }} />
-        <ExamDetailModal 
-          isOpen={!!selectedExam} 
-          onClose={() => setSelectedExam(null)} 
-          exam={selectedExam} 
-          isAdmin={isSuperAdmin(user?.uid, user?.email)} 
-        />
-        <LogDetailModal
-          isOpen={!!selectedLog}
-          onClose={() => setSelectedLog(null)}
-          log={selectedLog}
-          isAdmin={isSuperAdmin(user?.uid, user?.email)}
-        />
+        <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={isSuperAdmin(user?.uid, user?.email)} />
+        <LogDetailModal isOpen={!!selectedLog} onClose={() => setSelectedLog(null)} log={selectedLog} isAdmin={isSuperAdmin(user?.uid, user?.email)} />
         <FocusSidePanel />
         <CoachInterventionModal />
-        {activeTab === 'admin_dashboard' && (
-          <React.Suspense fallback={<div className="fixed inset-0 bg-black z-[200] flex items-center justify-center"><div className="text-zinc-500">Yükleniyor...</div></div>}>
-            <AdminDashboard onBack={() => setActiveTab('dashboard')} />
-          </React.Suspense>
-        )}
         <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
-        <MobileMenuModal
-          isOpen={isMobileMenuOpen}
-          onClose={() => setIsMobileMenuOpen(false)}
-          activeTab={activeTab}
-          onNavigate={setActiveTab}
-          onSignOut={signOut}
-        />
-        <NetworkBanner />
-        <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
-        <SpotifyWidget />
-      </div>
+      </MainLayout>
     </MobileGuard>
   );
 }
-
 // ----- MOCK UI FORMS ------
 const StatCard = ({ title, value, total, unit, icon }: any) => (
   <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
@@ -1253,81 +819,6 @@ const SubjectMap = ({ title, subjects, onStatusChange, onBulkMaster }: any) => {
         })}
       </div>
     </div>
-  );
-};
-
-// --- MOBİL MENÜ MODAL ---
-const MobileMenuModal = ({ isOpen, onClose, activeTab, onNavigate, onSignOut }: { isOpen: boolean; onClose: () => void; activeTab: string; onNavigate: (id: string) => void; onSignOut: () => void }) => {
-  if (!isOpen) return null;
-
-  const menuItems = [
-    { id: 'questions', icon: <BrainCircuit size={20} />, label: 'SORULAR' },
-    { id: 'explain', icon: <BookOpen size={20} />, label: 'ANLATIM' },
-    { id: 'exams', icon: <Calendar size={20} />, label: 'ANALİZ' },
-    { id: 'logs', icon: <List size={20} />, label: 'LOGLAR' },
-    { id: 'agenda', icon: <BookOpen size={20} />, label: 'AJANDA' },
-    { id: 'archive', icon: <Archive size={20} />, label: 'MEZARLIK' },
-    { id: 'subjects', icon: <BookOpen size={20} />, label: 'MÜFREDAT' },
-    { id: 'strategy', icon: <Target size={20} />, label: 'STRATEJİ' },
-    { id: 'settings', icon: <Settings size={20} />, label: 'AYARLAR' },
-  ];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end md:hidden"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="w-full bg-[#FDFBF7] dark:bg-zinc-950 rounded-t-[2.5rem] border-t border-[#EAE6DF] dark:border-zinc-800 p-8 pt-4 overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="w-12 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto mb-8 cursor-pointer" onClick={onClose} />
-
-        <header className="mb-8 pl-2">
-          <h3 className="font-display italic text-2xl text-[#C17767] dark:text-rose-400">Tüm Üniteler</h3>
-          <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold font-mono">Sistem Haritası v5.6</p>
-        </header>
-
-        <div className="grid grid-cols-3 gap-y-6 gap-x-3 pb-8">
-          {menuItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => { onNavigate(item.id); onClose(); }}
-              className="flex flex-col items-center gap-2 group"
-            >
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${activeTab === item.id ? 'bg-[#C17767] text-white shadow-lg shadow-[#C17767]/20 scale-105' : 'bg-zinc-100 dark:bg-zinc-900 text-[#4A443C] dark:text-zinc-400 group-hover:bg-[#C17767]/10'}`}>
-                {item.icon}
-              </div>
-              <span className={`text-[8px] font-bold uppercase tracking-widest text-center leading-tight ${activeTab === item.id ? 'text-[#C17767]' : 'text-[#4A443C]/60 dark:text-zinc-500'}`}>{item.label}</span>
-            </button>
-          ))}
-          {/* Mobil Logout */}
-          <button
-            onClick={async () => { if (await confirmDialog('Çıkış yapmak istediğine emin misin?')) onSignOut(); }}
-            className="flex flex-col items-center gap-2 group"
-          >
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-rose-500/10 text-rose-500 shadow-sm border border-rose-500/20">
-              <LogOut size={20} />
-            </div>
-            <span className="text-[8px] font-bold uppercase tracking-widest text-rose-500">ÇIKIŞ YAP</span>
-          </button>
-        </div>
-
-        <button
-          onClick={onClose}
-          className="w-full py-4 bg-zinc-900 dark:bg-zinc-100 text-[#FDFBF7] dark:text-zinc-950 border border-transparent dark:border-zinc-200 rounded-2xl text-xs font-bold uppercase tracking-widest shadow-lg"
-        >
-          Menüyü Kapat
-        </button>
-      </motion.div>
-    </motion.div>
   );
 };
 

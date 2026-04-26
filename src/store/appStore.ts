@@ -160,6 +160,16 @@ export const useAppStore = create<AppState>()(
     {
       name: 'yks_coach_storage_v2',
       storage: createJSONStorage(() => idbStorage),
+      partialize: (state) => {
+        const {
+          isSyncing, hasHydrated, isMobileMenuOpen, isExamModalOpen,
+          isLogWidgetOpen, isArchiveWidgetOpen, isEditingProfile,
+          isNotifOpen, isAdminPanelOpen, isFocusSidePanelOpen,
+          warRoomTimeLeft, warRoomSession,
+          ...rest
+        } = state;
+        return rest;
+      },
       merge: (persisted: any, current: any) => ({
         ...current,
         ...persisted,

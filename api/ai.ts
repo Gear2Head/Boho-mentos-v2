@@ -535,7 +535,7 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
   }
 
   return {
-    text: 'Tüm AI hatları meşgul veya limitler doldu. Lütfen 1 dakika sonra tekrar dene.',
+    text: '⚠️ Tüm AI hatları şu an meşgul veya limitler doldu. Lütfen 30 saniye sonra tekrar dene. (Error: ALL_PROVIDERS_OFFLINE)',
     error: 'ALL_PROVIDERS_FAILED',
     telemetry,
   };

@@ -120,7 +120,12 @@ h1, h2, h3, h4, .font-display {
   box-shadow: 0 0 20px rgba(193, 119, 103, 0.15);
 }
 
-/* === Custom Scrollbar (Mobile Optimized) === */
+/* === Custom Scrollbar (Global & Mobile Optimized) === */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
@@ -132,8 +137,8 @@ body {
 
 /* === TRANSITION: smooth theme switch === */
 *, *::before, *::after {
-  transition-property: background-color, border-color, color;
-  transition-duration: 0.3s;
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 0.5s;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -155,4 +160,62 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none; 
   scrollbar-width: none;
+}
+
+/* === ENHANCED GLASSMORPHISM === */
+.glass-nav {
+  background: var(--color-nav-bg);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-header {
+  background: var(--color-header-bg);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+:root.light .glass-nav {
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+:root.light .glass-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* === SYNC PROGRESS BAR === */
+@keyframes sync-progress {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
+.sync-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), var(--color-accent-warm), transparent);
+  animation: sync-progress 1.4s ease-in-out infinite;
+  z-index: 9999;
+}
+
+/* === SKELETON SHIMMER === */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    var(--color-surface-2) 40%,
+    var(--color-surface) 80%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite linear;
 }

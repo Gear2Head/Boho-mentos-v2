@@ -23,8 +23,6 @@ export function FocusSidePanel() {
     addLap 
   } = useFocusTimer();
 
-
-
   const [customCountdownMinutes, setCustomCountdownMinutes] = useState<number>(25);
   const [showBreakOverlay, setShowBreakOverlay] = useState(false);
   const h = Math.floor(sessionSeconds / 3600);
@@ -45,7 +43,6 @@ export function FocusSidePanel() {
     }
   }, [sessionSeconds, mode, isRunning, pause]);
 
-
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   return (
@@ -53,10 +50,10 @@ export function FocusSidePanel() {
       <AnimatePresence>
         {isFocusSidePanelOpen && (
           <motion.div
-            initial={isMobile ? { y: '100%' } : { x: '100%' }}
-            animate={{ x: 0, y: 0 }}
-            exit={isMobile ? { y: '100%' } : { x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            initial={isMobile ? { y: '100%' } : { x: '100%', opacity: 0 }}
+            animate={{ x: 0, y: 0, opacity: 1 }}
+            exit={isMobile ? { y: '100%' } : { x: '100%', opacity: 0 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="fixed bottom-0 md:top-0 right-0 h-[85dvh] md:h-full w-full md:w-96 bg-zinc-950/95 backdrop-blur-2xl md:bg-[#FDFBF7] dark:md:bg-zinc-950 border-t md:border-t-0 md:border-l border-white/10 md:border-[#EAE6DF] dark:md:border-zinc-800 z-50 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] md:shadow-2xl flex flex-col rounded-t-[2.5rem] md:rounded-none"
           >
             {isMobile && <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mt-4 mb-2 shrink-0 max-md:block hidden" />}
@@ -87,8 +84,7 @@ export function FocusSidePanel() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar relative">
-              
-              {/* Lofi Player (Iframe) */}
+              {/* Lofi Player */}
               {isLofiEnabled && (
                 <div className="w-full h-24 mb-4 rounded-xl overflow-hidden border border-[#EAE6DF] dark:border-zinc-800">
                   <iframe 
@@ -111,7 +107,7 @@ export function FocusSidePanel() {
                   <Timer size={14} /> KRONOMETRE
                 </button>
                 <button 
-                  onClick={() => setDuration(1500)} // Default 25 min if clicked raw
+                  onClick={() => setDuration(1500)}
                   className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${mode === 'down' ? 'bg-[#FFFFFF] dark:bg-zinc-800 shadow-sm text-[#C17767]' : 'opacity-40 hover:opacity-70'}`}
                 >
                   <History size={14} /> GERİ SAYIM
@@ -195,9 +191,6 @@ export function FocusSidePanel() {
                       Uygula
                     </button>
                   </div>
-                  <div className="text-[10px] uppercase tracking-widest opacity-50 text-[#4A443C] dark:text-zinc-400">
-                    Limit: 1–240 dakika
-                  </div>
                 </div>
               )}
 
@@ -245,7 +238,7 @@ export function FocusSidePanel() {
             </div>
             <h2 className="font-display italic text-5xl md:text-7xl text-zinc-200 mb-6">Mola Vakti</h2>
             <p className="text-zinc-400 text-lg md:text-xl max-w-xl mx-auto mb-12">
-              Aralıksız 90 dakika odaklandın. Dopamin reseptörlerini sıfırlamak ve gözlerini dinlendirmek için sistem kilitlendi. Su iç, pencereden dışarı bak veya uzağa odaklan.
+              Aralıksız 90 dakika odaklandın. Su iç, pencereden dışarı bak veya uzağa odaklan.
             </p>
             
             <button 

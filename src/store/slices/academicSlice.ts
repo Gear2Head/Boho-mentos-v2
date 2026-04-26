@@ -90,7 +90,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     });
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { tytSubjects: newSubs, trophies: newTrophies, eloScore: newElo }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs, trophies: newTrophies, eloScore: newElo }), { merge: true }).catch(console.error);
     }
   },
 
@@ -131,7 +131,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     });
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { aytSubjects: newSubs, trophies: newTrophies, eloScore: newElo }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs, trophies: newTrophies, eloScore: newElo }), { merge: true }).catch(console.error);
     }
   },
 
@@ -144,7 +144,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     });
     set({ tytSubjects: newSubs, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { tytSubjects: newSubs }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs }), { merge: true }).catch(console.error);
     }
   },
 
@@ -156,7 +156,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     });
     set({ aytSubjects: newSubs, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { aytSubjects: newSubs }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs }), { merge: true }).catch(console.error);
     }
   },
 
@@ -217,7 +217,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
 
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid, 'logs', logWithId.id), cleanForFirestore(logWithId)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { logs: newLogs, streakDays: newStreak, trophies: newTrophies, eloScore: newEloScore }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak, trophies: newTrophies, eloScore: newEloScore }), { merge: true }).catch(console.error);
     }
   },
 
@@ -227,7 +227,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'logs', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { logs: newLogs }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
@@ -239,7 +239,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (authUser?.uid) {
       const updated = newLogs.find(l => l.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'logs', id), cleanForFirestore(updated)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { logs: newLogs }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
@@ -284,7 +284,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid, 'exams', normalizedExam.id), cleanForFirestore(normalizedExam)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { exams: newExams, trophies: newTrophies, eloScore: newEloScore }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams, trophies: newTrophies, eloScore: newEloScore }), { merge: true }).catch(console.error);
     }
   },
 
@@ -294,7 +294,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ exams: newExams, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'exams', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { exams: newExams }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams }), { merge: true }).catch(console.error);
     }
   },
 
@@ -305,7 +305,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (authUser?.uid) {
       const updated = newExams.find(e => e.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'exams', id), cleanForFirestore(updated)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { exams: newExams }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams }), { merge: true }).catch(console.error);
     }
   },
 
@@ -321,7 +321,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newList = [...failedQuestions, newQ];
     set({ failedQuestions: newList });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid, 'failedQuestions', newQ.id), newQ).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid, 'failedQuestions', newQ.id), cleanForFirestore(newQ)).catch(console.error);
     }
   },
 
@@ -334,7 +334,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (authUser?.uid) {
       const updated = newList.find(q => q.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'failedQuestions', id), cleanForFirestore(updated)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { failedQuestions: newList }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ failedQuestions: newList }), { merge: true }).catch(console.error);
     }
     addElo(15);
   },
@@ -345,7 +345,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ failedQuestions: newList });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'failedQuestions', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { failedQuestions: newList }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ failedQuestions: newList }), { merge: true }).catch(console.error);
     }
   },
 
@@ -354,7 +354,8 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newEntries = [...agendaEntries, entry];
     set({ agendaEntries: newEntries });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid, 'agendaEntries', entry.id), entry).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid, 'agendaEntries', entry.id), cleanForFirestore(entry)).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ agendaEntries: newEntries }), { merge: true }).catch(console.error);
     }
   },
 
@@ -363,7 +364,9 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newEntries = agendaEntries.map(e => e.id === id ? { ...e, ...updates } : e);
     set({ agendaEntries: newEntries });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { agendaEntries: newEntries }, { merge: true }).catch(console.error);
+      const updated = newEntries.find(e => e.id === id);
+      if (updated) setDoc(doc(db, 'users', authUser.uid, 'agendaEntries', id), cleanForFirestore(updated)).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ agendaEntries: newEntries }), { merge: true }).catch(console.error);
     }
   },
 
@@ -373,7 +376,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ agendaEntries: newEntries });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'agendaEntries', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), { agendaEntries: newEntries }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ agendaEntries: newEntries }), { merge: true }).catch(console.error);
     }
   },
 
@@ -382,7 +385,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newSessions = [...focusSessions, record];
     set({ focusSessions: newSessions });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid, 'focusSessions', record.id), record).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid, 'focusSessions', record.id), cleanForFirestore(record)).catch(console.error);
     }
   },
 
@@ -391,7 +394,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newList = [...flashcards, card];
     set({ flashcards: newList });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid, 'flashcards', card.id), card).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid, 'flashcards', card.id), cleanForFirestore(card)).catch(console.error);
     }
   },
 
@@ -401,7 +404,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ flashcards: newList });
     if (authUser?.uid) {
       const updated = newList.find(c => c.id === id);
-      if (updated) setDoc(doc(db, 'users', authUser.uid, 'flashcards', id), updated).catch(console.error);
+      if (updated) setDoc(doc(db, 'users', authUser.uid, 'flashcards', id), cleanForFirestore(updated)).catch(console.error);
     }
   },
 

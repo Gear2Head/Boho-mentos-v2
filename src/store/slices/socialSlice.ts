@@ -3,6 +3,7 @@ import { AppState } from '../appStore';
 import { Conversation, ChatMessage, AppNotification } from '../../types';
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import { cleanForFirestore } from "../../utils/firebaseHelpers";
 
 export interface SocialSlice {
   conversations: Conversation[];
@@ -129,12 +130,12 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     }));
 
     if (authUser?.uid && targetId) {
-      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId, 'messages', newMessage.id), newMessage).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId), { 
+      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId, 'messages', newMessage.id), cleanForFirestore(newMessage)).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId), cleanForFirestore({ 
         id: targetId, 
         updatedAt: new Date().toISOString(),
         lastMessage: message.content.slice(0, 50)
-      }, { merge: true }).catch(console.error);
+      }), { merge: true }).catch(console.error);
     }
     // Update legacy pointer
     const active = get().conversations.find(c => c.id === targetId);
@@ -167,7 +168,7 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     const newCount = lastAiRequestDate === today ? dailyAiRequests + 1 : 1;
     set({ dailyAiRequests: newCount, lastAiRequestDate: today });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { dailyAiRequests: newCount, lastAiRequestDate: today }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ dailyAiRequests: newCount, lastAiRequestDate: today }), { merge: true }).catch(console.error);
     }
   },
 });

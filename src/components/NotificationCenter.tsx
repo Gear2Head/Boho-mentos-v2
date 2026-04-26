@@ -35,6 +35,14 @@ const NOTIF_ICONS = {
   achievement: <Trophy size={16} className="text-yellow-400" />,
 };
 
+const NOTIF_STYLES: Record<string, { border: string, bg: string, dot: string }> = {
+  success: { border: 'border-green-500/30', bg: 'bg-green-500/10', dot: 'bg-green-500 shadow-[0_0_8px_#22c55e]' },
+  error: { border: 'border-red-500/30', bg: 'bg-red-500/10', dot: 'bg-red-500 shadow-[0_0_8px_#ef4444]' },
+  warning: { border: 'border-amber-500/30', bg: 'bg-amber-500/10', dot: 'bg-amber-500 shadow-[0_0_8px_#f59e0b]' },
+  info: { border: 'border-blue-500/30', bg: 'bg-blue-500/10', dot: 'bg-blue-500 shadow-[0_0_8px_#3b82f6]' },
+  achievement: { border: 'border-yellow-400/30', bg: 'bg-yellow-400/10', dot: 'bg-yellow-400 shadow-[0_0_8px_#facc15]' },
+};
+
 export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
   const notifications = useAppStore((s) => s.notifications);
   const markNotificationAsRead = useAppStore((s) => s.markNotificationAsRead);
@@ -109,16 +117,16 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                     onClick={() => markNotificationAsRead(notif.id)}
                     className={`
                       p-4 rounded-2xl border transition-all cursor-pointer group relative
-                      ${notif.read ? 'bg-white/[0.02] border-white/5 opacity-60' : 'bg-white/[0.05] border-[#C17767]/20 shadow-lg shadow-[#C17767]/5'}
+                      ${notif.read ? 'bg-white/[0.02] border-white/5 opacity-60' : ('bg-white/[0.05] ' + (NOTIF_STYLES[notif.type]?.border || 'border-[#C17767]/20') + ' shadow-lg shadow-black/20')}
                     `}
                   >
                     {!notif.read && (
-                      <div className="absolute top-4 right-4 w-2 h-2 bg-[#C17767] rounded-full shadow-[0_0_8px_#C17767]" />
+                      <div className={`absolute top-4 right-4 w-2 h-2 rounded-full ${NOTIF_STYLES[notif.type]?.dot || 'bg-[#C17767] shadow-[0_0_8px_#C17767]'}`} />
                     )}
                     <div className="flex gap-3">
                       <div className={`
                         w-10 h-10 rounded-xl flex items-center justify-center border shrink-0
-                        ${notif.read ? 'bg-zinc-900 border-zinc-800' : 'bg-[#C17767]/10 border-[#C17767]/30'}
+                        ${notif.read ? 'bg-zinc-900 border-zinc-800' : ((NOTIF_STYLES[notif.type]?.bg || 'bg-[#C17767]/10') + ' ' + (NOTIF_STYLES[notif.type]?.border || 'border-[#C17767]/30'))}
                       `}>
                         {NOTIF_ICONS[notif.type]}
                       </div>

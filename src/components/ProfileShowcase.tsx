@@ -73,16 +73,13 @@ export function ProfileShowcase() {
 
         <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start relative z-10">
           {/* Avatar veya Rank İkonu */}
-          {profile.avatar ? (
-            <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl overflow-hidden border-2 border-accent/40 shadow-xl shadow-accent/10 shrink-0">
+          <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl overflow-hidden border-2 border-accent/40 shadow-xl shadow-accent/10 shrink-0 bg-surface-2">
+            {profile.avatar ? (
               <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
-            </div>
-          ) : (
-            <div className={`w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-surface-2 flex flex-col items-center justify-center border border-app shadow-inner shrink-0 ${rank.color}`}>
-              <RankIcon size={32} className="md:w-12 md:h-12" strokeWidth={1.5} />
-              <span className="font-serif italic font-black mt-2 tracking-widest uppercase text-[10px] md:text-xs opacity-90">{rank.title}</span>
-            </div>
-          )}
+            ) : (
+              <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full bg-surface" />
+            )}
+          </div>
 
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2">

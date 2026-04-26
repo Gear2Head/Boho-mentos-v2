@@ -8,6 +8,11 @@ export function FocusTimer() {
   const { toast } = useToast();
   const [showToast, setShowToast] = useState(false);
 
+  const POMODORO_GOAL = 25 * 60; // 25 dakika
+  const progress = Math.min((sessionSeconds / POMODORO_GOAL) * 100, 100);
+  const strokeDasharray = 113; // 2 * pi * 18
+  const strokeDashoffset = strokeDasharray - (progress / 100) * strokeDasharray;
+
   const handleLap = () => {
     if (sessionSeconds < 60) {
       toast.warning("En az 1 dakika çalışmalısın.");
@@ -28,8 +33,22 @@ export function FocusTimer() {
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="text-[#C17767] dark:text-rose-400 bg-[#C17767]/10 dark:bg-rose-400/10 w-10 h-10 rounded-full flex items-center justify-center">
-          <History size={18} />
+        <div className="relative w-12 h-12 flex items-center justify-center">
+          {/* Arka plan halkası */}
+          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="18" fill="none" className="stroke-black/10 dark:stroke-white/10" strokeWidth="3" />
+            <circle 
+              cx="20" cy="20" r="18" fill="none" 
+              className="stroke-[#C17767] dark:stroke-rose-400 transition-all duration-1000 ease-linear" 
+              strokeWidth="3" 
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="text-[#C17767] dark:text-rose-400 w-8 h-8 rounded-full flex items-center justify-center bg-transparent z-10">
+            <History size={16} />
+          </div>
         </div>
         <div>
           <h4 className="text-[10px] uppercase tracking-widest opacity-50 font-bold dark:text-zinc-200">Odak Süresi</h4>

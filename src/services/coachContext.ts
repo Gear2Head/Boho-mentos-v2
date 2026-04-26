@@ -74,10 +74,16 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
       return `${l.subject}/${l.topic}: ${l.questions}s %${acc} başarı ${l.avgTime}dk`;
     });
 
-  // ─── Son denemeler (son 3) ────────────────────────────────────────────────
+  // ─── Son denemeler (son 3 detaylı) ────────────────────────────────────────
   const last3Exams = exams
     .slice(-3)
-    .map((e) => `${e.type}: ${e.totalNet.toFixed(1)} net`);
+    .map((e) => {
+      let detailStr = '';
+      if (e.scores && Object.keys(e.scores).length > 0) {
+        detailStr = ' (' + Object.entries(e.scores).filter(([_, s]) => s.net > 0 || s.wrong > 0).map(([sub, s]) => `${sub}:${s.net}`).join(', ') + ')';
+      }
+      return `${e.type}: ${e.totalNet.toFixed(1)} net${detailStr}`;
+    });
 
   const lastTytExam = [...exams].reverse().find((e) => e.type === 'TYT');
   const lastAytExam = [...exams].reverse().find((e) => e.type === 'AYT');

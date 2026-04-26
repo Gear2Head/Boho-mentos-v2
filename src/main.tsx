@@ -133,13 +133,16 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 import { ToastProvider } from './contexts/ToastContext';
+import { BrowserRouter } from 'react-router-dom';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
+      <BrowserRouter>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </BrowserRouter>
     </ErrorBoundary>
   </StrictMode>,
 );

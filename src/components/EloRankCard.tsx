@@ -2,6 +2,7 @@ import React from 'react';
 import { Trophy, Star, Shield, Medal, Target, Crown } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { toISODateOnly } from '../utils/date';
+import { motion } from 'framer-motion';
 
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';
 
@@ -90,13 +91,23 @@ export function EloRankCard() {
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono text-2xl font-bold text-[#C17767]">
-            {eloScore} <span className="text-[10px] opacity-50 font-sans">Puan</span>
-          </div>
+          <motion.div 
+            key={eloScore}
+            initial={{ scale: 1.2, color: delta > 0 ? '#10b981' : '#C17767' }}
+            animate={{ scale: 1, color: '#C17767' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+            className="font-mono text-2xl font-bold"
+          >
+            {eloScore} <span className="text-[10px] opacity-50 font-sans text-zinc-400">Puan</span>
+          </motion.div>
           {delta !== 0 && (
-            <div className={`text-[10px] font-bold ${delta > 0 ? 'text-emerald-500' : 'text-red-500'} italic mt-0.5`}>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`text-[10px] font-bold ${delta > 0 ? 'text-emerald-500' : 'text-red-500'} italic mt-0.5`}
+            >
               {delta > 0 ? '+' : ''}{delta} ELO (Bugün)
-            </div>
+            </motion.div>
           )}
           <div className="text-zinc-500 text-[10px] uppercase tracking-widest mt-1">Hedef: {nextElo} Puan</div>
         </div>

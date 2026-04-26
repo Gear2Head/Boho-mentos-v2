@@ -4,6 +4,7 @@ import { CoachDirective, DirectiveRecord, CoachMemory } from '../../types/coach'
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { triggerConfetti } from '../../utils/confetti';
+import { cleanForFirestore } from "../../utils/firebaseHelpers";
 
 export interface CoachSlice {
   lastCoachDirective: CoachDirective | null;
@@ -27,7 +28,7 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
   setLastCoachDirective: (directive) => set({ lastCoachDirective: directive }),
 
   completeCoachTask: (recordId, index) => {
-    const { directiveHistory, eloScore, authUser, coachMemory } = get();
+    const { directiveHistory, eloScore, authUser, coachMemory, addLog, addAgendaEntry } = get();
     const record = directiveHistory.find(r => r.id === recordId);
     if (!record || !record.directive.tasks[index]) return;
 
@@ -38,15 +39,37 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       const newMemory = m.updateCoachMemory(newHistory, coachMemory);
       
       const bonus = task.priority === 'high' ? 40 : 25;
-      const newElo = Math.min(eloScore + bonus, 20000); // Max ELO increased for scaling
+      const newElo = Math.min(eloScore + bonus, 20000);
 
-      // Confetti effect for task completion
+      // ─── OTOMASYON: LOG VE AJANDA KAYDI ───
+      addLog({
+        id: `auto_log_${Date.now()}`,
+        date: new Date().toISOString(),
+        subject: task.subject || 'Genel Çalışma',
+        topic: task.title,
+        questions: 0,
+        correct: 0,
+        wrong: 0,
+        avgTime: task.targetMinutes || 30,
+        empty: 0,
+        fatigue: 0,
+        notes: `AI Koç Görevi: ${task.title}`
+      });
+
+      addAgendaEntry({
+        id: `auto_agenda_${Date.now()}`,
+        date: new Date().toISOString(),
+        content: `GÖREV TAMAMLANDI: ${task.title}\n${task.action}`,
+        tags: ['AI-Task', task.subject || 'Genel'],
+      });
+
+      // Konfeti ve Store Güncelleme
       triggerConfetti();
-
       set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
+
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), nr).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), { eloScore: newElo, coachMemory: newMemory }, { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo, coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },
@@ -64,8 +87,8 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
 
       set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), nr).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), { eloScore: newElo, coachMemory: newMemory }, { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo, coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },
@@ -83,8 +106,8 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
 
       set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), nr).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), { eloScore: newElo, coachMemory: newMemory }, { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo, coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },

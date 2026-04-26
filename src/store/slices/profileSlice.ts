@@ -59,7 +59,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     const { authUser } = get();
     set({ theme });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { theme }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ theme }), { merge: true }).catch(console.error);
     }
   },
 
@@ -67,7 +67,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     const { authUser } = get();
     set({ subjectViewMode: mode });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { subjectViewMode: mode }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ subjectViewMode: mode }), { merge: true }).catch(console.error);
     }
   },
 
@@ -76,7 +76,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     const newScore = Math.max(0, eloScore + amount);
     set({ eloScore: newScore });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), { eloScore: newScore }, { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newScore }), { merge: true }).catch(console.error);
     }
   },
 
@@ -88,7 +88,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
       newTrophies[idx] = { ...newTrophies[idx], unlockedAt: new Date().toISOString() };
       set({ trophies: newTrophies });
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid), { trophies: newTrophies }, { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ trophies: newTrophies }), { merge: true }).catch(console.error);
       }
       addElo(50);
     }

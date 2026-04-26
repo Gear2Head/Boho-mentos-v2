@@ -29,11 +29,11 @@ export function StreakHeatmap() {
   const maxQ = Math.max(1, ...last30Days.map(d => d.totalQuestions));
 
   const getColor = (day: typeof last30Days[0]) => {
-    if (!day.hasLog) return 'bg-zinc-800/50';
+    if (!day.hasLog) return 'bg-white/5 border border-white/[0.02]';
     const ratio = day.totalQuestions / maxQ;
-    if (ratio > 0.7) return 'bg-[#C17767] shadow-[0_0_6px_rgba(193,119,103,0.4)]';
-    if (ratio > 0.3) return 'bg-[#C17767]/60';
-    return 'bg-[#C17767]/30';
+    if (ratio > 0.7) return 'bg-[#C17767] shadow-[0_0_8px_rgba(193,119,103,0.3)]';
+    if (ratio > 0.3) return 'bg-[#C17767]/70';
+    return 'bg-[#C17767]/40';
   };
 
   const currentStreak = (() => {
@@ -46,33 +46,33 @@ export function StreakHeatmap() {
   })();
 
   return (
-    <div className="bg-[#FFFFFF] dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl p-5 shadow-sm">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="text-[10px] uppercase font-bold tracking-widest text-[#C17767]">Çalışma Seri Haritası</h3>
-          <p className="text-[9px] uppercase tracking-widest text-zinc-500 mt-0.5">Son 30 Gün</p>
-        </div>
+    <div className="w-full">
+      <div className="flex justify-between items-end mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-2xl font-display font-bold text-[#C17767]">{currentStreak}</span>
-          <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">GÜN<br/>SERİ</span>
+          <span className="text-2xl font-display font-bold text-[#C17767] leading-none">{currentStreak}</span>
+          <div className="flex flex-col">
+            <span className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold leading-tight">GÜN</span>
+            <span className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold leading-tight">SERİ</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[8px] text-zinc-600 uppercase tracking-widest mr-1">Az</span>
+          <div className="w-2 h-2 rounded-[1px] bg-zinc-800/50" />
+          <div className="w-2 h-2 rounded-[1px] bg-[#C17767]/30" />
+          <div className="w-2 h-2 rounded-[1px] bg-[#C17767]/60" />
+          <div className="w-2 h-2 rounded-[1px] bg-[#C17767]" />
+          <span className="text-[8px] text-zinc-600 uppercase tracking-widest ml-1">Çok</span>
         </div>
       </div>
+      
       <div className="grid grid-cols-10 gap-1.5">
         {last30Days.map((day) => (
           <div
             key={day.dayStr}
             title={`${day.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}: ${day.totalQuestions} soru`}
-            className={`aspect-square rounded-[4px] transition-all hover:scale-125 cursor-default ${getColor(day)}`}
+            className={`aspect-square rounded-[3px] transition-all hover:scale-125 cursor-default ${getColor(day)}`}
           />
         ))}
-      </div>
-      <div className="flex items-center justify-end gap-1.5 mt-3">
-        <span className="text-[8px] text-zinc-600 uppercase tracking-widest">Az</span>
-        <div className="w-2.5 h-2.5 rounded-[2px] bg-zinc-800/50" />
-        <div className="w-2.5 h-2.5 rounded-[2px] bg-[#C17767]/30" />
-        <div className="w-2.5 h-2.5 rounded-[2px] bg-[#C17767]/60" />
-        <div className="w-2.5 h-2.5 rounded-[2px] bg-[#C17767]" />
-        <span className="text-[8px] text-zinc-600 uppercase tracking-widest">Çok</span>
       </div>
     </div>
   );

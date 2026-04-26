@@ -99,6 +99,11 @@ export function useCoachCore(): UseCoachCoreReturn {
         });
 
         // 2. AI çağrısı — intent bazlı (BUILD-001, COACH-003, AI-005)
+        // [SOBET-MODE-FIX]: Eğer kullanıcı dertleşiyorsa veya soru soruyorsa forceJson (wantDirective) yapmıyoruz.
+        const shouldForceDirective = wantDirective || 
+          ['daily_plan', 'weekly_review', 'exam_analysis', 'topic_explain'].includes(intent) ||
+          (userMessage.length > 10 && /yap|plan|hedef|görev|analiz/i.test(userMessage));
+
         const rawText = await getCoachResponse(
           userMessage,
           contextString,
@@ -106,8 +111,8 @@ export function useCoachCore(): UseCoachCoreReturn {
           {
             intent,
             coachPersonality: profile?.coachPersonality,
-            forceJson: wantDirective,
-            wantDirective,
+            forceJson: shouldForceDirective,
+            wantDirective: shouldForceDirective,
             userState,
           }
         );
@@ -120,8 +125,16 @@ export function useCoachCore(): UseCoachCoreReturn {
 
         if (parsed.isStructured) {
           directive = parsed.directive;
-          // JSON bloğunu chat'ten temizle
-          cleanText = (directive.text ?? rawText ?? '').replace(/```json[\s\S]*?```/g, '').trim();
+          // [BUG-001 FIX]: JSON bloğunu ve markdown kod bloklarını chat'ten temizle
+          let tempText = (directive.text ?? rawText ?? '')
+            .replace(/```(?:json)?[\s\S]*?```/g, '') // Hem ``` hem de ```json bloklarını temizle
+            .trim();
+          
+          // Eğer AI sadece raw JSON döndürdüyse veya temizlik sonrası metin boşsa summary'yi kullan
+          if (tempText.startsWith('{') || tempText.startsWith('[') || !tempText) {
+            tempText = directive.summary;
+          }
+          cleanText = tempText;
 
           // 4. Directive history'e kaydet (COACH-006)
           const ctxHash = hashContext(userState);

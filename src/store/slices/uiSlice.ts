@@ -3,6 +3,7 @@ import { AppState } from '../appStore';
 import { QASession } from '../../types';
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import { cleanForFirestore } from "../../utils/firebaseHelpers";
 
 export interface UISlice {
   isPassiveMode: boolean;
@@ -72,19 +73,19 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   setPassiveMode: (isPassive) => {
     const { authUser } = get();
     set({ isPassiveMode: isPassive });
-    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), { isPassiveMode: isPassive }, { merge: true }).catch(console.error);
+    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ isPassiveMode: isPassive }), { merge: true }).catch(console.error);
   },
 
   setLofiEnabled: (enabled) => {
     const { authUser } = get();
     set({ isLofiEnabled: enabled });
-    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), { isLofiEnabled: enabled }, { merge: true }).catch(console.error);
+    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ isLofiEnabled: enabled }), { merge: true }).catch(console.error);
   },
 
   setMorningBlockerEnabled: (enabled) => {
     const { authUser } = get();
     set({ isMorningBlockerEnabled: enabled });
-    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), { isMorningBlockerEnabled: enabled }, { merge: true }).catch(console.error);
+    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ isMorningBlockerEnabled: enabled }), { merge: true }).catch(console.error);
   },
 
   setMorningUnlockedDate: (date) => set({ morningUnlockedDate: date }),

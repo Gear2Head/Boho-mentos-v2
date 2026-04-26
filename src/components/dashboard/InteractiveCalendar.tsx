@@ -19,6 +19,14 @@ export function InteractiveCalendar() {
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
+  // Tarih karşılaştırma yardımcısı (Local)
+  const isSameDay = (isoStr: string, targetDate: Date) => {
+    const d = new Date(isoStr);
+    return d.getFullYear() === targetDate.getFullYear() &&
+           d.getMonth() === targetDate.getMonth() &&
+           d.getDate() === targetDate.getDate();
+  };
+
   return (
     <div className="bg-white/5 dark:bg-black/20 backdrop-blur-xl border border-white/10 dark:border-zinc-800/50 rounded-3xl p-6 relative overflow-hidden flex flex-col h-full">
       
@@ -50,22 +58,23 @@ export function InteractiveCalendar() {
           <div key={`pad-${i}`} className="aspect-square bg-transparent rounded-xl opacity-0" />
         ))}
         {days.map(d => {
+          const target = new Date(currentDate.getFullYear(), currentDate.getMonth(), d);
           const isToday = new Date().getDate() === d && new Date().getMonth() === currentDate.getMonth() && new Date().getFullYear() === currentDate.getFullYear();
           const isSelected = selectedDate?.getDate() === d && selectedDate?.getMonth() === currentDate.getMonth();
 
-          // Real Data logic for gradients
-          const dayDateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), d).toISOString().split('T')[0];
-          const dayLogs = logs.filter(l => l.date.split('T')[0] === dayDateStr);
-          const logCount = dayLogs.length;
+          // Isı haritası için loglar ve ajanda girişlerini topla
+          const dayLogCount = logs.filter(l => isSameDay(l.date, target)).length;
+          const dayAgendaCount = agendaEntries.filter(e => isSameDay(e.date, target)).length;
+          const totalActivity = dayLogCount + dayAgendaCount;
           
-          const gradient = logCount > 5 ? 'from-[#C17767] to-[#8C5245]' : 
-                           logCount > 0 ? 'from-amber-600/40 to-[#C17767]/40' : 
+          const gradient = totalActivity > 5 ? 'from-[#C17767] to-[#8C5245]' : 
+                           totalActivity > 0 ? 'from-amber-600/40 to-[#C17767]/40' : 
                            'bg-zinc-800/30';
 
           return (
             <motion.button 
               key={d}
-              onClick={() => setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), d))}
+              onClick={() => setSelectedDate(target)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={`aspect-square relative rounded-xl flex items-center justify-center border transition-all ${
@@ -81,7 +90,7 @@ export function InteractiveCalendar() {
         })}
       </div>
 
-      {/* Agenda Slide-out Mock */}
+      {/* Agenda Slide-out */}
       <AnimatePresence>
         {selectedDate && (
           <motion.div 
@@ -104,8 +113,9 @@ export function InteractiveCalendar() {
                 <Clock size={12} /> GÜNLÜK KAYITLAR
               </div>
               
+              {/* Ajanda Girişleri */}
               {agendaEntries
-                .filter(e => e.date.split('T')[0] === selectedDate.toISOString().split('T')[0])
+                .filter(e => isSameDay(e.date, selectedDate))
                 .map(e => (
                   <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 hover:border-[#C17767]/30 transition-colors group">
                     <div className="flex justify-between items-start mb-2">
@@ -120,7 +130,21 @@ export function InteractiveCalendar() {
                   </div>
                 ))}
               
-              {agendaEntries.filter(e => e.date.split('T')[0] === selectedDate.toISOString().split('T')[0]).length === 0 && (
+              {/* Ders Çalışma Logları (Opsiyonel: Takvimde loglar da görünsün istenirse eklenebilir) */}
+              {logs
+                .filter(l => isSameDay(l.date, selectedDate))
+                .map(l => (
+                  <div key={l.id} className="bg-zinc-900/40 border border-zinc-800/50 rounded-xl p-3">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-[8px] text-amber-500 uppercase font-bold">{l.subject}</span>
+                      <span className="text-[8px] text-zinc-600 font-mono">LOG</span>
+                    </div>
+                    <p className="text-[10px] text-zinc-400">{l.questions} Soru | {l.avgTime} Dakika</p>
+                  </div>
+                ))}
+
+              {(agendaEntries.filter(e => isSameDay(e.date, selectedDate)).length === 0 && 
+                logs.filter(l => isSameDay(l.date, selectedDate)).length === 0) && (
                 <p className="text-[10px] text-zinc-600 italic text-center py-8">Bu güne ait kayıt bulunamadı.</p>
               )}
             </div>
