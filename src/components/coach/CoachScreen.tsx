@@ -12,9 +12,12 @@ import { ChatMessage } from './ChatMessage';
 import { TypingIndicator } from './TypingIndicator';
 import { InputZone } from './InputZone';
 import { ConversationSidebar } from './ConversationSidebar';
+import { PanelLeftOpen } from 'lucide-react';
 import type { CoachIntent } from '../../types/coach';
 import { CoachBriefing } from '../CoachBriefing';
 import { ContextBar } from './ContextBar';
+import { useAppSelectors } from '../../store/selectors';
+import { AudioEngine } from '../../utils/audioEngine';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,7 +25,7 @@ interface CoachScreenProps {
   isTyping: boolean;
   inputMessage: string;
   setInputMessage: (val: string) => void;
-  onSendMessage: (msg: string, intent?: CoachIntent) => void;
+  onSendMessage: (msg: string, intent?: CoachIntent, attachment?: { base64: string; mediaType: string; name: string }) => void;
   onLogClick: () => void;
   onExamClick: () => void;
 }
@@ -42,6 +45,8 @@ export function CoachScreen({
   const migrate = useAppStore((s) => s.migrateLegacyChat);
   const profile = useAppStore((s) => s.profile);
   
+  const { isTtsEnabled } = useAppSelectors();
+  
   const activeConversation = conversations.find(c => c.id === activeId);
   const messages = activeConversation?.messages || [];
 
@@ -50,6 +55,7 @@ export function CoachScreen({
 
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0);
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
   const prevLengthRef = useRef(messages.length);
 
   useEffect(() => {
@@ -79,6 +85,13 @@ export function CoachScreen({
     if (messages.length > prevLengthRef.current) {
       if (isAtBottom) {
         const raf = requestAnimationFrame(() => scrollToBottom('smooth'));
+        
+        // Auto-TTS for new coach messages
+        const lastMsg = messages[messages.length - 1];
+        if (isTtsEnabled && lastMsg && lastMsg.role === 'coach') {
+          AudioEngine.playTts(lastMsg.content);
+        }
+
         return () => cancelAnimationFrame(raf);
       } else {
         setNewMsgCount((prev) => prev + 1);
@@ -94,6 +107,26 @@ export function CoachScreen({
       return () => cancelAnimationFrame(raf);
     }
   }, [isTyping, scrollToBottom]);
+
+  // ─── Proactive Silence Trigger ──────────────────────────────────────────
+  useEffect(() => {
+    if (messages.length === 0 || isTyping) return;
+    
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.role === 'coach') return; // Zaten koç konuştuysa tekrar etme
+
+    const lastTime = new Date(lastMsg.timestamp).getTime();
+    const now = Date.now();
+    const diffHours = (now - lastTime) / (1000 * 60 * 60);
+
+    // Eğer 48 saatten fazla olduysa (veya test için 24 saat)
+    if (diffHours > 48) {
+      const timer = setTimeout(() => {
+        onSendMessage("Sessizlik... 48 saattir sesin çıkmıyor. Neredesin? Bu sınav kendi kendine mi kazanılacak? Derhal durum raporu ver.", "intervention");
+      }, 5000); // Ekran açıldıktan 5 sn sonra tetikle
+      return () => clearTimeout(timer);
+    }
+  }, [messages, isTyping, onSendMessage]);
 
   // Scroll event listener
   useEffect(() => {
@@ -117,10 +150,22 @@ export function CoachScreen({
   return (
     <div className="flex h-full overflow-hidden bg-app">
       {/* Sidebar - Desktop */}
-      <ConversationSidebar />
+      <ConversationSidebar isOpen={isSidebarOpen} onToggle={() => setSidebarOpen(!isSidebarOpen)} />
 
       {/* ── Main Chat Area ──────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 relative bg-app">
+        {/* Sticky Header Actions */}
+        <div className="absolute top-4 left-4 z-20 flex gap-2">
+          {!isSidebarOpen && (
+            <button 
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 bg-surface/80 backdrop-blur-md border border-app text-zinc-400 hover:text-ink transition-all rounded-xl shadow-sm"
+              title="Geçmişi Göster"
+            >
+              <PanelLeftOpen size={16} />
+            </button>
+          )}
+        </div>
 
         {/* Scroll area */}
         <div
@@ -140,7 +185,7 @@ export function CoachScreen({
             ) : (
               <>
                 {/* Date separator — "Bugün" */}
-                <div className="flex items-center gap-3 py-4">
+                <div className="flex items-center gap-3 py-4 relative">
                   <div className="flex-1 h-px bg-app-subtle/50" />
                   <span className="text-[9px] uppercase tracking-[0.3em] text-accent font-black bg-surface px-4 py-1.5 rounded-full border border-app shadow-sm">
                     {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}

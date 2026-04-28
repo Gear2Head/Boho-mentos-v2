@@ -2,7 +2,7 @@ import React from 'react';
 import { Trophy, Star, Shield, Medal, Target, Crown } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { toISODateOnly } from '../utils/date';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';
 

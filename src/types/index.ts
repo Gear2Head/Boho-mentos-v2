@@ -141,6 +141,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   directive?: CoachDirective;
+  imageUrl?: string;
   isSystemEvent?: boolean;
 }
 
@@ -186,6 +187,8 @@ export interface FocusSessionRecord {
   durationSeconds: number;
   label?: string;
   linkedLogId?: string;
+  interruptions?: number;
+  deepWorkScore?: number;
 }
 
 export interface SubjectExamNet {

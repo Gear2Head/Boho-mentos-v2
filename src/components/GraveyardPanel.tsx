@@ -4,20 +4,67 @@
  */
 
 import React, { useState } from 'react';
-import { Ghost, Trash2, CheckCircle2, Search, Filter, AlertCircle, BookOpen, Clock, BarChart2 } from 'lucide-react';
+import { Ghost, Trash2, CheckCircle2, Search, Filter, AlertCircle, BookOpen, Clock, Bot, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../store/appStore';
 import type { FailedQuestion } from '../types';
+import { getCoachResponse } from '../services/gemini';
+import { useToast } from './ToastContext';
+import { BlockMath, InlineMath } from 'react-katex';
 
 export function GraveyardPanel() {
-  const failedQuestions = useAppStore(s => s.failedQuestions);
+  const failedQuestions = useAppStore((s): FailedQuestion[] => s.failedQuestions);
   const solveFailedQuestion = useAppStore(s => s.solveFailedQuestion);
   const removeFailedQuestion = useAppStore(s => s.removeFailedQuestion);
+  const { toast } = useToast();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSubject, setFilterSubject] = useState<string>('all');
+  const [ocrLoading, setOcrLoading] = useState<string | null>(null);
+  const [ocrResult, setOcrResult] = useState<{ id: string, solution: string } | null>(null);
 
-  const subjects = ['all', ...new Set(failedQuestions.map(q => q.subject))];
+  const handleOcrSolve = async (q: FailedQuestion) => {
+    if (!q.imageUrl) {
+      toast.error('Bu sorunun bir görseli yok.');
+      return;
+    }
+
+    setOcrLoading(q.id);
+    try {
+      // imageUrl format check. It's usually 'data:image/jpeg;base64,....'
+      let base64 = q.imageUrl;
+      let mimeType = 'image/jpeg';
+      
+      if (base64.startsWith('data:')) {
+        const parts = base64.split(',');
+        mimeType = parts[0].split(';')[0].split(':')[1];
+        base64 = parts[1];
+      }
+
+      const response = await getCoachResponse(
+        "Lütfen bu soruyu analiz et.",
+        "",
+        [],
+        {
+          intent: 'vision_archive_parse',
+          forceJson: true,
+          imageBase64: base64,
+          imageMediaType: mimeType as any
+        }
+      );
+
+      const parsed = JSON.parse(response);
+      setOcrResult({ id: q.id, solution: parsed.solution || "Çözüm bulunamadı." });
+      toast.success('AI soruyu analiz etti!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Görsel okunurken hata oluştu.');
+    } finally {
+      setOcrLoading(null);
+    }
+  };
+  
+  const subjects: string[] = ['all', ...Array.from(new Set(failedQuestions.map(q => (q.subject as string))))];
 
   const filtered = failedQuestions.filter(q => {
     const matchesSearch = q.topic.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -128,10 +175,34 @@ export function GraveyardPanel() {
                       <Clock size={12} /> {q.solveCount || 0} KEZ BAKILDI
                     </div>
                   </div>
+
+                  {/* OCR Çözüm Gösterimi */}
+                  {ocrResult && ocrResult.id === q.id && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-4 bg-[#C17767]/10 border border-[#C17767]/30 p-4 rounded-xl"
+                    >
+                      <h5 className="text-[10px] font-bold uppercase tracking-widest text-[#C17767] mb-2 flex items-center gap-2">
+                        <Bot size={14} /> AI Çözümü
+                      </h5>
+                      <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                        <InlineMath math={ocrResult.solution} />
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 {/* Aksiyonlar */}
                 <div className="flex md:flex-col gap-2 shrink-0 justify-center">
+                  <button 
+                    onClick={() => handleOcrSolve(q)}
+                    disabled={!q.imageUrl || ocrLoading === q.id}
+                    className="flex-1 md:flex-none p-3 bg-[#1A1A1A] text-white dark:bg-zinc-800 dark:text-white rounded-xl hover:bg-[#C17767] transition-all shadow-sm disabled:opacity-30 flex items-center justify-center"
+                    title={q.imageUrl ? "Yapay Zeka Çözümü İste (OCR)" : "Görsel Yok"}
+                  >
+                    {ocrLoading === q.id ? <RefreshCw size={18} className="animate-spin" /> : <Bot size={18} />}
+                  </button>
                   <button 
                     onClick={() => solveFailedQuestion(q.id)}
                     className="flex-1 md:flex-none p-3 bg-green-500/10 text-green-600 dark:text-green-400 rounded-xl hover:bg-green-500 hover:text-white transition-all shadow-sm"

@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as React from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+// IDE Refresh Trigger: Module resolution sync.
 import {
   BarChart3,
   Camera,
@@ -34,7 +36,8 @@ const TRACKS: Array<{ value: Track; label: string; sub: string; icon: string }> 
 ];
 
 const COACH_OPTIONS = [
-  { id: 'enforcer', icon: '💀', title: 'ENFORCER (DİSİPLİNER)', subtitle: 'Sert. Gerçekçi. Acımasız.', desc: 'Mazeret dinlemez, hedef farkını yüzüne vurur.', color: '#EF4444', glow: 'rgba(239,68,68,0.15)' },
+  { id: 'hardcore', icon: '☢️', title: 'HARDCORE (AGRESİF)', subtitle: 'Küfürlü. Acımasız. Şok Terapi.', desc: 'Hatalarına söver, mazeretlerini ezer geçer. Psikolojik baskı kurar.', color: '#F59E0B', glow: 'rgba(245,158,11,0.2)' },
+  { id: 'enforcer', icon: '💀', title: 'ENFORCER (DİSİPLİNER)', subtitle: 'Sert. Gerçekçi. Otoriter.', desc: 'Mazeret dinlemez, hedef farkını yüzüne vurur.', color: '#EF4444', glow: 'rgba(239,68,68,0.15)' },
   { id: 'analyst', icon: '📊', title: 'ANALYST (STRATEJİK)', subtitle: 'Veri. Strateji. Hassasiyet.', desc: 'Analitik yaklaşır, aksiyonları açıklar.', color: '#3B82F6', glow: 'rgba(59,130,246,0.15)' },
   { id: 'oracle', icon: '🤖', title: 'ORACLE (ORAKÜL)', subtitle: 'Soğuk. Tamamen Veri.', desc: 'Kişisel yorum yapmaz, sadece sayılarla projeksiyon yapar.', color: '#8B5CF6', glow: 'rgba(139,92,246,0.15)' },
 ] as const;

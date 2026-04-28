@@ -65,6 +65,7 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
 
       // Konfeti ve Store Güncelleme
       triggerConfetti();
+      import('../../utils/audioEngine').then(({ AudioEngine }) => AudioEngine.playSuccess());
       set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
 
       if (authUser?.uid) {

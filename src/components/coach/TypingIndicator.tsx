@@ -5,12 +5,25 @@
  */
 
 import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 
 interface TypingIndicatorProps {
   coachPersonality?: string;
 }
 
 const TYPING_MESSAGES_BY_PERSONALITY: Record<string, string[]> = {
+  hardcore: [
+    'Hataların taranıyor...',
+    'Tembelliğin analiz ediliyor...',
+    'Sövmek üzereyim...',
+    'Gerçekler tokat gibi geliyor...',
+  ],
+  enforcer: [
+    'Mazeretler reddediliyor...',
+    'Disiplin kontrol ediliyor...',
+    'Direktif hazırlanıyor...',
+    'Sınırların zorlanıyor...',
+  ],
   harsh: [
     'Direktif hazırlanıyor...',
     'Veriler taranıyor...',
@@ -38,6 +51,8 @@ const TYPING_MESSAGES_BY_PERSONALITY: Record<string, string[]> = {
 };
 
 const AVATAR_BY_PERSONALITY: Record<string, { emoji: string; color: string }> = {
+  hardcore: { emoji: '☢️', color: 'bg-amber-900/60 border-amber-700/40' },
+  enforcer: { emoji: '💀', color: 'bg-red-900/60 border-red-700/40' },
   harsh: { emoji: '💀', color: 'bg-red-900/60 border-red-700/40' },
   motivational: { emoji: '🔥', color: 'bg-orange-900/60 border-orange-700/40' },
   analytical: { emoji: '📊', color: 'bg-blue-900/60 border-blue-700/40' },
@@ -67,18 +82,30 @@ export function TypingIndicator({ coachPersonality }: TypingIndicatorProps) {
     };
   }, [messages.length]);
 
+  const isHardcore = personality === 'hardcore';
+
   return (
     <div className="flex items-end gap-3 max-w-xs">
       {/* Avatar */}
       <div
-        className={`w-9 h-9 rounded-xl border flex items-center justify-center text-lg shrink-0 ${avatar.color}`}
+        className={`w-9 h-9 rounded-xl border flex items-center justify-center text-lg shrink-0 ${avatar.color} ${isHardcore ? 'shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-pulse' : ''}`}
         aria-hidden="true"
       >
         {avatar.emoji}
       </div>
 
       {/* Bubble */}
-      <div className="bg-[#141414] border border-[#2A2A2A] rounded-2xl rounded-bl-sm px-5 py-4 flex items-center gap-3 shadow-lg">
+      <motion.div 
+        animate={isHardcore ? {
+          x: [0, -1, 1, -1, 0],
+          y: [0, 1, -1, 1, 0],
+        } : {}}
+        transition={isHardcore ? {
+          repeat: Infinity,
+          duration: 0.1,
+        } : {}}
+        className={`border rounded-2xl rounded-bl-sm px-5 py-4 flex items-center gap-3 shadow-lg ${isHardcore ? 'bg-amber-950/20 border-amber-500/30' : 'bg-[#141414] border-[#2A2A2A]'}`}
+      >
         {/* Dot animation */}
         <div className="flex gap-1 items-center" aria-label="Koç yazıyor">
           {[1, 2, 3].map((dot) => (
@@ -86,7 +113,7 @@ export function TypingIndicator({ coachPersonality }: TypingIndicatorProps) {
               key={dot}
               className="w-1.5 h-1.5 rounded-full transition-all duration-200"
               style={{
-                backgroundColor: dot <= dotCount ? '#C17767' : '#374151',
+                backgroundColor: dot <= dotCount ? (isHardcore ? '#F59E0B' : '#C17767') : '#374151',
                 transform: dot === dotCount ? 'scale(1.4)' : 'scale(1)',
               }}
             />
@@ -94,10 +121,10 @@ export function TypingIndicator({ coachPersonality }: TypingIndicatorProps) {
         </div>
 
         {/* Status text */}
-        <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold italic animate-pulse">
+        <span className={`text-[10px] uppercase tracking-widest font-bold italic animate-pulse ${isHardcore ? 'text-amber-500/80' : 'text-zinc-500'}`}>
           {messages[msgIdx]}
         </span>
-      </div>
+      </motion.div>
     </div>
   );
 }

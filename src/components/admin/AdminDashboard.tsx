@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, Search, Users, Database, Shield, Settings, Activity,
   Trash2, Edit3, Eye, RefreshCw, Loader2, ChevronDown, ChevronRight, ChevronLeft,

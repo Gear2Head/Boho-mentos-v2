@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Target, Zap, Swords, ChevronRight, Loader2 } from 'lucide-react';
 import { useWarRoom } from '../../hooks/useWarRoom';
 

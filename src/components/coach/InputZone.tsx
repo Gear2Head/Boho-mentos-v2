@@ -112,6 +112,11 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
   const handleSend = useCallback(async () => {
     if (isEmpty || isTyping) return;
     setIsSending(true);
+    
+    import('../../utils/audioEngine').then(({ AudioEngine }) => {
+      AudioEngine.playSend();
+    });
+
     onSubmit(value, undefined, attachment ?? undefined);
     onChange('');
     setAttachment(null);

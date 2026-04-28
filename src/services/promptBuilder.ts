@@ -123,13 +123,17 @@ export function buildContextString(ctx?: Partial<CoachSystemContext>): string {
  */
 function extractFirstJsonObject(raw: string): string | null {
   let s = raw.trim();
+  
+  // 1. Markdown extraction
   if (s.includes('```')) {
-    const parts = s.split('```');
-    const block = parts.find((p) => p.startsWith('json')) || parts[1] || '';
-    s = block.replace(/^json/, '').trim();
+    const match = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (match) s = match[1].trim();
   }
+
   const start = s.indexOf('{');
   if (start === -1) return null;
+  
+  // 2. Bracket balance
   let depth = 0;
   let inString = false;
   let escape = false;
@@ -142,7 +146,10 @@ function extractFirstJsonObject(raw: string): string | null {
     if (ch === '{') depth++;
     else if (ch === '}') {
       depth--;
-      if (depth === 0) return s.substring(start, i + 1).replace(/,(\s*[}\]])/g, '$1');
+      if (depth === 0) {
+        let json = s.substring(start, i + 1);
+        return json.replace(/,(\s*[}\]])/g, '$1');
+      }
     }
   }
   return null;

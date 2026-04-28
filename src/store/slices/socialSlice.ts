@@ -29,6 +29,10 @@ export interface SocialSlice {
   clearNotifications: () => void;
   setDailyQuestsGeneratedDate: (date: string) => void;
   incrementAiRequest: () => void;
+  
+  // Ghost Rivals
+  ghostRival: import('../../types/coach').GhostRival | null;
+  generateGhostRival: () => void;
 }
 
 export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (set, get) => ({
@@ -39,6 +43,33 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
   dailyAiRequests: 0,
   lastAiRequestDate: new Date().toISOString().split('T')[0],
   chatHistory: [],
+  ghostRival: null,
+
+  generateGhostRival: () => {
+    const { eloScore } = get();
+    // ELO'ya %5 toleransla rakip üret
+    const variance = eloScore * 0.05;
+    const rivalElo = Math.floor(eloScore + (Math.random() * variance * 2 - variance));
+    
+    // Rastgele isimler
+    const names = ["Anadolu Kaplanı", "Gece Kuşu", "Boğaziçi Yolcusu", "Mezun_2025", "Hedef_Cerrahpaşa", "Shadow_01"];
+    const randomName = names[Math.floor(Math.random() * names.length)];
+    
+    // TYT/AYT tahminleri (kabaca ELO'ya göre)
+    const baseNet = Math.min(120, Math.max(30, rivalElo / 20));
+    
+    set({
+      ghostRival: {
+        id: `rival_${Date.now()}`,
+        name: randomName,
+        eloScore: rivalElo,
+        tytNet: Math.floor(baseNet + (Math.random() * 10 - 5)),
+        aytNet: Math.floor((baseNet * 0.8) + (Math.random() * 10 - 5)),
+        streakDays: Math.floor(Math.random() * 14),
+        source: 'community_avg'
+      }
+    });
+  },
 
   migrateLegacyChat: () => {
     const s = get() as any;

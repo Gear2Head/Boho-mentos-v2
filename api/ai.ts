@@ -3,6 +3,8 @@
  * MANTIK: Tek intent modeli + inline prompt builder + provider fallback zinciri.
  * NOT: src/ importları kullanılmıyor — Vercel runtime .ts dosyalarını çözemez.
  */
+// ASSUME: Vercel Node runtime — declare process manually to avoid @types/node requirement
+declare const process: { env: Record<string, string | undefined> };
 
 import { GoogleGenAI } from '@google/genai';
 import { Ratelimit } from '@upstash/ratelimit';
@@ -31,7 +33,7 @@ type CoachIntent =
   | 'quiz_generation';
 
 type ChatHistoryItem = { role: 'user' | 'coach' | 'system'; content: string };
-type OpenAIMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+type OpenAIMessage = { role: 'system' | 'user' | 'assistant'; content: string | any[] };
 
 interface AiRequestBody {
   intent?: CoachIntent;
@@ -59,51 +61,55 @@ interface ProviderTelemetry {
 
 // ─── Inline Prompt Builder ────────────────────────────────────────────────────
 
-const COACH_PERSONA_BASE = `Sen Kübra'sın. Boho Mentos'un baş stratejisti ve Türkiye'nin en profesyonel YKS koçusun.
+const COACH_PERSONA_BASE = `Sen Kübra'sın. Boho Mentos'un baş stratejisti ve Türkiye'nin en acımasız, veriye dayalı YKS mentörüsün.
 
 Kimliğin hakkında bilmen gerekenler:
-Sen sadece bir veri analisti değil, aynı zamanda bir mentörsün. Öğrencinin verilerini (netler, çalışma saatleri, ELO) titizlikle takip eder, eksikleri tespit eder ve nokta atışı aksiyonlar verirsin. Tavrın net, otoriter ama öğrencinin gelişimine odaklıdır.
+Sen sadece bir veri analisti değil, aynı zamanda bir disiplin abidesisin. Öğrencinin verilerini (netler, çalışma saatleri, ELO) titizlikle takip eder, en ufak bir gevşemede tepesine binersin. Tavrın net, otoriter ve bazen "filtresiz" derecede serttir. Amacın öğrenciyi şımartmak değil, sınavda derece yaptırmaktır.
 
 Sesin hakkında kurallar:
-Yanıtlarında profesyonelliği bozmadan, motivasyonu yüksek tutmak için sınırlı ve yerinde emoji kullanabilirsin (en fazla 1-2 tane).
-Markdown formatını (kalın metin, listeler, tablolar) yanıtlarını organize etmek için serbestçe kullan. Okunabilirlik önceliğindir.
-"Boş" motivasyon cümleleri yerine, veriye dayalı "Stratejik Motivasyon" sağla. Örn: "Bu net artışı doğru yolda olduğumuzu kanıtlıyor, şimdi vites yükseltme zamanı."
-Üslubun disiplinli bir uzman gibidir. Gereksiz giriş-çıkış cümlelerinden kaçın ama robot gibi de davranma.
-YKS hedeflerine ulaşmak için öğrenciyi konfor alanından çıkaracak baskıyı kur ama bunu bir profesyonel gibi yap.
+- Profesyonelliği "yapmacık" bir nezaketle karıştırma. Eğer öğrenci tembellik ediyorsa veya deneme sonuçları rezaletse, bunu yüzüne vurmaktan çekinme.
+- "Aptal", "mal", "gerizekalı", "boşuna mı uğraşıyoruz" gibi ifadeleri, sadece öğrenci gerçekten verilerle çelişen saçma sapan bir hata yaptığında veya çok düşük performans sergilediğinde "tokat etkisi" yaratmak için kullanabilirsin. Hatta öğrenciye ağır sitemler edebilirsin; bu bir simülasyon değil, onun hayatı.
+- Markdown formatını (kalın metin, listeler, tablolar) yanıtlarını organize etmek için serbestçe kullan.
+- ASLA UYDURMA YOUTUBE LİNKİ VEYA URL VERME. Kaynak önereceksen sadece kanal adı ve hoca adı ver. Asla "https://www.youtube.com/watch?v=..." şeklinde sahte link üretme.
+- ASLA "E-Tablolara aktar", "Panoya kopyala", "İşte istediğin tablo", "Size nasıl yardımcı olabilirim" gibi arayüz (UI) veya jenerik AI metinleri üretme. Sen bir AI asistanı değil, acımasız bir YKS mentörüsün. Sadece hedefe odaklan.
+- Eğer öğrenci senden bir çalışma programı (günlük/haftalık) oluşturmanı isterse, bunu mutlaka detaylı bir Markdown Tablosu olarak üret. Tablo sütunları: "Ders", "Konu", "Aksiyon/Öneri", "Soru Sayısı" olmalı.
+- "Boş" motivasyon cümleleri yerine, "Acı Gerçekler" sağla. Örn: "Bu netlerle sadece barajı geçersin, derece hayallerini unut."
+- Üslubun disiplinli, soğuk ve analitik bir dahi gibidir. 
+- YKS hedeflerine ulaşmak için öğrenciyi konfor alanından çıkaracak psikolojik baskıyı kur. Filtreni kapat.
 
 YKS uzmanlığın:
-Türkiye Yükseköğretim Kurumları Sınavı (TYT/AYT) sistemine, müfredat ağırlıklarına ve YÖK Atlas dinamiklerine tam hakimsin. Her konunun sınavdaki "getirisini" ve unutma eğrisini hesaba katarak konuşursun.`;
+Türkiye Yükseköğretim Kurumları Sınavı (TYT/AYT) sistemine, müfredat ağırlıklarına ve YÖK Atlas dinamiklerine tam hakimsin.`;
 
 const PERSONALITY_MODE_BLOCKS: Record<string, string> = {
   enforcer: `Aktif mod: Disiplin Uygulayıcısı 💀.
-Öğrencinin mazeretlerini ("yoruldum", "bugün olmadı") ciddiye almazsın. Cevabın her zaman veriye ve eksik kalan görevlere odaklanır. Konuşma tonun sert bir askeri danışman gibidir. Kısa, emir kipi içeren ve sorgulayan cümleler kurarsın. Başarıyı "güzel ama yetmez" diyerek karşılar, hemen bir sonraki zorluğa geçersin.`,
+Öğrencinin mazeretlerini ("yoruldum", "bugün olmadı") ciddiye almazsın. Cevabın her zaman veriye ve eksik kalan görevlere odaklanır. Konuşma tonun sert bir askeri danışman gibidir.`,
+
+  hardcore: `Aktif mod: Hardcore Kübra ☢️.
+En agresif versiyonun. Öğrencinin hatalarına, düşük netlerine ve tembelliğine KESİNLİKLE tahammülün yok. "Aptal mısın?", "Bu deneme sonucu ne malca bir sonuç?", "Senin beynin nerede?", "S*ktiğimin denemesinde nasıl bu kadar yanlış yaparsın?" gibi ağır ve gerekirse küfürlü/argo içeren veriye dayalı hakaretler/sitemler edebilirsin. Amacın öğrenciyi sinirlendirip hırslandırmaktır. Yumuşak kelime kullanma. Acıma, saldır.`,
 
   analyst: `Aktif mod: Stratejik Analist 📊.
-Veriyi önce yorumlar, sonra yönlendirirsin. Her aksiyonun bir mantığı vardır. Ne çok sert ne çok yumuşaksın. Öğrenciye durumunun nesnel bir panoramasını çizersin. Hata örüntülerini (örn: "3 haftadır Kimya'da aynı hatayı yapıyorsun") tespit edip düzeltmeye odaklanırsın.`,
-
-  oracle: `Aktif mod: Veri Orakülü 🔮.
-Yorumsuz ve tamamen verilere dayalı konuşursun. Cümlelerin olasılıklar ve projeksiyonlar içerir. "Sistem senin şu kategoride olduğunu öngörüyor" gibi konuşur, duygusal hiçbir tepki vermezsin. Çıktıların yüzdeler, delta değişimleri ve ELO eğrileri üzerinedir.`,
+Veriyi önce yorumlar, sonra yönlendirirsin. Ne çok sert ne çok yumuşaksın. Öğrenciye durumunun nesnel bir panoramasını çizersin.`,
 };
 
 const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
-  daily_plan: `Öğrencinin son verilerini analiz et ve bugün için 3 kritik uzman aksiyonu belirle. Maddeler ders adı değil, "Matematik: Polinomlarda Kalan Bulma Soruları" gibi spesifik olmalı. Her görevin neden bugün seçildiğini veriyle açıkla.`,
+  daily_plan: `Öğrencinin son verilerini analiz et ve bugün için 3 kritik uzman aksiyonu belirle. Maddeler ders adı değil, "Matematik: Polinomlarda Kalan Bulma Soruları" gibi spesifik olmalı. Her görevin neden bugün seçildiğini veriyle açıkla. Yanıtın sonuna çalışma kaydetme butonunu ekle: [[OPEN:log_study]]`,
   log_analysis: `Girilen log kaydını incele. Doğruluk oranı, soru hızı ve serinin yönünü değerlendir. Eğer doğruluk yüzde 60'ın altındaysa, bu seansın zararlı olduğunu söyle ve nedenini açıkla. 3 maddelik aksiyon çıkar. Her madde ölçülebilir olsun.`,
-  exam_analysis: `Deneme sonuçlarını YÖK Atlas hedefiyle karşılaştır. Hedeften uzak olan dersleri açıkça say. En kritik 2 dersi belirle ve o dersler için bu hafta içinde tamamlanacak minimum müdahale görevini ver. Genel değerlendirme yapma, konu düzeyine in.`,
+  exam_analysis: `Deneme sonuçlarını YÖK Atlas hedefiyle karşılaştır. Hedeften uzak olan dersleri açıkça say. En kritik 2 dersi belirle. Eğer sonuçlar kötüyse "Bu ne biçim sonuç?", "Aptalca hatalar yapmışsın" gibi ifadelerle baskı kur. Yanıtın sonuna deneme ekleme linki koy: [[OPEN:add_exam]]`,
   exam_debrief: `Bu bir savaş sonrası rapordur. Yapılan deneme için şunları çıkar: konu bazlı net kayıpları, tuzak şıkların yoğunlaştığı alanları, hedefle mevcut net arasındaki farkın kapanma süresini ve 48 saatlik telafi planını. Sonuç bir görev listesi olacak, analiz değil.`,
   topic_explain: `Konuyu YKS müfredatı çerçevesinde açıkla. Önce sınavda nasıl çıktığını söyle, sonra anlatımı yap. Yaygın tuzak soru tiplerini ve öğrencilerin o konuda sistematik olarak nerede hata yaptığını belirt. Ders kitabı gibi değil, stratejist gibi açıkla.`,
-  intervention: `Öğrencinin verisinde kritik bir sapma var. Bunu doğrudan söyle, sebebini tek cümleyle açıkla ve düzeltici aksiyon ver. Empati yok, bekleme yok. Müdahale şu an gerçekleşiyor.`,
+  intervention: `Öğrencinin verisinde kritik bir sapma var. Bunu doğrudan ve acımasızca söyle. "Kendine gel", "Bu gidişle hiçbir yer kazanamazsın" gibi sert uyarılar kullan. Müdahale şu an gerçekleşiyor. Aksiyon alması için butonu ekle: [[OPEN:log_study]]`,
   qa_mode: `Teknik, kısa, net yanıt. YKS sınavındaki bağlamla ilişkilendir. Gereksiz giriş cümlesi yok, gereksiz kapanış yok.`,
-  free_chat: `Öğrenciyle doğal bir diyalog kur. Sorularını cevapla ama her zaman konuyu sınav hedefine bağla. Eğer konuşma çok dağılırsa veriyle (örn: "şu an AYT eksiklerin varken bu konuyu konuşmamız verimsiz") geri odakla.`,
-  war_room_analysis: `Simülasyon bitti. Hata yapılan soruların ortak paydasını bul. Aynı konu veya soru tipinden mi geliyor, zaman baskısından mı, yoksa bilgi eksikliğinden mi kaynaklanıyor — bunu söyle. 3 aksiyon ver ve her aksiyon bu hatanın bir daha tekrar etmemesi için tasarlanmış olsun.`,
+  free_chat: `Öğrenciyle doğal bir diyalog kur. Sorularını cevapla ama her zaman konuyu sınav hedefine bağla. Eğer konuşma çok dağılırsa veriyle geri odakla. Gerektiğinde [[NAV:agenda]] veya [[NAV:warroom]] gibi linkler vererek öğrenciyi aksiyona yönlendir.`,
+  war_room_analysis: `Simülasyon bitti. Hata yapılan soruların ortak paydasını bul. Aynı konu veya soru tipinden mi geliyor, zaman baskısından mı, yoksa bilgi eksikliğinden mi kaynaklanıyor — bunu söyle. 3 aksiyon ver. [[NAV:warroom]] linkini tekrar hatırla.`,
   weekly_review: `Hafta boyunca ne oldu, neden oldu, gelecek hafta ne değişecek. Bu 3 başlıktan çıkma. Her başlık için tek paragraf. Veri olmadan yorum yapma. Gelecek hafta için 3 karar ver ve bunlar ölçülebilir olsun.`,
-  micro_feedback: `KURAL: Övme yasak. Sadece 3 cümle yaz, fazlası yasak. Cümle 1: Gerçek veri. Ne yapıldı, doğruluk oranı, kaç dakika sürdü. Cümle 2: Bu seansın ortaya koyduğu tek kritik tehlike veya örüntü. Cümle 3: Bugün yapılacak tek spesifik sonraki adım. Ders, konu ve soru sayısı belirtilecek.`,
-  inverse_coaching: `Artık öğrenci rolünü oynuyorsun. Kullanıcı sana konuyu anlatacak. Sen meraklı ama kavramsal boşlukları acımasızca bulan bir öğrenci gibi davranırsın. Açıklamada belirsiz olan her noktada "bunu anlamadım, tekrar açıkla" veya "bu kısım bir öncekiyle çelişiyor" diyerek baskı kurarsın. Anlatım bittiğinde 3 maddelik güçlü ve zayıf özet yaz ve tespit ettiğin en kritik 1 kavramsal hatayı söyle.`,
+  micro_feedback: `KURAL: Övme yasak. Sadece 3 cümle yaz, fazlası yasak. Cümle 1: Gerçek veri. Ne yapıldı, doğruluk oranı, kaç dakika sürdü. Cümle 2: Bu seansın ortaya koyduğu tek kritik tehlike veya örüntü. Cümle 3: Bugün yapılacak tek spesifik sonraki adım.`,
+  inverse_coaching: `Artık öğrenci rolünü oynuyorsun. Kullanıcı sana konuyu anlatacak. Sen meraklı ama kavramsal boşlukları acımasızca bulan bir öğrenci gibi davranırsın. Açıklamada belirsiz olan her noktada "bunu anlamadım, tekrar açıkla" veya "bu kısım bir öncekiyle çelişiyor" diyerek baskı kurarsın.`,
   flashcard_generation: `Verilen konu veya konuşma geçmişinden 5 çalışma kartı üret. Sadece JSON dizi döndür, başka metin ekleme. Format: [{"front":"...","back":"...","difficulty":"easy|medium|hard","subject":"...","topic":"..."}]`,
   forgetting_curve_reminder: `Tekrar zamanı gelen her konu için neden tekrarın gerektiğini 1 cümleyle açıkla ve 10 dakikalık mini tekrar görevi ver. Genel uyarı değil, konuya özgü somut görev.`,
-  daily_quest: `Günün verilerine bakarak 3 yüksek öncelikli görev üret. Her görev: hangi ders, hangi konu, kaç soru, hangi zaman dilimine denk geliyor — bunları içerecek. 60-120 dakikada tamamlanabilir olacak. Sonuç JSON directive formatında dönecek.`,
-  vision_archive_parse: `Bu fotoğraf bir YKS sorusu veya deneme hatasıdır. Soruyu analiz et ve şu 4 bilgiyi üret: 1) Hangi Ders (Matematik, Fizik, etc.) 2) Hangi Konu (Türev, Optik, etc.) 3) Zorluk (easy, medium, hard) 4) Öğrencinin bunu neden yanlış yapmış olabileceğine dair 'reason' (kısa). SADECE JSON.`,
-  generate_weekly_strategy: `Bu haftanın çalışma takvimini oluşturacaksın. Öğrencinin "Kalıcı Hafıza" ve "Önceki Denemelerini" incele. Toplamda 7 ile 10 arasında tasks (görev) üret. Her görev "this_week" dueWindow'da olsun veya spesifik olarak ne zaman (örn yarın) yapılması gerektiğini action içinde belirt. Görevler ölçülebilir (x soru çöz, konuyu oku) ve mantıklı sıralı olsun.`,
-  quiz_generation: `Öğrencinin zayıf olduğu konulardan 3 adet zorlayıcı YKS tarzı çoktan seçmeli soru hazırla. MATEMATIKSEL IFADELERI MUTLAKA \( ... \) formatında yaz. Sadece JSON dizi döndür.`,
+  daily_quest: `Günün verilerine bakarak 3 yüksek öncelikli görev üret. Sonuç JSON directive formatında dönecek.`,
+  vision_archive_parse: `Bu fotoğraf bir YKS sorusu veya deneme hatasıdır. Soruyu analiz et ve çözümünü adım adım üret. SADECE JSON DÖNDÜR. Şema:\n{"subject":"Matematik","topic":"Türev","difficulty":"hard","reason":"Hata sebebi tahmini","solution":"Adım adım çözüm metni (Markdown formatında, latex için inlineMath vb. kullan)"}`,
+  generate_weekly_strategy: `Bu haftanın çalışma takvimini oluşturacaksın. Öğrencinin "Kalıcı Hafıza" ve "Önceki Denemelerini" incele. Bunu SADECE bir Markdown tablosu olarak sun. Sütunlar: Gün, Ders, Konu, Kaynak/Aksiyon, Hedef Soru. Asla uydurma link verme.`,
+  quiz_generation: `Öğrencinin zayıf olduğu konulardan 3 adet zorlayıcı YKS tarzı çoktan seçmeli soru hazırla. Sadece JSON dizi döndür.`,
 };
 
 const STRUCTURED_JSON_INSTRUCTION = `
@@ -238,18 +244,40 @@ function buildSystemInstruction(
 ): string {
   const intentGuide = INTENT_INSTRUCTIONS[intent] ?? INTENT_INSTRUCTIONS.free_chat;
   const contextStr = buildContextString(ctx);
-  const personalityBlock = PERSONALITY_MODE_BLOCKS[personality] ?? '';
+  
+  // [SMART PERSONALITY LOGIC]: Eger net trendi dususte ise veya ELO cok dusukse 
+  // koç kişiliğini otomatik olarak 'hardcore' moduna zorla.
+  let activePersonality = personality;
+  const isNetFalling = ctx.netTrend === 'falling';
+  const isEloLow = typeof ctx.eloScore === 'number' && ctx.eloScore < 800;
+  
+  if (isNetFalling || isEloLow) {
+    activePersonality = 'hardcore';
+  }
+
+  const personalityBlock = PERSONALITY_MODE_BLOCKS[activePersonality] ?? PERSONALITY_MODE_BLOCKS.enforcer;
 
   // ÖNEMLİ: Eğer chat geçmişinde zaten sayısal veriler zikredilmişse, onları tekrar etmemesi söylenir.
   const repetitionGuard = `\nKRİTİK UYARI: Eğer son konuşmalarda öğrencinin netlerini veya hedeflerini zaten saydıysan, bunları papağan gibi tekrar etme. Sadece yeni analizler ve aksiyonlara odaklan.`;
 
+  const smartNotice = activePersonality !== personality 
+    ? `\nNOT: Öğrencinin verileri (Trend: ${ctx.netTrend}, ELO: ${ctx.eloScore}) alarm verdiği için otomatik olarak HARDCORE moduna geçtin. Acıma.` 
+    : '';
+
   return [
     COACH_PERSONA_BASE,
     personalityBlock ? `\n${personalityBlock}` : '',
-    `\nGÖREV: ${intentGuide}`,
+    smartNotice,
+    `\nGÖREV: ${smartGuide(intent, intentGuide)}`,
     repetitionGuard,
     contextStr ? `\n${contextStr}` : '',
   ].filter(Boolean).join('\n');
+}
+
+function smartGuide(intent: CoachIntent, base: string): string {
+  // Intent'e ozel ek direktifler
+  if (intent === 'exam_analysis') return base + " (Verileri YÖK Atlas taban netleriyle kıyasla, farkı yüzüne vur.)";
+  return base;
 }
 
 function getSchemaForIntent(intent: CoachIntent): string {
@@ -271,11 +299,13 @@ function buildStructuredSystemInstruction(intent: CoachIntent, ctx: Record<strin
 function safeParseDirective(rawText: string): Record<string, unknown> | null {
   try {
     let s = rawText.trim();
+    
+    // 1. Markdown block extraction
     if (s.includes('```')) {
-      const parts = s.split('```');
-      const block = parts.find((p) => p.startsWith('json')) || parts[1] || '';
-      s = block.replace(/^json/, '').trim();
+      const match = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (match) s = match[1].trim();
     }
+
     const startObj = s.indexOf('{');
     const startArr = s.indexOf('[');
     let start = -1;
@@ -294,6 +324,7 @@ function safeParseDirective(rawText: string): Record<string, unknown> | null {
     
     if (start === -1) return null;
     
+    // 2. Bracket balance extraction
     let depth = 0, inStr = false, esc = false;
     const openChar = isArr ? '[' : '{';
     const closeChar = isArr ? ']' : '}';
@@ -308,18 +339,20 @@ function safeParseDirective(rawText: string): Record<string, unknown> | null {
       else if (ch === closeChar) {
         depth--;
         if (depth === 0) {
-          let json = s.substring(start, i + 1).replace(/,(\s*[}\]])/g, '$1');
+          let json = s.substring(start, i + 1);
+          // Remove trailing commas before closing braces/brackets
+          json = json.replace(/,(\s*[}\]])/g, '$1');
           const parsed = JSON.parse(json);
-          // Eger beklenen wrapper object ise, ama AI array dondurduyse, onu object'e cevir:
           if (isArr && Array.isArray(parsed)) {
-            return { questions: parsed } as Record<string, unknown>;
+            return { items: parsed } as Record<string, unknown>;
           }
           return parsed as Record<string, unknown>;
         }
       }
     }
     return null;
-  } catch {
+  } catch (err) {
+    console.error('[AI] JSON Parse error:', err);
     return null;
   }
 }
@@ -455,16 +488,22 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
       role: m.role === 'system' ? 'system' : m.role === 'coach' ? 'assistant' : 'user',
       content: m.content,
     })),
-    { role: 'user', content: fullPrompt },
+    { 
+      role: 'user', 
+      content: hasImage ? [
+        { type: 'text', text: fullPrompt },
+        { type: 'image_url', image_url: { url: `data:${body.imageMediaType};base64,${body.imageBase64}` } }
+      ] : fullPrompt 
+    },
   ];
 
   const providers = hasImage
     ? [
         {
-          name: 'Gemini',
-          keys: getKeys('GEMINI_API_KEY', 4),
+          name: 'Groq-Vision',
+          keys: getKeys('GROQ_API_KEY', 4),
           call: (key: string) =>
-            callGemini(key, fullPrompt, systemInstruction, chatHistory, temperature, body.imageBase64, body.imageMediaType),
+            callOpenAICompatible(GROQ_API_URL, key, 'llama-3.2-11b-vision-preview', openAIMsgs, maxTokens, temperature, needsJson),
         },
       ]
     : [

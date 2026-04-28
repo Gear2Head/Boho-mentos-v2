@@ -50,5 +50,13 @@ export const useAppSelectors = () => {
     migrateLegacyChat: s.migrateLegacyChat,
     user: s.authUser,
     signOut: s.signOut,
+    isZenMode: s.isZenMode,
+    setZenMode: s.setZenMode,
+    ambienceType: s.ambienceType,
+    setAmbienceType: s.setAmbienceType,
+    ambienceVolume: s.ambienceVolume,
+    setAmbienceVolume: s.setAmbienceVolume,
+    isTtsEnabled: s.isTtsEnabled,
+    setTtsEnabled: s.setTtsEnabled,
   })));
 };

@@ -43,6 +43,8 @@ const AgendaPage = React.lazy(() => import('./components/AgendaPage').then(m => 
 const StrategyHub = React.lazy(() => import('./components/StrategyHub').then(m => ({ default: m.StrategyHub })));
 const MebiWarRoom = React.lazy(() => import('./components/MebiWarRoom').then(m => ({ default: m.MebiWarRoom })));
 
+import { CommandPalette } from './components/CommandPalette';
+import { ExamSimulator } from './components/ExamSimulator';
 import { AchievementsPanel } from './components/AchievementsPanel';
 import { GraveyardPanel } from './components/GraveyardPanel';
 import { ArchiveWidget } from './components/warroom/ArchiveWidget';
@@ -93,6 +95,31 @@ const getAytSubjectsForTrack = (track: string) => {
 
 // --- Sub Components ---
 
+import { processSpotifyCallback } from './services/spotifyService';
+
+function SpotifyCallback() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    processSpotifyCallback().then((token) => {
+      if (token) {
+        toast.success('Spotify Bağlandı. Odaklanma müziklerin hazır.');
+      }
+      navigate('/dashboard');
+    });
+  }, [navigate, toast]);
+
+  return (
+    <div className="flex items-center justify-center h-screen bg-app">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-[#1DB954] border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm font-bold uppercase tracking-widest text-zinc-500">Spotify'dan Dönülüyor...</p>
+      </div>
+    </div>
+  );
+}
+
 // --- Main App ---
 
 export default function App() {
@@ -108,6 +135,7 @@ export default function App() {
     bulkMasterTytSubjectsByName, bulkMasterAytSubjectsByName, addFailedQuestion, solveFailedQuestion,
     removeFailedQuestion, isDevMode, failedQuestions, migrateLegacyChat
   } = selectors;
+  const ambientColor = useAppStore(s => s.ambientColor);
 
   // --- CORE HOOKS ---
   const { user, isLoading, signOut } = useAuth();
@@ -210,6 +238,19 @@ export default function App() {
       ? 'Bulutla eşitleniyor'
       : 'Bulutla Eşitle';
   const activeTab = location.pathname === '/' ? 'dashboard' : location.pathname.substring(1);
+
+  useEffect(() => {
+    let color = 'transparent';
+    switch (activeTab) {
+      case 'dashboard': color = '#C17767'; break; // Primary app color
+      case 'coach': color = profile?.coachPersonality === 'hardcore' ? '#F59E0B' : '#3B82F6'; break; // Amber / Blue
+      case 'war_room': color = '#EF4444'; break; // Red
+      case 'subjects': color = '#10B981'; break; // Emerald
+      case 'strategy': color = '#8B5CF6'; break; // Purple
+      default: color = 'transparent'; break;
+    }
+    useAppStore.getState().setAmbientColor(color);
+  }, [activeTab, profile?.coachPersonality]);
 
   const toggleSidebarPin = () => {
     const next = !isSidebarPinned;
@@ -331,7 +372,7 @@ export default function App() {
     }
   }, [activeTab, chatHistory.length, addChatMessage]);
 
-  const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string, overrideIntent?: CoachIntent) => {
+  const handleSendMessage = async (e?: React.FormEvent, messageOverride?: string, overrideIntent?: CoachIntent, attachment?: { base64: string; mediaType: string; name: string }) => {
     e?.preventDefault();
     const userMsg = messageOverride || inputMessage;
     if (!userMsg.trim() || isTyping) return;
@@ -365,13 +406,16 @@ export default function App() {
       }
     }
 
-    addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString() });
+    const imageUrl = attachment?.base64 ? `data:${attachment.mediaType};base64,${attachment.base64}` : undefined;
+    addChatMessage({ role: 'user', content: userMsg, timestamp: new Date().toISOString(), imageUrl });
 
     try {
       await sendMessage({
         userMessage: userMsg,
         intent: intent,
         wantDirective: intent !== 'free_chat' && intent !== 'qa_mode',
+        imageBase64: attachment?.base64,
+        imageMediaType: attachment?.mediaType,
       });
     } catch (err) {
       console.error("AI Error:", err);
@@ -418,7 +462,19 @@ export default function App() {
   const scrollCls = "flex-1 overflow-y-auto relative scroll-smooth custom-scrollbar";
 
   return (
-    <MobileGuard className="h-[100dvh]">
+    <MobileGuard className="h-[100dvh] relative">
+      <CommandPalette />
+      {/* Contextual Glassmorphism Background Effect */}
+      <div 
+        className="fixed inset-0 pointer-events-none transition-colors duration-1000 ease-in-out mix-blend-screen"
+        style={{
+          background: ambientColor !== 'transparent' 
+            ? `radial-gradient(circle at 50% 0%, ${ambientColor} 0%, transparent 60%)` 
+            : 'transparent',
+          opacity: 0.15
+        }}
+      />
+      
       <MainLayout>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -430,7 +486,7 @@ export default function App() {
                 isTyping={isTyping}
                 inputMessage={inputMessage}
                 setInputMessage={setInputMessage}
-                onSendMessage={(msg, intent) => handleSendMessage(undefined, msg, intent)}
+                onSendMessage={(msg, intent, attachment) => handleSendMessage(undefined, msg, intent, attachment)}
                 onLogClick={() => setIsLogWidgetOpen(true)}
                 onExamClick={() => setIsExamModalOpen(true)}
               />
@@ -477,6 +533,7 @@ export default function App() {
             </div>
           } />
 
+          <Route path="/simulator" element={<ExamSimulator />} />
           <Route path="/war_room" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><MebiWarRoom /></Suspense></div>} />
           <Route path="/questions" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><QuizEngine /></Suspense></div>} />
           <Route path="/explain" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><TopicExplain /></Suspense></div>} />
@@ -571,6 +628,8 @@ export default function App() {
               </motion.div>
             </div>
           } />
+
+          <Route path="/callback" element={<SpotifyCallback />} />
 
           <Route path="/settings" element={
             <div className={scrollCls}>

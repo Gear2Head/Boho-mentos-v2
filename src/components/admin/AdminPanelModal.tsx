@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText, RefreshCw, Brain, HeartPulse, TrendingDown, Zap, Code } from 'lucide-react';
 import { useAdminPanel } from '../../hooks/useAdminPanel';
 import type { FirestoreUser } from '../../config/admin';

@@ -8,6 +8,7 @@ import { useToast } from './ToastContext';
 import { toISODateTime } from '../utils/date';
 import { parseAiArray, sanitizeAiText, validateStringArray } from '../utils/aiJson';
 import { isNonEmptyString, isRecord } from '../utils/typeGuards';
+import { AudioEngine } from '../utils/audioEngine';
 
 interface QuizQuestion {
   id: string;
@@ -116,7 +117,9 @@ export function QuizEngine() {
     setShowExplanation(true);
     if (idx === currentQ.correctAnswerIndex) {
       setScore(s => s + 1);
+      AudioEngine.playCorrect();
     } else {
+      AudioEngine.playWrong();
       // Hatalıları mezarlığa ekle (otomatik)
       addFailedQuestion({
         id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../../store/appStore';
 import { Clock, CheckCircle2, Calendar, AlertTriangle, BookOpen, Target, Activity, Brain, Zap, Trophy } from 'lucide-react';
 import { calcWorkloadRemaining, calcSourceROI, detectHabitAlerts } from '../../utils/statistics';
@@ -9,7 +9,7 @@ import { triggerConfetti } from '../../utils/confetti';
 import ReactMarkdown from 'react-markdown';
 import { EloRankCard } from '../EloRankCard';
 import { AchievementsPanel } from '../AchievementsPanel';
-import { StreakHeatmap } from '../StreakHeatmap';
+import { StudyHeatmap } from '../StudyHeatmap';
 
 import { YKS_TARGET_DATE_MAIN } from '../../config/examConfig';
 
@@ -40,46 +40,16 @@ const BentoStatCard = ({ title, value, total, unit, icon }: any) => (
   </div>
 );
 
-const GhostRivalWidget = ({ eloScore }: { eloScore: number }) => {
-  const targetElo = Math.ceil(eloScore / 100) * 100 + 50;
-  const diff = targetElo - eloScore;
-  return (
-    <div className="glass-card p-6 rounded-3xl relative overflow-hidden group">
-      <div className="absolute -right-8 -top-8 w-24 h-24 bg-blue-500/10 blur-2xl rounded-full" />
-      <div className="flex items-center gap-3 mb-4">
-        <Zap className="text-blue-400" size={18} />
-        <span className="text-[10px] uppercase tracking-widest font-black text-blue-400">Hayalet Rakip</span>
-      </div>
-      <div className="space-y-4">
-        <div className="text-sm font-medium text-zinc-300">Senden <span className="text-blue-400 font-bold">{diff} Puan</span> Önde!</div>
-        <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-500" style={{ width: `${(eloScore / targetElo) * 100}%` }} />
-        </div>
-        <p className="text-[10px] text-zinc-500 italic">"Bu tempoyla 3 gün içinde onu geçebilirsin."</p>
-      </div>
-    </div>
-  );
-};
-
-const MemoryDecayWidget = ({ logs }: { logs: any[] }) => {
-  const decayTopics = logs.slice(0, 3).map(l => l.topic);
-  return (
-    <div className="glass-card p-6 rounded-3xl">
-      <div className="flex items-center gap-3 mb-4">
-        <Brain className="text-purple-400" size={18} />
-        <span className="text-[10px] uppercase tracking-widest font-black text-purple-400">Hafıza Kaybı Riski</span>
-      </div>
-      <div className="space-y-2">
-        {decayTopics.map((topic, i) => (
-          <div key={i} className="flex items-center justify-between p-2 bg-white/5 rounded-xl border border-white/5">
-            <span className="text-[11px] font-bold text-zinc-300 truncate max-w-[150px]">{topic}</span>
-            <span className="text-[9px] font-black text-purple-400 uppercase">Kritik</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+import { GhostRivalWidget } from './GhostRivalWidget';
+import { MemoryDecayWidget } from './MemoryDecayWidget';
+import { WeakLinkWidget } from './WeakLinkWidget';
+import { WeeklyBossFight } from '../WeeklyBossFight';
+import { StudyProgressRing } from './StudyProgressRing';
+import { DailyMotivationWidget } from './DailyMotivationWidget';
+import { StreakHistoryWidget } from './StreakHistoryWidget';
+import { BurnoutGauge } from './BurnoutGauge';
+import { EloTrendGraph } from './EloTrendGraph';
+import { SubjectMasterySunburst } from './SubjectMasterySunburst';
 
 // ─── ANA BİLEŞEN ─────────────────────────────────────────────────────────────
 
@@ -150,9 +120,9 @@ export function BentoDashboard() {
     >
       {/* Header Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="md:col-span-3 glass-card rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#C17767]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-          <h2 className="font-display italic text-5xl text-zinc-100 mb-6 z-10">Hoş geldin, <span className="text-[#C17767]">{profile?.name}</span></h2>
+        <div className={`md:col-span-3 glass-card rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : ''}`}>
+          <div className={`absolute inset-0 bg-gradient-to-br from-[#C17767]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 ${profile?.coachPersonality === 'hardcore' ? 'from-amber-500/20' : ''}`} />
+          <h2 className="font-display italic text-5xl text-zinc-100 mb-6 z-10">Hoş geldin, <span className={`${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}>{profile?.name}</span></h2>
           <div className="flex flex-col md:flex-row gap-6 text-sm font-medium z-10">
             <div className="flex-1">
               <div className="flex justify-between mb-2 text-zinc-400 font-mono tracking-wider">
@@ -202,7 +172,10 @@ export function BentoDashboard() {
 
       {/* Main Action & Coach */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
-        <div className="md:col-span-4 glass-card hover:-translate-y-1 transition-all rounded-3xl p-8 bg-gradient-to-br from-[#C17767]/20 to-transparent border-[#C17767]/20 flex flex-col justify-between">
+        <div 
+          onClick={() => useAppStore.getState().setFocusSidePanelOpen(true)}
+          className="md:col-span-4 glass-card hover:-translate-y-1 transition-all rounded-3xl p-8 bg-gradient-to-br from-[#C17767]/20 to-transparent border-[#C17767]/20 flex flex-col justify-between cursor-pointer"
+        >
           <div>
             <Activity className="text-[#C17767] mb-6" size={32} />
             <h3 className="font-display italic text-3xl mb-2 text-zinc-100">Focus Tüneli</h3>
@@ -219,9 +192,9 @@ export function BentoDashboard() {
           </div>
         </div>
 
-        <div className="md:col-span-8 glass-card rounded-3xl p-8 relative overflow-hidden">
+        <div className={`md:col-span-8 glass-card rounded-3xl p-8 relative overflow-hidden transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 bg-amber-950/5' : ''}`}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="font-display italic text-2xl uppercase tracking-tight text-[#C17767] flex items-center gap-2"><Activity size={20} /> Günün Direktifi</h3>
+            <h3 className={`font-display italic text-2xl uppercase tracking-tight flex items-center gap-2 ${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}><Activity size={20} /> {profile?.coachPersonality === 'hardcore' ? 'TOKSİK DİREKTİF' : 'Günün Direktifi'}</h3>
             {lastCoachDirective && (
               <div className="px-3 py-1 bg-white/5 rounded-full border border-white/5 text-[9px] font-black tracking-widest text-zinc-500 uppercase">
                 {lastCoachDirective.tasks.filter(t => t.status === 'completed').length}/{lastCoachDirective.tasks.length} Tamamlandı
@@ -273,16 +246,24 @@ export function BentoDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="space-y-6">
+          <StudyProgressRing dailyGoalQuestions={profile?.minDailyQuestions ?? 200} />
+          <DailyMotivationWidget />
           <EloRankCard />
-          <GhostRivalWidget eloScore={useAppStore.getState().eloScore} />
+          <SubjectMasterySunburst />
+          <GhostRivalWidget />
+          <WeakLinkWidget logs={logs} />
         </div>
         <div className="space-y-6">
+          <BurnoutGauge />
+          <EloTrendGraph />
+          <StreakHistoryWidget />
           <MemoryDecayWidget logs={logs} />
-          <div className="glass-card p-6 rounded-3xl">
-            <h3 className="font-bold text-[10px] tracking-widest uppercase text-[#C17767] mb-6">Aktivite Haritası</h3>
-            <StreakHeatmap />
-          </div>
+          <StudyHeatmap />
         </div>
+      </div>
+
+      <div className="mb-6">
+        <WeeklyBossFight />
       </div>
 
       <div className="mb-20">

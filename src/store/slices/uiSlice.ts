@@ -16,6 +16,10 @@ export interface UISlice {
   qaSession: QASession | null;
   hasHydrated: boolean;
   isSyncing: boolean;
+  ambienceType: 'none' | 'white' | 'pink' | 'brown';
+  ambienceVolume: number;
+  isZenMode: boolean;
+  isTtsEnabled: boolean;
   
   // Refactored from App.tsx (Faz 3)
   activeTab: string;
@@ -38,6 +42,10 @@ export interface UISlice {
   updateQaAnswer: (questionIndex: number, answer: string) => void;
   setHasHydrated: (val: boolean) => void;
   setSyncing: (isSyncing: boolean) => void;
+  setAmbienceType: (type: 'none' | 'white' | 'pink' | 'brown') => void;
+  setAmbienceVolume: (volume: number) => void;
+  setZenMode: (isZen: boolean) => void;
+  setTtsEnabled: (enabled: boolean) => void;
 
   setActiveTab: (tab: string) => void;
   setMobileMenuOpen: (open: boolean) => void;
@@ -47,6 +55,10 @@ export interface UISlice {
   setEditingProfile: (open: boolean) => void;
   setNotifOpen: (open: boolean) => void;
   setAdminPanelOpen: (open: boolean) => void;
+  
+  // Ambient Context Color
+  ambientColor: string;
+  setAmbientColor: (color: string) => void;
 }
 
 export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get) => ({
@@ -60,6 +72,10 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   qaSession: null,
   hasHydrated: false,
   isSyncing: false,
+  ambienceType: 'none',
+  ambienceVolume: 0.3,
+  isZenMode: false,
+  isTtsEnabled: false,
 
   activeTab: 'dashboard',
   isMobileMenuOpen: false,
@@ -69,13 +85,17 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   isEditingProfile: false,
   isNotifOpen: false,
   isAdminPanelOpen: false,
+  ambientColor: 'transparent',
 
   setPassiveMode: (isPassive) => {
-    const { authUser } = get();
     set({ isPassiveMode: isPassive });
-    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ isPassiveMode: isPassive }), { merge: true }).catch(console.error);
+    if (get().authUser?.uid) {
+      setDoc(doc(db, 'users', get().authUser!.uid), cleanForFirestore({ isPassiveMode: isPassive }), { merge: true }).catch(console.error);
+    }
   },
 
+  setAmbientColor: (color) => set({ ambientColor: color }),
+  
   setLofiEnabled: (enabled) => {
     const { authUser } = get();
     set({ isLofiEnabled: enabled });
@@ -98,6 +118,10 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   }) : s),
   setHasHydrated: (val) => set({ hasHydrated: val }),
   setSyncing: (isSyncing) => set({ isSyncing }),
+  setAmbienceType: (type) => set({ ambienceType: type }),
+  setAmbienceVolume: (volume) => set({ ambienceVolume: volume }),
+  setZenMode: (isZen) => set({ isZenMode: isZen }),
+  setTtsEnabled: (enabled) => set({ isTtsEnabled: enabled }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setMobileMenuOpen: (o) => set({ isMobileMenuOpen: o }),

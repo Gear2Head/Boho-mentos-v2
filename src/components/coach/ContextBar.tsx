@@ -6,8 +6,12 @@
 
 import React from 'react';
 import { Flame, Zap, TrendingUp, TrendingDown, AlertTriangle, ChevronRight } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useAppStore } from '../../store/appStore';
+import { useAppSelectors } from '../../store/selectors';
+import { AudioEngine } from '../../utils/audioEngine';
 import type { CoachIntent } from '../../types/coach';
+import { VoiceJournalButton } from '../VoiceJournalButton';
 
 interface ContextBarProps {
   onQuickAction: (msg: string, intent: CoachIntent) => void;
@@ -25,6 +29,7 @@ export function ContextBar({ onQuickAction }: ContextBarProps) {
   const streakDays = useAppStore((s) => s.streakDays);
   const exams = useAppStore((s) => s.exams);
   const activeAlerts = useAppStore((s) => s.activeAlerts);
+  const { isTtsEnabled, setTtsEnabled } = useAppSelectors();
 
   const lastTyt = [...exams].reverse().find((e) => e.type === 'TYT')?.totalNet ?? null;
   const lastAyt = [...exams].reverse().find((e) => e.type === 'AYT')?.totalNet ?? null;
@@ -46,6 +51,26 @@ export function ContextBar({ onQuickAction }: ContextBarProps) {
           <span className={`text-[10px] font-black uppercase tracking-widest ${mood.color}`}>
             {mood.label}
           </span>
+        </div>
+
+        {/* TTS Panel */}
+        <div className="mb-4 bg-surface rounded-2xl border border-app p-4 shadow-sm space-y-3">
+          <div className="flex justify-between items-center">
+             <span className="text-[9px] uppercase tracking-[0.2em] text-accent font-black">SESLİ KOÇ</span>
+             <div className="w-8 h-4 bg-app rounded-full relative cursor-pointer" onClick={() => setTtsEnabled(!isTtsEnabled)}>
+                <motion.div 
+                  animate={{ x: isTtsEnabled ? 16 : 0 }}
+                  className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full ${isTtsEnabled ? 'bg-accent' : 'bg-zinc-600'}`} 
+                />
+             </div>
+          </div>
+          <button 
+            onClick={() => AudioEngine.stopTts()}
+            className="w-full flex items-center justify-center gap-2 py-2 bg-app hover:bg-zinc-800 border border-app rounded-xl text-[9px] font-black uppercase tracking-widest text-zinc-400 transition-colors"
+          >
+            <div className="w-2 h-2 bg-rose-500 rounded-sm" />
+            Sesli Okumayı Durdur
+          </button>
         </div>
 
         {/* ELO Sparkline */}
@@ -128,6 +153,8 @@ export function ContextBar({ onQuickAction }: ContextBarProps) {
       <div className="p-4">
         <div className="text-[9px] uppercase tracking-[0.3em] text-ink-muted font-black mb-3">Hızlı Aksiyonlar</div>
         <div className="space-y-2">
+          <VoiceJournalButton />
+          
           <QuickBtn
             label="Hızlı Analiz"
             emoji="🔬"

@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Play, Pause, Square, Zap, Clock, Timer, History, Coffee, Music, EyeOff } from 'lucide-react';
+import { X, Play, Pause, Square, Zap, Clock, Timer, History, Coffee, Music, EyeOff, CloudRain, Wind, Waves, Volume2 } from 'lucide-react';
 import { useFocusTimer } from '../hooks/useFocusTimer';
 import { useAppStore } from '../store/appStore';
 import { FlapUnit } from './FlapClock';
+import { AudioEngine } from '../utils/audioEngine';
 
 export function FocusSidePanel() {
   const isFocusSidePanelOpen = useAppStore((s) => s.isFocusSidePanelOpen);
@@ -11,6 +12,12 @@ export function FocusSidePanel() {
   const addFocusSession = useAppStore((s) => s.addFocusSession);
   const isLofiEnabled = useAppStore((s) => s.isLofiEnabled);
   const setLofiEnabled = useAppStore((s) => s.setLofiEnabled);
+  const ambienceType = useAppStore((s) => s.ambienceType);
+  const setAmbienceType = useAppStore((s) => s.setAmbienceType);
+  const ambienceVolume = useAppStore((s) => s.ambienceVolume);
+  const setAmbienceVolume = useAppStore((s) => s.setAmbienceVolume);
+  const focusSessions = useAppStore((s) => s.focusSessions);
+  const profile = useAppStore((s) => s.profile);
   const { 
     sessionSeconds, 
     isRunning, 
@@ -25,6 +32,13 @@ export function FocusSidePanel() {
 
   const [customCountdownMinutes, setCustomCountdownMinutes] = useState<number>(25);
   const [showBreakOverlay, setShowBreakOverlay] = useState(false);
+  const [pauseCount, setPauseCount] = useState(0);
+
+  const handlePause = () => {
+    if (sessionSeconds > 0) setPauseCount(p => p + 1);
+    pause();
+  };
+
   const h = Math.floor(sessionSeconds / 3600);
   const m = Math.floor((sessionSeconds % 3600) / 60);
   const s = sessionSeconds % 60;
@@ -38,10 +52,34 @@ export function FocusSidePanel() {
   // 90 Dk Zorunlu Mola Kontrolü (5400 saniye)
   useEffect(() => {
     if (sessionSeconds >= 5400 && mode === 'up' && isRunning) {
-      pause();
+      handlePause();
       setShowBreakOverlay(true);
+      AudioEngine.playTimerDone();
     }
-  }, [sessionSeconds, mode, isRunning, pause]);
+  }, [sessionSeconds, mode, isRunning, handlePause]);
+
+  // Ambience Sync
+  useEffect(() => {
+    if (ambienceType === 'none') {
+      AudioEngine.stopAmbience();
+    } else {
+      AudioEngine.startAmbience(ambienceType, ambienceVolume);
+    }
+  }, [ambienceType]);
+
+  useEffect(() => {
+    AudioEngine.setAmbienceVolume(ambienceVolume);
+  }, [ambienceVolume]);
+
+  const dailyFocusSeconds = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return (focusSessions ?? [])
+      .filter(s => s.startTime.startsWith(today))
+      .reduce((acc, s) => acc + s.durationSeconds, 0);
+  }, [focusSessions]);
+
+  const focusGoalSeconds = (profile?.minHours ?? 6) * 3600;
+  const focusProgress = Math.min((dailyFocusSeconds / focusGoalSeconds) * 100, 100);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
@@ -134,7 +172,7 @@ export function FocusSidePanel() {
                     </button>
                 ) : (
                     <button 
-                      onClick={pause}
+                      onClick={handlePause}
                       className="w-16 h-16 flex items-center justify-center bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-full shadow-lg hover:scale-105 transition-transform"
                     >
                       <Pause size={28} fill="currentColor" />
@@ -171,6 +209,61 @@ export function FocusSidePanel() {
                 </div>
               </div>
 
+              {/* Ambience Mixer */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">ORTAM ATMOSFERİ</h3>
+                <div className="bg-white dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl p-4 space-y-4">
+                  <div className="flex gap-2">
+                    {[
+                      { id: 'none', icon: <X size={16} />, label: 'Kapalı' },
+                      { id: 'white', icon: <CloudRain size={16} />, label: 'Beyaz' },
+                      { id: 'pink', icon: <Waves size={16} />, label: 'Pembe' },
+                      { id: 'brown', icon: <Wind size={16} />, label: 'Kahve' },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setAmbienceType(item.id as any)}
+                        className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-xl border transition-all ${ambienceType === item.id ? 'bg-[#C17767]/10 border-[#C17767] text-[#C17767]' : 'border-[#EAE6DF] dark:border-zinc-800 text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'}`}
+                      >
+                        {item.icon}
+                        <span className="text-[9px] font-bold uppercase tracking-wider">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {ambienceType !== 'none' && (
+                    <div className="flex items-center gap-3 px-1">
+                      <Volume2 size={14} className="text-zinc-400" />
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.05" 
+                        value={ambienceVolume} 
+                        onChange={(e) => setAmbienceVolume(parseFloat(e.target.value))}
+                        className="flex-1 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#C17767]"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Daily Progress */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between ml-1">
+                  <h3 className="text-[10px] uppercase font-bold tracking-widest opacity-40">GÜNLÜK ODAK HEDEFİ</h3>
+                  <span className="text-[10px] font-mono font-bold text-[#C17767]">{Math.floor(dailyFocusSeconds / 3600)}sa {Math.floor((dailyFocusSeconds % 3600) / 60)}dk</span>
+                </div>
+                <div className="h-4 bg-zinc-100 dark:bg-zinc-900 rounded-full border border-[#EAE6DF] dark:border-zinc-800 p-0.5 overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${focusProgress}%` }}
+                    className="h-full bg-gradient-to-r from-[#C17767] to-[#E09F3E] rounded-full shadow-[0_0_10px_rgba(193,119,103,0.3)]"
+                  />
+                </div>
+                <p className="text-[9px] text-center opacity-30 font-medium italic">Bugünkü hedefin %{Math.round(focusProgress)} tamamlandı.</p>
+              </div>
+
               {mode === 'down' && (
                 <div className="space-y-3">
                   <h3 className="text-[10px] uppercase font-bold tracking-widest opacity-40 ml-1">ÖZEL SÜRE</h3>
@@ -202,14 +295,26 @@ export function FocusSidePanel() {
                     if (lap) {
                        const startTime = lap.startTime;
                        const endTime = new Date(new Date(startTime).getTime() + lap.durationInSeconds * 1000).toISOString();
+                       
+                       // Derin Odak Skoru (Deep Work Score) - Phase 6
+                       // Formül: %100'den başla, her duraklatma için -10 puan, her 30 dk için +5 bonus, min 0 max 100.
+                       const durationMinutes = Math.floor(lap.durationInSeconds / 60);
+                       const bonus = Math.floor(durationMinutes / 30) * 5;
+                       const penalty = pauseCount * 10;
+                       let deepWorkScore = 100 - penalty + bonus;
+                       deepWorkScore = Math.max(0, Math.min(100, deepWorkScore));
+
                        addFocusSession({
                          id: lap.id,
                          startTime,
                          endTime,
                          durationSeconds: lap.durationInSeconds,
                          label: mode === 'down' ? 'Geri Sayım' : 'Kronometre',
+                         interruptions: pauseCount,
+                         deepWorkScore: deepWorkScore
                        });
                        setFocusSidePanelOpen(false);
+                       setPauseCount(0); // Reset for next session
                     }
                   }}
                   disabled={sessionSeconds === 0}

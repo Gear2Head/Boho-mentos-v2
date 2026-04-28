@@ -114,9 +114,11 @@ export async function getCoachResponse(
     maxTokens?: number;
     userState?: Partial<CoachSystemContext>;
     wantDirective?: boolean;
+    imageBase64?: string;
+    imageMediaType?: 'image/jpeg' | 'image/png' | 'image/webp';
   } = {}
 ): Promise<string> {
-  if (!userMessage.trim()) return '';
+  if (!userMessage.trim() && !options.imageBase64) return '';
 
   const AI_DAILY_LIMIT = 100;
   const { dailyAiRequests, lastAiRequestDate } = useAppStore.getState();
@@ -129,7 +131,7 @@ export async function getCoachResponse(
   // intent: varsayılan free_chat — "coach" artık gönderilmiyor (BUILD-001)
   const intent: CoachIntent = options.intent ?? 'free_chat';
 
-  const payload: CoachApiRequest = {
+  const payload: CoachApiRequest & { imageBase64?: string, imageMediaType?: string } = {
     intent,
     userMessage,
     context,
@@ -139,6 +141,8 @@ export async function getCoachResponse(
     maxTokens: options.maxTokens,
     userState: options.userState ?? _defaultUserState(),
     wantDirective: options.wantDirective ?? false,
+    imageBase64: options.imageBase64,
+    imageMediaType: options.imageMediaType,
   };
 
   try {

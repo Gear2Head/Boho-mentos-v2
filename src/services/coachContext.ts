@@ -159,6 +159,16 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
   
   const actualDaysToExam = daysToExam ?? calculateDaysToExam();
 
+  // [SMART PERSONALITY]: Net trend hesabı
+  let netTrend: 'rising' | 'falling' | 'stable' | 'unknown' = 'unknown';
+  const tytExams = exams.filter(e => e.type === 'TYT').slice(-2);
+  if (tytExams.length === 2) {
+    const diff = tytExams[1].totalNet - tytExams[0].totalNet;
+    if (diff > 2) netTrend = 'rising';
+    else if (diff < -2) netTrend = 'falling';
+    else netTrend = 'stable';
+  }
+
   // ─── UserState nesnesi ────────────────────────────────────────────────────
   const userState: CoachSystemContext = {
     name: profile.name,
@@ -187,6 +197,7 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     daysToExam: actualDaysToExam,
     lastWarRoomScore,
     eloTrend,
+    netTrend,
   };
 
   // ─── Context string (compact — sadece veri varsa yaz) ─────────────────────

@@ -73,13 +73,17 @@ export function useCoachCore(): UseCoachCoreReturn {
       intent = 'free_chat',
       wantDirective = false,
       callerSurface,
+      imageBase64,
+      imageMediaType,
     }: {
       userMessage: string;
       intent?: CoachIntent;
       wantDirective?: boolean;
       callerSurface?: CoachIntent;
+      imageBase64?: string;
+      imageMediaType?: string;
     }): Promise<{ text: string; directive?: CoachDirective }> => {
-      if (!userMessage.trim() || isTyping) return { text: '' };
+      if (!userMessage.trim() && !imageBase64 || isTyping) return { text: '' };
 
       setIsTyping(true);
 
@@ -114,6 +118,8 @@ export function useCoachCore(): UseCoachCoreReturn {
             forceJson: shouldForceDirective,
             wantDirective: shouldForceDirective,
             userState,
+            imageBase64,
+            imageMediaType,
           }
         );
 
@@ -179,6 +185,19 @@ export function useCoachCore(): UseCoachCoreReturn {
           timestamp: new Date().toISOString(),
           directive: directive || null
         }));
+
+        import('../utils/audioEngine').then(({ AudioEngine }) => {
+          if (profile?.coachPersonality === 'hardcore') {
+            AudioEngine.playToxicAlert();
+          } else {
+            AudioEngine.playReceive();
+          }
+        });
+
+        // Konuşma sentezi (TTS)
+        import('../utils/speechEngine').then(({ SpeechEngine }) => {
+          SpeechEngine.speak(directive?.summary || cleanText, profile?.coachPersonality === 'hardcore');
+        });
 
         return { text: cleanText, directive };
       } catch (err) {

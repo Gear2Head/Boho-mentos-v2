@@ -3,7 +3,7 @@
  * AMAÇ: Tüm bileşenlerde tutarlı, premium animasyonlar sağlamak.
  */
 
-import type { Variants, Transition } from 'framer-motion';
+import type { Variants, Transition } from 'motion/react';
 
 // ─── Transition Presets ──────────────────────────────────────────────────────
 

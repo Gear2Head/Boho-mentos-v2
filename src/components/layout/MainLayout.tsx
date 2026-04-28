@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  CloudOff, RefreshCcw, Pin, Trophy, AlertTriangle, Menu, LogOut,
-  LayoutDashboard, BrainCircuit, Calendar, Map as MapIcon, Target, BookOpen, PenTool, List, LayoutList, Archive, Clock, Settings
-} from 'lucide-react';
+import { LayoutDashboard, BrainCircuit, Calendar, Map as MapIcon, Target, BookOpen, PenTool, List, LayoutList, Archive, Clock, Settings, Eye, EyeOff, CloudOff, RefreshCcw, Pin, Trophy, AlertTriangle, Menu, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { useAppSelectors } from '../../store/selectors';
@@ -43,6 +40,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     isPassiveMode,
     isSyncing,
     notifications,
+    isZenMode,
+    setZenMode
   } = useAppSelectors();
 
   const syncStatus = 'synced' as string; // Type-safe placeholder
@@ -107,12 +106,15 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <motion.nav
+        initial={false}
         animate={{ 
-          width: isSidebarExpanded ? 256 : 72,
+          width: isZenMode ? 0 : (isSidebarExpanded ? 256 : 72),
+          x: isZenMode ? -300 : 0,
+          opacity: isZenMode ? 0 : 1
         }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
-        className={`fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative border-t md:border-t-0 glass-nav flex flex-row md:flex-col z-[90] pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none ${scrollDirection === 'down' ? 'translate-y-full md:translate-y-0' : 'translate-y-0'}`}
-        onMouseEnter={() => setIsNavHovered(true)}
+        transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 1 }}
+        className={`fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative border-t md:border-t-0 glass-nav flex flex-row md:flex-col z-[90] pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none ${scrollDirection === 'down' ? 'translate-y-full md:translate-y-0' : 'translate-y-0'} ${isZenMode ? 'pointer-events-none' : ''}`}
+        onMouseEnter={() => !isZenMode && setIsNavHovered(true)}
         onMouseLeave={() => setIsNavHovered(false)}
       >
         <div className="hidden md:flex p-3 border-b border-app items-center justify-between gap-2 overflow-hidden h-14 shrink-0">
@@ -151,7 +153,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Profile Section */}
-        <div className="px-3 mb-8 overflow-hidden">
+        <div className="px-3 mt-4 mb-2 overflow-hidden">
           <div 
             onClick={() => navigate('/profile')}
             className={`p-2 rounded-2xl bg-white/5 border border-white/5 flex items-center transition-all duration-300 cursor-pointer hover:bg-white/10 ${!isSidebarExpanded ? 'justify-center' : 'gap-3'}`}
@@ -184,12 +186,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {isPassiveMode && isSidebarExpanded && (
-          <div className="hidden md:flex mx-3 mt-2 px-3 py-2 bg-rose-900/30 border border-rose-800 rounded-lg items-center gap-2 overflow-hidden">
-            <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
-            <span className="text-[9px] font-bold text-rose-400 whitespace-nowrap">PASİF MOD</span>
-          </div>
-        )}
+
 
         <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 px-1 md:px-3 md:space-y-1 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
           {NAV_ITEMS.map((item) => (
@@ -219,6 +216,17 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             </button>
           )}
           <button
+            onClick={() => setZenMode(!isZenMode)}
+            className={`flex items-center gap-3 p-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:bg-white/5 rounded-xl transition-all mb-1 ${!isSidebarExpanded ? 'justify-center' : ''}`}
+            title="Zen Modu (Odaklan)"
+          >
+            <div className="w-5 h-5 flex items-center justify-center">
+              {isZenMode ? <Eye size={16} /> : <EyeOff size={16} />}
+            </div>
+            {isSidebarExpanded && <span>ZEN MODU</span>}
+          </button>
+
+          <button
             onClick={async () => { if (await confirmDialog('Çıkış yapmak istediğine emin misin?')) signOut(); }}
             className={`flex items-center gap-3 p-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all ${!isSidebarExpanded ? 'justify-center' : ''}`}
             title="Çıkış Yap"
@@ -231,7 +239,18 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </div>
       </motion.nav>
 
-      <main className="flex-1 overflow-hidden relative flex flex-col bg-app pb-16 md:pb-0 pt-0">
+      <main className={`flex-1 overflow-hidden relative flex flex-col bg-app pb-16 md:pb-0 pt-0 transition-all duration-700 ${isZenMode ? 'p-0' : ''}`}>
+        {isZenMode && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={() => setZenMode(false)}
+            className="fixed top-6 right-6 z-[100] p-4 bg-[#C17767] text-white rounded-2xl shadow-2xl hover:scale-110 transition-transform flex items-center gap-2 group"
+          >
+            <Eye size={20} />
+            <span className="text-xs font-bold uppercase tracking-widest hidden group-hover:inline">Zen'den Çık</span>
+          </motion.button>
+        )}
         {children}
       </main>
 

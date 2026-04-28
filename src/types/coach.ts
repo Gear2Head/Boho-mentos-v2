@@ -259,6 +259,7 @@ export interface CoachSystemContext {
   daysToExam?: number;
   lastWarRoomScore?: number;
   eloTrend?: string;
+  netTrend?: 'rising' | 'falling' | 'stable' | 'unknown';
 }
 
 // ─── API Request ──────────────────────────────────────────────────────────────
