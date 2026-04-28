@@ -143,6 +143,15 @@ export function DataIntegrationPanel() {
           >
             <Table size={16} /> Denemeler (CSV)
           </button>
+          <button 
+            onClick={() => {
+              useAppStore.getState().recomputeFullElo();
+              setMessage('Tüm ELO puanı loglar ve denemeler üzerinden baştan hesaplandı.');
+            }}
+            className="flex items-center gap-2 justify-center bg-blue-900/50 border border-blue-500/50 hover:bg-blue-800/50 text-blue-300 px-4 py-3 rounded-xl font-bold transition text-xs"
+          >
+            <Database size={16} /> ELO'yu Yeniden Hesapla
+          </button>
         </div>
       </div>
 

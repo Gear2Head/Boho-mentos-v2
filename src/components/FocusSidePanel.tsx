@@ -32,6 +32,8 @@ export function FocusSidePanel() {
 
   const [customCountdownMinutes, setCustomCountdownMinutes] = useState<number>(25);
   const [showBreakOverlay, setShowBreakOverlay] = useState(false);
+  const [showInterventionPrompt, setShowInterventionPrompt] = useState(false);
+  const [interventionFiredAt, setInterventionFiredAt] = useState<number | null>(null);
   const [pauseCount, setPauseCount] = useState(0);
 
   const handlePause = () => {
@@ -48,6 +50,20 @@ export function FocusSidePanel() {
     { label: '3 Saat', seconds: 180 * 60, icon: <Zap size={14} /> },
     { label: '2.45 Saat', seconds: 165 * 60, icon: <History size={14} /> },
   ]), []);
+
+  // Task 8: Proactive Intervention v2 — fire at 50 min of continuous focus
+  useEffect(() => {
+    const INTERVENTION_THRESHOLD = 50 * 60; // 50 minutes in seconds
+    if (
+      mode === 'up' &&
+      isRunning &&
+      sessionSeconds >= INTERVENTION_THRESHOLD &&
+      interventionFiredAt !== Math.floor(sessionSeconds / INTERVENTION_THRESHOLD)
+    ) {
+      setInterventionFiredAt(Math.floor(sessionSeconds / INTERVENTION_THRESHOLD));
+      setShowInterventionPrompt(true);
+    }
+  }, [sessionSeconds, mode, isRunning, interventionFiredAt]);
 
   // 90 Dk Zorunlu Mola Kontrolü (5400 saniye)
   useEffect(() => {
@@ -355,6 +371,45 @@ export function FocusSidePanel() {
             >
               Uyarımı Aldım, Kapat
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Task 8: Proactive Intervention v2 — Active Recall prompt at 50min */}
+      <AnimatePresence>
+        {showInterventionPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 right-6 z-[9998] w-80 glass-card rounded-3xl p-6 border border-purple-500/30 bg-purple-950/20 shadow-2xl shadow-purple-500/10"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-purple-500/20 rounded-xl">
+                <Zap size={18} className="text-purple-400" />
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-widest font-black text-purple-400">Kübra Müdahalesi</p>
+                <h4 className="font-display italic text-base font-bold text-zinc-100">50 Dakika Doldu!</h4>
+              </div>
+            </div>
+            <p className="text-xs text-zinc-400 mb-4">
+              Aktif Hatırlama zamanı. Şimdiye kadar öğrendiklerini bir kenara yaz. Beyin konsolidasyonu için 5 dakika mola ver.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowInterventionPrompt(false)}
+                className="flex-1 py-2.5 bg-purple-500/20 text-purple-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-500/30 transition-all"
+              >
+                Anladım
+              </button>
+              <button
+                onClick={() => { handlePause(); setShowInterventionPrompt(false); }}
+                className="flex-1 py-2.5 bg-purple-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-400 transition-all"
+              >
+                Mola Ver
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

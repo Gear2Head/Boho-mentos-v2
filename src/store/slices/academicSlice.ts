@@ -6,6 +6,7 @@ import { toISODateOnly, toDateMs } from '../../utils/date';
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
+import { calculateFinalElo } from "../../utils/eloRecomputator";
 
 export interface AcademicSlice {
   tytSubjects: SubjectStatus[];
@@ -41,6 +42,7 @@ export interface AcademicSlice {
   addFlashcard: (card: Flashcard) => void;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   removeFlashcard: (id: string) => void;
+  recomputeFullElo: () => void;
 }
 
 export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> = (set, get) => ({
@@ -135,7 +137,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     }
   },
 
-  // TODO-038: Bulk update fix
   bulkUpdateTytSubjects: (updates) => {
     const { authUser, tytSubjects } = get();
     const newSubs = [...tytSubjects];
@@ -161,7 +162,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
   },
 
   addLog: (log) => {
-    const { authUser, logs, eloScore, lastEloUpdateDate, dailyEloDelta, streakDays, trophies, activeAlerts, detectAndSetHabits } = get();
+    const { authUser, logs, eloScore, lastEloUpdateDate, dailyEloDelta, streakDays, detectAndSetHabits } = get();
     const logWithId: DailyLog = {
       ...log,
       id: log.id ?? `log_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
@@ -187,29 +188,12 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newDailyDelta = (lastEloUpdateDate !== todayStr ? 0 : dailyEloDelta) + eloDelta;
     const newEloScore = Math.max(0, eloScore + eloDelta);
 
-    const accuracy = log.correct / (log.questions || 1);
-    const last3 = newLogs.slice(-3);
-    const last3Good = last3.length === 3 && last3.every(l => (l.correct / (l.questions || 1)) >= 0.8);
-
-    const newTrophies = trophies.map(t => {
-      if (t.id === 'log_10' && newLogs.length >= 10 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'log_50' && newLogs.length >= 50 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'streak_3' && newStreak >= 3 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'streak_7' && newStreak >= 7 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'streak_14' && newStreak >= 14 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'streak_30' && newStreak >= 30 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'accuracy_90' && accuracy >= 0.9 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'accuracy_80_streak' && last3Good && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      return t;
-    });
-
     set({ 
       logs: newLogs, 
       streakDays: newStreak, 
       eloScore: newEloScore, 
       dailyEloDelta: newDailyDelta, 
       lastEloUpdateDate: todayStr, 
-      trophies: newTrophies, 
       lastLocalUpdateAt: new Date().toISOString() 
     });
     
@@ -217,7 +201,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
 
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid, 'logs', logWithId.id), cleanForFirestore(logWithId)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak, trophies: newTrophies, eloScore: newEloScore }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak, eloScore: newEloScore }), { merge: true }).catch(console.error);
     }
   },
 
@@ -227,7 +211,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'logs', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
@@ -239,13 +222,12 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (authUser?.uid) {
       const updated = newLogs.find(l => l.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'logs', id), cleanForFirestore(updated)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
 
   addExam: (exam) => {
-    const { authUser, exams, eloScore, lastEloUpdateDate, dailyEloDelta, profile, trophies } = get();
+    const { authUser, exams, eloScore, lastEloUpdateDate, dailyEloDelta, profile } = get();
     const todayStr = toISODateOnly();
     const safeTotalNet = !isFinite(exam.totalNet) || isNaN(exam.totalNet) ? 0 : exam.totalNet;
     const normalizedExam = { ...exam, totalNet: safeTotalNet };
@@ -259,32 +241,19 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
 
     const newDailyDelta = (lastEloUpdateDate !== todayStr ? 0 : dailyEloDelta) + eloDelta;
     const newEloScore = Math.max(0, eloScore + eloDelta);
-    const existingIndex = exams.findIndex((item) => item.id === normalizedExam.id);
-    const newExams = existingIndex >= 0
-      ? exams.map((item, index) => index === existingIndex ? normalizedExam : item).slice(-200)
-      : [...exams, normalizedExam].slice(-200);
-
-    const newTrophies = trophies.map(t => {
-      if (t.id === 'first_blood' && newExams.length >= 1 && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      if (t.id === 'exam_target_hit' && profile) {
-        const target = normalizedExam.type === 'TYT' ? profile.tytTarget : profile.aytTarget;
-        if (normalizedExam.totalNet >= target && !t.unlockedAt) return { ...t, unlockedAt: new Date().toISOString() };
-      }
-      return t;
-    });
+    const newExams = [...exams, normalizedExam].slice(-200);
 
     set({ 
       exams: newExams, 
       eloScore: newEloScore, 
       dailyEloDelta: newDailyDelta, 
       lastEloUpdateDate: todayStr, 
-      trophies: newTrophies, 
       lastLocalUpdateAt: new Date().toISOString() 
     });
     
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid, 'exams', normalizedExam.id), cleanForFirestore(normalizedExam)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams, trophies: newTrophies, eloScore: newEloScore }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams, eloScore: newEloScore }), { merge: true }).catch(console.error);
     }
   },
 
@@ -294,7 +263,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ exams: newExams, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'exams', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams }), { merge: true }).catch(console.error);
     }
   },
 
@@ -305,7 +273,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (authUser?.uid) {
       const updated = newExams.find(e => e.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'exams', id), cleanForFirestore(updated)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams }), { merge: true }).catch(console.error);
     }
   },
 
@@ -326,7 +293,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
   },
 
   solveFailedQuestion: (id) => {
-    const { authUser, failedQuestions, addElo } = get();
+    const { authUser, failedQuestions } = get();
     const newList = failedQuestions.map(q => 
       q.id === id ? { ...q, status: 'solved' as const, solveCount: q.solveCount + 1 } : q
     );
@@ -334,9 +301,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (authUser?.uid) {
       const updated = newList.find(q => q.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'failedQuestions', id), cleanForFirestore(updated)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ failedQuestions: newList }), { merge: true }).catch(console.error);
     }
-    addElo(15);
   },
 
   removeFailedQuestion: (id) => {
@@ -345,7 +310,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ failedQuestions: newList });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'failedQuestions', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ failedQuestions: newList }), { merge: true }).catch(console.error);
     }
   },
 
@@ -355,7 +319,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ agendaEntries: newEntries });
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid, 'agendaEntries', entry.id), cleanForFirestore(entry)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ agendaEntries: newEntries }), { merge: true }).catch(console.error);
     }
   },
 
@@ -366,7 +329,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (authUser?.uid) {
       const updated = newEntries.find(e => e.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'agendaEntries', id), cleanForFirestore(updated)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ agendaEntries: newEntries }), { merge: true }).catch(console.error);
     }
   },
 
@@ -376,7 +338,6 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ agendaEntries: newEntries });
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'agendaEntries', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ agendaEntries: newEntries }), { merge: true }).catch(console.error);
     }
   },
 
@@ -408,7 +369,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     }
   },
 
-  removeFlashcard: (id) => {
+  removeFlashcard: (id: string) => {
     const { authUser, flashcards } = get();
     const newList = flashcards.filter(c => c.id !== id);
     set({ flashcards: newList });
@@ -416,4 +377,17 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
       deleteDoc(doc(db, 'users', authUser.uid, 'flashcards', id)).catch(console.error);
     }
   },
+
+  recomputeFullElo: () => {
+    const { logs, exams, profile, authUser, tytSubjects, aytSubjects, evaluateAllAchievements } = get();
+    const newElo = calculateFinalElo(logs, exams, (profile as any), tytSubjects, aytSubjects);
+    set({ eloScore: newElo, lastLocalUpdateAt: new Date().toISOString() });
+    
+    // Check achievements after recomputing ELO
+    evaluateAllAchievements();
+
+    if (authUser?.uid) {
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo }), { merge: true }).catch(console.error);
+    }
+  }
 });

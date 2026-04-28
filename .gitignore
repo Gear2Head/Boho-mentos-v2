@@ -114,4 +114,13 @@ contex.md
 # ---------------------------------------------------
 .eslintcache
 .prettiercache
-.stylelintcache
+# 12. Local Workspace Configs
+src/config/owner.ts
+.ai context/
+brain/
+*.resolved
+*.md
+!README.md
+!docs/*.md
+!CHANGELOG.md
+!CONTRIBUTING.md

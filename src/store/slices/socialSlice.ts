@@ -20,7 +20,7 @@ export interface SocialSlice {
   deleteConversation: (id: string) => void;
   setActiveConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
-  
+
   // Legacy cleanup
   migrateLegacyChat: () => void;
 
@@ -29,10 +29,14 @@ export interface SocialSlice {
   clearNotifications: () => void;
   setDailyQuestsGeneratedDate: (date: string) => void;
   incrementAiRequest: () => void;
-  
+
   // Ghost Rivals
   ghostRival: import('../../types/coach').GhostRival | null;
   generateGhostRival: () => void;
+  
+  // Direct Messaging
+  directMessages: Record<string, ChatMessage[]>;
+  sendDirectMessage: (toUid: string, content: string) => void;
 }
 
 export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (set, get) => ({
@@ -50,14 +54,14 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     // ELO'ya %5 toleransla rakip üret
     const variance = eloScore * 0.05;
     const rivalElo = Math.floor(eloScore + (Math.random() * variance * 2 - variance));
-    
+
     // Rastgele isimler
-    const names = ["Anadolu Kaplanı", "Gece Kuşu", "Boğaziçi Yolcusu", "Mezun_2025", "Hedef_Cerrahpaşa", "Shadow_01"];
+    const names = ["Azra Nisa", "Jhonny Sins", "Kübra Nisa", "Mezun_2025", "Asrin Ak", "Orhan Erdemir"];
     const randomName = names[Math.floor(Math.random() * names.length)];
-    
+
     // TYT/AYT tahminleri (kabaca ELO'ya göre)
     const baseNet = Math.min(120, Math.max(30, rivalElo / 20));
-    
+
     set({
       ghostRival: {
         id: `rival_${Date.now()}`,
@@ -80,11 +84,11 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
         updatedAt: new Date().toISOString(),
         messages: s.chatHistory,
       };
-      set({ 
-        conversations: [legacyConv], 
+      set({
+        conversations: [legacyConv],
         activeConversationId: 'legacy_genel',
         // Clear old array to avoid re-migration
-        chatHistory: [] 
+        chatHistory: []
       } as any);
     } else if (get().conversations.length > 0 && !get().activeConversationId) {
       set({ activeConversationId: get().conversations[0].id });
@@ -119,7 +123,7 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
       nextActive = newConvs.length > 0 ? newConvs[0].id : null;
     }
     set({ conversations: newConvs, activeConversationId: nextActive });
-    
+
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'chatHistory', id)).catch(console.error);
     }
@@ -134,7 +138,7 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
   addChatMessage: (message) => {
     const { authUser, activeConversationId, conversations } = get();
     let targetId = activeConversationId;
-    
+
     // Auto-create if none active
     if (!targetId) {
       targetId = `conv_${Date.now()}`;
@@ -153,17 +157,17 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     };
 
     set(state => ({
-      conversations: state.conversations.map(c => 
-        c.id === targetId 
-          ? { ...c, messages: [...c.messages, newMessage].slice(-100), updatedAt: new Date().toISOString(), lastMessage: message.content.slice(0, 50) } 
+      conversations: state.conversations.map(c =>
+        c.id === targetId
+          ? { ...c, messages: [...c.messages, newMessage].slice(-100), updatedAt: new Date().toISOString(), lastMessage: message.content.slice(0, 50) }
           : c
       )
     }));
 
     if (authUser?.uid && targetId) {
       setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId, 'messages', newMessage.id), cleanForFirestore(newMessage)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId), cleanForFirestore({ 
-        id: targetId, 
+      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId), cleanForFirestore({
+        id: targetId,
         updatedAt: new Date().toISOString(),
         lastMessage: message.content.slice(0, 50)
       }), { merge: true }).catch(console.error);
@@ -201,5 +205,33 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ dailyAiRequests: newCount, lastAiRequestDate: today }), { merge: true }).catch(console.error);
     }
+  },
+
+  directMessages: {},
+  sendDirectMessage: (toUid, content) => {
+    const { authUser, directMessages } = get();
+    if (!authUser) return;
+
+    const newMessage: ChatMessage = {
+      id: `dm_${Date.now()}`,
+      role: 'user',
+      content,
+      timestamp: new Date().toISOString(),
+      senderId: authUser.uid
+    } as ChatMessage;
+
+    const updated = { ...directMessages };
+    updated[toUid] = [...(updated[toUid] || []), newMessage];
+
+    set({ directMessages: updated });
+
+    // Firestore sync
+    const chatRoomId = [authUser.uid, toUid].sort().join('_');
+    setDoc(doc(db, 'global_chats', chatRoomId, 'messages', newMessage.id), cleanForFirestore(newMessage)).catch(console.error);
+    setDoc(doc(db, 'global_chats', chatRoomId), {
+      participants: [authUser.uid, toUid],
+      lastMessage: content,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(console.error);
   },
 });

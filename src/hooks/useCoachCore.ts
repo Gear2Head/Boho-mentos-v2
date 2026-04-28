@@ -33,6 +33,8 @@ interface UseCoachCoreReturn {
     intent?: CoachIntent;
     wantDirective?: boolean;
     callerSurface?: CoachIntent;
+    imageBase64?: string;
+    imageMediaType?: string;
   }) => Promise<{ text: string; directive?: CoachDirective }>;
   triggerLogAnalysis: (log: DailyLog) => Promise<void>;
   triggerExamDebrief: (exam: ExamResult) => Promise<void>;
@@ -119,7 +121,7 @@ export function useCoachCore(): UseCoachCoreReturn {
             wantDirective: shouldForceDirective,
             userState,
             imageBase64,
-            imageMediaType,
+            imageMediaType: imageMediaType as 'image/jpeg' | 'image/png' | 'image/webp' | undefined,
           }
         );
 

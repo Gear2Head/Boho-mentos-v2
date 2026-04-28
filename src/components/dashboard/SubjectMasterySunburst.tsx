@@ -69,7 +69,7 @@ export function SubjectMasterySunburst() {
 
       <div className="flex-1 w-full relative z-10 flex items-center justify-center min-h-[220px]">
         {/* Center absolute text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className="text-3xl font-black text-zinc-100">%{totalPercent}</span>
           <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Tamamlandı</span>
         </div>

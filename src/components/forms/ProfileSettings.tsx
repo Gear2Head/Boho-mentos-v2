@@ -308,8 +308,8 @@ function TargetStep(props: { targetUni: string; setTargetUni: React.Dispatch<Rea
 
 function GoalStep(props: { tytTarget: number; setTytTarget: React.Dispatch<React.SetStateAction<number>>; aytTarget: number; setAytTarget: React.Dispatch<React.SetStateAction<number>>; minHours: number; setMinHours: React.Dispatch<React.SetStateAction<number>>; }) {
   const { tytTarget, setTytTarget, aytTarget, setAytTarget, minHours, setMinHours } = props;
-  const tytPct = Math.round((tytTarget / 120) * 100);
-  const aytPct = Math.round((aytTarget / 80) * 100);
+  const tytPct = Math.round(((tytTarget - 40) / (120 - 40)) * 100);
+  const aytPct = Math.round(((aytTarget - 20) / (80 - 20)) * 100);
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
     <MetricSlider label="TYT Net Hedefi" hint="Maksimum 120 net" value={tytTarget} maxLabel="/ 120" color="#C17767" percent={tytPct} min={40} max={120} onChange={setTytTarget} />
     <MetricSlider label="AYT Net Hedefi" hint="Maksimum 80 net" value={aytTarget} maxLabel="/ 80" color="#E09F3E" percent={aytPct} min={20} max={80} onChange={setAytTarget} />
@@ -398,9 +398,9 @@ function EditModeForm(props: {
   };
   const isSpotifyWidgetOpen = useAppStore(s => s.isSpotifyWidgetOpen);
   const setSpotifyWidgetOpen = useAppStore(s => s.setSpotifyWidgetOpen);
-  const tytPct = Math.round((tytTarget / 120) * 100);
-  const aytPct = Math.round((aytTarget / 80) * 100);
-  const minHoursPct = Math.round((minHours / 16) * 100);
+  const tytPct = Math.round(((tytTarget - 40) / (120 - 40)) * 100);
+  const aytPct = Math.round(((aytTarget - 20) / (80 - 20)) * 100);
+  const minHoursPct = Math.round(((minHours - 1) / (16 - 1)) * 100);
   return <div style={{ fontFamily: "'Inter',system-ui,sans-serif" }}>
     <style>{`
       .em-label{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--color-ink-muted);margin-bottom:8px;display:block}
@@ -460,7 +460,7 @@ function EditModeForm(props: {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: '#1DB954', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <strong style={{ color:'white', fontSize: 20 }}>🎵</strong>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.508 17.302c-.218.358-.684.472-1.042.253-2.825-1.728-6.381-2.12-10.567-1.168-.411.096-.822-.162-.917-.573-.096-.411.162-.822.573-.917 4.588-1.048 8.513-.594 11.699 1.355.358.219.472.685.254 1.05zm1.472-3.262c-.274.444-.85.584-1.294.31-3.235-1.988-8.169-2.564-11.996-1.402-.501.152-1.03-.133-1.182-.634-.152-.501.133-1.03.634-1.182 4.375-1.328 9.813-.679 13.535 1.61.444.274.584.85.303 1.298zm.135-3.414c-3.878-2.303-10.284-2.515-14.015-1.382-.594.18-1.226-.156-1.406-.75s.156-1.226.75-1.406c4.285-1.302 11.353-1.05 15.823 1.605.534.318.708 1.014.39 1.548-.318.534-1.014.708-1.542.385z"/></svg>
             </div>
             <div>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'white' }}>Spotify Hesabı</p>

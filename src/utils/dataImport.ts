@@ -52,7 +52,10 @@ export async function importDataFromFile(file: File): Promise<{ success: boolean
            useAppStore.setState({ chatHistory: [...state.chatHistory, ...payload.chatHistory] });
         }
 
-        resolve({ success: true, message: 'Veriler başarıyla içe aktarıldı ve store güncellendi.' });
+        // Recompute ELO after bulk importing data
+        useAppStore.getState().recomputeFullElo();
+
+        resolve({ success: true, message: 'Veriler başarıyla içe aktarıldı, ELO yeniden hesaplandı ve store güncellendi.' });
       } catch (err: any) {
         resolve({ success: false, message: 'Dosya okuma hatası: ' + err.message });
       }

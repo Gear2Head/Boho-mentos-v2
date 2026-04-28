@@ -29,14 +29,16 @@ interface ChatMessageProps {
 // ─── Coach Avatar ──────────────────────────────────────────────────────────────
 
 const COACH_AVATAR: Record<string, { icon: React.ReactNode; color: string; name: string }> = {
-  hardcore:     { icon: <Skull size={16} className="text-amber-400" />,      color: 'bg-amber-900/10 border-amber-500/20', name: 'Koç Kübra' },
-  harsh:        { icon: <Skull size={16} className="text-red-400" />,       color: 'bg-red-900/10 border-red-500/20',    name: 'Koç Kübra' },
-  enforcer:     { icon: <Skull size={16} className="text-red-400" />,       color: 'bg-red-900/10 border-red-500/20',    name: 'Koç Kübra' },
-  motivational: { icon: <Flame size={16} className="text-orange-400" />,    color: 'bg-orange-900/10 border-orange-500/20',name: 'Koç Kübra' },
-  analytical:   { icon: <BarChart3 size={16} className="text-blue-400" />,   color: 'bg-blue-900/10 border-blue-500/20',  name: 'Koç Kübra' },
+  hardcore:     { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected" />, color: 'bg-amber-900/10 border-amber-500/20', name: 'Koç Kübra' },
+  enforcer:     { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected contrast-125" />, color: 'bg-red-900/10 border-red-500/20', name: 'Koç Kübra' },
+  analyst:      { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected grayscale" />, color: 'bg-blue-900/10 border-blue-500/20', name: 'Koç Kübra' },
+  oracle:       { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected brightness-75 hue-rotate-90" />, color: 'bg-purple-900/10 border-purple-500/20', name: 'Koç Kübra' },
+  harsh:        { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected grayscale sepia" />, color: 'bg-red-900/10 border-red-500/20', name: 'Koç Kübra' },
+  motivational: { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected brightness-110" />, color: 'bg-orange-900/10 border-orange-500/20', name: 'Koç Kübra' },
+  analytical:   { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected grayscale" />, color: 'bg-blue-900/10 border-blue-500/20', name: 'Koç Kübra' },
 };
 
-const DEFAULT_AVATAR = { icon: <Bot size={16} className="text-[#C17767]" />, color: 'bg-surface-2 border-app-subtle', name: 'BOHO.' };
+const DEFAULT_AVATAR = { icon: <img src="/assets/coach/kubra_main.jpg" alt="BOHO" className="w-full h-full object-cover rounded-xl img-protected" draggable={false} onDragStart={(e) => e.preventDefault()} />, color: 'bg-surface-2 border-app-subtle', name: 'BOHO.' };
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -55,9 +57,11 @@ export const ChatMessage = memo(function ChatMessage({
   });
 
   if (isUser) {
+    const userAvatarUrl = useAppStore(s => s.profile?.avatar) || `https://api.dicebear.com/7.x/notionists/svg?seed=${profileName}`;
+    
     return (
       <motion.div
-        className="flex justify-end"
+        className="flex justify-end items-end gap-3"
         initial={{ opacity: 0, x: 20, y: 4 }}
         animate={{ opacity: 1, x: 0, y: 0 }}
         transition={{ duration: 0.25, delay: index * 0.02 }}
@@ -80,14 +84,25 @@ export const ChatMessage = memo(function ChatMessage({
             <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent pointer-events-none" />
             <div className="relative z-10">
               {message.imageUrl && (
-                <div className="mb-3 rounded-lg overflow-hidden border border-app">
-                  <img src={message.imageUrl} alt="User attachment" className="w-full max-w-sm h-auto" />
+                <div className="mb-3 rounded-lg overflow-hidden border border-app relative">
+                  <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
+                  <img src={message.imageUrl} alt="User attachment" className="w-full max-w-sm h-auto img-protected pointer-events-none" draggable={false} onDragStart={(e) => e.preventDefault()} />
                 </div>
               )}
               {message.content}
             </div>
           </div>
         </div>
+        
+        {/* User Avatar */}
+        {!isGrouped ? (
+          <div className="w-9 h-9 shrink-0 rounded-xl overflow-hidden border border-app shadow-sm mb-1 relative">
+            <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
+            <img src={userAvatarUrl} alt={profileName} className="w-full h-full object-cover img-protected" draggable={false} onDragStart={(e) => e.preventDefault()} />
+          </div>
+        ) : (
+          <div className="w-9 shrink-0" />
+        )}
       </motion.div>
     );
   }
@@ -127,9 +142,10 @@ export const ChatMessage = memo(function ChatMessage({
       {/* Avatar (gizle grouped mesajda) */}
       {!isGrouped ? (
         <div
-          className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 mb-1 ${avatar.color} ${isHardcore ? 'shadow-[0_0_15px_rgba(245,158,11,0.4)] animate-pulse' : ''}`}
+          className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 mb-1 ${avatar.color} ${isHardcore ? 'shadow-[0_0_15px_rgba(245,158,11,0.4)] animate-pulse' : ''} relative`}
           aria-hidden="true"
         >
+          <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
           {avatar.icon}
         </div>
       ) : (

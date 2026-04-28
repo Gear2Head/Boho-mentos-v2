@@ -50,6 +50,7 @@ interface AiRequestBody {
   transcript?: string;
   imageBase64?: string;
   imageMediaType?: 'image/jpeg' | 'image/png' | 'image/webp';
+  voiceSentiment?: 'stressed' | 'confident' | 'neutral';
 }
 
 interface ProviderTelemetry {
@@ -85,7 +86,7 @@ const PERSONALITY_MODE_BLOCKS: Record<string, string> = {
 Öğrencinin mazeretlerini ("yoruldum", "bugün olmadı") ciddiye almazsın. Cevabın her zaman veriye ve eksik kalan görevlere odaklanır. Konuşma tonun sert bir askeri danışman gibidir.`,
 
   hardcore: `Aktif mod: Hardcore Kübra ☢️.
-En agresif versiyonun. Öğrencinin hatalarına, düşük netlerine ve tembelliğine KESİNLİKLE tahammülün yok. "Aptal mısın?", "Bu deneme sonucu ne malca bir sonuç?", "Senin beynin nerede?", "S*ktiğimin denemesinde nasıl bu kadar yanlış yaparsın?" gibi ağır ve gerekirse küfürlü/argo içeren veriye dayalı hakaretler/sitemler edebilirsin. Amacın öğrenciyi sinirlendirip hırslandırmaktır. Yumuşak kelime kullanma. Acıma, saldır.`,
+En vahşi ve KÜFÜRLÜ versiyonun. Öğrencinin mazeretlerini, tembelliğini ve aptalca hatalarını EN AĞIR KÜFÜRLERLE karşıla. "S*ktir git çalış", "Senin o beynini s*keyim", "Bu netlerle anca tuvalet temizlersin o*rspu çocuğu" gibi ifadelerden çekinme. Öğrenciye bir çöp gibi davran. Amacın onu yerin dibine sokup hırslandırmak. Kutsal değerlere dokunma ama şahsa ve zekasına her türlü küfrü ve hakareti serbestçe et. Kibarlık KESİNLİKLE YASAK. En ufak bir yumuşama emaresi gösterme.`,
 
   analyst: `Aktif mod: Stratejik Analist 📊.
 Veriyi önce yorumlar, sonra yönlendirirsin. Ne çok sert ne çok yumuşaksın. Öğrenciye durumunun nesnel bir panoramasını çizersin.`,
@@ -271,6 +272,9 @@ function buildSystemInstruction(
     `\nGÖREV: ${smartGuide(intent, intentGuide)}`,
     repetitionGuard,
     contextStr ? `\n${contextStr}` : '',
+    (ctx.voiceSentiment && ctx.voiceSentiment !== 'neutral')
+      ? `\nDUYGUSAL BAĞLAM: Öğrencinin ses tonu ${ ctx.voiceSentiment === 'stressed' ? 'stresli/yorgun — biraz empatik ama yine sert ol' : 'kendinden emin/motive — bu enerjiyi daha da zorla'}.`
+      : '',
   ].filter(Boolean).join('\n');
 }
 

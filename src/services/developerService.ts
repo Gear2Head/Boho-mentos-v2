@@ -3,7 +3,7 @@
  * MANTIK: Tüm işlemler users ve alt koleksiyonlarına/ana root dökümanlarına yapılır.
  */
 
-import { collection, doc, query, where, getDocs, updateDoc, deleteDoc, writeBatch, getDoc, setDoc, orderBy, limit as firestoreLimit } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, updateDoc, deleteDoc, writeBatch, getDoc, setDoc, orderBy, limit as firestoreLimit, getCountFromServer } from 'firebase/firestore';
 import { db } from './firebase';
 import { logAdminAction } from './systemService';
 import type { UserRole, FirestoreUser } from '../config/admin';
@@ -368,8 +368,8 @@ export async function fetchUserFullProfile(userId: string): Promise<{ user: any;
     for (const table of ENTITY_TABLE_LIST) {
       try {
         const colRef = collection(db, 'users', userId, table);
-        const snapshot = await getDocs(colRef); // NOTE: For large scaling use aggregation queries
-        counts[table] = snapshot.size;
+        const snapshot = await getCountFromServer(colRef);
+        counts[table] = snapshot.data().count;
       } catch {
         counts[table] = 0;
       }

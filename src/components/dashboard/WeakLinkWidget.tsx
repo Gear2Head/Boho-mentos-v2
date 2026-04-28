@@ -38,6 +38,7 @@ export function WeakLinkWidget({ logs }: Props) {
       }
     });
 
+    if (lowestRate > 0.75) return null; // All subjects are doing well
     return weakestSubject;
   };
 
@@ -45,9 +46,15 @@ export function WeakLinkWidget({ logs }: Props) {
 
   if (!weakLink) {
     return (
-      <div className="glass-card p-6 rounded-3xl opacity-50 flex items-center justify-center">
-        <p className="text-xs text-zinc-500 italic text-center">
-          Zayıf halka analizi için daha fazla veri (soru çözümü) gerekiyor.
+      <div className="glass-card p-6 rounded-3xl flex flex-col items-center justify-center gap-3">
+        <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-400">
+           <Crosshair size={24} />
+        </div>
+        <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black text-center">
+          RADAR TEMİZ
+        </p>
+        <p className="text-[9px] text-zinc-400 italic text-center">
+          Tüm cephelerde %75+ başarı yakaladın. Zayıf halka bulunamadı.
         </p>
       </div>
     );

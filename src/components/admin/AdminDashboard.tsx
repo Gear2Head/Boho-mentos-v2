@@ -13,9 +13,11 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { isSuperAdminClaims } from '../../config/admin';
+import { OWNER_EMAIL } from '../../config/owner';
 import type { FirestoreUser, UserRole } from '../../config/admin';
 import * as devService from '../../services/developerService';
 import type { EntityTable } from '../../services/developerService';
+import { encrypt, secureCompare } from '../../utils/encryption';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,43 +53,88 @@ function Skeleton({ className }: { className?: string }) {
 
 export function AdminDashboard({ onBack }: Props) {
   const authUser = useAppStore(s => s.authUser);
-  const hasAccess = authUser != null && isSuperAdminClaims(
-    (authUser as { claims?: Record<string, unknown> }).claims ?? null,
-    authUser.email
+  const profile = useAppStore(s => s.profile);
+  const hasAccess = authUser != null && (
+    isSuperAdminClaims((authUser as { claims?: Record<string, unknown> }).claims ?? null, authUser.email) ||
+    (profile as any)?.role === 'super_admin'
   );
 
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+  
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // [HOTFIX] Force update Firestore profile role since Rules deploy failed
-  useEffect(() => {
-    if (authUser?.email === 'senerkadiralper@gmail.com' || authUser?.email === 'kadiralper0340@gmail.com') {
-       import('../../services/firebase').then(({ db }) => {
-         import('firebase/firestore').then(({ doc, updateDoc }) => {
-            updateDoc(doc(db, 'users', authUser.uid), { role: 'super_admin' })
-              .catch(e => console.warn('Admin auto-grant failed:', e));
-         });
-       });
+  // SADECE BU ŞİFRE İLE GİRİŞ YAPILABİLİR (Şifreli saklanır)
+  const ADMIN_PASSWORD_HASH = 'WzUsNDIsMjUsMzcsMzgsMTAwLDI0LDgzXQ=='; // 'Gear9150' encrypted
+  
+  const handleUnlock = () => {
+    if (secureCompare(passwordInput, ADMIN_PASSWORD_HASH) || authUser?.email === OWNER_EMAIL) {
+      setIsUnlocked(true);
+      setErrorMsg('');
+    } else {
+      setErrorMsg('Geçersiz Şifre. Erişim Engellendi.');
     }
-  }, [authUser]);
+  };
+
+  // HAS ACCESS BYPASS: Eğer şifre doğruysa veya yetkisi varsa girebilir.
+  const canEnter = hasAccess || isUnlocked;
+
+  if (!isUnlocked) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-[300] backdrop-blur-3xl">
+        <div className="p-8 max-w-sm w-full bg-[#111] border border-zinc-800/60 rounded-3xl shadow-2xl">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-zinc-900 rounded-2xl border border-zinc-800 flex items-center justify-center">
+              <Shield className="text-zinc-500" size={32} />
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-center text-white mb-2">Admin Paneli Kilidi</h2>
+          <p className="text-xs text-zinc-500 text-center mb-8 uppercase tracking-widest">Girmek için şifreyi girin</p>
+          
+          <div className="space-y-4">
+            <input 
+              type="password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+              placeholder="Şifre"
+              className="w-full px-4 py-3 bg-black border border-zinc-800 rounded-xl text-center text-xl tracking-[0.5em] outline-none focus:border-zinc-600 transition-colors"
+              autoFocus
+            />
+            {errorMsg && <p className="text-[10px] text-red-500 text-center font-bold">{errorMsg}</p>}
+            <button 
+              onClick={handleUnlock}
+              className="w-full py-4 bg-white text-black rounded-xl font-black uppercase tracking-[0.2em] text-xs hover:bg-zinc-200 transition-all shadow-lg"
+            >
+              Kilidi Aç
+            </button>
+            <button onClick={onBack} className="w-full py-2 text-zinc-600 text-[10px] uppercase font-bold tracking-widest hover:text-zinc-400">Vazgeç</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Eğer kilit açıldıysa ama yetki de yoksa (çok düşük ihtimal ama güvenli)
+  if (!canEnter) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-[300]">
+        <div className="text-center text-red-400 p-8 max-w-sm w-full">
+          <Shield size={64} className="mx-auto mb-4 opacity-50" />
+          <h2 className="text-2xl font-bold">Yetkisiz Erişim</h2>
+          <p className="mt-2 opacity-60">Sistem yetkili kimliği doğrulanmadı.</p>
+          <button onClick={onBack} className="mt-6 w-full py-3 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition font-bold uppercase tracking-widest text-[10px]">Geri Dön</button>
+        </div>
+      </div>
+    );
+  }
 
   const showToast = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 4000);
   }, []);
-
-  if (!hasAccess) {
-    return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
-        <div className="text-center text-red-400">
-          <Shield size={64} className="mx-auto mb-4" />
-          <h2 className="text-2xl font-bold">Yetkisiz Erişim</h2>
-          <p className="mt-2 opacity-60">Bu sayfaya erişim yetkiniz bulunmuyor.</p>
-          <button onClick={onBack} className="mt-6 px-6 py-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition">Geri Dön</button>
-        </div>
-      </div>
-    );
-  }
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
     { id: 'users', label: 'Kullanıcılar', icon: <Users size={16} /> },
@@ -489,6 +536,17 @@ function MyDataPanel({ actorUid, showToast }: { actorUid: string; showToast: (t:
           localStorage.removeItem('boho_sync_queue');
           showToast('success', 'Sync kuyruğu temizlendi');
         }} />
+        <ActionBtn 
+          label="ELO Hesapla" 
+          color="blue" 
+          icon={<RefreshCw size={14} />} 
+          onClick={() => {
+            const store = useAppStore.getState();
+            store.recomputeFullElo();
+            showToast('success', 'ELO tüm veriler üzerinden tekrar hesaplandı');
+            loadEntities(selectedTable);
+          }} 
+        />
       </div>
 
       {/* Table Selector */}

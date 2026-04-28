@@ -263,13 +263,53 @@ export function detectHabitAlerts(logs: DailyLog[]): HabitAuditAlert[] {
   if (logs.length === 0) return [];
   const alerts: HabitAuditAlert[] = [];
   const now = Date.now();
-  const last3Days = logs.filter((l) => {
-    const ms = toDateMs(l.date);
-    if (ms === null) return false;
-    return now - ms <= 3 * 24 * 60 * 60 * 1000;
+  
+  // 1. Subject Ghosting (10+ days)
+  const last10Days = logs.filter(l => now - (toDateMs(l.date) ?? 0) <= 10 * 24 * 60 * 60 * 1000);
+  const studiedSubjects = new Set(last10Days.map(l => l.subject));
+  const coreSubjects = ['Matematik', 'Fizik', 'Edebiyat', 'Tarih']; // Basic check
+  coreSubjects.forEach(s => {
+    if (!studiedSubjects.has(s)) {
+      alerts.push({
+        id: `ghosting-${s}`,
+        severity: 'high',
+        message: `${s} dersini 10 gündür tamamen boşladın. Zihin bu boşluğu unutkanlıkla doldurur. Acil dönüş yap.`
+      });
+    }
   });
-  const hasMath = last3Days.some((l) => l.subject.toLowerCase().includes('matematik'));
-  if (!hasMath) {
+
+  // 2. Burnout Warning (High hours + Low Accuracy)
+  const last3Days = logs.filter(l => now - (toDateMs(l.date) ?? 0) <= 3 * 24 * 60 * 60 * 1000);
+  const totalHours = last3Days.reduce((acc, l) => acc + (l.avgTime || 0), 0) / 60;
+  const avgAccuracy = last3Days.reduce((acc, l) => acc + (l.correct / (l.questions || 1)), 0) / (last3Days.length || 1);
+  
+  if (totalHours > 24 && avgAccuracy < 0.6) {
+    alerts.push({
+      id: 'burnout-risk',
+      severity: 'high',
+      message: 'Sinyaller Tehlikeli: Çok çalışıyorsun ama verim (accuracy) çöküşte. Bu burnout (tükenmişlik) başlangıcıdır. 1 gün tam mola ver.'
+    });
+  }
+
+  // 3. Accuracy Spiral (Decreasing performance)
+  if (logs.length >= 10) {
+    const recent5 = logs.slice(-5);
+    const prev5 = logs.slice(-10, -5);
+    const recentAcc = recent5.reduce((acc, l) => acc + (l.correct / (l.questions || 1)), 0) / 5;
+    const prevAcc = prev5.reduce((acc, l) => acc + (l.correct / (l.questions || 1)), 0) / 5;
+    
+    if (recentAcc < prevAcc - 0.15) {
+      alerts.push({
+        id: 'accuracy-spiral',
+        severity: 'medium',
+        message: 'Doğruluk oranında düşüş trendi saptadım. Konu eksiklerin birikiyor olabilir, temel tekrarı şart.'
+      });
+    }
+  }
+
+  // 4. No Math Check (Standard)
+  const last3DaysMath = last3Days.filter((l) => l.subject.toLowerCase().includes('matematik'));
+  if (last3DaysMath.length === 0) {
     alerts.push({
       id: 'no-math-3-days',
       severity: 'high',
@@ -277,23 +317,5 @@ export function detectHabitAlerts(logs: DailyLog[]): HabitAuditAlert[] {
     });
   }
 
-  const last7Days = logs.filter((l) => {
-    const ms = toDateMs(l.date);
-    if (ms === null) return false;
-    return now - ms <= 7 * 24 * 60 * 60 * 1000;
-  });
-  const bySubject = new Map<string, number>();
-  last7Days.forEach((l) => bySubject.set(l.subject, (bySubject.get(l.subject) ?? 0) + 1));
-  const total = last7Days.length || 1;
-  for (const [subject, count] of bySubject.entries()) {
-    if (count / total >= 0.7) {
-      alerts.push({
-        id: `overfocus-${subject}`,
-        severity: 'medium',
-        message: `Sadece ${subject} üzerine yüklendin. Denge bozuluyor; haftalık planı dağıt.`,
-      });
-      break;
-    }
-  }
   return alerts;
 }

@@ -39,6 +39,7 @@ export interface StudentProfile {
   lastSyncAt?: string; // [SYNC-FIX]: Son başarılı eşitleme zamanı
   coachMemory?: CoachMemory; // [Faz 2 - Hafıza]
   streakShields?: number; // [Faz 2 - Streak Freeze]
+  role?: import('../config/admin').UserRole;
 }
 
 export interface AppNotification {
@@ -143,6 +144,7 @@ export interface ChatMessage {
   directive?: CoachDirective;
   imageUrl?: string;
   isSystemEvent?: boolean;
+  senderId?: string;
 }
 
 export interface ConversationBrief {
@@ -157,6 +159,32 @@ export interface Conversation extends ConversationBrief {
 }
 
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';
+
+export type RarityTier = 'iron' | 'bronze' | 'silver' | 'gold' | 'diamond' | 'legendary';
+export type AchievementCategory = 'streak' | 'volume' | 'performance' | 'focus' | 'hidden';
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  tier: RarityTier;
+  category: AchievementCategory;
+  isHidden: boolean;
+  icon: string;
+  reward: {
+    elo: number;
+    themeUnlock?: string;
+    personaUnlock?: string;
+    badgeTitle?: string;
+  };
+  calculateProgress: (state: any) => { current: number; target: number };
+}
+
+export interface UserAchievement {
+  id: string;
+  unlockedAt: string;
+  isViewed: boolean;
+}
 
 export interface Trophy {
   id: string;

@@ -50,13 +50,13 @@ const TYPING_MESSAGES_BY_PERSONALITY: Record<string, string[]> = {
   ],
 };
 
-const AVATAR_BY_PERSONALITY: Record<string, { emoji: string; color: string }> = {
-  hardcore: { emoji: '☢️', color: 'bg-amber-900/60 border-amber-700/40' },
-  enforcer: { emoji: '💀', color: 'bg-red-900/60 border-red-700/40' },
-  harsh: { emoji: '💀', color: 'bg-red-900/60 border-red-700/40' },
-  motivational: { emoji: '🔥', color: 'bg-orange-900/60 border-orange-700/40' },
-  analytical: { emoji: '📊', color: 'bg-blue-900/60 border-blue-700/40' },
-  default: { emoji: '⚡', color: 'bg-zinc-800 border-zinc-700/40' },
+const AVATAR_BY_PERSONALITY: Record<string, { img: string; color: string }> = {
+  hardcore: { img: '/assets/coach/kubra_main.jpg', color: 'bg-amber-900/60 border-amber-700/40' },
+  enforcer: { img: '/assets/coach/kubra_main.jpg', color: 'bg-red-900/60 border-red-700/40' },
+  harsh: { img: '/assets/coach/kubra_main.jpg', color: 'bg-red-900/60 border-red-700/40' },
+  motivational: { img: '/assets/coach/kubra_main.jpg', color: 'bg-orange-900/60 border-orange-700/40' },
+  analytical: { img: '/assets/coach/kubra_main.jpg', color: 'bg-blue-900/60 border-blue-700/40' },
+  default: { img: '/assets/coach/kubra_main.jpg', color: 'bg-zinc-800 border-zinc-700/40' },
 };
 
 export function TypingIndicator({ coachPersonality }: TypingIndicatorProps) {
@@ -88,10 +88,10 @@ export function TypingIndicator({ coachPersonality }: TypingIndicatorProps) {
     <div className="flex items-end gap-3 max-w-xs">
       {/* Avatar */}
       <div
-        className={`w-9 h-9 rounded-xl border flex items-center justify-center text-lg shrink-0 ${avatar.color} ${isHardcore ? 'shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-pulse' : ''}`}
+        className={`w-9 h-9 rounded-xl border flex items-center justify-center overflow-hidden shrink-0 ${avatar.color} ${isHardcore ? 'shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-pulse' : ''}`}
         aria-hidden="true"
       >
-        {avatar.emoji}
+        <img src={avatar.img} alt="" className="w-full h-full object-cover img-protected" />
       </div>
 
       {/* Bubble */}

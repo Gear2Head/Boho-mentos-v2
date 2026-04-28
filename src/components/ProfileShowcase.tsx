@@ -1,8 +1,10 @@
 import React from 'react';
-import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon, X } from 'lucide-react';
+import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon, X, Shield, Settings } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useAppStore } from '../store/appStore';
 import { getRankDetails } from './EloRankCard';
+import { OWNER_EMAIL } from '../config/owner';
 import type { Trophy as TrophyType, ExamResult, AtlasProgram } from '../types';
 import { AtlasExplorer } from './AtlasExplorer';
 import { HabitAuditPanel } from './HabitAuditPanel';
@@ -14,6 +16,8 @@ const ICON_MAP: Record<string, React.FC<any>> = {
 };
 
 export function ProfileShowcase() {
+  const navigate = useNavigate();
+  const authUser = useAppStore(s => s.authUser);
   const profile = useAppStore(s => s.profile);
   const eloScore = useAppStore(s => s.eloScore);
   const tytSubjects = useAppStore(s => s.tytSubjects);
@@ -78,6 +82,14 @@ export function ProfileShowcase() {
               <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
             ) : (
               <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full bg-surface" />
+            )}
+            {authUser?.email === OWNER_EMAIL && (
+              <button 
+                onClick={() => navigate('/admin_dashboard')}
+                className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-white"
+              >
+                <Shield size={14} /> Dev Console
+              </button>
             )}
           </div>
 

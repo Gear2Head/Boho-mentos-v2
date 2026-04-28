@@ -47,6 +47,8 @@ export function useAuth() {
                 email: user.email,
                 display_name: mappedUser.displayName,
                 photo_url: mappedUser.photoURL,
+                eloScore: 1200, // Default ELO
+                streakDays: 0,
                 updated_at: new Date().toISOString(),
              }, { merge: true });
           }
@@ -88,6 +90,8 @@ export function useAuth() {
            ...(data.agendaEntries && { agendaEntries: data.agendaEntries }),
            ...(data.focusSessions && { focusSessions: data.focusSessions }),
            ...(data.flashcards && { flashcards: data.flashcards }),
+           ...(data.unlockedAchievementIds && { unlockedAchievementIds: data.unlockedAchievementIds }),
+           ...(data.userAchievements && { userAchievements: data.userAchievements }),
          });
       }
     });

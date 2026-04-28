@@ -20,6 +20,7 @@ export interface UISlice {
   ambienceVolume: number;
   isZenMode: boolean;
   isTtsEnabled: boolean;
+  lastVoiceSentiment: 'stressed' | 'confident' | 'neutral';
   
   // Refactored from App.tsx (Faz 3)
   activeTab: string;
@@ -46,6 +47,8 @@ export interface UISlice {
   setAmbienceVolume: (volume: number) => void;
   setZenMode: (isZen: boolean) => void;
   setTtsEnabled: (enabled: boolean) => void;
+  setLastVoiceSentiment: (s: 'stressed' | 'confident' | 'neutral') => void;
+  setAmbienceBySubject: (subject: string) => void;
 
   setActiveTab: (tab: string) => void;
   setMobileMenuOpen: (open: boolean) => void;
@@ -76,6 +79,7 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   ambienceVolume: 0.3,
   isZenMode: false,
   isTtsEnabled: false,
+  lastVoiceSentiment: 'neutral' as const,
 
   activeTab: 'dashboard',
   isMobileMenuOpen: false,
@@ -122,6 +126,20 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   setAmbienceVolume: (volume) => set({ ambienceVolume: volume }),
   setZenMode: (isZen) => set({ isZenMode: isZen }),
   setTtsEnabled: (enabled) => set({ isTtsEnabled: enabled }),
+  setLastVoiceSentiment: (s) => set({ lastVoiceSentiment: s }),
+  setAmbienceBySubject: (subject) => {
+    const lower = subject.toLowerCase();
+    // Matematik → brown noise (focus), Fen → white noise (sharp), Edebiyat/Tarih → pink noise (calm)
+    let type: 'none' | 'white' | 'pink' | 'brown' = 'none';
+    if (lower.includes('matematik') || lower.includes('fizik') || lower.includes('kimya') || lower.includes('biyoloji')) {
+      type = 'brown';
+    } else if (lower.includes('edebiyat') || lower.includes('tarih') || lower.includes('coğrafya') || lower.includes('felsefe')) {
+      type = 'pink';
+    } else if (lower.includes('türkçe') || lower.includes('tyt')) {
+      type = 'white';
+    }
+    if (type !== 'none') set({ ambienceType: type });
+  },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
   setMobileMenuOpen: (o) => set({ isMobileMenuOpen: o }),

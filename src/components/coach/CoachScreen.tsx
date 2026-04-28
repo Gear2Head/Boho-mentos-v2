@@ -148,9 +148,19 @@ export function CoachScreen({
   const isEmpty = sortedMessages.length === 0;
 
   return (
-    <div className="flex h-full overflow-hidden bg-app">
-      {/* Sidebar - Desktop */}
-      <ConversationSidebar isOpen={isSidebarOpen} onToggle={() => setSidebarOpen(!isSidebarOpen)} />
+    <div className="flex h-full overflow-hidden bg-app relative">
+      {/* Sidebar - Desktop & Mobile overlay */}
+      <div className={`
+        fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden
+        ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+      `} onClick={() => setSidebarOpen(false)} />
+      
+      <div className={`
+        fixed md:relative z-[101] h-full transition-transform duration-300 transform
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <ConversationSidebar isOpen={isSidebarOpen} onToggle={() => setSidebarOpen(!isSidebarOpen)} />
+      </div>
 
       {/* ── Main Chat Area ──────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 relative bg-app">

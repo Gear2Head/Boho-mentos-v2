@@ -66,38 +66,43 @@ export function StudyHeatmap() {
   }, [grid]);
 
   const levelColors = [
-    'bg-zinc-900 border-zinc-800/50', // 0
-    'bg-emerald-950 border-emerald-900/50', // 1
-    'bg-emerald-800 border-emerald-700/50', // 2
-    'bg-emerald-600 border-emerald-500/50', // 3
-    'bg-emerald-400 border-emerald-300/50 shadow-[0_0_8px_rgba(52,211,153,0.4)]', // 4
+    'bg-zinc-900/40 border-white/5', // 0
+    'bg-emerald-500/10 border-emerald-500/10', // 1
+    'bg-emerald-500/30 border-emerald-500/20', // 2
+    'bg-emerald-500/60 border-emerald-500/30', // 3
+    'bg-emerald-400 border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.3)]', // 4
   ];
 
   return (
-    <div className="bg-surface border border-app rounded-3xl p-6 shadow-xl overflow-hidden">
-      <header className="flex justify-between items-center mb-6">
+    <div className="bg-surface border border-app rounded-[32px] p-8 shadow-xl overflow-hidden relative group">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-500/5 to-transparent rounded-bl-full pointer-events-none" />
+
+      <header className="flex justify-between items-start mb-8">
         <div>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-accent mb-1">ÇALIŞMA YOĞUNLUĞU</h3>
-          <p className="text-2xl font-display italic font-bold text-ink">
-            {totalQuestions} <span className="text-xs font-mono text-ink-muted uppercase tracking-widest not-italic">Soru Çözüldü</span>
+          <div className="flex items-center gap-2 mb-2">
+             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Çalışma Yoğunluğu</h3>
+          </div>
+          <p className="text-3xl font-display italic font-bold text-zinc-100">
+            {totalQuestions.toLocaleString()} <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest not-italic ml-1">Toplam Soru</span>
           </p>
         </div>
         <div className="text-right">
-          <div className="text-lg font-mono font-bold text-emerald-400">{activeDays}</div>
-          <div className="text-[8px] uppercase font-black text-ink-muted tracking-widest">AKTİF GÜN</div>
+          <div className="text-2xl font-display italic font-bold text-emerald-400 leading-none">{activeDays}</div>
+          <div className="text-[8px] uppercase font-black text-zinc-500 tracking-widest mt-1">Aktif Gün</div>
         </div>
       </header>
 
-      <div className="flex gap-1.5 overflow-x-auto pb-4 custom-scrollbar">
+      <div className="flex gap-1.5 overflow-x-auto pb-4 no-scrollbar">
         {weeks.map((week, wIdx) => (
           <div key={wIdx} className="flex flex-col gap-1.5 shrink-0">
             {week.map((day, dIdx) => (
               <motion.div
                 key={day.date}
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: (wIdx * 0.01) + (dIdx * 0.005) }}
-                className={`w-3 h-3 rounded-[3px] border transition-all duration-500 hover:scale-125 hover:z-10 cursor-help ${levelColors[day.level]}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: (wIdx * 0.005) }}
+                className={`w-[11px] h-[11px] rounded-[3px] border transition-all duration-300 hover:scale-150 hover:z-10 cursor-help ${levelColors[day.level]}`}
                 title={`${day.date}: ${day.count} soru`}
               />
             ))}
@@ -105,19 +110,19 @@ export function StudyHeatmap() {
         ))}
       </div>
 
-      <footer className="flex items-center justify-between mt-4 border-t border-app pt-4">
+      <footer className="flex items-center justify-between mt-6 pt-6 border-t border-white/5">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-             <span className="text-[8px] font-black text-ink-muted uppercase tracking-widest">Az</span>
+          <div className="flex items-center gap-2">
+             <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Stabil</span>
              <div className="flex gap-1">
-                {levelColors.map((cls, i) => (
-                  <div key={i} className={`w-2 h-2 rounded-[2px] ${cls}`} />
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className={`w-2 h-2 rounded-[2px] ${levelColors[i]}`} />
                 ))}
              </div>
-             <span className="text-[8px] font-black text-ink-muted uppercase tracking-widest">Çok</span>
+             <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Yoğun</span>
           </div>
         </div>
-        <p className="text-[9px] font-mono text-ink-muted italic">Son 365 günün savaş raporu</p>
+        <p className="text-[10px] font-serif italic text-zinc-500">Son 365 günün gelişim haritası</p>
       </footer>
     </div>
   );

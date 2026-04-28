@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../../store/appStore';
 import { Clock, CheckCircle2, Calendar, AlertTriangle, BookOpen, Target, Activity, Brain, Zap, Trophy } from 'lucide-react';
@@ -10,6 +10,9 @@ import ReactMarkdown from 'react-markdown';
 import { EloRankCard } from '../EloRankCard';
 import { AchievementsPanel } from '../AchievementsPanel';
 import { StudyHeatmap } from '../StudyHeatmap';
+import { DailyQuestsWidget } from '../DailyQuestsWidget';
+import { GlobalLeaderboard } from '../GlobalLeaderboard';
+import { MilestoneCelebration } from '../MilestoneCelebration';
 
 import { YKS_TARGET_DATE_MAIN } from '../../config/examConfig';
 
@@ -63,6 +66,17 @@ export function BentoDashboard() {
 
   const [selectedTaskForLog, setSelectedTaskForLog] = useState<{ id: string, index: number, task: any } | null>(null);
   const [taskLogData, setTaskLogData] = useState({ correct: 0, wrong: 0, empty: 0, duration: 30 });
+  const [celebrationStreak, setCelebrationStreak] = useState<number | null>(null);
+  const streakDays = useAppStore(s => s.streakDays);
+
+  // Task 11: listen for milestone in store (lastMilestoneStreak set by academicSlice)
+  const lastMilestoneStreak = useAppStore(s => (s as any).lastMilestoneStreak as number | undefined);
+  useEffect(() => {
+    if (lastMilestoneStreak && lastMilestoneStreak !== celebrationStreak) {
+      setCelebrationStreak(lastMilestoneStreak);
+      useAppStore.setState({ lastMilestoneStreak: undefined } as any);
+    }
+  }, [lastMilestoneStreak, celebrationStreak]);
 
   const getAytSubjectsForTrack = (track: string) => {
     if (track === 'EA') return ['Matematik', 'Edebiyat', 'Tarih-1', 'Coğrafya-1'];
@@ -102,14 +116,14 @@ export function BentoDashboard() {
     triggerConfetti();
   };
 
-  const wp = calcWorkloadRemaining(tytSubjects, aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)), logs);
-  const todayStr = toISODateOnly();
-  const todayLogs = logs.filter(l => toISODateOnly(parseFlexibleDate(l.date)) === todayStr);
-  const todayHours = (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1);
-  const activeHabitAlerts = detectHabitAlerts(logs);
-
-  const completedMastery = tytSubjects.filter(s => s.status === 'mastered').length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject) && s.status === 'mastered').length;
-  const totalMastery = tytSubjects.length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)).length;
+  // Perf: memoize expensive computations
+  const wp = useMemo(() => calcWorkloadRemaining(tytSubjects, aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)), logs), [tytSubjects, aytSubjects, logs, profile?.track]);
+  const todayStr = useMemo(() => toISODateOnly(), []);
+  const todayLogs = useMemo(() => logs.filter(l => toISODateOnly(parseFlexibleDate(l.date)) === todayStr), [logs, todayStr]);
+  const todayHours = useMemo(() => (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1), [todayLogs]);
+  const activeHabitAlerts = useMemo(() => detectHabitAlerts(logs), [logs]);
+  const completedMastery = useMemo(() => tytSubjects.filter(s => s.status === 'mastered').length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject) && s.status === 'mastered').length, [tytSubjects, aytSubjects, profile?.track]);
+  const totalMastery = useMemo(() => tytSubjects.length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)).length, [tytSubjects, aytSubjects, profile?.track]);
 
   return (
     <motion.div
@@ -122,6 +136,20 @@ export function BentoDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <div className={`md:col-span-3 glass-card rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : ''}`}>
           <div className={`absolute inset-0 bg-gradient-to-br from-[#C17767]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 ${profile?.coachPersonality === 'hardcore' ? 'from-amber-500/20' : ''}`} />
+          
+          <div className="absolute top-6 right-6 flex items-center gap-3 bg-black/40 backdrop-blur-md rounded-full pr-5 pl-1.5 py-1.5 border border-white/10 z-20">
+            <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.3)]">
+              <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
+              <img src="/assets/coach/kubra_main.jpg" alt="Kübra" className="w-full h-full object-cover scale-110 img-protected" draggable={false} onDragStart={(e) => e.preventDefault()} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-100">KÜBRA</span>
+              <span className="text-[8px] font-bold uppercase tracking-widest text-green-400 flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Aktif
+              </span>
+            </div>
+          </div>
+
           <h2 className="font-display italic text-5xl text-zinc-100 mb-6 z-10">Hoş geldin, <span className={`${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}>{profile?.name}</span></h2>
           <div className="flex flex-col md:flex-row gap-6 text-sm font-medium z-10">
             <div className="flex-1">
@@ -269,6 +297,22 @@ export function BentoDashboard() {
       <div className="mb-20">
         <AchievementsPanel />
       </div>
+
+      {/* Task 9 & 12: Daily Quests + Global Leaderboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-20">
+        <DailyQuestsWidget />
+        <GlobalLeaderboard />
+      </div>
+
+      {/* Task 11: Milestone Celebration Overlay */}
+      <AnimatePresence>
+        {celebrationStreak && (
+          <MilestoneCelebration
+            streak={celebrationStreak}
+            onDismiss={() => setCelebrationStreak(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* MODAL */}
       <AnimatePresence>

@@ -1,92 +1,82 @@
-/**
- * AMAÇ: Başarımlar paneli (kilitli/kilit açıldı görünümü).
- * MANTIK: Store’daki `trophies` listesini kategorilere göre gruplar.
- */
-
 import React from 'react';
-import { Award, Flame, Star, Trophy as TrophyIcon, Target, Crown, Shield, List, CheckCircle2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
-import type { Trophy } from '../types';
+import { ACHIEVEMENTS } from '../data/achievementDefinitions';
+import { AchievementCard } from './ui/AchievementCard';
+import { AchievementCategory } from '../types';
 
-const ICONS: Record<string, React.ReactNode> = {
-  Award: <Award size={18} />,
-  Flame: <Flame size={18} />,
-  Star: <Star size={18} />,
-  Trophy: <TrophyIcon size={18} />,
-  Target: <Target size={18} />,
-  Crown: <Crown size={18} />,
-  Shield: <Shield size={18} />,
-  List: <List size={18} />,
-  CheckCircle2: <CheckCircle2 size={18} />,
-};
-
-const groupLabel = (k: Trophy['category']) => {
-  if (k === 'streak') return 'Seri';
-  if (k === 'performance') return 'Performans';
-  if (k === 'milestone') return 'Kilometre Taşı';
-  if (k === 'special') return 'Özel';
-  return 'Genel';
+const CATEGORY_LABELS: Record<AchievementCategory, string> = {
+  streak: 'Disiplin & Seri',
+  volume: 'Çalışma Hacmi',
+  performance: 'Performans & Hedef',
+  focus: 'Odak & Zaman',
+  hidden: 'Gizli & Efsanevi'
 };
 
 export function AchievementsPanel() {
-  const trophies = useAppStore(s => s.trophies);
-
-  const grouped = trophies.reduce<Record<string, Trophy[]>>((acc, t) => {
-    const key = t.category ?? 'special';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(t);
+  const userAchievements = useAppStore(s => s.userAchievements || []);
+  const storeState = useAppStore(); // Getting the whole state for progress calculation
+  
+  // Group achievements by category
+  const grouped = ACHIEVEMENTS.reduce((acc, ach) => {
+    if (!acc[ach.category]) acc[ach.category] = [];
+    acc[ach.category].push(ach);
     return acc;
-  }, {});
-
-  const keys = Object.keys(grouped);
-  if (keys.length === 0) return null;
+  }, {} as Record<AchievementCategory, typeof ACHIEVEMENTS>);
 
   return (
-    <section className="border border-app rounded-xl bg-surface p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-5 border-b border-app pb-3">
-        <h3 className="font-serif text-xl uppercase tracking-tight text-accent font-black">Başarımlar</h3>
-        <span className="text-[10px] uppercase tracking-widest text-ink-muted font-black">
-          Açılan: {trophies.filter(t => !!t.unlockedAt).length}/{trophies.length}
+    <section className="bg-surface rounded-3xl p-6 border border-app shadow-sm">
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-app">
+        <h3 className="font-display text-2xl uppercase tracking-tight text-accent font-black">Başarımlar & Kariyer</h3>
+        <span className="text-xs uppercase tracking-widest text-ink-muted font-black bg-surface-2 px-4 py-2 rounded-xl">
+          Açılan: {userAchievements.length} / {ACHIEVEMENTS.length}
         </span>
       </div>
 
-      <div className="space-y-6">
-        {keys.map((k) => (
-          <div key={k}>
-            <div className="text-[10px] uppercase tracking-widest font-black text-ink-muted mb-3 opacity-60">
-              {groupLabel(k as any)}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-              {grouped[k]
-                .slice()
-                .sort((a, b) => Number(!!b.unlockedAt) - Number(!!a.unlockedAt))
-                .map((t) => {
-                  const unlocked = !!t.unlockedAt;
+      <div className="space-y-12">
+        {Object.entries(grouped).map(([category, achs]) => {
+          // Sort achievements: Unlocked first, then by tier, then hidden last
+          const sorted = [...achs].sort((a, b) => {
+            const aUnlocked = userAchievements.find(ua => ua.id === a.id);
+            const bUnlocked = userAchievements.find(ua => ua.id === b.id);
+            if (aUnlocked && !bUnlocked) return -1;
+            if (!aUnlocked && bUnlocked) return 1;
+            return 0; // Simple sort for now, can be expanded
+          });
+
+          return (
+            <div key={category}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-1 flex-1 bg-gradient-to-r from-transparent to-app rounded-full opacity-50" />
+                <h4 className="text-[10px] uppercase tracking-widest font-black text-ink-muted opacity-80">
+                  {CATEGORY_LABELS[category as AchievementCategory]}
+                </h4>
+                <div className="h-1 flex-1 bg-gradient-to-l from-transparent to-app rounded-full opacity-50" />
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {sorted.map(ach => {
+                  const ua = userAchievements.find(u => u.id === ach.id);
+                  let progress = { current: 0, target: 1 };
+                  try {
+                    progress = ach.calculateProgress(storeState);
+                  } catch (e) {
+                    console.error("Progress calc error", e);
+                  }
+
                   return (
-                    <div
-                      key={t.id}
-                      className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${unlocked ? 'border-green-500/20 bg-green-500/5' : 'border-app bg-surface-2 opacity-70'}`}
-                    >
-                      <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border transition-all ${unlocked ? 'border-green-500/20 bg-green-500/10 text-green-600' : 'border-app bg-surface text-accent'}`}>
-                        {ICONS[t.icon] ?? <TrophyIcon size={18} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="font-black text-sm text-ink leading-tight truncate uppercase tracking-tight">{t.title}</div>
-                          <div className="text-[9px] uppercase tracking-widest text-ink-muted shrink-0 font-black">
-                            {unlocked ? new Date(t.unlockedAt!).toLocaleDateString('tr-TR') : 'KİLİTLİ'}
-                          </div>
-                        </div>
-                        <div className="text-[11px] mt-1 text-ink-muted leading-relaxed font-medium">{t.description}</div>
-                      </div>
-                    </div>
+                    <AchievementCard 
+                      key={ach.id} 
+                      achievement={ach} 
+                      userAchievement={ua}
+                      progress={progress}
+                    />
                   );
                 })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
 }
-

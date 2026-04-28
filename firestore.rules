@@ -13,19 +13,18 @@ service cloud.firestore {
     
     function isSuperAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == 'senerkadiralper@gmail.com' ||
-        request.auth.token.email == 'kadiralper0340@gmail.com' ||
+        request.auth.token.superAdmin == true ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
       );
     }
 
     match /users/{userId} {
-      // Profil
-      allow get: if isOwner(userId) || isSuperAdmin();
-      allow list: if isSuperAdmin();
+      // Profil: Liderlik tablosu için herkes (giriş yapmış) okuyabilir.
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isSuperAdmin();
+      allow update: if (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) || isSuperAdmin();
       allow delete: if isSuperAdmin();
       
       // -- Alt Koleksiyonlar (Subcollections) --

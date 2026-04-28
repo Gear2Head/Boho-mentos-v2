@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BrainCircuit, Calendar, Map as MapIcon, Target, BookOpen, PenTool, List, LayoutList, Archive, Clock, Settings, Eye, EyeOff, CloudOff, RefreshCcw, Pin, Trophy, AlertTriangle, Menu, LogOut } from 'lucide-react';
+import { LayoutDashboard, BrainCircuit, Calendar, Map as MapIcon, Target, BookOpen, PenTool, List, LayoutList, Archive, Clock, Settings, Eye, EyeOff, CloudOff, RefreshCcw, Pin, Trophy, AlertTriangle, Menu, LogOut, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-import { useAppSelectors } from '../../store/selectors';
+import { useAppStore } from '../../store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { isSuperAdmin } from '../../config/admin';
 import { confirmDialog } from '../../contexts/ToastContext';
 
 import { NavItem } from '../NavItem';
 import { NotificationCenter } from '../NotificationCenter';
 import { NetworkBanner } from '../NetworkBanner';
-import { SpotifyWidget } from '../SpotifyWidget';
+import { CompactSpotify as SpotifyWidget } from '../ui/CompactSpotify';
 import { MobileMenuModal } from './MobileMenuModal';
+import { CelebrationPortal } from '../CelebrationPortal';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, mobileVisible: true, desktopVisible: true },
@@ -33,16 +35,12 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const activeTab = location.pathname === '/' ? 'dashboard' : location.pathname.substring(1);
 
-  const { 
-    user, 
-    signOut, 
-    profile, 
-    isPassiveMode,
-    isSyncing,
-    notifications,
-    isZenMode,
-    setZenMode
-  } = useAppSelectors();
+  const { profile } = useAppStore(useShallow(s => ({ profile: s.profile })));
+  const { user, signOut } = useAppStore(useShallow(s => ({ user: s.authUser, signOut: s.signOut })));
+  const { isSyncing, isZenMode, setZenMode } = useAppStore(useShallow(s => ({ isSyncing: s.isSyncing, isZenMode: s.isZenMode, setZenMode: s.setZenMode })));
+  const { isPassiveMode } = useAppStore(useShallow(s => ({ isPassiveMode: s.isPassiveMode })));
+  const notifications = useAppStore(s => s.notifications);
+
 
   const syncStatus = 'synced' as string; // Type-safe placeholder
   const storeForceSync = () => console.log('Sync forced');
@@ -80,6 +78,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const isCurrentlySyncing = isSyncing;
   const syncButtonTitle = syncStatus === 'offline' ? 'Çevrimdışı' : isCurrentlySyncing ? 'Eşitleniyor...' : 'Eşitlendi';
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isDMPanelOpen, setIsDMPanelOpen] = useState(false);
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
@@ -93,6 +92,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setIsDMPanelOpen(true)} className="p-2 text-zinc-500">
+             <MessageCircle size={18} />
+          </button>
           <button onClick={() => storeForceSync()} disabled={isCurrentlySyncing} className="p-2 text-zinc-500">
              {syncStatus === 'offline' ? <CloudOff size={18} /> : <RefreshCcw size={18} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
           </button>
@@ -205,37 +207,53 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <div className="hidden md:flex flex-col border-t border-app p-3">
-          {isSuperAdmin(user?.uid, user?.email) && isSidebarExpanded && (
+        <div className="hidden md:flex flex-col border-t border-app p-2 space-y-1">
+          {(isSuperAdmin(user?.uid, user?.email) || (profile as any)?.role === 'super_admin' || localStorage.getItem('boho_debug_admin') === 'Gear9150') && isSidebarExpanded && (
             <button
               onClick={() => navigate('/admin_dashboard')}
-              className="w-full flex items-center gap-3 p-2 text-[10px] font-bold uppercase tracking-widest text-[#C17767] hover:bg-[#C17767]/5 rounded-xl transition-all mb-1"
+              className="w-full flex items-center gap-3 p-2 text-[10px] font-black uppercase tracking-widest text-[#C17767] hover:bg-[#C17767]/10 rounded-xl transition-all group"
             >
-              <span className="w-5 h-5 flex items-center justify-center">⬡</span>
+              <div className="w-8 h-8 rounded-lg bg-[#C17767]/10 flex items-center justify-center group-hover:scale-110 transition-transform text-lg leading-none">⬡</div>
               <span>ADMIN PANEL</span>
             </button>
           )}
-          <button
-            onClick={() => setZenMode(!isZenMode)}
-            className={`flex items-center gap-3 p-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:bg-white/5 rounded-xl transition-all mb-1 ${!isSidebarExpanded ? 'justify-center' : ''}`}
-            title="Zen Modu (Odaklan)"
-          >
-            <div className="w-5 h-5 flex items-center justify-center">
-              {isZenMode ? <Eye size={16} /> : <EyeOff size={16} />}
-            </div>
-            {isSidebarExpanded && <span>ZEN MODU</span>}
-          </button>
+          
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              onClick={() => setIsDMPanelOpen(true)}
+              className="flex flex-col items-center justify-center p-2 rounded-xl hover:bg-white/5 transition-all text-zinc-500 hover:text-white"
+              title="Mesajlar"
+            >
+              <MessageCircle size={18} />
+              {isSidebarExpanded && <span className="text-[7px] mt-1 font-black uppercase tracking-widest">Mesaj</span>}
+            </button>
+
+            <button
+              onClick={() => setZenMode(!isZenMode)}
+              className="flex flex-col items-center justify-center p-2 rounded-xl hover:bg-white/5 transition-all text-zinc-500 hover:text-white"
+              title="Zen Modu"
+            >
+              {isZenMode ? <Eye size={18} className="text-[#C17767]" /> : <EyeOff size={18} />}
+              {isSidebarExpanded && <span className="text-[7px] mt-1 font-black uppercase tracking-widest">Zen</span>}
+            </button>
+          </div>
 
           <button
             onClick={async () => { if (await confirmDialog('Çıkış yapmak istediğine emin misin?')) signOut(); }}
-            className={`flex items-center gap-3 p-2 text-[10px] font-bold uppercase tracking-widest text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all ${!isSidebarExpanded ? 'justify-center' : ''}`}
+            className={`flex items-center gap-3 p-2 text-[10px] font-black uppercase tracking-widest text-rose-500/60 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all ${!isSidebarExpanded ? 'justify-center' : ''}`}
             title="Çıkış Yap"
           >
-            <div className="w-5 h-5 flex items-center justify-center">
-              <LogOut size={16} />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+               <LogOut size={16} />
             </div>
             {isSidebarExpanded && <span>ÇIKIŞ YAP</span>}
           </button>
+
+          {isSidebarExpanded && (
+            <div className="mt-2 pt-2 border-t border-app">
+               <SpotifyWidget />
+            </div>
+          )}
         </div>
       </motion.nav>
 
@@ -265,8 +283,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         onSignOut={signOut}
       />
       <NotificationCenter isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+      <AnimatePresence>
+        {isDMPanelOpen && <DMPanel onClose={() => setIsDMPanelOpen(false)} />}
+      </AnimatePresence>
       <NetworkBanner />
-      <SpotifyWidget />
+      <CelebrationPortal />
     </div>
   );
 }
+
+import { DMPanel } from '../DMPanel';

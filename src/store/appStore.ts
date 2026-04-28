@@ -3,6 +3,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { openDB } from 'idb';
 import { toISODateOnly, toISODateTime, toDateMs } from '../utils/date';
 import { DailyLog, HabitAlert } from '../types';
+import { encrypt, decrypt } from '../utils/encryption';
 
 import { AuthSlice, createAuthSlice } from './slices/authSlice';
 import { ProfileSlice, createProfileSlice } from './slices/profileSlice';
@@ -11,12 +12,13 @@ import { SocialSlice, createSocialSlice } from './slices/socialSlice';
 import { WarRoomSlice, createWarRoomSlice } from './slices/warRoomSlice';
 import { CoachSlice, createCoachSlice } from './slices/coachSlice';
 import { UISlice, createUISlice } from './slices/uiSlice';
+import { AchievementSlice, createAchievementSlice } from './slices/achievementSlice';
 import { SubjectStatus } from '../types';
 
 export const COACH_NAME = 'Kübra';
 export const COACH_SYSTEM_NAME = 'kübra_v2';
 
-export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & WarRoomSlice & CoachSlice & UISlice & {
+export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & WarRoomSlice & CoachSlice & UISlice & AchievementSlice & {
   lastLocalUpdateAt: string;
   hardReset: (scope?: 'full' | 'ui' | 'all-data') => void;
   addTargetGoal: (goal: import('../types').AtlasProgram) => void;
@@ -40,9 +42,18 @@ const getDb = () => {
 };
 
 const idbStorage: StateStorage = {
-  getItem: async (name) => (await (await getDb()).get('keyval', name)) || null,
-  setItem: async (name, value) => { await (await getDb()).put('keyval', value, name); },
-  removeItem: async (name) => { await (await getDb()).delete('keyval', name); },
+  getItem: async (name) => {
+    const raw = await (await getDb()).get('keyval', name);
+    if (!raw) return null;
+    return decrypt(raw);
+  },
+  setItem: async (name, value) => {
+    const encrypted = encrypt(value);
+    await (await getDb()).put('keyval', encrypted, name);
+  },
+  removeItem: async (name) => {
+    await (await getDb()).delete('keyval', name);
+  },
 };
 
 // Habit Detection Logic
@@ -92,6 +103,7 @@ export const useAppStore = create<AppState>()(
       ...createWarRoomSlice(set, get, api),
       ...createCoachSlice(set, get, api),
       ...createUISlice(set, get, api),
+      ...createAchievementSlice(set, get),
 
       lastLocalUpdateAt: toISODateTime(),
 

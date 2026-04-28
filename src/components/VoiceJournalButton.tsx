@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { motion, AnimatePresence } from 'motion/react';
+import { detectSentiment } from '../utils/sentiment';
+import { parseVoiceLog } from '../services/gemini';
 
 // Extend Window interface for SpeechRecognition
 declare global {
@@ -77,41 +79,32 @@ export function VoiceJournalButton() {
 
   const processVoiceLog = async (text: string) => {
     setIsProcessing(true);
+    
+    // Task 6: detect sentiment from voice transcript
+    const sentiment = detectSentiment(text);
+    useAppStore.getState().setLastVoiceSentiment(sentiment);
+    
     try {
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'parseVoiceLog',
-          transcript: text,
-        }),
-      });
-
-      if (!response.ok) throw new Error('AI Server Error');
-      
-      const result = await response.json();
-      if (result.data && result.data.subject) {
-        // Log the session via AppStore
+      const data = await parseVoiceLog(text);
+      if (data && data.subject) {
         useAppStore.getState().addLog({
           id: Date.now().toString(),
           date: new Date().toISOString(),
-          subject: result.data.subject,
-          topic: result.data.topic || 'Genel',
-          durationMinutes: result.data.avgTime || 30,
-          questionCount: result.data.questions || 10,
-          correctCount: result.data.correct || 0,
-          wrongCount: result.data.wrong || 0,
-          emptyCount: result.data.empty || 0,
-          notes: `Sesli Kayıt: "${text.substring(0, 50)}..."\nAI Önerisi: ${result.data.coachAdvice || ''}`,
-          difficulty: 'medium',
-          type: 'study',
+          subject: (data.subject as string) || 'Genel',
+          topic: (data.topic as string) || 'Sesli Not',
+          questions: (data.questions as number) || 10,
+          correct: (data.correct as number) || 0,
+          wrong: (data.wrong as number) || 0,
+          empty: (data.empty as number) || 0,
+          avgTime: (data.avgTime as number) || 30,
+          fatigue: 3,
+          notes: `🎤 Sesli Kayıt: "${text.substring(0, 100)}..."\nAI Analizi: ${data.coachAdvice || 'Tamamlandı.'}`,
         });
       } else {
-         alert("Ses analizi başarısız oldu. Anlaşılır konuşmayı dene.");
+        console.warn("Ses analizi ders verisi içermiyor.");
       }
     } catch (err) {
-      console.error(err);
-      alert("Yapay zeka sesini işleyemedi.");
+      console.error("Voice processing error:", err);
     } finally {
       setIsProcessing(false);
       setTranscript('');

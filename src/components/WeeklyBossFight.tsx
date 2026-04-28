@@ -38,6 +38,7 @@ export function WeeklyBossFight() {
   const [analysis, setAnalysis] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [bossDefeated, setBossDefeated] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
 
   const { start, end } = getWeekBounds();
 
@@ -126,22 +127,38 @@ export function WeeklyBossFight() {
   };
 
   return (
-    <div className="glass-card p-6 rounded-3xl relative overflow-hidden">
-      <div className="absolute -left-10 -top-10 w-40 h-40 bg-red-500/5 blur-3xl rounded-full" />
+    <div className={`glass-card p-6 rounded-[32px] relative overflow-hidden transition-all duration-500 ${isShaking ? 'animate-shake scale-[1.02]' : ''} ${boss && !bossDefeated ? 'border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.1)]' : 'border-app'}`}>
+      <div className={`absolute inset-0 bg-gradient-to-br from-red-600/10 via-transparent to-transparent pointer-events-none transition-opacity duration-1000 ${boss && !bossDefeated ? 'opacity-100' : 'opacity-0'}`} />
+      
+      {/* Scanline Effect */}
+      {boss && !bossDefeated && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20">
+          <div className="w-full h-1 bg-red-500/50 shadow-[0_0_15px_red] animate-[sync-progress_2s_linear_infinite]" />
+        </div>
+      )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-red-500/10 rounded-xl text-red-500">
-            <Swords size={20} />
-          </div>
+      <div className="flex items-center justify-between mb-8 relative z-10">
+        <div className="flex items-center gap-4">
+          <motion.div 
+            animate={boss && !bossDefeated ? { scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] } : {}}
+            transition={{ repeat: Infinity, duration: 2 }}
+            className="p-3 bg-red-500/20 rounded-2xl text-red-500 border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+          >
+            <Swords size={24} />
+          </motion.div>
           <div>
-            <span className="text-[10px] uppercase tracking-widest font-black text-red-500">Haftalık Boss Fight</span>
-            <p className="text-[9px] text-zinc-500 tracking-wider">
+            <h3 className="text-xl font-display italic font-black text-white leading-none tracking-tight">HAFTALIK BOSS FIGHT</h3>
+            <p className="text-[10px] text-zinc-500 tracking-[0.2em] mt-1 font-black uppercase">
               {start.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })} – {end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
             </p>
           </div>
         </div>
+        {boss && !bossDefeated && (
+          <div className="px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full">
+            <span className="text-[10px] font-black text-red-500 animate-pulse uppercase tracking-widest">TEHLİKE: YÜKSEK</span>
+          </div>
+        )}
       </div>
 
       {/* Weekly Stats Bar */}
@@ -165,37 +182,71 @@ export function WeeklyBossFight() {
         {boss ? (
           <AnimatePresence>
             {!bossDefeated ? (
-              <motion.div key="boss" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-[#121212] border border-red-900/30 p-5 rounded-2xl">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl">{boss.icon}</span>
+              <motion.div 
+                key="boss" 
+                initial={{ opacity: 0, scale: 0.9 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                className="bg-[#0A0A0C] border-2 border-red-900/40 p-6 rounded-[28px] shadow-2xl relative group overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-red-500/[0.02] group-hover:bg-red-500/[0.04] transition-colors pointer-events-none" />
+                
+                <div className="flex items-center justify-between mb-4 relative z-10">
+                  <div className="flex items-center gap-4">
+                    <motion.span 
+                      animate={{ y: [0, -5, 0], scale: [1, 1.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 3 }}
+                      className="text-5xl drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+                    >
+                      {boss.icon}
+                    </motion.span>
                     <div>
-                      <h4 className="font-bold text-red-400">{boss.name}</h4>
-                      <p className="text-[10px] text-zinc-500">{boss.subject} — Canavar Zayıflık: Düşük doğruluk</p>
+                      <h4 className="text-2xl font-display italic font-black text-red-500 tracking-tight">{boss.name.toUpperCase()}</h4>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{boss.subject} · ELEMENTAL ZAYIFLIK: DOĞRULUK</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-2xl font-bold font-mono text-red-500">{boss.hp}</span>
-                    <span className="text-xs text-zinc-500">/{boss.maxHp} HP</span>
+                    <div className="flex items-baseline gap-1 justify-end">
+                      <span className="text-4xl font-display italic font-black text-white">{boss.hp}</span>
+                      <span className="text-xs font-bold text-zinc-600">/{boss.maxHp} HP</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="h-2 bg-zinc-900 rounded-full overflow-hidden">
+ 
+                <div className="h-3 bg-zinc-900 rounded-full overflow-hidden border border-white/5 p-0.5">
                   <motion.div
                     initial={{ width: '100%' }}
                     animate={{ width: `${boss.hp}%` }}
                     transition={{ duration: 1.5, ease: 'easeOut' }}
-                    className={`h-full ${boss.hp > 60 ? 'bg-red-600' : boss.hp > 30 ? 'bg-amber-500' : 'bg-green-500'}`}
+                    className={`h-full rounded-full shadow-[0_0_15px] ${
+                      boss.hp > 60 ? 'bg-red-600 shadow-red-600/50' : 
+                      boss.hp > 30 ? 'bg-amber-500 shadow-amber-500/50' : 
+                      'bg-emerald-500 shadow-emerald-500/50'
+                    }`}
                   />
                 </div>
-                <p className="text-[9px] text-zinc-500 mt-1">Canavar HP'si doğruluk oranının tersi. Daha çok doğru yap, bossu yık!</p>
+                
+                <div className="mt-4 flex justify-between items-center text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">
+                   <span>DİRENİŞ: KRİTİK</span>
+                   <span>ÖDÜL: {boss.hp > 50 ? 'LEGENDARY LOOT' : 'BASIC LOOT'}</span>
+                </div>
               </motion.div>
             ) : (
-              <motion.div key="defeated" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                className="bg-green-950/20 border border-green-500/30 p-5 rounded-2xl text-center">
-                <Trophy size={32} className="mx-auto text-yellow-500 mb-3" />
-                <h4 className="font-bold text-green-400 text-lg">Boss Yenildi!</h4>
-                <p className="text-xs text-zinc-400">Bu haftaki canavar alt edildi. Gelecek hafta daha güçlüsü bekliyor.</p>
+              <motion.div 
+                key="defeated" 
+                initial={{ opacity: 0, scale: 0.8, rotate: -5 }} 
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                className="bg-emerald-500/10 border-2 border-emerald-500/30 p-8 rounded-[32px] text-center shadow-[0_0_40px_rgba(16,185,129,0.1)]"
+              >
+                <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/30">
+                  <Trophy size={40} className="text-emerald-400" />
+                </div>
+                <h4 className="font-display italic font-black text-emerald-400 text-3xl mb-2">BOSS YERLE BİR!</h4>
+                <p className="text-xs text-emerald-500/60 font-bold uppercase tracking-widest">Bu haftaki kabusun sona erdi. Ganimetler toplandı.</p>
+                
+                <div className="mt-6 flex justify-center gap-3">
+                   <div className="px-3 py-1.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-[10px] font-black text-emerald-400">+500 ELO</div>
+                   <div className="px-3 py-1.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-[10px] font-black text-emerald-400">EPIC BADGE</div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

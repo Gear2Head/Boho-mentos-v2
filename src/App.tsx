@@ -10,6 +10,11 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
+import { processSpotifyCallback } from './services/spotifyService';
+import { ExamListWidget } from './components/dashboard/ExamListWidget';
+import { StrategyAdvisor } from './components/coaching/StrategyAdvisor';
+
+
 import { uploadImageFile } from './services/storageService';
 import MobileMenuModal from './components/layout/MobileMenuModal';
 import { MainLayout } from './components/layout/MainLayout';
@@ -77,6 +82,8 @@ import { MaintenanceBlocker } from './components/MaintenanceBlocker';
 import { ToastProvider, toast, confirmDialog } from './contexts/ToastContext';
 import { isSameLocalDay, parseFlexibleDate, toISODateOnly } from './utils/date';
 import { BentoDashboard } from './components/dashboard/BentoDashboard';
+import { ThemeStudio } from './components/ThemeStudio';
+import { useAchievementMonitor } from './hooks/useAchievementMonitor';
 
 // --- Helper ---
 
@@ -94,8 +101,7 @@ const getAytSubjectsForTrack = (track: string) => {
 };
 
 // --- Sub Components ---
-
-import { processSpotifyCallback } from './services/spotifyService';
+// Sub component imports moved to top
 
 function SpotifyCallback() {
   const navigate = useNavigate();
@@ -171,15 +177,25 @@ export default function App() {
   const chatInitializedRef = useRef(false);
 
   // --- EFFECTS ---
+  useAchievementMonitor();
+
   useEffect(() => {
     if (!hasHydrated) {
       const timer = setTimeout(() => {
         setHasHydrated(true);
         migrateLegacyChat();
+        const store = useAppStore.getState();
+        if (typeof store.evaluateAllAchievements === 'function') {
+          store.evaluateAllAchievements();
+        }
       }, 3000);
       return () => clearTimeout(timer);
     } else {
       migrateLegacyChat();
+      const store = useAppStore.getState();
+      if (typeof store.evaluateAllAchievements === 'function') {
+        store.evaluateAllAchievements();
+      }
     }
   }, [hasHydrated, setHasHydrated, migrateLegacyChat]);
 
@@ -191,6 +207,15 @@ export default function App() {
 
   useEffect(() => {
     setIsMounted(true);
+    
+    // IMAGE PROTECTION: Prevent context menu on all images
+    const handleContextMenu = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).tagName === 'IMG') {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    return () => document.removeEventListener('contextmenu', handleContextMenu);
   }, []);
 
   useEffect(() => {
@@ -564,27 +589,19 @@ export default function App() {
                     <Plus size={14} /> YENİ DENEME
                   </button>
                 </header>
-                <div className="grid grid-cols-1 gap-4">
-                  {exams.length === 0 ? (
-                    <div className="text-center py-20 opacity-30 italic">Henüz deneme kaydı girmedin.</div>
-                  ) : (
-                    exams.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(exam => (
-                      <button key={exam.id} onClick={() => setSelectedExam(exam)} className="p-6 bg-white dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl flex justify-between items-center group hover:border-[#C17767]/50 transition-all shadow-sm">
-                        <div className="flex gap-4 items-center">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold font-display text-lg ${exam.type === 'TYT' ? 'bg-blue-500/10 text-blue-500' : 'bg-[#E09F3E]/10 text-[#E09F3E]'}`}>{exam.type}</div>
-                          <div className="text-left">
-                            <h4 className="font-bold text-[#4A443C] dark:text-zinc-200">{new Date(exam.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</h4>
-                            <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">{exam.source || 'MANUEL GİRİŞ'}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-3xl font-display font-bold text-[#C17767]">{exam.totalNet}</span>
-                          <span className="text-[10px] opacity-40 ml-1 font-bold uppercase tracking-widest">NET</span>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
+                <ExamListWidget onSelect={setSelectedExam} />
+              </motion.div>
+            </div>
+          } />
+
+          <Route path="/strategy" element={
+            <div className={scrollCls}>
+              <motion.div key="strategy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
+                <header>
+                  <h2 className="font-display italic text-3xl text-[#C17767]">Savaş Stratejisi</h2>
+                  <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Hedefine giden en kısa yolu planla</p>
+                </header>
+                <StrategyAdvisor />
               </motion.div>
             </div>
           } />
@@ -683,6 +700,10 @@ export default function App() {
                 <div className="mt-8">
                   <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Veri Entegrasyonu</h3>
                   <DataIntegrationPanel />
+                </div>
+                <div className="mt-8">
+                  <h3 className="font-display italic text-2xl mb-4 text-[#C17767]">Theme Studio</h3>
+                  <ThemeStudio />
                 </div>
               </motion.div>
             </div>

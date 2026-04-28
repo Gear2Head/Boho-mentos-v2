@@ -38,8 +38,9 @@ export function AuthGate() {
 
       <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-[#C17767]/20 bg-[#C17767]/10">
-            <span className="font-serif text-3xl italic font-bold text-[#C17767]">B</span>
+          <div className="mb-6 inline-flex h-24 w-auto items-center justify-center relative">
+            <div className="absolute inset-0 bg-[#C17767]/20 blur-2xl rounded-full scale-75" />
+            <img src="/logo.png" alt="Boho Mentos" className="h-full w-auto object-contain relative z-10 drop-shadow-[0_0_20px_rgba(193,119,103,0.4)]" />
           </div>
           <h1 className="mb-1 font-serif text-3xl italic text-zinc-100">Boho Mentosluk</h1>
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-zinc-500">YKS Akademik OS</p>
@@ -73,7 +74,7 @@ export function AuthGate() {
           <button
             onClick={signInWithGoogle}
             disabled={isLoading}
-            className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-white py-3.5 text-sm font-bold text-zinc-900 transition-all hover:bg-zinc-100 disabled:opacity-50"
+            className="mb-6 flex w-full items-center justify-center gap-3 rounded-xl bg-white py-3.5 text-sm font-bold text-zinc-900 transition-all hover:bg-zinc-100 disabled:opacity-50"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" xmlns="http://www.w3.org/2000/svg">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -82,28 +83,6 @@ export function AuthGate() {
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
             </svg>
             Google ile {mode === 'register' ? 'Kayit Ol' : 'Giris Yap'}
-          </button>
-
-          <button
-            onClick={() => window.location.href = 'https://giris.turkiye.gov.tr/Giris/gir'}
-            disabled={isLoading}
-            className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-[#cc1d24] py-3 text-sm font-bold text-white transition-all hover:bg-[#b0181e] disabled:opacity-50 shadow-lg shadow-red-900/20 px-6 border border-white/10"
-          >
-            <div className="bg-white p-1 rounded-md">
-                   <img src="/edevlet-logo.png" alt="e-Devlet" className="h-6 w-auto object-contain" />
-            </div>
-            <span>E-Devlet ile {mode === 'register' ? 'Kayıt Ol' : 'Giriş Yap'}</span>
-          </button>
-
-          <button
-            onClick={signInWithSpotify}
-            disabled={isLoading}
-            className="mb-4 flex w-full items-center justify-center gap-3 rounded-xl bg-[#1DB954] py-3 text-sm font-bold text-white transition-all hover:bg-[#1ed760] disabled:opacity-50 shadow-lg shadow-green-900/20 px-6 border border-white/10"
-          >
-            <div className="bg-white p-1 rounded-md">
-                   <Music className="h-5 w-auto text-[#1DB954]" />
-            </div>
-            <span>Spotify ile {mode === 'register' ? 'Kayıt Ol' : 'Giriş Yap'}</span>
           </button>
 
           <div className="mb-4 flex items-center gap-3">

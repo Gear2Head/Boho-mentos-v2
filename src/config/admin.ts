@@ -27,7 +27,6 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
  * Tek güvenilir yetki kaynağı budur.
  */
 export function isSuperAdminClaims(claims: Record<string, unknown> | undefined | null, email?: string | null): boolean {
-  if (email === 'senerkadiralper@gmail.com' || email === 'kadiralper0340@mail.com') return true;
   return claims?.superAdmin === true;
 }
 
@@ -37,11 +36,6 @@ export function isSuperAdminClaims(claims: Record<string, unknown> | undefined |
  * Bu fonksiyon artık her zaman false döner — hardcoded UID kaldırıldı.
  */
 export function isSuperAdmin(uid?: string | null, email?: string | null): boolean {
-  // FALSEFIX-005 bypass: Geliştirici (Kadir) için acil durum erişimi.
-  // Gerçek ortamda Claims kullanılır, ancak login olamayan veya yetkisi bekleyen geliştiriciyi engellemez.
-  if (email === 'senerkadiralper@gmail.com' || email === 'kadiralper0340@gmail.com') return true;
-
-  // Custom Claims kontrolü (Sadece UID ile değil, claims ile yapılmalı ama isSuperAdmin API'sini korumak için buraya ekliyoruz)
   return false;
 }
 

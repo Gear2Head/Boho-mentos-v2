@@ -3,6 +3,7 @@ import { Trophy, Star, Shield, Medal, Target, Crown } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { toISODateOnly } from '../utils/date';
 import { motion } from 'motion/react';
+import { getLevelFromElo, SKIN_CLASSES } from '../utils/leveling';
 
 export type RankTitle = 'Bronz' | 'Gümüş' | 'Altın' | 'Platin' | 'Elmas' | 'Usta' | 'Şampiyon';
 
@@ -119,6 +120,38 @@ export function EloRankCard() {
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {/* Level Badge — Task 10 */}
+      {(() => {
+        const lvl = getLevelFromElo(eloScore);
+        return (
+          <div className="flex items-center justify-between p-3 bg-white/[0.02] rounded-xl border border-white/5">
+            <div className="flex items-center gap-2">
+              <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest text-white`}
+                style={{ background: lvl.skin === 'legendary' ? 'linear-gradient(135deg,#f59e0b,#ef4444)' :
+                  lvl.skin === 'obsidian' ? 'linear-gradient(135deg,#6b7280,#374151)' :
+                  lvl.skin === 'crimson' ? 'linear-gradient(135deg,#ef4444,#dc2626)' :
+                  lvl.skin === 'gold' ? 'linear-gradient(135deg,#f59e0b,#d97706)' :
+                  lvl.skin === 'silver' ? 'linear-gradient(135deg,#9ca3af,#6b7280)' :
+                  '#C17767' }}>
+                Lvl {lvl.level}
+              </div>
+              <span className="text-xs font-bold text-zinc-300">{lvl.title}</span>
+            </div>
+            <div className="flex-1 mx-3">
+              <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-[#C17767]"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${lvl.progressPercent}%` }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+            <span className="text-[9px] text-zinc-500 font-mono">{lvl.xpCurrent}/{lvl.xpRequired} XP</span>
+          </div>
+        );
+      })()}
 
       <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest">
         <p className="text-zinc-500">

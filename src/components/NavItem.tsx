@@ -25,7 +25,7 @@ export const NavItem: React.FC<NavItemProps> = React.memo(({ icon, label, active
     {active && (
       <motion.div 
         layoutId="active-indicator"
-        className="absolute left-0 top-3 bottom-3 w-1 bg-[#C17767] rounded-r-full" 
+        className="absolute left-0 top-2 bottom-2 w-1 bg-[#C17767] rounded-r-full shadow-[0_0_15px_rgba(193,119,103,0.8)]" 
       />
     )}
 
