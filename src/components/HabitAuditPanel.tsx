@@ -39,25 +39,26 @@ export function HabitAuditPanel() {
         </div>
       ) : (
         <div className="space-y-4">
-          {alerts.map((alert) => (
+          {alerts.map((alert, idx) => (
             <motion.div
-              key={alert.id}
+              key={idx}
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              className={`p-5 rounded-2xl border flex gap-4 ${alert.severity === 'high'
+              className={`p-5 rounded-2xl border flex gap-4 ${alert.type === 'danger'
                   ? 'bg-red-500/5 border-red-500/20 text-red-400'
-                  : 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400'
+                  : alert.type === 'warning' ? 'bg-yellow-500/5 border-yellow-500/20 text-yellow-400' : 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
                 }`}
             >
-              <div className={`p-2 rounded-xl shrink-0 h-fit ${alert.severity === 'high' ? 'bg-red-500/20' : 'bg-yellow-500/20'
+              <div className={`p-2 rounded-xl shrink-0 h-fit ${alert.type === 'danger' ? 'bg-red-500/20' : alert.type === 'warning' ? 'bg-yellow-500/20' : 'bg-emerald-500/20'
                 }`}>
                 <AlertTriangle size={20} />
               </div>
               <div>
                 <h4 className="text-sm font-bold uppercase tracking-wide mb-1">
-                  {alert.severity === 'high' ? 'Kritik Müdahale' : 'Dikkat Kayması'}
+                  {alert.title}
                 </h4>
-                <p className="text-xs leading-relaxed text-zinc-300 italic">{alert.message}</p>
+                <p className="text-xs leading-relaxed text-zinc-300 italic">{alert.description}</p>
+                <div className="mt-2 text-[8px] font-black tracking-widest opacity-40">ETKİ: {alert.impact}</div>
               </div>
             </motion.div>
           ))}

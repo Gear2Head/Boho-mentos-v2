@@ -13,6 +13,8 @@ import { StudyHeatmap } from '../StudyHeatmap';
 import { DailyQuestsWidget } from '../DailyQuestsWidget';
 import { GlobalLeaderboard } from '../GlobalLeaderboard';
 import { MilestoneCelebration } from '../MilestoneCelebration';
+import { HabitAudit } from '../HabitAudit';
+import { CrateShop } from '../CrateShop';
 
 import { YKS_TARGET_DATE_MAIN } from '../../config/examConfig';
 
@@ -186,17 +188,16 @@ export function BentoDashboard() {
         <BentoStatCard title="En Verimli" value={calcSourceROI(logs)[0]?.sourceName.split(' ')[0] || 'YOK'} unit="Kaynak" icon={<BookOpen className="text-green-500" />} />
       </div>
 
-      {activeHabitAlerts[0] && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 glass-card border-red-900/30 bg-red-900/5 p-6 rounded-3xl">
-          <div className="flex items-start gap-4">
-            <AlertTriangle className="text-red-500 shrink-0" size={24} />
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-red-500 font-bold mb-1">Kırmızı Alarm</div>
-              <p className="text-sm text-red-100/70">{activeHabitAlerts[0].message}</p>
-            </div>
-          </div>
-        </motion.div>
-      )}
+      <HabitAudit />
+
+      <div className="mt-8">
+        <CrateShop />
+      </div>
+
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <WeeklyBossFight />
+        <GlobalLeaderboard />
+      </div>
 
       {/* Main Action & Coach */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">

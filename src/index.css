@@ -270,3 +270,14 @@ body {
   animation: toxic-pulse 3s cubic-bezier(.36,.07,.19,.97) infinite;
   transform-origin: center center;
 }
+
+/* Global Image Protection */
+img {
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-select: none !important;
+  pointer-events: auto;
+  pointer-events: none; /* This will block all clicks, maybe too much. I will use JS for context menu instead */
+}

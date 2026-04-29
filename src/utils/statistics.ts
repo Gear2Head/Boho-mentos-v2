@@ -259,63 +259,85 @@ export function calculatePredictedNet(
   };
 }
 
-export function detectHabitAlerts(logs: DailyLog[]): HabitAuditAlert[] {
+export interface HabitAuditResult {
+  title: string;
+  description: string;
+  type: 'danger' | 'warning' | 'success';
+  impact: 'KRİTİK' | 'ORTA' | 'DÜŞÜK' | 'POZİTİF';
+}
+
+export function detectHabitAlerts(logs: DailyLog[]): HabitAuditResult[] {
   if (logs.length === 0) return [];
-  const alerts: HabitAuditAlert[] = [];
+  const audits: HabitAuditResult[] = [];
   const now = Date.now();
   
   // 1. Subject Ghosting (10+ days)
   const last10Days = logs.filter(l => now - (toDateMs(l.date) ?? 0) <= 10 * 24 * 60 * 60 * 1000);
   const studiedSubjects = new Set(last10Days.map(l => l.subject));
-  const coreSubjects = ['Matematik', 'Fizik', 'Edebiyat', 'Tarih']; // Basic check
+  const coreSubjects = ['Matematik', 'Fizik', 'Edebiyat', 'Tarih'];
+  
   coreSubjects.forEach(s => {
-    if (!studiedSubjects.has(s)) {
-      alerts.push({
-        id: `ghosting-${s}`,
-        severity: 'high',
-        message: `${s} dersini 10 gündür tamamen boşladın. Zihin bu boşluğu unutkanlıkla doldurur. Acil dönüş yap.`
+    if (!studiedSubjects.has(s) && logs.some(l => l.subject === s)) {
+      audits.push({
+        title: `${s} Hayaleti`,
+        description: `Bu dersi 10 gündür tamamen boşladın. Zihin bu boşluğu unutkanlıkla doldurur.`,
+        type: 'danger',
+        impact: 'KRİTİK'
       });
     }
   });
 
-  // 2. Burnout Warning (High hours + Low Accuracy)
+  // 2. Burnout Warning
   const last3Days = logs.filter(l => now - (toDateMs(l.date) ?? 0) <= 3 * 24 * 60 * 60 * 1000);
   const totalHours = last3Days.reduce((acc, l) => acc + (l.avgTime || 0), 0) / 60;
   const avgAccuracy = last3Days.reduce((acc, l) => acc + (l.correct / (l.questions || 1)), 0) / (last3Days.length || 1);
   
   if (totalHours > 24 && avgAccuracy < 0.6) {
-    alerts.push({
-      id: 'burnout-risk',
-      severity: 'high',
-      message: 'Sinyaller Tehlikeli: Çok çalışıyorsun ama verim (accuracy) çöküşte. Bu burnout (tükenmişlik) başlangıcıdır. 1 gün tam mola ver.'
+    audits.push({
+      title: 'Tükenmişlik (Burnout) Riski',
+      description: 'Çok çalışıyorsun ama verim çöküşte. Motor su kaynatmak üzere, 1 gün tam mola ver.',
+      type: 'danger',
+      impact: 'KRİTİK'
     });
   }
 
-  // 3. Accuracy Spiral (Decreasing performance)
-  if (logs.length >= 10) {
-    const recent5 = logs.slice(-5);
-    const prev5 = logs.slice(-10, -5);
-    const recentAcc = recent5.reduce((acc, l) => acc + (l.correct / (l.questions || 1)), 0) / 5;
-    const prevAcc = prev5.reduce((acc, l) => acc + (l.correct / (l.questions || 1)), 0) / 5;
-    
-    if (recentAcc < prevAcc - 0.15) {
-      alerts.push({
-        id: 'accuracy-spiral',
-        severity: 'medium',
-        message: 'Doğruluk oranında düşüş trendi saptadım. Konu eksiklerin birikiyor olabilir, temel tekrarı şart.'
-      });
-    }
+  // 3. Consistency Positive
+  const studyDaysLastWeek = new Set(logs.slice(-14).map(l => l.date.substring(0, 10))).size;
+  if (studyDaysLastWeek >= 6) {
+    audits.push({
+      title: 'Disiplin Abidesi',
+      description: 'Son 7 günün 6 gününde masadaydın. Bu süreklilik sınav kazandıran asıl güçtür.',
+      type: 'success',
+      impact: 'POZİTİF'
+    });
   }
 
-  // 4. No Math Check (Standard)
+  // 4. Night Owl Detection
+  const lateNightLogs = logs.filter(l => {
+    const date = new Date(l.date);
+    const hour = date.getHours();
+    return hour >= 0 && hour <= 4;
+  }).length;
+  
+  if (lateNightLogs > 3) {
+    audits.push({
+      title: 'Gece Kuşu Sendromu',
+      description: 'Çalışmalarının çoğu gece yarısından sonra. Uyku kaliteni ve bilişsel hızını düşürüyor olabilirsin.',
+      type: 'warning',
+      impact: 'ORTA'
+    });
+  }
+
+  // 5. Math Momentum
   const last3DaysMath = last3Days.filter((l) => l.subject.toLowerCase().includes('matematik'));
   if (last3DaysMath.length === 0) {
-    alerts.push({
-      id: 'no-math-3-days',
-      severity: 'high',
-      message: 'Sinyalleri görüyorum. 3 gündür Matematik çalışmıyorsun. Yarın sabah ilk işin 2 saat Mat olacak.',
+    audits.push({
+      title: 'Matematik Kopukluğu',
+      description: '3 gündür Matematik ile bağın koptu. Paslanma başlamadan acil soru çözümü yapmalısın.',
+      type: 'warning',
+      impact: 'KRİTİK'
     });
   }
 
-  return alerts;
+  return audits;
 }

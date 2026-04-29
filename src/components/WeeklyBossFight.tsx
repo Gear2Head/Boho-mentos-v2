@@ -56,7 +56,6 @@ export function WeeklyBossFight() {
     });
   }, [exams, start, end]);
 
-  // Determine the weekly boss — the subject with lowest accuracy this week
   const boss = useMemo((): WeeklyBoss | null => {
     if (weekLogs.length === 0) return null;
 
@@ -92,7 +91,6 @@ export function WeeklyBossFight() {
     };
   }, [weekLogs]);
 
-  // Weekly stats summary
   const weekStats = useMemo(() => {
     const totalQ = weekLogs.reduce((s, l) => s + l.questions, 0);
     const totalC = weekLogs.reduce((s, l) => s + l.correct, 0);
@@ -104,6 +102,9 @@ export function WeeklyBossFight() {
   const requestBossDebrief = async () => {
     if (!profile) return;
     setLoading(true);
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 2000);
+
     try {
       const { contextString, userState } = buildCoachContext({ profile, logs: weekLogs, exams: weekExams, eloScore: 0, streakDays: 0, tytSubjects: [], aytSubjects: [], activeAlerts: [] });
       const summaryStats = `Bu hafta ${weekStats.totalQ} soru çözüldü, %${weekStats.accuracy} doğruluk, ${weekStats.studyDays} gün çalışıldı, ${weekStats.exams} deneme girildi.${boss ? ` En zayıf ders: ${boss.subject} (%${100 - boss.hp} doğruluk).` : ''}`;
@@ -130,14 +131,12 @@ export function WeeklyBossFight() {
     <div className={`glass-card p-6 rounded-[32px] relative overflow-hidden transition-all duration-500 ${isShaking ? 'animate-shake scale-[1.02]' : ''} ${boss && !bossDefeated ? 'border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.1)]' : 'border-app'}`}>
       <div className={`absolute inset-0 bg-gradient-to-br from-red-600/10 via-transparent to-transparent pointer-events-none transition-opacity duration-1000 ${boss && !bossDefeated ? 'opacity-100' : 'opacity-0'}`} />
       
-      {/* Scanline Effect */}
       {boss && !bossDefeated && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20">
           <div className="w-full h-1 bg-red-500/50 shadow-[0_0_15px_red] animate-[sync-progress_2s_linear_infinite]" />
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-8 relative z-10">
         <div className="flex items-center gap-4">
           <motion.div 
@@ -161,7 +160,6 @@ export function WeeklyBossFight() {
         )}
       </div>
 
-      {/* Weekly Stats Bar */}
       <div className="grid grid-cols-4 gap-3 mb-6 relative z-10">
         {[
           { label: 'Soru', value: weekStats.totalQ, icon: <Target size={12} /> },
@@ -177,31 +175,21 @@ export function WeeklyBossFight() {
         ))}
       </div>
 
-      {/* Boss Card */}
       <div className="relative z-10 mb-6">
         {boss ? (
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {!bossDefeated ? (
               <motion.div 
-                key="boss" 
-                initial={{ opacity: 0, scale: 0.9 }} 
-                animate={{ opacity: 1, scale: 1 }} 
+                key="boss" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }}
                 className="bg-[#0A0A0C] border-2 border-red-900/40 p-6 rounded-[28px] shadow-2xl relative group overflow-hidden"
               >
                 <div className="absolute inset-0 bg-red-500/[0.02] group-hover:bg-red-500/[0.04] transition-colors pointer-events-none" />
-                
                 <div className="flex items-center justify-between mb-4 relative z-10">
                   <div className="flex items-center gap-4">
-                    <motion.span 
-                      animate={{ y: [0, -5, 0], scale: [1, 1.1, 1] }}
-                      transition={{ repeat: Infinity, duration: 3 }}
-                      className="text-5xl drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]"
-                    >
-                      {boss.icon}
-                    </motion.span>
+                    <motion.span animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="text-5xl">{boss.icon}</motion.span>
                     <div>
                       <h4 className="text-2xl font-display italic font-black text-red-500 tracking-tight">{boss.name.toUpperCase()}</h4>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{boss.subject} · ELEMENTAL ZAYIFLIK: DOĞRULUK</p>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{boss.subject}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -211,41 +199,16 @@ export function WeeklyBossFight() {
                     </div>
                   </div>
                 </div>
- 
                 <div className="h-3 bg-zinc-900 rounded-full overflow-hidden border border-white/5 p-0.5">
-                  <motion.div
-                    initial={{ width: '100%' }}
-                    animate={{ width: `${boss.hp}%` }}
-                    transition={{ duration: 1.5, ease: 'easeOut' }}
-                    className={`h-full rounded-full shadow-[0_0_15px] ${
-                      boss.hp > 60 ? 'bg-red-600 shadow-red-600/50' : 
-                      boss.hp > 30 ? 'bg-amber-500 shadow-amber-500/50' : 
-                      'bg-emerald-500 shadow-emerald-500/50'
-                    }`}
-                  />
-                </div>
-                
-                <div className="mt-4 flex justify-between items-center text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">
-                   <span>DİRENİŞ: KRİTİK</span>
-                   <span>ÖDÜL: {boss.hp > 50 ? 'LEGENDARY LOOT' : 'BASIC LOOT'}</span>
+                  <motion.div initial={{ width: '100%' }} animate={{ width: `${boss.hp}%` }} className={`h-full rounded-full ${boss.hp > 60 ? 'bg-red-600' : boss.hp > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                 </div>
               </motion.div>
             ) : (
-              <motion.div 
-                key="defeated" 
-                initial={{ opacity: 0, scale: 0.8, rotate: -5 }} 
-                animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                className="bg-emerald-500/10 border-2 border-emerald-500/30 p-8 rounded-[32px] text-center shadow-[0_0_40px_rgba(16,185,129,0.1)]"
-              >
-                <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/30">
-                  <Trophy size={40} className="text-emerald-400" />
-                </div>
+              <motion.div key="defeated" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="bg-emerald-500/10 border-2 border-emerald-500/30 p-8 rounded-[32px] text-center">
+                <Trophy size={40} className="text-emerald-400 mx-auto mb-4" />
                 <h4 className="font-display italic font-black text-emerald-400 text-3xl mb-2">BOSS YERLE BİR!</h4>
-                <p className="text-xs text-emerald-500/60 font-bold uppercase tracking-widest">Bu haftaki kabusun sona erdi. Ganimetler toplandı.</p>
-                
                 <div className="mt-6 flex justify-center gap-3">
                    <div className="px-3 py-1.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-[10px] font-black text-emerald-400">+500 ELO</div>
-                   <div className="px-3 py-1.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-[10px] font-black text-emerald-400">EPIC BADGE</div>
                 </div>
               </motion.div>
             )}
@@ -258,7 +221,6 @@ export function WeeklyBossFight() {
         )}
       </div>
 
-      {/* AI Debrief Button */}
       <div className="relative z-10">
         <button
           onClick={requestBossDebrief}
@@ -266,13 +228,12 @@ export function WeeklyBossFight() {
           className="w-full py-3 bg-red-600/20 border border-red-500/30 text-red-400 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-red-600/40 transition-colors disabled:opacity-30 flex items-center justify-center gap-2"
         >
           {loading ? <RefreshCw size={14} className="animate-spin" /> : <Swords size={14} />}
-          {loading ? 'Kübra Haftalık Raporu Hazırlıyor...' : 'Haftalık Boss Raporu Al'}
+          {loading ? 'Kübra Raporu Hazırlıyor...' : 'Haftalık Boss Raporu Al'}
         </button>
 
         {analysis && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-4 bg-[#0D0D0D] border border-[#2A2A2A] rounded-2xl p-5">
-            <div className="text-sm leading-relaxed">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 bg-[#0D0D0D] border border-[#2A2A2A] rounded-2xl p-5">
+            <div className="text-sm leading-relaxed text-zinc-300">
               <CoachParser content={analysis} />
             </div>
           </motion.div>

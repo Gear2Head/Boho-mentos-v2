@@ -58,5 +58,6 @@ export const useAppSelectors = () => {
     setAmbienceVolume: s.setAmbienceVolume,
     isTtsEnabled: s.isTtsEnabled,
     setTtsEnabled: s.setTtsEnabled,
+    recomputeFullElo: s.recomputeFullElo,
   })));
 };

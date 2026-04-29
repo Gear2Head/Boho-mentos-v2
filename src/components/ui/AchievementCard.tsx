@@ -4,6 +4,7 @@ import * as LucideIcons from 'lucide-react';
 import { Achievement, UserAchievement } from '../../types';
 
 interface AchievementCardProps {
+  key?: string;
   achievement: Achievement;
   userAchievement?: UserAchievement;
   progress: { current: number; target: number };

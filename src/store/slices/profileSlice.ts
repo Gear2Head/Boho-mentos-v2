@@ -33,7 +33,7 @@ export interface ProfileSlice {
 
 export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = (set, get) => ({
   profile: null,
-  eloScore: 0,
+  eloScore: 1200,
   dailyEloDelta: 0,
   lastEloUpdateDate: toISODateOnly(),
   streakDays: 0,

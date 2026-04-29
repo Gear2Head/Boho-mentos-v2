@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { id: 'strategy', label: 'Strateji', icon: <PenTool size={18} />, mobileVisible: false, desktopVisible: true },
   { id: 'logs', label: 'Kayıtlar', icon: <List size={18} />, mobileVisible: true, desktopVisible: true },
   { id: 'exams', label: 'Denemeler', icon: <LayoutList size={18} />, mobileVisible: true, desktopVisible: true },
+  { id: 'social', label: 'Özel Sohbet', icon: <MessageCircle size={18} />, mobileVisible: true, desktopVisible: true },
   { id: 'archive', label: 'Mezarlık', icon: <Archive size={18} />, mobileVisible: false, desktopVisible: true },
   { id: 'countdown', label: 'Geri Sayım', icon: <Clock size={18} />, mobileVisible: false, desktopVisible: true },
   { id: 'settings', label: 'Ayarlar', icon: <Settings size={18} />, mobileVisible: false, desktopVisible: true },
@@ -52,7 +53,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   });
   const [isNavHovered, setIsNavHovered] = useState(false);
   const [scrollDirection, setScrollDirection] = useState<'up' | 'down'>('up');
-  
+
   const isSidebarExpanded = isSidebarPinned || isNavHovered;
 
   useEffect(() => {
@@ -93,10 +94,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setIsDMPanelOpen(true)} className="p-2 text-zinc-500">
-             <MessageCircle size={18} />
+            <MessageCircle size={18} />
           </button>
           <button onClick={() => storeForceSync()} disabled={isCurrentlySyncing} className="p-2 text-zinc-500">
-             {syncStatus === 'offline' ? <CloudOff size={18} /> : <RefreshCcw size={18} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
+            {syncStatus === 'offline' ? <CloudOff size={18} /> : <RefreshCcw size={18} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
           </button>
           <div className="w-8 h-8 rounded-full overflow-hidden border border-app cursor-pointer" onClick={() => navigate('/profile')}>
             {profile.avatar
@@ -109,7 +110,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
       <motion.nav
         initial={false}
-        animate={{ 
+        animate={{
           width: isZenMode ? 0 : (isSidebarExpanded ? 256 : 72),
           x: isZenMode ? -300 : 0,
           opacity: isZenMode ? 0 : 1
@@ -126,7 +127,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             </div>
             <AnimatePresence>
               {isSidebarExpanded && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
@@ -145,7 +146,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
               </button>
               <button
                 onClick={toggleSidebarPin}
-                className={`p-1 rounded-lg transition-all ${ isSidebarPinned ? 'text-[#C17767] bg-[#C17767]/10' : 'text-zinc-500 hover:text-[#C17767] hover:bg-white/5' }`}
+                className={`p-1 rounded-lg transition-all ${isSidebarPinned ? 'text-[#C17767] bg-[#C17767]/10' : 'text-zinc-500 hover:text-[#C17767] hover:bg-white/5'}`}
                 title={isSidebarPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle'}
               >
                 <Pin size={14} />
@@ -156,13 +157,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
         {/* Profile Section */}
         <div className="px-3 mt-4 mb-2 overflow-hidden">
-          <div 
+          <div
             onClick={() => navigate('/profile')}
             className={`p-2 rounded-2xl bg-white/5 border border-white/5 flex items-center transition-all duration-300 cursor-pointer hover:bg-white/10 ${!isSidebarExpanded ? 'justify-center' : 'gap-3'}`}
           >
             <div className="relative shrink-0">
               <div className="w-10 h-10 rounded-xl bg-zinc-800 overflow-hidden border border-white/10">
-                {profile.avatar 
+                {profile.avatar
                   ? <img src={profile.avatar} alt="avatar" className="w-full h-full object-cover" />
                   : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile?.name || 'User'}`} alt="avatar" className="w-full h-full bg-surface" />
                 }
@@ -171,7 +172,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
                 <Trophy size={10} className="text-white" />
               </div>
             </div>
-            
+
             <AnimatePresence mode="wait">
               {isSidebarExpanded && (
                 <motion.div
@@ -217,7 +218,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
               <span>ADMIN PANEL</span>
             </button>
           )}
-          
+
           <div className="grid grid-cols-2 gap-1">
             <button
               onClick={() => setIsDMPanelOpen(true)}
@@ -244,14 +245,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             title="Çıkış Yap"
           >
             <div className="w-8 h-8 rounded-lg flex items-center justify-center">
-               <LogOut size={16} />
+              <LogOut size={16} />
             </div>
             {isSidebarExpanded && <span>ÇIKIŞ YAP</span>}
           </button>
 
           {isSidebarExpanded && (
             <div className="mt-2 pt-2 border-t border-app">
-               <SpotifyWidget />
+              <SpotifyWidget />
             </div>
           )}
         </div>

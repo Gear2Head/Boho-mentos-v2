@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon, X, Shield, Settings } from 'lucide-react';
+import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon, X, Shield, Settings, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useAppStore } from '../store/appStore';
@@ -17,15 +17,18 @@ const ICON_MAP: Record<string, React.FC<any>> = {
 
 export function ProfileShowcase() {
   const navigate = useNavigate();
-  const authUser = useAppStore(s => s.authUser);
-  const profile = useAppStore(s => s.profile);
-  const eloScore = useAppStore(s => s.eloScore);
-  const tytSubjects = useAppStore(s => s.tytSubjects);
-  const aytSubjects = useAppStore(s => s.aytSubjects);
-  const exams = useAppStore(s => s.exams);
-  const streakDays = useAppStore(s => s.streakDays);
-  const trophies = useAppStore(s => s.trophies);
-  const removeTargetGoal = useAppStore(s => s.removeTargetGoal);
+  const { authUser, profile, eloScore, exams, streakDays, trophies, removeTargetGoal, recomputeFullElo, tytSubjects, aytSubjects } = useAppStore(s => ({
+    authUser: s.authUser,
+    profile: s.profile,
+    eloScore: s.eloScore,
+    tytSubjects: s.tytSubjects,
+    aytSubjects: s.aytSubjects,
+    exams: s.exams,
+    streakDays: s.streakDays,
+    trophies: s.trophies,
+    removeTargetGoal: s.removeTargetGoal,
+    recomputeFullElo: s.recomputeFullElo
+  }));
 
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
   const rank = getRankDetails(eloScore);
@@ -106,7 +109,16 @@ export function ProfileShowcase() {
               <span className="bg-surface-2 border border-app px-3 py-1.5 rounded-full text-[9px] uppercase tracking-widest text-ink font-black shadow-sm">{profile.track}</span>
               {profile.examYear && <span className="bg-surface-2 border border-app px-3 py-1.5 rounded-full text-[9px] uppercase tracking-widest text-ink font-black shadow-sm">🎯 YKS {profile.examYear}</span>}
               <span className="bg-accent/10 text-accent px-3 py-1.5 rounded-full border border-accent/20 text-[9px] uppercase tracking-widest font-black shadow-sm">🔥 {streakDays} GÜN SERİ</span>
-              <span className="bg-surface-2 border border-app px-3 py-1.5 rounded-full text-[9px] uppercase tracking-widest text-blue-500 font-black shadow-sm">🏅 {eloScore} PUAN</span>
+              <div className="flex items-center gap-1 group">
+                <span className="bg-surface-2 border border-app px-3 py-1.5 rounded-l-full text-[9px] uppercase tracking-widest text-blue-500 font-black shadow-sm group-hover:border-blue-500/30 transition-all">🏅 {eloScore} PUAN</span>
+                <button 
+                  onClick={() => { recomputeFullElo(); window.location.reload(); }}
+                  className="bg-surface-2 border border-app border-l-0 px-2 py-1.5 rounded-r-full text-zinc-500 hover:text-blue-500 hover:bg-blue-500/5 transition-all shadow-sm"
+                  title="Verileri Yeniden Hesapla"
+                >
+                  <RefreshCw size={10} />
+                </button>
+              </div>
             </div>
 
             {profile.motivationQuote && (

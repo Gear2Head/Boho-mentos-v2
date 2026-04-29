@@ -660,15 +660,6 @@ function EntityPreview({ entity, table }: { entity: any; table: EntityTable }) {
           <span className="text-zinc-500 ml-2">Net: {payload.total_net ?? payload.totalNet ?? '?'}</span>
         </div>
       );
-    case 'chatHistory':
-      return (
-        <div className="text-sm truncate max-w-lg">
-          <span className={`font-medium ${payload.role === 'coach' ? 'text-emerald-400' : 'text-zinc-300'}`}>
-            [{payload.role ?? 'user'}]
-          </span>
-          <span className="text-zinc-400 ml-2">{(payload.content || payload.text || '').slice(0, 120)}</span>
-        </div>
-      );
     case 'agendaEntries':
       return (
         <div className="text-sm">

@@ -24,21 +24,20 @@ export function GlobalLeaderboard() {
   useEffect(() => {
     const q = query(
       collection(db, 'users'),
-      orderBy('eloScore', 'desc'),
-      limit(100)
+      limit(200)
     );
 
     const unsub = onSnapshot(q, (snap) => {
-        const data = snap.docs.map(doc => {
+      const data = snap.docs.map(doc => {
         const d = doc.data();
         return {
           uid: doc.id,
           name: d.profile?.name || d.display_name || 'Savaşçı',
-          eloScore: d.eloScore || 0,
+          eloScore: d.eloScore !== undefined ? d.eloScore : 1200,
           streakDays: d.streakDays || 0,
           avatar: d.profile?.avatar || d.photo_url,
         } as LeaderboardEntry;
-      });
+      }).sort((a, b) => b.eloScore - a.eloScore);
       setEntries(data);
       setIsLoading(false);
     }, (err) => {

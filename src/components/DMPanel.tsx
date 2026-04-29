@@ -6,15 +6,24 @@ import { useShallow } from 'zustand/react/shallow';
 import { onSnapshot, collection, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
-export function DMPanel({ onClose }: { onClose: () => void }) {
+export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forceTargetUid?: string | null }) {
   const { authUser, directMessages, sendDirectMessage } = useAppStore(useShallow((s: any) => ({
     authUser: s.authUser,
     directMessages: s.directMessages || {},
     sendDirectMessage: s.sendDirectMessage
   })));
 
-  const [activeTab, setActiveTab] = useState<'list' | 'chat'>('list');
-  const [selectedUser, setSelectedUser] = useState<{ uid: string; name: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'list' | 'chat'>(forceTargetUid ? 'chat' : 'list');
+  const [selectedUser, setSelectedUser] = useState<{ uid: string; name: string } | null>(
+    forceTargetUid ? { uid: forceTargetUid, name: 'Savaşçı' } : null
+  );
+
+  useEffect(() => {
+    if (forceTargetUid) {
+      setSelectedUser({ uid: forceTargetUid, name: 'Savaşçı' });
+      setActiveTab('chat');
+    }
+  }, [forceTargetUid]);
   const [message, setMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 

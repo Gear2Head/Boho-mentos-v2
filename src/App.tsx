@@ -46,6 +46,7 @@ const QuizEngine = React.lazy(() => import('./components/QuizEngine').then(m => 
 const TopicExplain = React.lazy(() => import('./components/TopicExplain').then(m => ({ default: m.TopicExplain })));
 const AgendaPage = React.lazy(() => import('./components/AgendaPage').then(m => ({ default: m.AgendaPage })));
 const StrategyHub = React.lazy(() => import('./components/StrategyHub').then(m => ({ default: m.StrategyHub })));
+const SocialPage = React.lazy(() => import('./components/SocialPage').then(m => ({ default: m.SocialPage })));
 const MebiWarRoom = React.lazy(() => import('./components/MebiWarRoom').then(m => ({ default: m.MebiWarRoom })));
 
 import { CommandPalette } from './components/CommandPalette';
@@ -139,9 +140,29 @@ export default function App() {
     isMorningBlockerEnabled, setMorningUnlockedDate, exams, eloScore, streakDays, setFocusSidePanelOpen,
     subjectViewMode, setSubjectViewMode, updateTytSubject, updateAytSubject,
     bulkMasterTytSubjectsByName, bulkMasterAytSubjectsByName, addFailedQuestion, solveFailedQuestion,
-    removeFailedQuestion, isDevMode, failedQuestions, migrateLegacyChat
+    removeFailedQuestion, isDevMode, failedQuestions, migrateLegacyChat, recomputeFullElo
   } = selectors;
   const ambientColor = useAppStore(s => s.ambientColor);
+
+  // --- IMAGE PROTECTION ---
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).tagName === 'IMG') {
+        e.preventDefault();
+      }
+    };
+    const handleDragStart = (e: DragEvent) => {
+      if ((e.target as HTMLElement).tagName === 'IMG') {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('dragstart', handleDragStart);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('dragstart', handleDragStart);
+    };
+  }, []);
 
   // --- CORE HOOKS ---
   const { user, isLoading, signOut } = useAuth();
@@ -590,6 +611,14 @@ export default function App() {
                   </button>
                 </header>
                 <ExamListWidget onSelect={setSelectedExam} />
+              </motion.div>
+            </div>
+          } />
+
+          <Route path="/social" element={
+            <div className={scrollCls}>
+              <motion.div key="social" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
+                <SocialPage />
               </motion.div>
             </div>
           } />

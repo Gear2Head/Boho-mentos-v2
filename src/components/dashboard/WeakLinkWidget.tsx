@@ -28,8 +28,8 @@ export function WeakLinkWidget({ logs }: Props) {
     let lowestRate = 1.0;
 
     subjectStats.forEach((stats, subject) => {
-      // Anlamlı bir veri olması için en az 50 soru çözülmüş olmalı
-      if (stats.q < 50) return;
+      // Anlamlı bir veri olması için en az 20 soru çözülmüş olmalı
+      if (stats.q < 20) return;
       
       const rate = stats.c / stats.q;
       if (rate < lowestRate) {
@@ -38,7 +38,7 @@ export function WeakLinkWidget({ logs }: Props) {
       }
     });
 
-    if (lowestRate > 0.75) return null; // All subjects are doing well
+    if (lowestRate > 0.85) return null; // Only hide if mastery is high (>85%)
     return weakestSubject;
   };
 
@@ -109,7 +109,7 @@ export function WeakLinkWidget({ logs }: Props) {
         <div className="mt-4 flex items-start gap-2 bg-[#121212] p-3 rounded-xl border border-white/5">
           <Crosshair size={14} className="text-zinc-500 shrink-0 mt-0.5" />
           <p className="text-[10px] text-zinc-400 leading-relaxed italic">
-            Bu dersteki hata oranın çok yüksek. AI Koç, yeni programda bu konuya ağırlık verecek.
+            Bu cephede ağır zayiat veriyoruz. Kübra buradaki sızıntıyı kapatman için özel operasyon planlıyor.
           </p>
         </div>
       </div>
