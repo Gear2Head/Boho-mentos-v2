@@ -7,13 +7,15 @@ import React, { useState, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { 
   Target, Zap, CrosshairIcon, Loader2, RefreshCw, AlertTriangle, 
-  ChevronRight, TrendingUp, CheckCircle2, AlertCircle, BarChart3, Hourglass 
+  ChevronRight, TrendingUp, CheckCircle2, AlertCircle, BarChart3, Hourglass,
+  Brain, Trophy
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
 import { YOK_ATLAS_DATA, type YokAtlasProgram } from '../data/yokAtlasData';
 import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet, calculateBurnoutRisk } from '../utils/statistics';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area } from 'recharts';
 import { SourceROIPanel } from './SourceROIPanel';
 import { toDateMs } from '../utils/date';
 
@@ -107,9 +109,9 @@ export function StrategyHub() {
 
   const burnout = useMemo(() => calculateBurnoutRisk(logs), [logs]);
 
-  const fatigueChartData = useMemo(() => {
+  const fatigueData = useMemo(() => {
     return logs.slice(-7).map(l => ({
-      name: new Date(l.date).toLocaleDateString('tr-TR', { weekday: 'short' }),
+      day: new Date(l.date).toLocaleDateString('tr-TR', { weekday: 'short' }),
       fatigue: l.fatigue || 3,
       accuracy: Math.round((l.correct / (l.questions || 1)) * 100)
     }));
@@ -160,7 +162,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
     setIsLoadingWarRoom(false);
   };
 
-  const criticalSubjects = (() => {
+  const criticalSubjects = useMemo(() => {
     const subjectStats: Record<string, { correct: number; total: number }> = {};
     logs.forEach(l => {
       if (!subjectStats[l.subject]) subjectStats[l.subject] = { correct: 0, total: 0 };
@@ -172,9 +174,9 @@ Son denemeler: ${recentExams || 'Yok'}`;
       .map(([subject, s]) => ({ subject, rate: Math.round((s.correct / s.total) * 100) }))
       .sort((a, b) => a.rate - b.rate)
       .slice(0, 3);
-  })();
+  }, [logs]);
 
-  const smartMockSuggestion = (() => {
+  const smartMockSuggestion = useMemo(() => {
     const topicStats = new Map<string, { subject: string; topic: string; wrong: number; total: number }>();
     const last14Days = Date.now() - 14 * 24 * 60 * 60 * 1000;
 
@@ -208,9 +210,9 @@ Son denemeler: ${recentExams || 'Yok'}`;
       reasoning: `Son 14 günde en çok hata yaptığın konu(lar): ${top.slice(0, 3).map(t => `${t.topic} (%${Math.round(t.wrongRate * 100)})`).join(", ")}.`,
       message: `${mockLabel} çözmelisin. Özellikle ${focusTopics.join(" ve ")} konularına odaklan; bu denemede bu konulardan daha fazla soru çıkacak.`,
     };
-  })();
+  }, [logs]);
 
-  const yokAtlasChase = (() => {
+  const yokAtlasChase = useMemo(() => {
     const lastExam = exams.slice(-1)[0];
     if (!profile || !lastExam) return null;
 
@@ -258,327 +260,199 @@ Son denemeler: ${recentExams || 'Yok'}`;
         </div>
       </div>
     );
-  })();
+  }, [profile, exams]);
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-10">
-      <header className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-6">
+    <motion.div
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: { opacity: 0 },
+        show: {
+          opacity: 1,
+          transition: { staggerChildren: 0.1 }
+        }
+      }}
+      className="p-4 md:p-8 space-y-10 max-w-7xl mx-auto"
+    >
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
-          <h2 className="font-serif italic text-4xl text-ink leading-tight">Strateji Hub</h2>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-accent mt-2 font-bold font-mono">Veri Madenciliği & Gelecek Projeksiyonu v2.1</p>
+          <h2 className="text-4xl font-black text-ink font-serif italic flex items-center gap-4">
+            <div className="p-3 bg-accent/10 rounded-2xl text-accent"><Brain size={32} /></div>
+            Strateji Merkezi
+          </h2>
+          <p className="text-ink-muted text-xs uppercase tracking-[0.3em] font-bold mt-3 opacity-60">Akademik Projeksiyon & Veri Analitiği</p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={analyzeUserData}
-            className="px-5 py-2.5 bg-surface-2 border border-app-subtle text-ink-muted hover:text-ink rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95"
-          >
-            <RefreshCw size={14} className={isAnalyzing ? 'animate-spin' : ''} /> VERİLERİ HARMANLA
-          </button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 bg-surface-2 p-2 pr-6 rounded-2xl border border-app-subtle">
+            <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
+              <Trophy size={24} />
+            </div>
+            <div className="flex flex-col">
+               <span className="text-[10px] font-black text-ink-muted uppercase tracking-widest">Global ELO</span>
+               <span className="text-xl font-bold text-ink">{eloScore}</span>
+            </div>
+          </div>
           <button 
             onClick={handleRefreshStrategy}
             disabled={isAnalyzing}
-            className="px-6 py-2.5 bg-accent text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:brightness-110 flex items-center gap-2 shadow-lg shadow-accent/20 transition-all active:scale-95 disabled:opacity-50"
+            className="p-3 bg-accent text-white rounded-2xl hover:brightness-110 shadow-lg shadow-accent/20 transition-all active:scale-95 disabled:opacity-50"
           >
-            {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />} AI ANALİZİ TAZELİ
+            {isAnalyzing ? <Loader2 size={20} className="animate-spin" /> : <RefreshCw size={20} />}
           </button>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-surface-2 p-5 rounded-2xl border border-app-subtle group hover:border-accent/30 transition-colors">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-2 bg-rose-500/10 text-rose-500 rounded-lg"><Hourglass size={18} /></div>
-            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Haftalık Yük</span>
-          </div>
-          <div className="text-2xl font-bold text-ink">{localWorkload?.totalMinutes || 0}<span className="text-xs ml-1 opacity-40 font-normal">dk</span></div>
-          <div className="text-[10px] text-ink-muted mt-1 uppercase font-bold tracking-tight">Toplam Kalan Efor</div>
-        </div>
-
-        <div className="bg-surface-2 p-5 rounded-2xl border border-app-subtle group hover:border-accent/30 transition-colors">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg"><Target size={18} /></div>
-            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Hedef Soru</span>
-          </div>
-          <div className="text-2xl font-bold text-ink">+{localWorkload?.totalQuestions || 0}</div>
-          <div className="text-[10px] text-ink-muted mt-1 uppercase font-bold tracking-tight">Kritik Soru Havuzu</div>
-        </div>
-
-        <div className="bg-surface-2 p-5 rounded-2xl border border-app-subtle group hover:border-emerald-500/30 transition-colors">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><TrendingUp size={18} /></div>
-            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Health Score</span>
-          </div>
-          <div className="flex items-end gap-2">
-            <div className="text-2xl font-bold text-ink">{healthScore?.total || 0}</div>
-            <div className={`text-[10px] font-bold mb-1 ${healthScore && healthScore.total > 70 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {healthScore?.label || 'ANALIZ...'}
+      <motion.div 
+        variants={{
+          hidden: { opacity: 0 },
+          show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+        }}
+        className="grid grid-cols-1 md:grid-cols-5 gap-6"
+      >
+        {[
+          { label: 'Haftalık Yük', val: `${localWorkload?.totalMinutes || 0} dk`, sub: 'Toplam Kalan Efor', icon: <Hourglass size={18} />, color: 'rose-500' },
+          { label: 'Hedef Soru', val: `+${localWorkload?.totalQuestions || 0}`, sub: 'Kritik Soru Havuzu', icon: <Target size={18} />, color: 'amber-500' },
+          { label: 'Health Score', val: healthScore?.total || 0, sub: healthScore?.label || 'ANALIZ...', icon: <TrendingUp size={18} />, color: 'emerald-500', isHealth: true },
+          { label: 'Burnout Riski', val: `%${burnout.probability}`, sub: burnout.reason, icon: <AlertTriangle size={18} />, color: 'red-500' },
+          { label: 'Akıllı Telafi', val: recoveryTasks.length, sub: 'Başarısız Görevler', icon: <Zap size={18} />, color: 'accent', isRecovery: true }
+        ].map((kpi, idx) => (
+          <motion.div 
+            key={idx}
+            variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+            whileHover={{ y: -5, boxShadow: `0 20px 40px rgba(0,0,0,0.1)`, borderColor: `var(--color-${kpi.color})` }}
+            className="bg-surface-2 p-5 rounded-2xl border border-app-subtle transition-colors relative overflow-hidden group"
+          >
+            <div className="flex items-start justify-between mb-4 relative z-10">
+              <div className={`p-2 bg-${kpi.color}/10 text-${kpi.color} rounded-lg`}>{kpi.icon}</div>
+              <span className={`text-[10px] font-bold text-${kpi.color} uppercase tracking-widest`}>{kpi.label}</span>
             </div>
-          </div>
-          <div className="mt-2 space-y-1">
-            <div className="h-1 bg-surface rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500" style={{ width: `${healthScore?.total || 0}%` }} />
-            </div>
-            <div className="flex justify-between text-[8px] font-black uppercase opacity-40 text-ink-muted">
-                <span>C: {healthScore?.breakdown.consistency}%</span>
-                <span>A: {healthScore?.breakdown.accuracy}%</span>
-                <span>V: {healthScore?.breakdown.velocity}%</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-surface-2 p-5 rounded-2xl border border-app-subtle group hover:border-red-500/30 transition-colors">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-2 bg-red-500/10 text-red-500 rounded-lg"><AlertTriangle size={18} /></div>
-            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Burnout Riski</span>
-          </div>
-          <div className="flex items-end gap-2">
-            <div className="text-2xl font-bold text-ink">%{burnout.probability}</div>
-            <div className={`text-[10px] font-bold mb-1 ${burnout.probability > 70 ? 'text-red-500' : burnout.probability > 40 ? 'text-amber-500' : 'text-emerald-500'}`}>
-              {burnout.probability > 70 ? 'KRİTİK' : burnout.probability > 40 ? 'RİSKLİ' : 'DÜŞÜK'}
-            </div>
-          </div>
-          <p className="text-[9px] text-ink-muted mt-1 font-medium leading-tight">
-            {burnout.reason}
-          </p>
-        </div>
-
-        <div className="bg-accent/5 p-5 rounded-2xl border border-accent/20 flex flex-col justify-between group hover:border-accent/40 transition-colors">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-4 h-4 text-accent" />
-              <span className="text-[10px] font-bold text-accent uppercase tracking-widest">Akıllı Telafi</span>
-            </div>
-            <p className="text-[10px] text-ink-muted leading-tight">
-              {recoveryTasks.length > 0 
-                ? `${recoveryTasks.length} adet başarısız görev tespit edildi. Programa dahil etmek istersin?`
-                : 'Şu an telafi edilmesi gereken kritik bir görev bulunmuyor.'}
-            </p>
-          </div>
-          {recoveryTasks.length > 0 && (
-            <button 
-              onClick={() => startRecoveryFlow()}
-              className="mt-3 w-full py-2 bg-accent hover:brightness-110 text-white rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all"
-            >
-              TELAFİ ET (RECOVERY)
-            </button>
-          )}
-        </div>
-      </div>
+            <div className="text-2xl font-bold text-ink relative z-10">{kpi.val}</div>
+            <div className="text-[10px] text-ink-muted mt-1 uppercase font-bold tracking-tight relative z-10 truncate">{kpi.sub}</div>
+            {kpi.isHealth && (
+              <div className="mt-3 h-1 bg-surface rounded-full overflow-hidden">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${kpi.val}%` }} className="h-full bg-emerald-500" />
+              </div>
+            )}
+            {kpi.isRecovery && Number(kpi.val) > 0 && (
+              <button onClick={() => startRecoveryFlow()} className="mt-3 w-full py-1.5 bg-accent text-white rounded-lg text-[8px] font-bold uppercase tracking-widest relative z-10">TELAFİ ET</button>
+            )}
+          </motion.div>
+        ))}
+      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-surface-2 border border-app-subtle rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-sm">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/50 to-green-500/50"></div>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-            <div>
-              <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3">
-                <TrendingUp size={24} className="text-blue-500" /> Tahmini TYT Projeksiyonu
-              </h3>
-              <p className="text-[10px] uppercase tracking-widest text-ink-muted mt-2 font-bold">Veri Seti: Son 5 Deneme + ELO Liyakati</p>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full border border-blue-500/20 font-bold uppercase tracking-widest">Regresyon Modeli: Aktif</span>
-            </div>
+        <motion.div variants={{ hidden: { opacity: 0, x: -20 }, show: { opacity: 1, x: 0 } }} className="bg-surface-2 border border-app-subtle rounded-3xl p-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-emerald-500 opacity-50"></div>
+          <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3 mb-6">
+            <TrendingUp size={24} className="text-blue-500" /> TYT Projeksiyonu
+          </h3>
+          <div className="grid grid-cols-2 gap-4 mb-8">
+             <div className="p-4 bg-surface rounded-2xl border border-app-subtle">
+                <div className="text-[9px] uppercase font-bold text-ink-muted mb-1">Tahmini Net</div>
+                <div className="text-2xl font-bold text-accent">{aiPredTyt.predictedNet}</div>
+             </div>
+             <div className="p-4 bg-surface rounded-2xl border border-app-subtle">
+                <div className="text-[9px] uppercase font-bold text-ink-muted mb-1">Güven Oranı</div>
+                <div className="text-2xl font-bold text-emerald-500">%{aiPredTyt.confidence}</div>
+             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className="bg-surface/50 backdrop-blur-md border border-accent/20 rounded-2xl p-5 group hover:border-accent/40 transition-colors">
-              <div className="flex justify-between items-start mb-2">
-                <h4 className="text-accent font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (TYT)</h4>
-                <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
-              </div>
-              <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-accent/50 pl-3">
-                "{profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-accent text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredTyt.confidence}</strong>."
-              </p>
-            </div>
-            <div className="bg-surface/50 backdrop-blur-md border border-amber-500/20 rounded-2xl p-5 group hover:border-amber-500/40 transition-colors">
-              <div className="flex justify-between items-start mb-2">
-                <h4 className="text-amber-500 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (AYT)</h4>
-                <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
-              </div>
-              <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-amber-500/50 pl-3">
-                "Alan testindeki ivmen, doğru/yanlış analizine ve algoritmanın regresyon hesabına göre AYT'de <strong className="text-amber-500 text-xl">{aiPredAyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredAyt.confidence}</strong>."
-              </p>
-            </div>
-          </div>
-
-          {projection.tyt.hasEnoughData ? (
-            <div className="mt-8 w-full h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} opacity={0.2} />
-                  <XAxis dataKey="name" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
-                  <YAxis stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: '12px', fontSize: '10px' }}
-                    itemStyle={{ fontWeight: 'bold' }}
-                  />
-                  {profile?.tytTarget && <ReferenceLine y={profile.tytTarget} stroke="var(--color-accent)" strokeDasharray="3 3" />}
-                  <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
-                  <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed border-app-subtle rounded-2xl gap-3">
-              <TrendingUp size={32} className="opacity-10" />
-              <p className="text-[10px] uppercase tracking-widest text-ink-muted italic font-bold text-center">Projeksiyon için yeterli deneme kaydı bulunmuyor.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-surface-2 border border-app-subtle rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-sm">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/50 to-amber-500/50"></div>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-            <div>
-              <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3">
-                <AlertCircle size={24} className="text-red-500" /> Fatigue & Accuracy Korelasyonu
-              </h3>
-              <p className="text-[10px] uppercase tracking-widest text-ink-muted mt-2 font-bold">Son 7 Çalışma Günü Trendi</p>
-            </div>
-          </div>
-
-          <div className="w-full h-[220px]">
+          <div className="h-[200px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={fatigueChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} opacity={0.2} />
-                <XAxis dataKey="name" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
-                <YAxis yAxisId="left" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} domain={[0, 5]} />
-                <YAxis yAxisId="right" orientation="right" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} domain={[0, 100]} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: '12px', fontSize: '10px' }}
-                />
-                <Line yAxisId="left" type="monotone" dataKey="fatigue" name="Yorgunluk (1-5)" stroke="#EF4444" strokeWidth={3} dot={{ r: 4, fill: '#EF4444' }} />
-                <Line yAxisId="right" type="monotone" dataKey="accuracy" name="Başarı %" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: '#10B981' }} />
+              <LineChart data={projectionChartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                <XAxis dataKey="name" hide />
+                <YAxis hide />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: '12px', border: 'none', fontSize: '10px' }} />
+                <Line type="monotone" dataKey="gercek" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="tahmin" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-4 p-4 bg-red-500/5 rounded-2xl border border-red-500/10 text-[10px] text-ink-muted italic leading-relaxed">
+        </motion.div>
+
+        <motion.div variants={{ hidden: { opacity: 0, x: 20 }, show: { opacity: 1, x: 0 } }} className="bg-surface-2 border border-app-subtle rounded-3xl p-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-amber-500 opacity-50"></div>
+          <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3 mb-6">
+            <AlertCircle size={24} className="text-red-500" /> Fatigue Trend
+          </h3>
+          <div className="h-[200px] w-full mt-auto">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={fatigueData}>
+                <defs>
+                  <linearGradient id="colorAcc2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                <XAxis dataKey="day" hide />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: '12px', border: 'none', fontSize: '10px' }} />
+                <Area type="monotone" dataKey="accuracy" stroke="#10B981" fill="url(#colorAcc2)" />
+                <Area type="monotone" dataKey="fatigue" stroke="#EF4444" fill="transparent" strokeDasharray="5 5" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-6 p-4 bg-red-500/5 rounded-2xl border border-red-500/10 text-[10px] text-ink-muted italic leading-relaxed">
             <strong>Analiz:</strong> {burnout.advice}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 bg-surface-2 border border-app-subtle rounded-3xl p-6">
           <SourceROIPanel />
         </div>
-        <div className="space-y-6">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-4 border-b border-app-subtle pb-2">Kritik Saldırı Planı</h3>
-          {criticalSubjects.length > 0 ? criticalSubjects.map((cs, i) => (
-            <div key={i} className="bg-surface-2 border border-app-subtle rounded-2xl p-5 hover:border-accent/30 transition-colors">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[9px] uppercase font-bold tracking-widest text-ink-muted">ÖNCELİK #{i + 1}</span>
-                <AlertTriangle size={14} className={cs.rate < 40 ? 'text-red-500' : 'text-amber-500'} />
-              </div>
-              <h4 className="font-serif italic text-lg text-ink mb-2">{cs.subject}</h4>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${cs.rate < 40 ? 'bg-red-500' : cs.rate < 60 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${cs.rate}%` }} />
+        <div className="bg-surface-2 border border-app-subtle rounded-3xl p-6">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-accent mb-6 flex items-center gap-2">
+            <AlertTriangle size={14} /> Kritik Konular
+          </h3>
+          <div className="space-y-4">
+            {criticalSubjects.map((cs, i) => (
+              <div key={i} className="p-4 bg-surface rounded-2xl border border-app-subtle">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold text-ink">{cs.subject}</span>
+                  <span className="text-[10px] font-mono text-accent">%{cs.rate}</span>
                 </div>
-                <span className="text-xs font-bold font-mono text-ink">%{cs.rate}</span>
-              </div>
-            </div>
-          )) : (
-            <div className="py-8 text-center text-ink-muted text-[10px] uppercase tracking-widest italic border border-dashed border-app-subtle rounded-2xl">Yeterli veri yok.</div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden group hover:border-accent/30 transition-colors">
-          <div className="p-6 border-b border-app-subtle flex items-center gap-4">
-            <div className="p-2 bg-blue-500/10 rounded-xl text-blue-500"><CrosshairIcon size={20} /></div>
-            <div>
-              <h3 className="font-serif italic text-xl text-ink leading-none">Deneme Önerisi</h3>
-              <p className="text-[9px] uppercase tracking-widest text-ink-muted mt-1.5 font-bold">Son 14 Güne Dayalı Analiz</p>
-            </div>
-          </div>
-          <div className="p-6">
-            {!smartMockSuggestion ? (
-              <p className="text-xs italic text-ink-muted">Deneme önerisi hazırlamak için daha fazla log girişi yapmalısın.</p>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-ink-muted leading-relaxed italic"><strong className="text-blue-500 font-bold font-mono">{smartMockSuggestion.mockLabel}:</strong> {smartMockSuggestion.message}</p>
-                <div className="flex flex-wrap gap-2">
-                  {smartMockSuggestion.focusTopics.map(t => (
-                    <span key={t} className="px-2 py-0.5 bg-blue-500/5 text-blue-500 border border-blue-500/20 rounded-full text-[9px] font-bold uppercase tracking-widest">{t}</span>
-                  ))}
+                <div className="h-1 bg-surface-2 rounded-full overflow-hidden">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${cs.rate}%` }} className={`h-full ${cs.rate < 40 ? 'bg-red-500' : 'bg-accent'}`} />
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden group hover:border-accent/30 transition-colors">
-          <div className="p-6 border-b border-app-subtle flex items-center gap-4">
-            <div className="p-2 bg-accent/10 rounded-xl text-accent"><ChevronRight size={20} /></div>
-            <div>
-              <h3 className="font-serif italic text-xl text-ink leading-none">YÖK Atlas Takibi</h3>
-              <p className="text-[9px] uppercase tracking-widest text-ink-muted mt-1.5 font-bold">Hedefle Mevcut Durum Analizi</p>
-            </div>
-          </div>
-          <div className="p-6">
-            {!yokAtlasChase ? (
-              <p className="text-xs italic text-ink-muted">Hedef takibi için en az bir deneme kaydı gerekiyor.</p>
-            ) : (
-              <div className="no-scrollbar">{yokAtlasChase}</div>
-            )}
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden shadow-sm flex flex-col">
-          <div className="p-6 border-b border-app-subtle flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-accent/10 rounded-xl text-accent"><Target size={18} /></div>
-              <h3 className="font-serif italic text-lg text-ink">Haftalık Plan</h3>
+      <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { title: 'Haftalık Plan', plan: weeklyPlan, loading: isLoadingWeekly, fn: handleWeeklyPlan, icon: <Target size={18} />, color: 'accent' },
+          { title: 'Günlük Sprint', plan: sprintPlan, loading: isLoadingSprint, fn: handleSprintPlan, icon: <Zap size={18} />, color: 'amber-500' },
+          { title: 'Savaş Planı', plan: warRoomPlan, loading: isLoadingWarRoom, fn: handleWarRoom, icon: <AlertTriangle size={18} />, color: 'red-500' }
+        ].map(panel => (
+          <div key={panel.title} className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-app-subtle flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 bg-${panel.color}/10 rounded-xl text-${panel.color}`}>{panel.icon}</div>
+                <h3 className="font-serif italic text-lg text-ink">{panel.title}</h3>
+              </div>
+              <button onClick={panel.fn} className="p-2 hover:bg-surface rounded-xl transition-all">
+                <RefreshCw size={14} className={panel.loading ? 'animate-spin' : ''} />
+              </button>
             </div>
-            <button onClick={handleWeeklyPlan} disabled={isLoadingWeekly} className="p-2 hover:bg-accent/10 text-accent rounded-xl transition-all disabled:opacity-50">
-              {isLoadingWeekly ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            </button>
-          </div>
-          <div className="p-6 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar">
-            {isLoadingWeekly ? <div className="flex flex-col items-center justify-center h-full opacity-50"><Loader2 className="animate-spin mb-2" size={24} /><p className="text-[10px] uppercase font-bold tracking-widest">Hesaplanıyor...</p></div> : 
-             weeklyPlan ? <div className="prose prose-invert prose-sm max-w-none"><ReactMarkdown components={markdownComponents}>{weeklyPlan}</ReactMarkdown></div> :
-             <div className="h-full flex items-center justify-center text-[10px] uppercase tracking-widest text-ink-muted font-bold opacity-30">Plan Üretmek İçin Tıkla</div>}
-          </div>
-        </div>
-
-        <div className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden shadow-sm flex flex-col">
-          <div className="p-6 border-b border-app-subtle flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/10 rounded-xl text-amber-500"><Zap size={18} /></div>
-              <h3 className="font-serif italic text-lg text-ink">Günlük Sprint</h3>
+            <div className="p-6 flex-1 min-h-[150px] max-h-[300px] overflow-y-auto custom-scrollbar">
+              {panel.loading ? (
+                <div className="h-full flex items-center justify-center opacity-30 text-[10px] uppercase font-bold tracking-widest">Analiz Ediliyor...</div>
+              ) : panel.plan ? (
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown components={markdownComponents}>{panel.plan}</ReactMarkdown>
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center opacity-20 text-[10px] uppercase font-bold tracking-widest">Analizi Başlat</div>
+              )}
             </div>
-            <button onClick={handleSprintPlan} disabled={isLoadingSprint} className="p-2 hover:bg-amber-500/10 text-amber-500 rounded-xl transition-all disabled:opacity-50">
-              {isLoadingSprint ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
-            </button>
           </div>
-          <div className="p-6 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar">
-            {isLoadingSprint ? <div className="flex flex-col items-center justify-center h-full opacity-50"><Loader2 className="animate-spin mb-2" size={24} /><p className="text-[10px] uppercase font-bold tracking-widest">Hazırlanıyor...</p></div> : 
-             sprintPlan ? <div className="prose prose-invert prose-sm max-w-none"><ReactMarkdown components={markdownComponents}>{sprintPlan}</ReactMarkdown></div> :
-             <div className="h-full flex items-center justify-center text-[10px] uppercase tracking-widest text-ink-muted font-bold opacity-30">Sprint Başlat</div>}
-          </div>
-        </div>
-
-        <div className="bg-surface-2 border border-red-950/20 rounded-3xl overflow-hidden shadow-sm flex flex-col border-red-500/10">
-          <div className="p-6 border-b border-red-500/10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-500/10 rounded-xl text-red-500"><AlertTriangle size={18} /></div>
-              <h3 className="font-serif italic text-lg text-ink">Savaş Planı</h3>
-            </div>
-            <button onClick={handleWarRoom} disabled={isLoadingWarRoom} className="p-2 hover:bg-red-500/10 text-red-500 rounded-xl transition-all disabled:opacity-50">
-              {isLoadingWarRoom ? <Loader2 size={16} className="animate-spin" /> : <BarChart3 size={16} />}
-            </button>
-          </div>
-          <div className="p-6 flex-1 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar">
-            {isLoadingWarRoom ? <div className="flex flex-col items-center justify-center h-full opacity-50"><Loader2 className="animate-spin mb-2" size={24} /><p className="text-[10px] uppercase font-bold tracking-widest">Analiz Ediliyor...</p></div> : 
-             warRoomPlan ? <div className="prose prose-invert prose-sm max-w-none border-l-2 border-red-500/30 pl-4 py-1 italic"><ReactMarkdown components={markdownComponents}>{warRoomPlan}</ReactMarkdown></div> :
-             <div className="h-full flex items-center justify-center text-[10px] uppercase tracking-widest text-ink-muted font-bold opacity-30">Analizi Başlat</div>}
-          </div>
-        </div>
-      </div>
-    </div>
+        ))}
+      </motion.div>
+    </motion.div>
   );
 }

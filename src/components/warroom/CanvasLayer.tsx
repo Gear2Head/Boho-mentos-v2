@@ -17,7 +17,7 @@ export function CanvasLayer() {
   // Expose methods to global/window if needed for toolbars, or use store integration
   useEffect(() => {
     (window as any)._canvasAPI = { clear: clearCanvas, undo: undoCanvas };
-    return () => delete (window as any)._canvasAPI;
+    return () => { delete (window as any)._canvasAPI; };
   }, [clearCanvas, undoCanvas]);
 
   useEffect(() => {

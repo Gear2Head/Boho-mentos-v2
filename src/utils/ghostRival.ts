@@ -52,7 +52,7 @@ export function computeSelfGhost(
   return {
     id: 'ghost_self_best',
     name: '🏆 En İyi Geçmiş Senin',
-    eloScore: Math.min(currentElo + 300, currentElo + (bestExam?.totalNet ?? 0) * 5),
+    eloScore: Math.min(currentElo + 1000, currentElo + (bestExam?.totalNet ?? 0) * 7),
     tytNet: bestTyt,
     aytNet: bestAyt,
     streakDays: maxStreak,

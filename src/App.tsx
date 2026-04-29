@@ -166,15 +166,17 @@ export default function App() {
 
   // --- CORE HOOKS ---
   const { user, isLoading, signOut } = useAuth();
+  const recordActivity = useAppStore((s) => s.recordActivity);
+
   useEffect(() => {
     if (user?.uid && hasHydrated) {
       const timer = setTimeout(() => {
-        recomputeStreak(false);
+        recordActivity();
         recomputeFullElo();
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [user?.uid, hasHydrated, recomputeStreak, recomputeFullElo]);
+  }, [user?.uid, hasHydrated, recomputeFullElo, recordActivity]);
 
   const { triggerLogAnalysis, triggerExamDebrief, sendMessage, isTyping: coachIsTyping } = useCoachCore();
   const { toast: toastAPI } = useToast();

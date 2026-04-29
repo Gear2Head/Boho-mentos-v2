@@ -10,40 +10,55 @@ interface NavItemProps {
 }
 
 export const NavItem: React.FC<NavItemProps> = React.memo(({ icon, label, active, onClick, collapsed = false }) => (
-  <button
+  <motion.button
+    whileHover={{ x: 4, scale: 1.02 }}
+    whileTap={{ scale: 0.98 }}
+    transition={{ type: 'spring', stiffness: 400, damping: 17 }}
     onClick={onClick}
     className={`
       relative flex items-center w-full select-none group
       transition-all duration-300 ease-out h-11 px-3 rounded-xl mb-1
       ${active
-        ? 'text-[#C17767] bg-[#C17767]/5 shadow-[inset_0_0_10px_rgba(193,119,103,0.05)]'
-        : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/5'
+        ? 'text-[#C17767] bg-[#C17767]/10 shadow-[0_0_20px_rgba(193,119,103,0.1),inset_0_0_12px_rgba(193,119,103,0.08)] border border-[#C17767]/20'
+        : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/5 border border-transparent'
       }
     `}
   >
     {/* Active indicator bar */}
-    {active && (
-      <motion.div 
-        layoutId="active-indicator"
-        className="absolute left-0 top-2 bottom-2 w-1 bg-[#C17767] rounded-r-full shadow-[0_0_15px_rgba(193,119,103,0.8)]" 
-      />
-    )}
+    <AnimatePresence>
+      {active && (
+        <motion.div 
+          layoutId="active-indicator"
+          initial={{ opacity: 0, scaleY: 0 }}
+          animate={{ opacity: 1, scaleY: 1 }}
+          exit={{ opacity: 0, scaleY: 0 }}
+          className="absolute left-0 top-2 bottom-2 w-1 bg-[#C17767] rounded-r-full shadow-[0_0_15px_rgba(193,119,103,0.8)] z-10" 
+        />
+      )}
+    </AnimatePresence>
 
     {/* Icon Wrapper - Centers itself in the 11px area */}
     <div className={`flex items-center justify-center shrink-0 transition-all duration-300 ${collapsed ? 'w-full' : 'w-5'}`}>
-      <div className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
+      <motion.div 
+        animate={{ 
+          scale: active ? 1.2 : 1,
+          rotate: active ? [0, -10, 10, 0] : 0 
+        }}
+        transition={active ? { duration: 0.4, ease: "backOut" } : {}}
+        className={`${active ? 'text-[#C17767]' : 'group-hover:text-zinc-100'}`}
+      >
         {icon}
-      </div>
+      </motion.div>
     </div>
 
     {/* Label with absolute hiding */}
     <AnimatePresence mode="wait">
       {!collapsed && (
         <motion.span
-          initial={{ opacity: 0, x: -5 }}
+          initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -5 }}
-          transition={{ duration: 0.15 }}
+          exit={{ opacity: 0, x: -10 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
           className="ml-3 font-bold text-[11px] uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden"
         >
           {label}
@@ -57,7 +72,7 @@ export const NavItem: React.FC<NavItemProps> = React.memo(({ icon, label, active
         {label}
       </div>
     )}
-  </button>
+  </motion.button>
 ));
 
 NavItem.displayName = 'NavItem';

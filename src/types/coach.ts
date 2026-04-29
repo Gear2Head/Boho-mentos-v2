@@ -165,7 +165,7 @@ export interface CoachDirective {
   }>;
   /** İstemci tarafında tetiklenecek özel aksiyonlar */
   clientActions?: Array<{
-    type: 'CELEBRATE' | 'OPEN_MARKET' | 'ADD_GOAL' | 'START_FOCUS' | 'TRIGGER_VOICE';
+    type: 'CELEBRATE' | 'OPEN_MARKET' | 'ADD_GOAL' | 'START_FOCUS' | 'TRIGGER_VOICE' | 'ADD_FAILED_QUESTION';
     payload?: Record<string, unknown>;
   }>;
 }

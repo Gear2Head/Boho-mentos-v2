@@ -31,6 +31,7 @@ export interface UISlice {
   isEditingProfile: boolean;
   isNotifOpen: boolean;
   isAdminPanelOpen: boolean;
+  isCrateModalOpen: boolean;
 
   setPassiveMode: (isPassive: boolean) => void;
   setLofiEnabled: (enabled: boolean) => void;
@@ -58,6 +59,7 @@ export interface UISlice {
   setEditingProfile: (open: boolean) => void;
   setNotifOpen: (open: boolean) => void;
   setAdminPanelOpen: (open: boolean) => void;
+  setCrateModalOpen: (open: boolean) => void;
   
   // Ambient Context Color
   ambientColor: string;
@@ -89,6 +91,7 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   isEditingProfile: false,
   isNotifOpen: false,
   isAdminPanelOpen: false,
+  isCrateModalOpen: false,
   ambientColor: 'transparent',
 
   setPassiveMode: (isPassive) => {
@@ -149,4 +152,5 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   setEditingProfile: (o) => set({ isEditingProfile: o }),
   setNotifOpen: (o) => set({ isNotifOpen: o }),
   setAdminPanelOpen: (o) => set({ isAdminPanelOpen: o }),
+  setCrateModalOpen: (o) => set({ isCrateModalOpen: o }),
 });

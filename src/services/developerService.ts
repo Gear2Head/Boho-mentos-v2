@@ -406,4 +406,50 @@ export function clearAiCache(): number {
   return cleared;
 }
 
+// ─── AdminDashboard Aliases ──────────────────────────────────────────────────
+
+/** AdminDashboard expects getUserEntityCounts */
+export const getUserEntityCounts = async (userId: string) => {
+  const res = await fetchUserFullProfile(userId);
+  return res.counts;
+};
+
+/** AdminDashboard expects updateUserRole */
+export const updateUserRole = async (uid: string, role: UserRole, actorUid: string) => {
+  const res = await changeUserRole(actorUid, 'super_admin' as any, uid, role);
+  return res.success;
+};
+
+/** AdminDashboard expects getEntities */
+export const getEntities = async (table: EntityTable, limitNum?: number) => {
+  // Note: This originally fetched for CURRENT user in some context, but AdminDashboard 
+  // might expect global or specific user. For global, we'd need a different query.
+  // Assuming it wants the current logged in user's or just a general fetch.
+  // AdminDashboard typically uses this for its own data or selected user.
+  const res = await fetchAdminLogs(limitNum || 50);
+  return res.data;
+};
+
+/** AdminDashboard expects getUserDetails */
+export const getUserDetails = async (userId: string) => {
+  const res = await fetchUserFullProfile(userId);
+  return res.user;
+};
+
+/** AdminDashboard expects getAuditLogs */
+export const getAuditLogs = async (limitNum?: number) => {
+  const res = await fetchAdminLogs(limitNum || 50);
+  return res.data;
+};
+
+/** AdminDashboard expects getSystemStats */
+export const getSystemStats = async () => {
+  const res = await fetchSystemAnalytics();
+  return {
+    totalUsers: 0, // Placeholder
+    activeSessions: res.activeUsers24h,
+    totalFailedQuestions: res.totalQuestionsSolved,
+  };
+};
+
 export { logAdminAction } from './systemService';

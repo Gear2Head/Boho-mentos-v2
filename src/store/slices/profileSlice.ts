@@ -33,6 +33,7 @@ export interface ProfileSlice {
   unlockTrophy: (trophyId: string) => void;
   updateHealthScore: () => void;
   recomputeStreak: (consumeShields?: boolean) => number;
+  recordActivity: () => void;
   dismissAlert: (id: string) => void;
   detectAndSetHabits: () => void;
   buyStreakFreeze: () => boolean;
@@ -177,6 +178,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     const computed = computeStudyStreak(logs, {
       availableShieldCount: profile?.streakShields ?? 0,
       usedShieldDates: profile?.usedStreakShieldDates ?? [],
+      activityDays: profile?.activeDays ?? [],
     });
     const nextProfile = profile && consumeShields
       ? { ...profile, usedStreakShieldDates: computed.usedShieldDates }
@@ -189,6 +191,23 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
       }), { merge: true }).catch(console.error);
     }
     return computed.streakDays;
+  },
+
+  recordActivity: () => {
+    const { authUser, profile, recomputeStreak } = get();
+    if (!profile) return;
+    const today = toISODateOnly();
+    const currentActiveDays = profile.activeDays ?? [];
+    if (currentActiveDays.includes(today)) return;
+    
+    const nextActiveDays = [...currentActiveDays, today].slice(-365);
+    const nextProfile = { ...profile, activeDays: nextActiveDays };
+    set({ profile: nextProfile });
+    
+    if (authUser?.uid) {
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ profile: nextProfile }), { merge: true }).catch(console.error);
+    }
+    recomputeStreak(false);
   },
 
   dismissAlert: (id) => set((s) => ({ activeAlerts: s.activeAlerts.filter(a => a.id !== id) })),

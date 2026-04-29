@@ -3,6 +3,22 @@ import { useAppStore } from '../store/appStore';
 import { ACHIEVEMENTS } from '../data/achievementDefinitions';
 import { AchievementCard } from './ui/AchievementCard';
 import { AchievementCategory } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
 
 const CATEGORY_LABELS: Record<AchievementCategory, string> = {
   streak: 'Disiplin & Seri',
@@ -32,7 +48,12 @@ export function AchievementsPanel() {
         </span>
       </div>
 
-      <div className="space-y-12">
+      <motion.div 
+        initial="hidden"
+        animate="show"
+        variants={containerVariants}
+        className="space-y-12"
+      >
         {Object.entries(grouped).map(([category, achs]) => {
           // Sort achievements: Unlocked first, then by tier, then hidden last
           const sorted = [...achs].sort((a, b) => {
@@ -44,7 +65,7 @@ export function AchievementsPanel() {
           });
 
           return (
-            <div key={category}>
+            <motion.div variants={itemVariants} key={category}>
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-1 flex-1 bg-gradient-to-r from-transparent to-app rounded-full opacity-50" />
                 <h4 className="text-[10px] uppercase tracking-widest font-black text-ink-muted opacity-80">
@@ -73,10 +94,10 @@ export function AchievementsPanel() {
                   );
                 })}
               </div>
-            </div>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </section>
   );
 }

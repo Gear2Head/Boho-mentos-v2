@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { 
-    Coins, Gem, Package, Shield, ShoppingCart, X, ChevronRight, Info, 
-    Crown, Flame, Star, Swords, Target, Trophy, Zap, Sparkles, 
-    Rocket, Diamond, Palette, User, Music, Layout, Lock
+import {
+    Coins, Gem, Package, Shield, ShoppingCart, X, ChevronRight, Info,
+    Crown, Flame, Star, Swords, Target, Trophy, Zap, Sparkles,
+    Rocket, Diamond, Palette, User, Music, Layout, Lock, Brain
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/appStore';
@@ -38,7 +38,7 @@ const CRATES: CrateInfo[] = [
     {
         tier: 'standard',
         name: 'Bronz Kasa',
-        cost: 200,
+        cost: 2000,
         accentColor: '#b45309',
         borderColor: 'rgba(180,83,9,0.5)',
         glowColor: 'rgba(180,83,9,0.25)',
@@ -49,7 +49,7 @@ const CRATES: CrateInfo[] = [
     {
         tier: 'epic',
         name: 'Gumus Kasa',
-        cost: 1000,
+        cost: 3000,
         accentColor: '#a855f7',
         borderColor: 'rgba(168,85,247,0.5)',
         glowColor: 'rgba(168,85,247,0.2)',
@@ -60,7 +60,7 @@ const CRATES: CrateInfo[] = [
     {
         tier: 'legendary',
         name: 'Altin Kasa',
-        cost: 1300,
+        cost: 6300,
         accentColor: '#f59e0b',
         borderColor: 'rgba(245,158,11,0.55)',
         glowColor: 'rgba(245,158,11,0.2)',
@@ -73,30 +73,48 @@ const CRATES: CrateInfo[] = [
 const MARKET_ITEMS: MarketItem[] = [
     {
         id: 'streak_shield',
-        name: 'Seri Kalkanı',
+        name: 'Seri Kalkani',
         cost: 2000,
         category: 'booster',
         icon: <Shield size={32} />,
-        description: 'Çalışma serini (streak) bir günlüğüne koruma altına alır.',
+        description: 'Calisma serini (streak) bir gunlugune koruma altina alir.',
         accentColor: '#3b82f6',
     },
     {
         id: 'theme_cyberpunk',
-        name: 'Cyberpunk Teması',
-        cost: 7500,
+        name: 'Cyberpunk Temasi',
+        cost: 8500,
         category: 'cosmetic',
         icon: <Palette size={32} />,
-        description: 'Uygulamayı neon ışıkları ve karanlık bir atmosferle donatır.',
+        description: 'Uygulamayi neon isiklari ve karanlik bir atmosferle donatir.',
         accentColor: '#f43f5e',
     },
     {
+        id: 'theme_zen',
+        name: 'Zen Modu (Minimalist)',
+        cost: 5000,
+        category: 'cosmetic',
+        icon: <Palette size={32} />,
+        description: 'Tum dikkat dagitici unsurlari kaldiran sakin bir tema.',
+        accentColor: '#10b981',
+    },
+    {
         id: 'persona_sergeant',
-        name: 'Sert Koç (Çavuş)',
+        name: 'Sert Koc (Cavus)',
         cost: 12000,
         category: 'persona',
         icon: <User size={32} />,
-        description: 'Daha sert, disiplinli ve tavizsiz bir koç kişiliği.',
+        description: 'Daha sert, disiplinli ve tavizsiz bir koc kisiligi.',
         accentColor: '#10b981',
+    },
+    {
+        id: 'persona_philosopher',
+        name: 'Filozof Filiz',
+        cost: 15000,
+        category: 'persona',
+        icon: <Brain size={32} />,
+        description: 'Sana varoluscu acilarla ders calistiran bilge bir koc.',
+        accentColor: '#8b5cf6',
     },
     {
         id: 'focus_music_lofi',
@@ -104,16 +122,25 @@ const MARKET_ITEMS: MarketItem[] = [
         cost: 4500,
         category: 'special',
         icon: <Music size={32} />,
-        description: 'Focus Tunnel için özel olarak seçilmiş Lo-Fi ritimleri.',
+        description: 'Focus Tunnel icin ozel olarak secilmis Lo-Fi ritimleri.',
         accentColor: '#8b5cf6',
     },
     {
+        id: 'focus_multiplier',
+        name: 'Odak Carpani (2x)',
+        cost: 10000,
+        category: 'booster',
+        icon: <Rocket size={32} />,
+        description: 'Bir saat boyunca kazandigin BohoCoinleri ikiye katlar.',
+        accentColor: '#f59e0b',
+    },
+    {
         id: 'custom_avatar_frame',
-        name: 'Altın Çerçeve',
+        name: 'Altin Cerceve',
         cost: 6000,
         category: 'cosmetic',
         icon: <Layout size={32} />,
-        description: 'Profil fotoğrafın için prestijli bir altın çerçeve.',
+        description: 'Profil fotografin icin prestijli bir altin cerceve.',
         accentColor: '#eab308',
     },
 ];

@@ -12,9 +12,10 @@ export function computeStudyStreak(
     availableShieldCount?: number;
     usedShieldDates?: string[];
     today?: Date;
+    activityDays?: string[]; // [FAZ-3]
   } = {}
 ): StreakComputation {
-  const daySet = new Set<string>();
+  const daySet = new Set<string>(options.activityDays ?? []);
   for (const log of logs) {
     const parsed = parseFlexibleDate(log.date);
     if (!parsed) continue;

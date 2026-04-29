@@ -1,10 +1,10 @@
 // XP / Leveling system — based on ELO score
-// Level thresholds: every 500 ELO = 1 level, cap at 20
+// Now much more challenging: XP required increases with level
 
 export interface LevelInfo {
   level: number;
   title: string;
-  skin: 'default' | 'silver' | 'gold' | 'crimson' | 'obsidian' | 'legendary';
+  skin: 'default' | 'silver' | 'gold' | 'crimson' | 'obsidian' | 'legendary' | 'void' | 'divine';
   xpToNext: number;
   xpCurrent: number;
   xpRequired: number;
@@ -12,58 +12,74 @@ export interface LevelInfo {
 }
 
 const LEVEL_TITLES: Record<number, string> = {
-  1: 'Ham Elmas',
-  2: 'Çırak Savaşçı',
-  3: 'Disiplinli',
-  4: 'Odaklı',
-  5: 'Azimkar',
-  6: 'İnatçı',
-  7: 'Güçlü Aday',
-  8: 'Sistematik',
-  9: 'Verimli',
-  10: 'Bronz Şövalye',
-  11: 'Gümüş Şövalye',
-  12: 'Kademeli İlerleme',
-  13: 'Yıldız Aday',
-  14: 'Altın Savaşçı',
-  15: 'Platin Beyin',
-  16: 'Elmas Zeka',
-  17: 'Usta Stratejist',
-  18: 'Grandmaster',
-  19: 'Efsane',
-  20: 'YKS Lideri',
+  1: 'Yeni Başlayan',
+  5: 'Hevesli Aday',
+  10: 'Disiplinli Çırak',
+  15: 'Düzenli Çalışan',
+  20: 'Müfredat Avcısı',
+  25: 'Soru Canavarı',
+  30: 'Bronz Şövalye',
+  35: 'Gümüş Savaşçı',
+  40: 'Altın Muhafız',
+  45: 'Platin Zeka',
+  50: 'Elmas Stratejist',
+  60: 'Kızıl Master',
+  70: 'Obsidyen Uzman',
+  80: 'Efsanevi Lider',
+  90: 'Boho İlahı',
+  100: 'Mutlak Zirve',
 };
 
-const SKINS: Record<number, LevelInfo['skin']> = {
-  1: 'default', 2: 'default', 3: 'default', 4: 'default', 5: 'default',
-  6: 'silver', 7: 'silver', 8: 'silver', 9: 'silver', 10: 'silver',
-  11: 'gold', 12: 'gold', 13: 'gold', 14: 'gold', 15: 'gold',
-  16: 'crimson', 17: 'crimson', 18: 'obsidian', 19: 'obsidian', 20: 'legendary',
-};
+function getLevelTitle(lvl: number): string {
+    const keys = Object.keys(LEVEL_TITLES).map(Number).sort((a, b) => b - a);
+    for (const k of keys) { if (lvl >= k) return LEVEL_TITLES[k]; }
+    return 'Yeni Başlayan';
+}
 
-const ELO_PER_LEVEL = 500;
-const MAX_LEVEL = 20;
+const MAX_LEVEL = 100;
+const BASE_XP = 1000;
+const XP_STEP = 100; // Her levelde gereken ELO 100 artar
 
+/**
+ * Toplam ELO'dan seviye hesapla
+ * Seviye 1: 0 - 1000
+ * Seviye 2: 1000 - 2100 (1000 + 1100)
+ * Seviye 3: 2100 - 3300 (2100 + 1200)
+ */
 export function getLevelFromElo(elo: number): LevelInfo {
-  const rawLevel = Math.floor(elo / ELO_PER_LEVEL) + 1;
-  const level = Math.min(rawLevel, MAX_LEVEL);
-  const xpRequired = level < MAX_LEVEL ? ELO_PER_LEVEL : ELO_PER_LEVEL;
-  const xpCurrent = elo % ELO_PER_LEVEL;
-  const xpToNext = level < MAX_LEVEL ? xpRequired - xpCurrent : 0;
+  let level = 1;
+  let remainingElo = elo;
+  let xpRequired = BASE_XP;
+
+  while (remainingElo >= xpRequired && level < MAX_LEVEL) {
+    remainingElo -= xpRequired;
+    level++;
+    xpRequired = BASE_XP + (level - 1) * XP_STEP;
+  }
+
+  const xpCurrent = remainingElo;
   const progressPercent = level < MAX_LEVEL ? Math.round((xpCurrent / xpRequired) * 100) : 100;
+  
+  let skin: LevelInfo['skin'] = 'default';
+  if (level >= 80) skin = 'divine';
+  else if (level >= 65) skin = 'void';
+  else if (level >= 50) skin = 'legendary';
+  else if (level >= 40) skin = 'obsidian';
+  else if (level >= 30) skin = 'crimson';
+  else if (level >= 20) skin = 'gold';
+  else if (level >= 10) skin = 'silver';
 
   return {
     level,
-    title: LEVEL_TITLES[level] ?? 'Efsane',
-    skin: SKINS[level] ?? 'legendary',
-    xpToNext,
+    title: getLevelTitle(level),
+    skin,
+    xpToNext: level < MAX_LEVEL ? xpRequired - xpCurrent : 0,
     xpCurrent,
     xpRequired,
     progressPercent,
   };
 }
 
-// CSS class map for each skin — applied to coach panel
 export const SKIN_CLASSES: Record<LevelInfo['skin'], string> = {
   default: 'skin-default',
   silver: 'skin-silver',
@@ -71,4 +87,6 @@ export const SKIN_CLASSES: Record<LevelInfo['skin'], string> = {
   crimson: 'skin-crimson',
   obsidian: 'skin-obsidian',
   legendary: 'skin-legendary',
+  void: 'skin-void',
+  divine: 'skin-divine',
 };

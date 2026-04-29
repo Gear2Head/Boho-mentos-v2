@@ -1,90 +1,81 @@
 # ===================================================
-# BOHO MENTOS V2 - ULTIMATE .GITIGNORE
+# 🦉 BOHO MENTOS V2 - ULTIMATE .GITIGNORE
 # ===================================================
 
 # ---------------------------------------------------
-# 1. Çevre Değişkenleri & Gizli Dosyalar (CRITICAL SECURITY)
+# 1. GÜVENLİK & KİMLİK BİLGİLERİ (CRITICAL SECURITY)
 # ---------------------------------------------------
+# Çevre değişkenleri ve gizli anahtarlar asla commit edilmemelidir.
 .env
 .env.*
 *.local
 !.env.example
-secrets/
-keys/
-credentials.json
+
+# Firebase & Google Cloud Servis Hesapları
+firebase-service-account.json
 service-account-file.json
+credentials.json
+google-services.json
 *.pem
+*.key
+*.p12
 
 # ---------------------------------------------------
-# 2. Bağımlılıklar & Önbellekler (Dependencies & Caches)
+# 2. BAĞIMLILIKLAR & PAKET YÖNETİCİLERİ
 # ---------------------------------------------------
 node_modules/
 .pnpm-store/
 .npm/
 .yarn/
-.cache/
+yarn-error.log
+package-lock.json.resolved
 
 # ---------------------------------------------------
-# 3. Derleme & Çıktı Dosyaları (Build & Output - Vite/React)
+# 3. DERLEME & ÇIKTI DOSYALARI (BUILD & OUTPUT)
 # ---------------------------------------------------
 dist/
 dist-ssr/
 build/
 out/
 .vite/
+.next/
 *.tsbuildinfo
 
 # ---------------------------------------------------
-# 4. Firebase & Bulut Servisleri (Cloud Services)
-# ---------------------------------------------------
-.firebase/
-firebase-debug.log
-firebase-debug.*.log
-firestore-debug.log
-ui-debug.log
-
-# ---------------------------------------------------
-# 5. Loglar & Hata Çıktıları
+# 4. LOGLAR & GEÇİCİ DOSYALAR
 # ---------------------------------------------------
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.cache/
+.eslintcache
+.stylelintcache
+.prettiercache
 
 # ---------------------------------------------------
-# 6. Mobil / Capacitor (Gelecek Planları)
-# ---------------------------------------------------
-android/
-ios/
-capacitor.config.json
-capacitor.config.ts
-
-# ---------------------------------------------------
-# 7. Test Raporları & Araçları
-# ---------------------------------------------------
-coverage/
-.nyc_output/
-__snapshots__/
-.cypress/
-playwright-report/
-test-results/
-
-# ---------------------------------------------------
-# 8. Geliştirici Ortamları (IDEs & Editors)
+# 5. GELİŞTİRİCİ ARAÇLARI & IDE (IDEs & EDITORS)
 # ---------------------------------------------------
 .idea/
 .vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 .zed/
 .fleet/
 *.swp
 *.swo
 .project
 .settings/
+*.sublime-workspace
+*.sublime-project
 
 # ---------------------------------------------------
-# 9. İşletim Sistemi Kalıntıları (OS Specific)
+# 6. İŞLETİM SİSTEMİ KALINTILARI (OS SPECIFIC)
 # ---------------------------------------------------
 .DS_Store
 .DS_Store?
@@ -96,33 +87,50 @@ Thumbs.db
 desktop.ini
 
 # ---------------------------------------------------
-# 10. AI Ajanları & Prompt Bağlamları (AI Tools & Workflow)
+# 7. AI AJANLARI & WORKFLOW (AGENTS & CONTEXT)
 # ---------------------------------------------------
 .cursor/
 .cline/
 .windsurfrules
 .ai-context/
 .ai context/
-promt/
+brain/
 prompt/
 prompts/
+promt/
 context.md
 contex.md
+*.resolved
+# Scratch scripts/data
+scratch/
 
 # ---------------------------------------------------
-# 11. Kod Biçimlendirici (Linter & Formatter) Önbellekleri
+# 8. TEST RAPORLARI & SNAPSHOTS
 # ---------------------------------------------------
-.eslintcache
-.prettiercache
-# 12. Local Workspace Configs
-src/config/owner.ts
-.ai context/
-brain/
-*.resolved
+coverage/
+.nyc_output/
+__snapshots__/
+.cypress/
+playwright-report/
+test-results/
+
+# ---------------------------------------------------
+# 9. ÖZEL İSTİSNALAR & DOKÜMANTASYON (EXCEPTIONS)
+# ---------------------------------------------------
+# Markdown dosyaları genellikle yoksayılır ancak önemli olanlar hariç tutulur.
 *.md
-!task.md
-!src/config/owner.ts
 !README.md
-!docs/*.md
+!task.md
 !CHANGELOG.md
 !CONTRIBUTING.md
+!docs/
+!docs/*.md
+
+# ---------------------------------------------------
+# 10. PROJE ÖZEL (PROJECT SPECIFIC)
+# ---------------------------------------------------
+b64_temp.txt
+bohoohoh.json
+src/config/owner.ts
+# Owner configi localde kalmalı ancak şablon paylaşılabilir.
+!src/config/owner.example.ts

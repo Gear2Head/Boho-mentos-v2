@@ -33,10 +33,10 @@ export function calculateBaseElo(
   for (const event of events) {
     if (event.type === 'log') {
       const log = event.payload as DailyLog;
-      let K = 30;
-      if (currentElo >= 15000) K = 10;
-      else if (currentElo >= 7000) K = 15;
-      else if (currentElo >= 2500) K = 20;
+      let K = 60;
+      if (currentElo >= 50000) K = 20;
+      else if (currentElo >= 20000) K = 35;
+      else if (currentElo >= 7000) K = 45;
 
       const expectedNet = (log.questions || 1) * 0.60;
       const actualNet = log.correct - (log.wrong * 0.25);
@@ -46,11 +46,11 @@ export function calculateBaseElo(
       currentElo = Math.max(0, currentElo + eloDelta);
     } else if (event.type === 'exam') {
       const exam = event.payload as ExamResult;
-      let eloDelta = 100;
+      let eloDelta = 250;
       if (profile) {
         const target = exam.type === 'TYT' ? profile.tytTarget : profile.aytTarget;
-        if (exam.totalNet >= target) eloDelta += 150;
-        else if (exam.totalNet < target * 0.5) eloDelta -= 50;
+        if (exam.totalNet >= target) eloDelta += 350;
+        else if (exam.totalNet < target * 0.5) eloDelta -= 100;
       }
       currentElo = Math.max(0, currentElo + eloDelta);
     }
@@ -59,12 +59,12 @@ export function calculateBaseElo(
   // Add Curriculum Points (Mastered subjects). These weights match the
   // incremental updates in academicSlice so a full recompute is idempotent.
   tytSubjects.forEach(s => {
-    if (s.status === 'mastered') currentElo += 50;
-    else if (s.status === 'in-progress') currentElo += 15;
+    if (s.status === 'mastered') currentElo += 150;
+    else if (s.status === 'in-progress') currentElo += 40;
   });
   aytSubjects.forEach(s => {
-    if (s.status === 'mastered') currentElo += 75;
-    else if (s.status === 'in-progress') currentElo += 20;
+    if (s.status === 'mastered') currentElo += 220;
+    else if (s.status === 'in-progress') currentElo += 60;
   });
 
   return currentElo;

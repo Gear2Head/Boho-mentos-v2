@@ -64,12 +64,12 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     
     let eloDelta = 0;
     if (updates.status && updates.status !== oldStatus) {
-      if (updates.status === 'in-progress' && oldStatus === 'not-started') eloDelta = 15;
-      else if (updates.status === 'mastered' && oldStatus === 'in-progress') eloDelta = 35;
-      else if (updates.status === 'mastered' && oldStatus === 'not-started') eloDelta = 50;
-      else if (updates.status === 'not-started' && oldStatus === 'mastered') eloDelta = -50;
-      else if (updates.status === 'in-progress' && oldStatus === 'mastered') eloDelta = -35;
-      else if (updates.status === 'not-started' && oldStatus === 'in-progress') eloDelta = -15;
+      if (updates.status === 'in-progress' && oldStatus === 'not-started') eloDelta = 40;
+      else if (updates.status === 'mastered' && oldStatus === 'in-progress') eloDelta = 110;
+      else if (updates.status === 'mastered' && oldStatus === 'not-started') eloDelta = 150;
+      else if (updates.status === 'not-started' && oldStatus === 'mastered') eloDelta = -150;
+      else if (updates.status === 'in-progress' && oldStatus === 'mastered') eloDelta = -110;
+      else if (updates.status === 'not-started' && oldStatus === 'in-progress') eloDelta = -40;
     }
 
     const masteredCount = [...newSubs, ...aytSubjects].filter(s => s.status === 'mastered').length;
@@ -103,12 +103,12 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     
     let eloDelta = 0;
     if (updates.status && updates.status !== oldStatus) {
-      if (updates.status === 'in-progress' && oldStatus === 'not-started') eloDelta = 20;
-      else if (updates.status === 'mastered' && oldStatus === 'in-progress') eloDelta = 55;
-      else if (updates.status === 'mastered' && oldStatus === 'not-started') eloDelta = 75;
-      else if (updates.status === 'not-started' && oldStatus === 'mastered') eloDelta = -75;
-      else if (updates.status === 'in-progress' && oldStatus === 'mastered') eloDelta = -55;
-      else if (updates.status === 'not-started' && oldStatus === 'in-progress') eloDelta = -20;
+      if (updates.status === 'in-progress' && oldStatus === 'not-started') eloDelta = 60;
+      else if (updates.status === 'mastered' && oldStatus === 'in-progress') eloDelta = 160;
+      else if (updates.status === 'mastered' && oldStatus === 'not-started') eloDelta = 220;
+      else if (updates.status === 'not-started' && oldStatus === 'mastered') eloDelta = -220;
+      else if (updates.status === 'in-progress' && oldStatus === 'mastered') eloDelta = -160;
+      else if (updates.status === 'not-started' && oldStatus === 'in-progress') eloDelta = -60;
     }
 
     const masteredCount = [...tytSubjects, ...newSubs].filter(s => s.status === 'mastered').length;
@@ -169,10 +169,10 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newLogs = [...logs, logWithId].slice(-500);
     const todayStr = toISODateOnly();
     
-    let K = 30; 
-    if (eloScore >= 15000) K = 10;
-    else if (eloScore >= 7000) K = 15;
-    else if (eloScore >= 2500) K = 20;
+    let K = 60; 
+    if (eloScore >= 50000) K = 20;
+    else if (eloScore >= 20000) K = 35;
+    else if (eloScore >= 7000) K = 45;
 
     const expectedNet = (log.questions || 1) * 0.60;
     const actualNet = log.correct - (log.wrong * 0.25);
@@ -229,11 +229,11 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const safeTotalNet = !isFinite(exam.totalNet) || isNaN(exam.totalNet) ? 0 : exam.totalNet;
     const normalizedExam = { ...exam, totalNet: safeTotalNet };
 
-    let eloDelta = 100;
+    let eloDelta = 250;
     if (profile) {
       const target = normalizedExam.type === 'TYT' ? profile.tytTarget : profile.aytTarget;
-      if (normalizedExam.totalNet >= target) eloDelta += 150;
-      else if (normalizedExam.totalNet < target * 0.5) eloDelta -= 50;
+      if (normalizedExam.totalNet >= target) eloDelta += 350;
+      else if (normalizedExam.totalNet < target * 0.5) eloDelta -= 100;
     }
 
     const newDailyDelta = (lastEloUpdateDate !== todayStr ? 0 : dailyEloDelta) + eloDelta;

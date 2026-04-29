@@ -23,26 +23,33 @@ const YKS_DATE = YKS_TARGET_DATE_MAIN;
 // ─── ALT BİLEŞENLER ──────────────────────────────────────────────────────────
 
 const BentoStatCard = ({ title, value, total, unit, icon }: any) => (
-  <div className="glass-card p-6 rounded-3xl hover:-translate-y-1 transition-all duration-300 group">
-    <div className="flex items-center gap-3 mb-4">
+  <motion.div 
+    whileHover={{ y: -6, scale: 1.02, boxShadow: '0 20px 40px rgba(0,0,0,0.3)', borderColor: 'rgba(255,255,255,0.15)' }}
+    transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+    className="glass-card p-6 rounded-3xl transition-all duration-300 group cursor-default relative overflow-hidden"
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="flex items-center gap-3 mb-4 relative z-10">
       <div className="p-2 bg-white/5 rounded-xl group-hover:bg-[#C17767]/10 transition-colors">
         {icon}
       </div>
       <span className="text-[10px] uppercase tracking-widest font-black text-zinc-500">{title}</span>
     </div>
-    <div className="flex items-baseline gap-1">
+    <div className="flex items-baseline gap-1 relative z-10">
       <span className="text-3xl font-display italic font-bold text-zinc-100">{value}</span>
       {unit && <span className="text-xs font-bold text-zinc-500">{unit}</span>}
     </div>
     {total !== undefined && (
-      <div className="mt-4 h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
-        <div 
-          className="h-full bg-[#C17767] transition-all duration-1000" 
-          style={{ width: `${Math.min(100, (parseFloat(value) / total) * 100)}%` }} 
+      <div className="mt-4 h-1 w-full bg-zinc-800 rounded-full overflow-hidden relative z-10">
+        <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(100, (parseFloat(value) / total) * 100)}%` }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+          className="h-full bg-[#C17767]" 
         />
       </div>
     )}
-  </div>
+  </motion.div>
 );
 
 import { GhostRivalWidget } from './GhostRivalWidget';
@@ -129,13 +136,22 @@ export function BentoDashboard() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
+      initial="hidden"
+      animate="show"
+      variants={{
+        hidden: { opacity: 0 },
+        show: {
+          opacity: 1,
+          transition: { staggerChildren: 0.08 }
+        }
+      }}
       className="p-4 md:p-8 max-w-7xl mx-auto"
     >
       {/* Header Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6"
+      >
         <div className={`md:col-span-3 glass-card rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden group transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : ''}`}>
           <div className={`absolute inset-0 bg-gradient-to-br from-[#C17767]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 ${profile?.coachPersonality === 'hardcore' ? 'from-amber-500/20' : ''}`} />
           
@@ -178,17 +194,22 @@ export function BentoDashboard() {
           <MiniFlapClock targetDate={YKS_DATE} />
           <p className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase mt-4">Gün Kaldı</p>
         </div>
-      </div>
+      </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6"
+      >
         <BentoStatCard title="Tamamlanan" value={completedMastery.toString()} total={totalMastery} icon={<CheckCircle2 className="text-[#C17767]" />} />
         <BentoStatCard title="Günlük Çalışma" value={todayHours} total={profile?.dailyGoalHours || 0} unit="Saat" icon={<Calendar className="text-blue-400" />} />
         <BentoStatCard title="Kritik Sorunlar" value={logs.filter(l => l.wrong > l.correct).length.toString()} unit="Sorunlu" icon={<AlertTriangle className="text-orange-500" />} />
         <BentoStatCard title="En Verimli" value={calcSourceROI(logs)[0]?.sourceName.split(' ')[0] || 'YOK'} unit="Kaynak" icon={<BookOpen className="text-green-500" />} />
-      </div>
+      </motion.div>
 
-      <HabitAudit />
+      <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}>
+        <HabitAudit />
+      </motion.div>
 
       <div className="mt-8">
         <CrateShop />
@@ -201,12 +222,15 @@ export function BentoDashboard() {
 
       {/* Main Action & Coach */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
-        <div 
+        <motion.div 
+          variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+          whileHover={{ y: -8, scale: 1.01, boxShadow: '0 20px 50px rgba(193,119,103,0.15)', borderColor: 'rgba(193,119,103,0.4)' }}
+          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
           onClick={() => useAppStore.getState().setFocusSidePanelOpen(true)}
-          className="md:col-span-4 glass-card hover:-translate-y-1 transition-all rounded-3xl p-8 bg-gradient-to-br from-[#C17767]/20 to-transparent border-[#C17767]/20 flex flex-col justify-between cursor-pointer"
+          className="md:col-span-4 glass-card transition-all rounded-3xl p-8 bg-gradient-to-br from-[#C17767]/20 to-transparent border-[#C17767]/20 flex flex-col justify-between cursor-pointer group"
         >
           <div>
-            <Activity className="text-[#C17767] mb-6" size={32} />
+            <Activity className="text-[#C17767] mb-6 group-hover:rotate-12 transition-transform" size={32} />
             <h3 className="font-display italic text-3xl mb-2 text-zinc-100">Focus Tüneli</h3>
             <p className="text-zinc-400 text-xs uppercase tracking-widest">Seferberlik Modu</p>
           </div>
@@ -219,9 +243,12 @@ export function BentoDashboard() {
               <div className="h-full bg-[#C17767]" style={{ width: `${wp.completedPercent}%` }} />
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className={`md:col-span-8 glass-card rounded-3xl p-8 relative overflow-hidden transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 bg-amber-950/5' : ''}`}>
+        <motion.div 
+          variants={{ hidden: { opacity: 0, x: 20 }, show: { opacity: 1, x: 0 } }}
+          className={`md:col-span-8 glass-card rounded-3xl p-8 relative overflow-hidden transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 bg-amber-950/5' : ''}`}
+        >
           <div className="flex items-center justify-between mb-6">
             <h3 className={`font-display italic text-2xl uppercase tracking-tight flex items-center gap-2 ${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}><Activity size={20} /> {profile?.coachPersonality === 'hardcore' ? 'TOKSİK DİREKTİF' : 'Günün Direktifi'}</h3>
             {lastCoachDirective && (
@@ -270,10 +297,13 @@ export function BentoDashboard() {
               <div className="text-center py-12 opacity-30 text-zinc-500 italic">Akış bekleniyor...</div>
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"
+      >
         <div className="space-y-6">
           <StudyProgressRing dailyGoalQuestions={profile?.minDailyQuestions ?? 200} />
           <DailyMotivationWidget />
@@ -289,7 +319,7 @@ export function BentoDashboard() {
           <MemoryDecayWidget logs={logs} />
           <StudyHeatmap />
         </div>
-      </div>
+      </motion.div>
 
       <div className="mb-6">
         <WeeklyBossFight />

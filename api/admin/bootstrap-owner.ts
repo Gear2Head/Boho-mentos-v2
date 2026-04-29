@@ -1,6 +1,9 @@
 import { createHash, createSign } from 'node:crypto';
 
-declare const process: { env: Record<string, string | undefined> };
+declare const process: { 
+  env: Record<string, string | undefined>;
+  cwd: () => string;
+};
 
 type VercelReq = { method?: string; body?: unknown };
 type VercelRes = {
@@ -29,15 +32,24 @@ function sha256(value: string): string {
   return createHash('sha256').update(value.trim().toLowerCase()).digest('hex');
 }
 
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 function getServiceAccount(): ServiceAccount | null {
-  const encoded = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
-  const raw = encoded
-    ? Buffer.from(encoded, 'base64').toString('utf8')
-    : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!raw) return null;
-  const parsed = JSON.parse(raw) as ServiceAccount;
-  parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
-  return parsed;
+  const jsonPath = join(process.cwd(), 'firebase-service-account.json');
+  console.log('[getServiceAccount] Reading from:', jsonPath);
+  if (existsSync(jsonPath)) {
+    try {
+      const raw = readFileSync(jsonPath, 'utf8');
+      const parsed = JSON.parse(raw) as ServiceAccount;
+      parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+      return parsed;
+    } catch (err) {
+      console.error('[getServiceAccount] File parse failed:', err);
+    }
+  }
+
+  return null;
 }
 
 async function getAccessToken(serviceAccount: ServiceAccount): Promise<string> {

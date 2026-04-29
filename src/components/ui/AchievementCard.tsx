@@ -1,6 +1,7 @@
 import React from 'react';
 import * as LucideIcons from 'lucide-react';
 import { Achievement, UserAchievement } from '../../types';
+import { motion } from 'motion/react';
 
 interface AchievementCardProps {
   key?: string;
@@ -24,10 +25,10 @@ export function AchievementCard({ achievement, userAchievement, progress }: Achi
   if (pct > 100) pct = 100;
   if (isUnlocked) pct = 100;
 
-  let containerClass = "relative overflow-hidden rounded-2xl border p-4 transition-all duration-300 flex flex-col justify-between min-h-[140px]";
-  let iconContainerClass = "w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border transition-all mb-3";
-  let titleClass = "font-black text-sm text-ink leading-tight truncate uppercase tracking-tight";
-  let descClass = "text-[10px] mt-1 text-ink-muted leading-relaxed font-medium line-clamp-2";
+  let containerClass = "relative overflow-hidden rounded-2xl border p-4 flex flex-col justify-between min-h-[140px]";
+  let iconContainerClass = "w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border transition-all mb-3 relative z-10";
+  let titleClass = "font-black text-sm text-ink leading-tight truncate uppercase tracking-tight relative z-10";
+  let descClass = "text-[10px] mt-1 text-ink-muted leading-relaxed font-medium line-clamp-2 relative z-10";
   
   if (!isUnlocked) {
     containerClass += " opacity-60 grayscale border-app bg-surface-2";
@@ -57,7 +58,6 @@ export function AchievementCard({ achievement, userAchievement, progress }: Achi
         titleClass += " text-cyan-500";
         break;
       case 'legendary':
-        // Animated gradient border achieved via CSS class if possible, or just elaborate inline style
         containerClass += " border-transparent bg-clip-padding relative before:absolute before:inset-0 before:-z-10 before:rounded-2xl before:p-[2px] before:bg-gradient-to-r before:from-purple-500 before:via-pink-500 before:to-yellow-500 before:animate-gradient-x shadow-[0_0_20px_rgba(168,85,247,0.4)]";
         iconContainerClass += " border-purple-500/50 bg-purple-500/20 text-purple-400";
         titleClass += " text-purple-400";
@@ -69,9 +69,27 @@ export function AchievementCard({ achievement, userAchievement, progress }: Achi
   }
 
   return (
-    <div className={containerClass}>
+    <motion.div 
+      whileHover={isUnlocked ? { y: -5, scale: 1.02, boxShadow: '0 15px 30px rgba(0,0,0,0.3)' } : {}}
+      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+      className={containerClass}
+    >
+      {/* Background Gradient on hover */}
+      {isUnlocked && (
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      )}
+
+      {/* Shine effect for legendary */}
+      {achievement.tier === 'legendary' && isUnlocked && (
+        <motion.div 
+          animate={{ x: ['-100%', '200%'] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 2 }}
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 z-0"
+        />
+      )}
+
       <div>
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between relative z-10">
           <div className={iconContainerClass}>
             {isHidden ? <LucideIcons.HelpCircle size={18} /> : <IconComponent size={18} />}
           </div>
@@ -88,19 +106,21 @@ export function AchievementCard({ achievement, userAchievement, progress }: Achi
 
       {/* Progress Bar */}
       {!isUnlocked && !isHidden && (
-        <div className="mt-4">
+        <div className="mt-4 relative z-10">
           <div className="flex justify-between text-[8px] font-bold text-ink-muted mb-1 uppercase tracking-wider">
             <span>İlerleme</span>
             <span>{Math.floor(progress.current)} / {progress.target}</span>
           </div>
           <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-accent transition-all duration-1000 ease-out"
-              style={{ width: `${pct}%` }}
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 1, ease: "easeOut" }}
+              className="h-full bg-accent"
             />
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

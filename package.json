@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/autofix.cjs && npx concurrently --kill-others \"vite --port=3000 --strictPort --host=127.0.0.1\" \"tsx server.ts\" \"tsc --noEmit --watch --preserveWatchOutput\"",
+    "dev": "node scripts/autofix.cjs && npx concurrently --kill-others \"vite --port=3000 --strictPort --host=127.0.0.1\" \"tsx watch server.ts\" \"tsc --noEmit --watch --preserveWatchOutput\"",
     "doctor": "node scripts/autofix.cjs",
     "build": "npm run clean && vite build",
     "preview": "vite preview",

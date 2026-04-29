@@ -4,24 +4,19 @@
  * UYARI: BUILD-001 fix — double-parse riski giderildi. req.body zaten express.json() parse etti.
  */
 
-import express, { type Request, type Response } from 'express';
 import dotenv from 'dotenv';
-import handler from './api/ai';
-import bootstrapOwnerHandler from './api/admin/bootstrap-owner';
-
 dotenv.config({ path: '.env.local' });
 dotenv.config({ path: '.env' });
 
+import express, { type Request, type Response } from 'express';
+import handler from './api/ai';
+import bootstrapOwnerHandler from './api/admin/bootstrap-owner';
+
 const app = express();
-const port = 3001;
+const port = Number(process.env.PORT) || 3001;
 
 app.use(express.json({ limit: '10mb' }));
 
-/**
- * adaptExpressToVercel: Express Request/Response → api/ai.ts handler kontratına dönüştürür.
- * api/ai.ts handler imzası: (req: Record<string, unknown>, res: { statusCode, setHeader, end }) => void
- * Bu adaptör olmadan Express req tipi ile handler imzası çakışıyordu (BUILD-001).
- */
 function adaptExpressToVercel(
   expressReq: Request,
   expressRes: Response
@@ -31,7 +26,6 @@ function adaptExpressToVercel(
 ] {
   const vercelReq: Record<string, unknown> = {
     method: expressReq.method,
-    // body zaten parse edilmiş nesne — handler string kontrolü yapıp tekrar parse etmez
     body: expressReq.body,
     headers: expressReq.headers as Record<string, string | undefined>,
     socket: { remoteAddress: expressReq.socket?.remoteAddress },

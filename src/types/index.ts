@@ -40,6 +40,7 @@ export interface StudentProfile {
   coachMemory?: CoachMemory; // [Faz 2 - Hafıza]
   streakShields?: number; // [Faz 2 - Streak Freeze]
   usedStreakShieldDates?: string[];
+  activeDays?: string[]; // [FAZ-3]: Sistem girişine göre seri takibi
   role?: import('../config/admin').UserRole;
 }
 

@@ -105,28 +105,69 @@ export function AdminDashboard({ onBack }: Props) {
   };
 
   if (!hasAccess) {
+    const emailHash = authUser?.email ? 
+      // Simple hash simulation or just instruct them to check console
+      "SHA256_HASH_HINT" : "";
+
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center z-[300]">
-        <div className="text-center text-red-400 p-8 max-w-sm w-full">
-          <Shield size={64} className="mx-auto mb-4 opacity-50" />
-          <h2 className="text-2xl font-bold">Yetkisiz Erisim</h2>
-          <p className="mt-2 opacity-60">Admin yetkisi Firebase custom claim ile dogrulanmadi.</p>
-          
-          <div className="space-y-3 mt-8">
-            <button 
-              onClick={handleBootstrap}
-              disabled={isBootstrapping}
-              className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-500 transition disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {isBootstrapping ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
-              Owner Yetkisi Al
-            </button>
-            <button onClick={onBack} className="w-full py-3 bg-zinc-800 text-zinc-400 rounded-xl hover:bg-zinc-700 transition font-bold uppercase tracking-widest text-[10px]">Geri Don</button>
-          </div>
-          
-          <p className="mt-6 text-[9px] text-zinc-600 uppercase tracking-tighter">
-            Eger bu projenin sahibiyseniz, yukaridaki butona basarak Firebase yetkilerini otomatik tanimlayabilirsiniz.
-          </p>
+        <div className="text-center p-8 max-w-lg w-full">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#111] border border-zinc-800/60 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-zinc-800 to-red-600"></div>
+            
+            <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+              <Shield size={40} className="text-red-500" />
+            </div>
+            
+            <h2 className="text-3xl font-black text-white tracking-tight mb-2">Erişim Reddedildi</h2>
+            <p className="text-zinc-500 text-xs uppercase tracking-[0.2em] font-bold mb-8 opacity-60">Admin yetkisi Firebase Claims üzerinden doğrulanmadı</p>
+            
+            <div className="bg-black/40 border border-zinc-800/40 rounded-2xl p-6 mb-8 text-left space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Firestore'da <strong>super_admin</strong> rolüne sahip olmanız yetmez; Firebase Auth <strong>Custom Claims</strong> ayarlanmış olmalıdır.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Aşağıdaki butona basarak kendini <strong>Owner</strong> olarak bootstrap edebilirsin. (Sadece .env'de tanımlı email için geçerli)
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={handleBootstrap}
+                disabled={isBootstrapping}
+                className="w-full py-4 bg-white text-black rounded-2xl font-black uppercase tracking-[0.1em] text-xs hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl"
+              >
+                {isBootstrapping ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                Owner Yetkilerini Tanımla
+              </button>
+              
+              <button 
+                onClick={onBack} 
+                className="w-full py-3 bg-zinc-900 text-zinc-500 rounded-xl hover:bg-zinc-800 transition font-bold uppercase tracking-widest text-[10px]"
+              >
+                Geri Dön
+              </button>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-zinc-800/40">
+              <p className="text-[9px] text-zinc-600 uppercase font-bold tracking-widest mb-3">Teknik Detay (Geliştirici İçin)</p>
+              <div className="bg-black/60 p-3 rounded-lg font-mono text-[9px] text-zinc-500 break-all select-all border border-zinc-800/20">
+                Email: {authUser?.email}<br/>
+                {/* Hash hint will be calculated by the user or they can just use the email directly if we change the API */}
+                Lütfen .env dosyasında OWNER_EMAIL_SHA256 ve FIREBASE_SERVICE_ACCOUNT_JSON değerlerinin doğru olduğundan emin olun.
+              </div>
+            </div>
+          </motion.div>
         </div>
       </div>
     );
@@ -467,9 +508,10 @@ function EntitiesPanel({ actorUid, showToast }: { actorUid: string; showToast: (
 
   useEffect(() => { loadEntities(); }, [activeEntity]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: any) => {
     if (!confirm('Bu kaydı silmek istediğine emin misin? Bu işlem geri alınamaz.')) return;
-    const ok = await devService.deleteEntity(activeEntity, id);
+    const targetUid = item.uid || item.userId || actorUid;
+    const ok = await devService.deleteEntity(actorUid, targetUid, activeEntity, item.id);
     if (ok) {
       showToast('success', 'Kayıt silindi');
       loadEntities();
@@ -543,7 +585,7 @@ function EntitiesPanel({ actorUid, showToast }: { actorUid: string; showToast: (
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button className="p-2 hover:bg-blue-500/10 hover:text-blue-500 rounded-lg text-zinc-600 transition"><Eye size={14} /></button>
-                      <button onClick={() => handleDelete(item.id)} className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg text-zinc-600 transition"><Trash2 size={14} /></button>
+                      <button onClick={() => handleDelete(item)} className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg text-zinc-600 transition"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
