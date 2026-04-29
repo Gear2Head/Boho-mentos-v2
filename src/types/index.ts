@@ -39,6 +39,7 @@ export interface StudentProfile {
   lastSyncAt?: string; // [SYNC-FIX]: Son başarılı eşitleme zamanı
   coachMemory?: CoachMemory; // [Faz 2 - Hafıza]
   streakShields?: number; // [Faz 2 - Streak Freeze]
+  usedStreakShieldDates?: string[];
   role?: import('../config/admin').UserRole;
 }
 
@@ -77,6 +78,7 @@ export interface SubjectStatus {
 export interface DailyLog {
   id?: string;
   date: string;
+  createdAt?: string;
   subject: string;
   topic: string;
   questions: number;
@@ -89,6 +91,7 @@ export interface DailyLog {
   notes?: string;
   sessionId?: string;
   sourceName?: string;
+  source?: 'manual' | 'coach' | 'agenda' | 'voice' | 'system';
 }
 
 export interface SourceROI {
@@ -199,6 +202,8 @@ export interface AgendaEntry {
   id: string;
   date: string;
   content: string;
+  linkedLogIds?: string[];
+  source?: 'manual' | 'coach' | 'log' | 'system';
   parsedExam?: {
     type: 'TYT' | 'AYT';
     totalNet: number;
@@ -274,6 +279,18 @@ export interface AuthUser {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  claims?: Record<string, unknown>;
+}
+
+export interface EconomyEvent {
+  id: string;
+  eventKey: string;
+  type: 'elo_award' | 'coin_award' | 'coin_spend' | 'repair';
+  source: string;
+  eloDelta?: number;
+  coinDelta?: number;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
 }
 
 

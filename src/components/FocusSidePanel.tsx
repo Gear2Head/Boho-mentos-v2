@@ -6,6 +6,21 @@ import { useAppStore } from '../store/appStore';
 import { FlapUnit } from './FlapClock';
 import { AudioEngine } from '../utils/audioEngine';
 
+function toYoutubeEmbedUrl(url: string): string {
+  const trimmed = url.trim();
+  const fallback = 'https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1&mute=0&controls=0&modestbranding=1';
+  if (!trimmed) return fallback;
+  const idMatch = trimmed.match(/(?:youtu\.be\/|v=|embed\/)([a-zA-Z0-9_-]{6,})/);
+  const playlistMatch = trimmed.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  if (playlistMatch) {
+    return `https://www.youtube-nocookie.com/embed/videoseries?list=${playlistMatch[1]}&autoplay=1&controls=1&modestbranding=1`;
+  }
+  if (idMatch) {
+    return `https://www.youtube-nocookie.com/embed/${idMatch[1]}?autoplay=1&controls=1&modestbranding=1`;
+  }
+  return fallback;
+}
+
 export function FocusSidePanel() {
   const isFocusSidePanelOpen = useAppStore((s) => s.isFocusSidePanelOpen);
   const setFocusSidePanelOpen = useAppStore((s) => s.setFocusSidePanelOpen);
@@ -35,6 +50,7 @@ export function FocusSidePanel() {
   const [showInterventionPrompt, setShowInterventionPrompt] = useState(false);
   const [interventionFiredAt, setInterventionFiredAt] = useState<number | null>(null);
   const [pauseCount, setPauseCount] = useState(0);
+  const [youtubeUrl, setYoutubeUrl] = useState(() => localStorage.getItem('boho_ambience_youtube_url') || '');
 
   const handlePause = () => {
     if (sessionSeconds > 0) setPauseCount(p => p + 1);
@@ -98,6 +114,7 @@ export function FocusSidePanel() {
   const focusProgress = Math.min((dailyFocusSeconds / focusGoalSeconds) * 100, 100);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const youtubeEmbedUrl = useMemo(() => toYoutubeEmbedUrl(youtubeUrl), [youtubeUrl]);
 
   return (
     <>
@@ -144,8 +161,8 @@ export function FocusSidePanel() {
                   <iframe 
                     width="100%" 
                     height="100%" 
-                    src="https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1&mute=0&controls=0&modestbranding=1" 
-                    title="Lofi Girl" 
+                    src={youtubeEmbedUrl}
+                    title="YouTube ortam atmosferi"
                     frameBorder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   ></iframe>
@@ -261,6 +278,19 @@ export function FocusSidePanel() {
                       />
                     </div>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] uppercase tracking-widest text-zinc-500 font-black">YouTube atmosfer linki</label>
+                  <input
+                    value={youtubeUrl}
+                    onChange={(e) => {
+                      setYoutubeUrl(e.target.value);
+                      localStorage.setItem('boho_ambience_youtube_url', e.target.value);
+                    }}
+                    placeholder="YouTube video veya playlist linki"
+                    className="w-full bg-white dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-xl px-3 py-2 text-xs text-[#4A443C] dark:text-zinc-200 focus:outline-none focus:border-[#C17767]"
+                  />
+                  <p className="text-[9px] text-zinc-500">Ustteki muzik butonu acikken bu link oynatilir; bos kalirsa guvenli varsayilan lofi kullanilir.</p>
                 </div>
               </div>
 

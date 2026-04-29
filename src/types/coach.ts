@@ -163,6 +163,11 @@ export interface CoachDirective {
     questions: number;
     duration: number;
   }>;
+  /** İstemci tarafında tetiklenecek özel aksiyonlar */
+  clientActions?: Array<{
+    type: 'CELEBRATE' | 'OPEN_MARKET' | 'ADD_GOAL' | 'START_FOCUS' | 'TRIGGER_VOICE';
+    payload?: Record<string, unknown>;
+  }>;
 }
 
 // ─── Directive Record (Tarihsel Kayıt) ───────────────────────────────────────

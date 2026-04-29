@@ -2,11 +2,12 @@ import { StateCreator } from 'zustand';
 import { AppState } from '../appStore';
 import { DailyLog, ExamResult, FailedQuestion, SubjectStatus, AgendaEntry, FocusSessionRecord } from '../../types';
 import { Flashcard } from '../../types/coach';
-import { toISODateOnly, toDateMs } from '../../utils/date';
+import { toISODateOnly } from '../../utils/date';
 import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
-import { calculateFinalElo } from "../../utils/eloRecomputator";
+import { calculateBaseElo } from "../../utils/eloRecomputator";
+import { filterInvalidEloAchievementIds, sumAchievementRewards } from "../../data/achievementDefinitions";
 
 export interface AcademicSlice {
   tytSubjects: SubjectStatus[];
@@ -56,7 +57,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
   flashcards: [],
 
   updateTytSubject: (index, updates) => {
-    const { authUser, tytSubjects, aytSubjects, trophies, eloScore, lastEloUpdateDate, dailyEloDelta } = get();
+    const { authUser, tytSubjects, aytSubjects, trophies, lastEloUpdateDate, dailyEloDelta, addElo } = get();
     const newSubs = [...tytSubjects];
     const oldStatus = newSubs[index].status;
     newSubs[index] = { ...newSubs[index], ...updates };
@@ -80,24 +81,22 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
 
     const todayStr = new Date().toISOString().split('T')[0];
     const newDailyDelta = lastEloUpdateDate !== todayStr ? eloDelta : dailyEloDelta + eloDelta;
-    const newElo = Math.max(0, eloScore + eloDelta);
-
     set({ 
       tytSubjects: newSubs, 
-      eloScore: newElo, 
       trophies: newTrophies, 
       dailyEloDelta: newDailyDelta, 
       lastEloUpdateDate: todayStr, 
       lastLocalUpdateAt: new Date().toISOString() 
     });
+    if (eloDelta !== 0) addElo(eloDelta, 'tyt_subject_status', `tyt:${index}:${oldStatus}->${updates.status}:${todayStr}`);
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs, trophies: newTrophies, eloScore: newElo }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs, trophies: newTrophies }), { merge: true }).catch(console.error);
     }
   },
 
   updateAytSubject: (originalIndex, updates) => {
-    const { authUser, tytSubjects, aytSubjects, trophies, eloScore, lastEloUpdateDate, dailyEloDelta } = get();
+    const { authUser, tytSubjects, aytSubjects, trophies, lastEloUpdateDate, dailyEloDelta, addElo } = get();
     const newSubs = [...aytSubjects];
     const oldStatus = newSubs[originalIndex].status;
     newSubs[originalIndex] = { ...newSubs[originalIndex], ...updates };
@@ -121,19 +120,17 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
 
     const todayStr = new Date().toISOString().split('T')[0];
     const newDailyDelta = lastEloUpdateDate !== todayStr ? eloDelta : dailyEloDelta + eloDelta;
-    const newElo = Math.max(0, eloScore + eloDelta);
-
     set({ 
       aytSubjects: newSubs, 
-      eloScore: newElo, 
       trophies: newTrophies, 
       dailyEloDelta: newDailyDelta, 
       lastEloUpdateDate: todayStr, 
       lastLocalUpdateAt: new Date().toISOString() 
     });
+    if (eloDelta !== 0) addElo(eloDelta, 'ayt_subject_status', `ayt:${originalIndex}:${oldStatus}->${updates.status}:${todayStr}`);
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs, trophies: newTrophies, eloScore: newElo }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs, trophies: newTrophies }), { merge: true }).catch(console.error);
     }
   },
 
@@ -162,18 +159,15 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
   },
 
   addLog: (log) => {
-    const { authUser, logs, eloScore, lastEloUpdateDate, dailyEloDelta, streakDays, detectAndSetHabits } = get();
+    const { authUser, logs, eloScore, lastEloUpdateDate, dailyEloDelta, detectAndSetHabits, addElo, recomputeStreak } = get();
     const logWithId: DailyLog = {
       ...log,
       id: log.id ?? `log_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      createdAt: log.createdAt ?? new Date().toISOString(),
+      source: log.source ?? 'manual',
     };
     const newLogs = [...logs, logWithId].slice(-500);
     const todayStr = toISODateOnly();
-    const hasLoggedToday = logs.some((l) => {
-      const ms = toDateMs(l.date);
-      return ms ? toISODateOnly(new Date(ms)) === todayStr : false;
-    });
-    const newStreak = hasLoggedToday ? streakDays : streakDays + 1;
     
     let K = 30; 
     if (eloScore >= 15000) K = 10;
@@ -186,48 +180,51 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const eloDelta = Math.round(K * netDiff);
     
     const newDailyDelta = (lastEloUpdateDate !== todayStr ? 0 : dailyEloDelta) + eloDelta;
-    const newEloScore = Math.max(0, eloScore + eloDelta);
 
     set({ 
       logs: newLogs, 
-      streakDays: newStreak, 
-      eloScore: newEloScore, 
       dailyEloDelta: newDailyDelta, 
       lastEloUpdateDate: todayStr, 
       lastLocalUpdateAt: new Date().toISOString() 
     });
+    if (eloDelta !== 0) addElo(eloDelta, 'study_log', `log:${logWithId.id}:elo`);
+    const newStreak = recomputeStreak(true);
     
     detectAndSetHabits();
 
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid, 'logs', logWithId.id), cleanForFirestore(logWithId)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak, eloScore: newEloScore }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak }), { merge: true }).catch(console.error);
     }
   },
 
   removeLog: (id) => {
-    const { authUser, logs, detectAndSetHabits } = get();
+    const { authUser, logs, detectAndSetHabits, recomputeStreak } = get();
     const newLogs = logs.filter(l => l.id !== id);
     set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
+    const newStreak = recomputeStreak(false);
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'logs', id)).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
 
   updateLog: (id, updates) => {
-    const { authUser, logs, detectAndSetHabits } = get();
+    const { authUser, logs, detectAndSetHabits, recomputeStreak } = get();
     const newLogs = logs.map(l => l.id === id ? { ...l, ...updates } : l);
     set({ logs: newLogs, lastLocalUpdateAt: new Date().toISOString() });
+    const newStreak = updates.date ? recomputeStreak(false) : get().streakDays;
     if (authUser?.uid) {
       const updated = newLogs.find(l => l.id === id);
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'logs', id), cleanForFirestore(updated)).catch(console.error);
+      if (updates.date) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
 
   addExam: (exam) => {
-    const { authUser, exams, eloScore, lastEloUpdateDate, dailyEloDelta, profile } = get();
+    const { authUser, exams, lastEloUpdateDate, dailyEloDelta, profile, addElo } = get();
     const todayStr = toISODateOnly();
     const safeTotalNet = !isFinite(exam.totalNet) || isNaN(exam.totalNet) ? 0 : exam.totalNet;
     const normalizedExam = { ...exam, totalNet: safeTotalNet };
@@ -240,20 +237,19 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     }
 
     const newDailyDelta = (lastEloUpdateDate !== todayStr ? 0 : dailyEloDelta) + eloDelta;
-    const newEloScore = Math.max(0, eloScore + eloDelta);
     const newExams = [...exams, normalizedExam].slice(-200);
 
     set({ 
       exams: newExams, 
-      eloScore: newEloScore, 
       dailyEloDelta: newDailyDelta, 
       lastEloUpdateDate: todayStr, 
       lastLocalUpdateAt: new Date().toISOString() 
     });
+    addElo(eloDelta, 'exam_result', `exam:${normalizedExam.id}:elo`);
     
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid, 'exams', normalizedExam.id), cleanForFirestore(normalizedExam)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams, eloScore: newEloScore }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams }), { merge: true }).catch(console.error);
     }
   },
 
@@ -379,15 +375,37 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
   },
 
   recomputeFullElo: () => {
-    const { logs, exams, profile, authUser, tytSubjects, aytSubjects, evaluateAllAchievements } = get();
-    const newElo = calculateFinalElo(logs, exams, (profile as any), tytSubjects, aytSubjects);
-    set({ eloScore: newElo, lastLocalUpdateAt: new Date().toISOString() });
+    const {
+      logs, exams, profile, authUser, tytSubjects, aytSubjects,
+      evaluateAllAchievements, unlockedAchievementIds, userAchievements
+    } = get();
+    const baseElo = calculateBaseElo(logs, exams, (profile as any), tytSubjects, aytSubjects);
+    const validAchievementIds = filterInvalidEloAchievementIds(unlockedAchievementIds || [], baseElo);
+    const validAchievementIdSet = new Set(validAchievementIds);
+    const validUserAchievements = (userAchievements || []).filter((achievement) => validAchievementIdSet.has(achievement.id));
+    const newElo = baseElo + sumAchievementRewards(validAchievementIds);
+
+    // ELO -> BohoCoin Senkronizasyonu (1 ELO = 4 Coin)
+    const newCoins = Math.max(get().bohoCoins || 0, newElo * 4);
+
+    set({
+      eloScore: newElo,
+      bohoCoins: newCoins,
+      unlockedAchievementIds: validAchievementIds,
+      userAchievements: validUserAchievements,
+      lastLocalUpdateAt: new Date().toISOString()
+    });
     
     // Check achievements after recomputing ELO
     evaluateAllAchievements();
 
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({
+        eloScore: newElo,
+        bohoCoins: newCoins,
+        unlockedAchievementIds: validAchievementIds,
+        userAchievements: validUserAchievements
+      }), { merge: true }).catch(console.error);
     }
   }
 });

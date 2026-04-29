@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, MessageCircle, UserPlus, UserCheck, Shield, Award, Flame, Zap, Trophy, ArrowRight, User } from 'lucide-react';
+import { Search, MessageCircle, UserPlus, UserCheck, Shield, Award, Flame, Zap, Trophy, User } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { collection, query, where, getDocs, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -100,28 +100,9 @@ export function SocialPage() {
           )}
         </div>
 
-        {/* Right: Active Chat / Profile (Desktop Only Side Panel if wanted, or Modal) */}
         <AnimatePresence>
           {activeChatUid && (
-            <motion.div 
-              initial={{ x: 300, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 300, opacity: 0 }}
-              className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-surface border-l border-app shadow-2xl z-[100] md:relative md:inset-auto md:w-[400px] md:rounded-[32px] md:border-app flex flex-col"
-            >
-               <div className="p-4 border-b border-app flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                     <MessageCircle size={18} className="text-[#C17767]" />
-                     <span className="font-bold uppercase tracking-widest text-xs">Sohbet</span>
-                  </div>
-                  <button onClick={() => setActiveChatUid(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-500">
-                     <ArrowRight size={20} />
-                  </button>
-               </div>
-               <div className="flex-1 overflow-hidden">
-                  <DMPanel forceTargetUid={activeChatUid} onClose={() => setActiveChatUid(null)} />
-               </div>
-            </motion.div>
+            <DMPanel forceTargetUid={activeChatUid} onClose={() => setActiveChatUid(null)} />
           )}
         </AnimatePresence>
       </div>
@@ -146,7 +127,7 @@ export function SocialPage() {
                   <h3 className="font-display italic text-3xl text-zinc-100">{selectedWarrior.name}</h3>
                   <div className="mt-1 flex items-center justify-center gap-2 text-[10px] uppercase font-black tracking-widest text-zinc-500">
                     <Shield size={12} className="text-[#C17767]" />
-                    <span>Seviye {getLevelFromElo(selectedWarrior.eloScore)} Savaşçı</span>
+                    <span>Seviye {getLevelFromElo(selectedWarrior.eloScore).level} Savaşçı</span>
                   </div>
                </div>
 
@@ -208,7 +189,14 @@ export function SocialPage() {
   );
 }
 
-function WarriorCard({ warrior, onChat, onView }: { warrior: WarriorProfile; onChat: () => void; onView: () => void }) {
+interface WarriorCardProps {
+  key?: React.Key;
+  warrior: WarriorProfile;
+  onChat: () => void;
+  onView: () => void;
+}
+
+function WarriorCard({ warrior, onChat, onView }: WarriorCardProps) {
   const levelInfo = getLevelFromElo(warrior.eloScore);
   
   return (

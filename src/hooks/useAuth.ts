@@ -35,8 +35,21 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const mappedUser = mapFirebaseUser(user);
+        const tokenResult = await user.getIdTokenResult(true).catch(() => null);
+        const mappedUser = { ...mapFirebaseUser(user), claims: tokenResult?.claims ?? {} };
         setAuthUser(mappedUser);
+        fetch('/api/admin/bootstrap-owner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: await user.getIdToken().catch(() => '') }),
+        })
+          .then(async (res) => {
+            if (res.ok) {
+              const refreshed = await user.getIdTokenResult(true);
+              setAuthUser({ ...mapFirebaseUser(user), claims: refreshed.claims });
+            }
+          })
+          .catch(() => {});
 
         try {
           const userRef = doc(db, 'users', user.uid);
@@ -49,6 +62,8 @@ export function useAuth() {
                 photo_url: mappedUser.photoURL,
                 eloScore: 1200, // Default ELO
                 streakDays: 0,
+                bohoCoins: 0,
+                economyLedger: [],
                 updated_at: new Date().toISOString(),
              }, { merge: true });
           }
@@ -76,6 +91,8 @@ export function useAuth() {
            ...(data.theme && { theme: data.theme }),
            ...(data.eloScore !== undefined && { eloScore: data.eloScore }),
            ...(data.streakDays !== undefined && { streakDays: data.streakDays }),
+           ...(data.bohoCoins !== undefined && { bohoCoins: data.bohoCoins }),
+           ...(data.economyLedger && { economyLedger: data.economyLedger }),
            ...(data.trophies && { trophies: data.trophies }),
            ...(data.activeAlerts && { activeAlerts: data.activeAlerts }),
            ...(data.isPassiveMode !== undefined && { isPassiveMode: data.isPassiveMode }),

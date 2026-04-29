@@ -1,5 +1,6 @@
 import { Achievement } from '../types';
-import { AppState } from '../store/appStore';
+import type { AppState } from '../store/appStore';
+import { calculateBaseElo } from '../utils/eloRecomputator';
 
 // Helper functions for common state queries
 const getTotalQuestions = (state: AppState) => state.logs.reduce((sum, log) => sum + (log.questions || 0), 0);
@@ -8,6 +9,33 @@ const getSubjectQuestions = (state: AppState, subjectNameIncludes: string) =>
     .reduce((sum, log) => sum + (log.questions || 0), 0);
 
 const getExamCount = (state: AppState) => state.exams?.length || 0;
+const getCompetitiveElo = (state: AppState) => calculateBaseElo(
+  state.logs || [],
+  state.exams || [],
+  state.profile,
+  state.tytSubjects || [],
+  state.aytSubjects || []
+);
+
+export const ELO_ACHIEVEMENT_THRESHOLDS = {
+  elo_rising: 100,
+  elo_challenger: 1000,
+  elo_grandmaster: 3000,
+} as const;
+
+export function sumAchievementRewards(ids: string[]): number {
+  const idSet = new Set(ids);
+  return ACHIEVEMENTS.reduce((sum, achievement) => (
+    idSet.has(achievement.id) ? sum + (achievement.reward?.elo || 0) : sum
+  ), 0);
+}
+
+export function filterInvalidEloAchievementIds(ids: string[], baseElo: number): string[] {
+  return ids.filter((id) => {
+    const threshold = ELO_ACHIEVEMENT_THRESHOLDS[id as keyof typeof ELO_ACHIEVEMENT_THRESHOLDS];
+    return threshold === undefined || baseElo >= threshold;
+  });
+}
 
 export const ACHIEVEMENTS: Achievement[] = [
   // Category: Streak & Discipline
@@ -420,7 +448,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     isHidden: false,
     icon: 'TrendingUp',
     reward: { elo: 50 },
-    calculateProgress: (state) => ({ current: state.eloScore || 0, target: 100 })
+    calculateProgress: (state) => ({ current: getCompetitiveElo(state), target: 100 })
   },
   {
     id: 'elo_challenger',
@@ -431,7 +459,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     isHidden: false,
     icon: 'Crosshair',
     reward: { elo: 500 },
-    calculateProgress: (state) => ({ current: state.eloScore || 0, target: 1000 })
+    calculateProgress: (state) => ({ current: getCompetitiveElo(state), target: 1000 })
   },
   {
     id: 'elo_grandmaster',
@@ -442,7 +470,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     isHidden: false,
     icon: 'Crown',
     reward: { elo: 1500, badgeTitle: 'Grandmaster' },
-    calculateProgress: (state) => ({ current: state.eloScore || 0, target: 3000 })
+    calculateProgress: (state) => ({ current: getCompetitiveElo(state), target: 3000 })
   },
   {
     id: 'flawless_victory',

@@ -23,6 +23,7 @@ import { compactChatHistory } from '../services/contextSummarizer';
 import type { CoachIntent, CoachDirective } from '../types/coach';
 import type { DailyLog, ExamResult } from '../types';
 import { cleanForFirestore } from '../utils/firebaseHelpers';
+import { toLocalISODateOnly } from '../utils/date';
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,21 @@ interface UseCoachCoreReturn {
     accuracy: number;
     topics: string[];
   }) => Promise<{ text: string } | null>;
+}
+
+function detectBackdatedLogPrompt(message: string): string | null {
+  const lower = message.toLowerCase();
+  if (!/(yapt[ıi]m|çözdüm|cozdum|çalıştım|calistim|bitirdim|log|ajanda)/i.test(lower)) return null;
+  const match = lower.match(/\b(\d{1,2})(?:['’]?(?:unda|ünde|inde|ında|de|da|te|ta)|\.)\b/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  if (!Number.isFinite(day) || day < 1 || day > 31) return null;
+  const now = new Date();
+  const candidate = new Date(now.getFullYear(), now.getMonth(), day, 12, 0, 0, 0);
+  if (candidate.getTime() > now.getTime()) {
+    candidate.setMonth(candidate.getMonth() - 1);
+  }
+  return toLocalISODateOnly(candidate);
 }
 
 export function useCoachCore(): UseCoachCoreReturn {
@@ -90,6 +106,17 @@ export function useCoachCore(): UseCoachCoreReturn {
       setIsTyping(true);
 
       try {
+        const backdatedDate = detectBackdatedLogPrompt(userMessage);
+        if (backdatedDate && intent === 'free_chat') {
+          const text = `Anladım. Bu geçmiş tarihli bir çalışma kaydı gibi duruyor; veriyi doğru işleyebilmem için lütfen detaylandır: ders, konu, soru sayısı, doğru/yanlış/boş ve süre. [[OPEN:log_study:date=${backdatedDate}]]`;
+          addChatMessage(cleanForFirestore({
+            role: 'coach',
+            content: text,
+            timestamp: new Date().toISOString(),
+          }));
+          return { text };
+        }
+
         // 1. Merkezi context builder (COACH-004)
         const { contextString, userState } = buildCoachContext({
           profile,
@@ -176,6 +203,35 @@ export function useCoachCore(): UseCoachCoreReturn {
                 fatigue: 3,
                 notes: '🤖 Kübra: Sohbetten otomatik yakalanan çalışma kaydı.'
               });
+            });
+          }
+
+          // [ST-003] Client Actions
+          if (directive.clientActions && directive.clientActions.length > 0) {
+            directive.clientActions.forEach(action => {
+              switch (action.type) {
+                case 'CELEBRATE':
+                  import('canvas-confetti').then(confetti => confetti.default());
+                  break;
+                case 'OPEN_MARKET':
+                  useAppStore.setState({ isCrateModalOpen: true });
+                  break;
+                
+                case 'ADD_FAILED_QUESTION':
+                  if (action.payload?.subject) {
+                    useAppStore.getState().addFailedQuestion({
+                      id: 'fq_' + Date.now(),
+                      subject: String(action.payload.subject),
+                      topic: String(action.payload.topic || 'Genel'),
+                      difficulty: String(action.payload.difficulty || 'medium'),
+                      createdAt: new Date().toISOString()
+                    } as any);
+                  }
+                  break;
+                case 'START_FOCUS':
+                  useAppStore.setState({ isFocusSidePanelOpen: true });
+                  break;
+              }
             });
           }
         }

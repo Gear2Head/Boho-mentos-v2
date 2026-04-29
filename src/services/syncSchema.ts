@@ -24,6 +24,8 @@ export const SYNC_ROOT_WHITELIST = [
   'trophies',
   'eloScore',
   'streakDays',
+  'bohoCoins',
+  'economyLedger',
   'theme',
   'subjectViewMode',
   'isPassiveMode',

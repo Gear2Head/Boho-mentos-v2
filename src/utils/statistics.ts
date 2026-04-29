@@ -341,3 +341,41 @@ export function detectHabitAlerts(logs: DailyLog[]): HabitAuditResult[] {
 
   return audits;
 }
+
+export function calculateBurnoutRisk(logs: DailyLog[]): { probability: number; reason: string; advice: string } {
+  if (logs.length < 5) return { probability: 0, reason: 'Yeterli veri yok.', advice: 'Çalışmaya devam et.' };
+
+  const recentLogs = logs.slice(-10);
+  const avgFatigue = recentLogs.reduce((acc, l) => acc + (l.fatigue || 3), 0) / recentLogs.length;
+  const recentAccuracy = recentLogs.reduce((acc, l) => acc + (l.correct / (l.questions || 1)), 0) / recentLogs.length;
+  
+  // Frequency check
+  const dates = new Set(recentLogs.map(l => l.date.substring(0, 10)));
+  const consistency = dates.size / Math.min(10, (Date.now() - (toDateMs(recentLogs[0].date) || Date.now())) / (1000 * 60 * 60 * 24) + 1);
+
+  let prob = 0;
+  let reason = 'Mental durumun stabil görünüyor.';
+  let advice = 'Mevcut temponu koru.';
+
+  if (avgFatigue > 4) {
+    prob += 40;
+    reason = 'Son çalışmalarda yüksek yorgunluk hissettin.';
+    advice = 'Uyku düzenine odaklan.';
+  }
+  if (consistency > 0.8 && avgFatigue > 3.5) {
+    prob += 30;
+    reason = 'Hiç mola vermeden çok yüksek tempoda gidiyorsun.';
+    advice = 'Yarın yarım gün mola ver.';
+  }
+  if (recentAccuracy < 0.55 && avgFatigue > 3) {
+    prob += 20;
+    reason = 'Yorgunluk netlerine yansımaya başladı, verimin düşüyor.';
+    advice = 'Konu çalışmak yerine hafif tekrar yap.';
+  }
+
+  return { 
+    probability: Math.min(100, prob), 
+    reason, 
+    advice 
+  };
+}

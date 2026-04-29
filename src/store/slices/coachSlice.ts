@@ -28,7 +28,7 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
   setLastCoachDirective: (directive) => set({ lastCoachDirective: directive }),
 
   completeCoachTask: (recordId, index) => {
-    const { directiveHistory, eloScore, authUser, coachMemory, addLog, addAgendaEntry } = get();
+    const { directiveHistory, authUser, coachMemory, addLog, addAgendaEntry, addElo } = get();
     const record = directiveHistory.find(r => r.id === recordId);
     if (!record || !record.directive.tasks[index]) return;
 
@@ -39,7 +39,6 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       const newMemory = m.updateCoachMemory(newHistory, coachMemory);
       
       const bonus = task.priority === 'high' ? 40 : 25;
-      const newElo = Math.min(eloScore + bonus, 20000);
 
       // ─── OTOMASYON: LOG VE AJANDA KAYDI ───
       addLog({
@@ -66,17 +65,18 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       // Konfeti ve Store Güncelleme
       triggerConfetti();
       import('../../utils/audioEngine').then(({ AudioEngine }) => AudioEngine.playSuccess());
-      set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
+      set({ directiveHistory: newHistory, coachMemory: newMemory });
+      addElo(bonus, 'coach_task_complete', `coach_task:${recordId}:${index}:complete`);
 
       if (authUser?.uid) {
         setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo, coachMemory: newMemory }), { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },
 
   deferCoachTask: (recordId, index, reason) => {
-    const { directiveHistory, eloScore, authUser, coachMemory } = get();
+    const { directiveHistory, authUser, coachMemory, addElo } = get();
     const record = directiveHistory.find(r => r.id === recordId);
     if (!record) return;
 
@@ -84,18 +84,17 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       const nr = m.skipTask(record, index, reason);
       const newHistory = m.updateInHistory(directiveHistory, nr);
       const newMemory = m.updateCoachMemory(newHistory, coachMemory);
-      const newElo = Math.max(eloScore - 5, 0);
-
-      set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
+      set({ directiveHistory: newHistory, coachMemory: newMemory });
+      addElo(-5, 'coach_task_defer', `coach_task:${recordId}:${index}:defer`);
       if (authUser?.uid) {
         setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo, coachMemory: newMemory }), { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },
 
   failCoachTask: (recordId, index, reason) => {
-    const { directiveHistory, eloScore, authUser, coachMemory } = get();
+    const { directiveHistory, authUser, coachMemory, addElo } = get();
     const record = directiveHistory.find(r => r.id === recordId);
     if (!record) return;
 
@@ -103,12 +102,11 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       const nr = m.failTask(record, index, (reason as any) || 'other');
       const newHistory = m.updateInHistory(directiveHistory, nr);
       const newMemory = m.updateCoachMemory(newHistory, coachMemory);
-      const newElo = Math.max(eloScore - 15, 0);
-
-      set({ directiveHistory: newHistory, eloScore: newElo, coachMemory: newMemory });
+      set({ directiveHistory: newHistory, coachMemory: newMemory });
+      addElo(-15, 'coach_task_fail', `coach_task:${recordId}:${index}:fail`);
       if (authUser?.uid) {
         setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newElo, coachMemory: newMemory }), { merge: true }).catch(console.error);
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },

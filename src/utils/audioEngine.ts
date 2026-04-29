@@ -31,6 +31,27 @@ function _playNote(ctx: AudioContext, freq: number, startTime: number, duration:
   osc.stop(startTime + duration);
 }
 
+function _filteredNoise(ctx: AudioContext, startTime: number, duration: number, volume: number, frequency: number) {
+  const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(frequency, startTime);
+  filter.Q.setValueAtTime(0.8, startTime);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  source.start(startTime);
+  source.stop(startTime + duration);
+}
+
 function _haptic(pattern: number | number[]) {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     navigator.vibrate(pattern);
@@ -192,6 +213,30 @@ export const AudioEngine = {
     osc.stop(ctx.currentTime + 0.3);
   },
 
+  playCrateSpin() {
+    const ctx = getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    for (let i = 0; i < 12; i++) {
+      _playNote(ctx, 220 + i * 28, now + i * 0.08, 0.07, 'triangle', 0.08);
+    }
+    _filteredNoise(ctx, now, 0.9, 0.08, 1400);
+  },
+
+  playCrateWin(rarity: 'basic' | 'epic' | 'legendary' = 'basic') {
+    const ctx = getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const scale = rarity === 'legendary'
+      ? [392, 523.25, 659.25, 783.99, 1046.5]
+      : rarity === 'epic'
+        ? [329.63, 440, 554.37, 659.25]
+        : [261.63, 329.63, 392];
+    scale.forEach((freq, i) => _playNote(ctx, freq, now + i * 0.09, 0.28, 'sine', rarity === 'legendary' ? 0.22 : 0.16));
+    _filteredNoise(ctx, now, rarity === 'legendary' ? 0.5 : 0.28, 0.05, rarity === 'legendary' ? 3200 : 2200);
+    _haptic(rarity === 'legendary' ? [50, 40, 80, 40, 140] : [40, 40, 80]);
+  },
+
   // 📚 Flashcard flip sesi
   playFlip() {
     const ctx = getContext();
@@ -244,12 +289,17 @@ export const AudioEngine = {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = type === 'white' ? 'lowpass' : 'lowshelf';
+    filter.frequency.setValueAtTime(type === 'white' ? 4200 : 520, ctx.currentTime);
+    filter.gain.setValueAtTime(type === 'brown' ? 4 : 1.5, ctx.currentTime);
     
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 1);
+    gain.gain.linearRampToValueAtTime(Math.min(volume, 0.22), ctx.currentTime + 1.2);
 
-    source.connect(gain);
+    source.connect(filter);
+    filter.connect(gain);
     gain.connect(ctx.destination);
     source.start();
 

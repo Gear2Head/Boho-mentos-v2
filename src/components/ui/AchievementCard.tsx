@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion'; // Using motion instead of motion/react if possible, but let's stick to motion/react since Boho-mentos uses it
 import * as LucideIcons from 'lucide-react';
 import { Achievement, UserAchievement } from '../../types';
 

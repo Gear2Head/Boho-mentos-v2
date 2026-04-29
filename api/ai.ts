@@ -108,7 +108,22 @@ const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   flashcard_generation: `Verilen konu veya konuşma geçmişinden 5 çalışma kartı üret. Sadece JSON dizi döndür, başka metin ekleme. Format: [{"front":"...","back":"...","difficulty":"easy|medium|hard","subject":"...","topic":"..."}]`,
   forgetting_curve_reminder: `Tekrar zamanı gelen her konu için neden tekrarın gerektiğini 1 cümleyle açıkla ve 10 dakikalık mini tekrar görevi ver. Genel uyarı değil, konuya özgü somut görev.`,
   daily_quest: `Günün verilerine bakarak 3 yüksek öncelikli görev üret. Sonuç JSON directive formatında dönecek.`,
-  vision_archive_parse: `Bu fotoğraf bir YKS sorusu veya deneme hatasıdır. Soruyu analiz et ve çözümünü adım adım üret. SADECE JSON DÖNDÜR. Şema:\n{"subject":"Matematik","topic":"Türev","difficulty":"hard","reason":"Hata sebebi tahmini","solution":"Adım adım çözüm metni (Markdown formatında, latex için inlineMath vb. kullan)"}`,
+  vision_archive_parse: `Bu bir YKS soru görselidir.
+GÖREV:
+1. Soruyu metne dök (OCR).
+2. Soruyu adım adım çöz (Markdown ve Latex kullanarak).
+3. Yanlış yapılma ihtimali olan "tuzak" noktayı belirt.
+4. Bu soruyu 'failedQuestions' havuzuna eklemek için bir clientAction üret.
+
+SADECE JSON döndür:
+{
+  "headline": "Soru Analizi Tamamlandı",
+  "summary": "Sorunun kısa özeti ve çözüm stratejisi",
+  "solution": "Markdown/Latex çözüm metni",
+  "clientActions": [
+    { "type": "ADD_FAILED_QUESTION", "payload": { "subject": "...", "topic": "...", "difficulty": "..." } }
+  ]
+}`,
   generate_weekly_strategy: `Bu haftanın çalışma takvimini oluşturacaksın. Öğrencinin "Kalıcı Hafıza" ve "Önceki Denemelerini" incele. Bunu SADECE bir Markdown tablosu olarak sun. Sütunlar: Gün, Ders, Konu, Kaynak/Aksiyon, Hedef Soru. Asla uydurma link verme.`,
   quiz_generation: `Öğrencinin zayıf olduğu konulardan 3 adet zorlayıcı YKS tarzı çoktan seçmeli soru hazırla. Sadece JSON dizi döndür.`,
 };
@@ -139,6 +154,12 @@ ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başk
       "type": "avoidance | memorization_risk | time_loss | low_accuracy | streak_break | burnout_risk | target_gap",
       "message": "Uyarı metni",
       "severity": "info | warning | critical"
+    }
+  ],
+  "clientActions": [
+    {
+      "type": "CELEBRATE | OPEN_MARKET | ADD_GOAL | START_FOCUS | TRIGGER_VOICE",
+      "payload": {}
     }
   ],
   "followUpQuestion": "Bir sonraki seansta sorulacak soru",
@@ -509,6 +530,12 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
           call: (key: string) =>
             callOpenAICompatible(GROQ_API_URL, key, 'llama-3.2-11b-vision-preview', openAIMsgs, maxTokens, temperature, needsJson),
         },
+        {
+          name: 'Gemini-Vision',
+          keys: getKeys('GEMINI_API_KEY', 4),
+          call: (key: string) =>
+            callGemini(key, fullPrompt, systemInstruction, chatHistory, temperature, body.imageBase64, body.imageMediaType),
+        },
       ]
     : [
         {
@@ -518,16 +545,16 @@ async function getCoachResponseServer(body: AiRequestBody): Promise<{
             callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, maxTokens, temperature, needsJson),
         },
         {
-          name: 'Cerebras',
-          keys: getKeys('CEREBRAS_API_KEY', 2),
-          call: (key: string) =>
-            callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, maxTokens, temperature, needsJson),
-        },
-        {
           name: 'Gemini',
           keys: getKeys('GEMINI_API_KEY', 4),
           call: (key: string) =>
             callGemini(key, fullPrompt, systemInstruction, chatHistory, temperature),
+        },
+        {
+          name: 'Cerebras',
+          keys: getKeys('CEREBRAS_API_KEY', 2),
+          call: (key: string) =>
+            callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, maxTokens, temperature, needsJson),
         },
       ];
 

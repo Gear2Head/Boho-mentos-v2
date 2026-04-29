@@ -1,10 +1,11 @@
 import React from 'react';
 import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon, X, Shield, Settings, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip } from 'recharts';
 import { useAppStore } from '../store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getRankDetails } from './EloRankCard';
-import { OWNER_EMAIL } from '../config/owner';
+import { isOwnerEmail } from '../config/owner';
 import type { Trophy as TrophyType, ExamResult, AtlasProgram } from '../types';
 import { AtlasExplorer } from './AtlasExplorer';
 import { HabitAuditPanel } from './HabitAuditPanel';
@@ -17,7 +18,7 @@ const ICON_MAP: Record<string, React.FC<any>> = {
 
 export function ProfileShowcase() {
   const navigate = useNavigate();
-  const { authUser, profile, eloScore, exams, streakDays, trophies, removeTargetGoal, recomputeFullElo, tytSubjects, aytSubjects } = useAppStore(s => ({
+  const { authUser, profile, eloScore, exams, streakDays, trophies, removeTargetGoal, recomputeFullElo, tytSubjects, aytSubjects } = useAppStore(useShallow(s => ({
     authUser: s.authUser,
     profile: s.profile,
     eloScore: s.eloScore,
@@ -28,11 +29,12 @@ export function ProfileShowcase() {
     trophies: s.trophies,
     removeTargetGoal: s.removeTargetGoal,
     recomputeFullElo: s.recomputeFullElo
-  }));
+  })));
 
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
   const rank = getRankDetails(eloScore);
   const RankIcon = ICON_MAP[rank.iconName] || Trophy;
+  const canOpenAdmin = isOwnerEmail(authUser?.email) || (profile as any)?.role === 'super_admin';
 
   if (!profile) return null;
 
@@ -50,15 +52,25 @@ export function ProfileShowcase() {
   const aytMastered = aytSubjectsForTrack.filter(s => s.status === 'mastered').length;
   const aytTotal = aytSubjectsForTrack.length;
 
-  const tytData = [
-    { name: 'Biten', value: tytMastered, color: 'var(--color-accent)' },
-    { name: 'Kalan', value: tytTotal - tytMastered, color: 'var(--color-surface-2)' }
-  ];
+  const tytData = tytTotal > 0
+    ? [
+        { name: 'Biten', value: tytMastered, color: 'var(--color-accent)' },
+        { name: 'Kalan', value: Math.max(0, tytTotal - tytMastered), color: 'var(--color-surface-2)' }
+      ]
+    : [
+        { name: 'Biten', value: 0, color: 'var(--color-accent)' },
+        { name: 'Kalan', value: 1, color: 'var(--color-surface-2)' }
+      ];
 
-  const aytData = [
-    { name: 'Biten', value: aytMastered, color: '#E09F3E' },
-    { name: 'Kalan', value: aytTotal - aytMastered, color: 'var(--color-surface-2)' }
-  ];
+  const aytData = aytTotal > 0
+    ? [
+        { name: 'Biten', value: aytMastered, color: '#E09F3E' },
+        { name: 'Kalan', value: Math.max(0, aytTotal - aytMastered), color: 'var(--color-surface-2)' }
+      ]
+    : [
+        { name: 'Biten', value: 0, color: '#E09F3E' },
+        { name: 'Kalan', value: 1, color: 'var(--color-surface-2)' }
+      ];
 
   const tytExams = exams.filter((e: ExamResult) => e.type === 'TYT');
   const aytExams = exams.filter((e: ExamResult) => e.type === 'AYT');
@@ -86,7 +98,7 @@ export function ProfileShowcase() {
             ) : (
               <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full bg-surface" />
             )}
-            {authUser?.email === OWNER_EMAIL && (
+            {canOpenAdmin && (
               <button 
                 onClick={() => navigate('/admin_dashboard')}
                 className="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-white"
@@ -112,7 +124,7 @@ export function ProfileShowcase() {
               <div className="flex items-center gap-1 group">
                 <span className="bg-surface-2 border border-app px-3 py-1.5 rounded-l-full text-[9px] uppercase tracking-widest text-blue-500 font-black shadow-sm group-hover:border-blue-500/30 transition-all">🏅 {eloScore} PUAN</span>
                 <button 
-                  onClick={() => { recomputeFullElo(); window.location.reload(); }}
+                  onClick={() => recomputeFullElo()}
                   className="bg-surface-2 border border-app border-l-0 px-2 py-1.5 rounded-r-full text-zinc-500 hover:text-blue-500 hover:bg-blue-500/5 transition-all shadow-sm"
                   title="Verileri Yeniden Hesapla"
                 >
@@ -236,29 +248,25 @@ export function ProfileShowcase() {
         {/* Dairesel Progressler */}
         <div className="md:col-span-1 border border-app bg-surface rounded-3xl p-6 flex flex-col items-center shadow-sm">
           <h3 className="font-serif italic text-xl mb-6 text-accent uppercase tracking-widest w-full border-b border-app pb-2 font-black">Mastery Oranı</h3>
-          <div className="w-full h-[160px] relative">
-            <ResponsiveContainer width="100%" height={160} minHeight={160}>
-              <PieChart>
-                <Pie data={tytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
+          <div className="w-full h-[160px] min-w-0 relative flex justify-center">
+              <PieChart width={160} height={160}>
+                <Pie data={tytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
                   {tytData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
                 <RechartsTooltip contentStyle={{ backgroundColor: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)', color: 'var(--color-ink)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: '900' }} itemStyle={{ color: 'var(--color-ink)' }} />
               </PieChart>
-            </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-xl font-bold font-mono text-accent tracking-tighter">{Math.round((tytMastered / (tytTotal || 1)) * 100)}%</span>
               <span className="text-[10px] uppercase tracking-widest font-black text-ink-muted">TYT</span>
             </div>
           </div>
-          <div className="w-full h-[160px] relative mt-4">
-            <ResponsiveContainer width="100%" height={160} minHeight={160}>
-              <PieChart>
-                <Pie data={aytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
+          <div className="w-full h-[160px] min-w-0 relative mt-4 flex justify-center">
+              <PieChart width={160} height={160}>
+                <Pie data={aytData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
                   {aytData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
                 <RechartsTooltip contentStyle={{ backgroundColor: '#121212', borderRadius: '8px', border: '1px solid #2A2A2A', color: '#fff' }} itemStyle={{ color: '#fff' }} />
               </PieChart>
-            </ResponsiveContainer>
              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-xl font-bold font-mono text-[#E09F3E] tracking-tighter">{Math.round((aytMastered / (aytTotal || 1)) * 100)}%</span>
               <span className="text-[10px] uppercase tracking-widest font-black text-ink-muted">AYT</span>

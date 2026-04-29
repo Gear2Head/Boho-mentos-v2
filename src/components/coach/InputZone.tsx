@@ -150,32 +150,16 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) { showToast("Dosya boyutu 5MB'ı aşamaz", 'warning'); return; }
 
-    setIsOCRLoading(true);
     try {
       const { base64, mediaType } = await imageFileToBase64(file);
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          intent: 'vision_archive_parse',
-          userMessage: 'Bu görüntüdeki soruyu veya içeriği analiz et',
-          imageBase64: base64,
-          imageMediaType: mediaType,
-          forceJson: true,
-        }),
-      });
-      const data = await res.json();
-      const parsed = typeof data.text === 'string' ? JSON.parse(data.text) : data.text;
-      const summary = [parsed.subject, parsed.topic, parsed.difficulty].filter(Boolean).join(' · ');
-      onChange(`[OCR Sonucu] ${summary}\n${parsed.reason || ''}`);
-      showToast('Soru OCR ile tarandı!', 'success');
+      onSubmit('Bu soruyu analiz edip çözümünü yapar mısın?', 'vision_archive_parse', { base64, mediaType, name: file.name });
+      showToast('Soru koça gönderildi, analiz ediliyor...', 'success');
     } catch {
-      showToast('OCR taraması başarısız. Lütfen tekrar deneyin.', 'error');
+      showToast('Görsel hazırlanamadı.', 'error');
     } finally {
-      setIsOCRLoading(false);
       e.target.value = '';
     }
-  }, [onChange, showToast]);
+  }, [onSubmit, showToast]);
 
   return (
     <div className="bg-app flex flex-col p-3 w-full">

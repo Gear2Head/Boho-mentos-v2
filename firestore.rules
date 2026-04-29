@@ -12,11 +12,7 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.superAdmin == true ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
-      );
+      return isAuthenticated() && request.auth.token.superAdmin == true;
     }
 
     match /users/{userId} {
@@ -33,14 +29,14 @@ service cloud.firestore {
         allow read, delete: if isOwner(userId) || isSuperAdmin();
         // Schema Validation
         allow create, update: if (isOwner(userId) || isSuperAdmin()) && 
-                              request.resource.data.keys().hasAll(['id', 'date', 'subject', 'topic', 'questions', 'correct', 'wrong', 'empty', 'avgTime', 'fatigue', 'stress', 'motivation']);
+                              request.resource.data.keys().hasAll(['id', 'date', 'subject', 'topic', 'questions', 'correct', 'wrong', 'empty', 'avgTime', 'fatigue']);
       }
       
       match /exams/{examId} {
         allow read, delete: if isOwner(userId) || isSuperAdmin();
         // Schema Validation
         allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
-                              request.resource.data.keys().hasAll(['id', 'date', 'title', 'type', 'net', 'duration']); 
+                              request.resource.data.keys().hasAll(['id', 'date', 'type', 'totalNet', 'scores']); 
       }
 
       // Diğer veriler için standart sahiplik kontrolü

@@ -6,7 +6,7 @@ import { toDateMs } from './date';
  * This is used to fix data integrity issues when data is imported manually
  * or when the calculation logic changes.
  */
-export function calculateFinalElo(
+export function calculateBaseElo(
   logs: DailyLog[], 
   exams: ExamResult[], 
   profile: StudentProfile | null,
@@ -56,15 +56,26 @@ export function calculateFinalElo(
     }
   }
   
-  // Add Curriculum Points (Mastered subjects)
+  // Add Curriculum Points (Mastered subjects). These weights match the
+  // incremental updates in academicSlice so a full recompute is idempotent.
   tytSubjects.forEach(s => {
     if (s.status === 'mastered') currentElo += 50;
     else if (s.status === 'in-progress') currentElo += 15;
   });
   aytSubjects.forEach(s => {
-    if (s.status === 'mastered') currentElo += 50;
-    else if (s.status === 'in-progress') currentElo += 15;
+    if (s.status === 'mastered') currentElo += 75;
+    else if (s.status === 'in-progress') currentElo += 20;
   });
 
   return currentElo;
+}
+
+export function calculateFinalElo(
+  logs: DailyLog[],
+  exams: ExamResult[],
+  profile: StudentProfile | null,
+  tytSubjects: SubjectStatus[] = [],
+  aytSubjects: SubjectStatus[] = []
+): number {
+  return calculateBaseElo(logs, exams, profile, tytSubjects, aytSubjects);
 }

@@ -7,6 +7,7 @@
 import express, { type Request, type Response } from 'express';
 import dotenv from 'dotenv';
 import handler from './api/ai';
+import bootstrapOwnerHandler from './api/admin/bootstrap-owner';
 
 dotenv.config({ path: '.env.local' });
 dotenv.config({ path: '.env' });
@@ -62,6 +63,18 @@ app.post('/api/ai', async (req, res) => {
     console.error('✘ [API] Unhandled error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+    }
+  }
+});
+
+app.post('/api/admin/bootstrap-owner', async (req, res) => {
+  try {
+    const [vercelReq, vercelRes] = adaptExpressToVercel(req, res);
+    await bootstrapOwnerHandler(vercelReq, vercelRes);
+  } catch (error) {
+    console.error('✘ [OWNER] Unhandled error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'OWNER_BOOTSTRAP_FAILED' });
     }
   }
 });

@@ -8,6 +8,7 @@ export const useAppSelectors = () => {
     isSyncing: s.isSyncing,
     theme: s.theme,
     addLog: s.addLog,
+    addAgendaEntry: s.addAgendaEntry,
     addExam: s.addExam,
     isPassiveMode: s.isPassiveMode,
     setPassiveMode: s.setPassiveMode,
@@ -59,5 +60,6 @@ export const useAppSelectors = () => {
     isTtsEnabled: s.isTtsEnabled,
     setTtsEnabled: s.setTtsEnabled,
     recomputeFullElo: s.recomputeFullElo,
+    recomputeStreak: s.recomputeStreak,
   })));
 };

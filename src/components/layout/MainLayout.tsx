@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 import { useAppStore } from '../../store/appStore';
 import { useShallow } from 'zustand/react/shallow';
-import { isSuperAdmin } from '../../config/admin';
+import { isSuperAdminClaims } from '../../config/admin';
 import { confirmDialog } from '../../contexts/ToastContext';
 
 import { NavItem } from '../NavItem';
@@ -55,6 +55,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const [scrollDirection, setScrollDirection] = useState<'up' | 'down'>('up');
 
   const isSidebarExpanded = isSidebarPinned || isNavHovered;
+  const canOpenAdmin = isSuperAdminClaims(user?.claims ?? null, user?.email);
 
   useEffect(() => {
     localStorage.setItem('boho_sidebar_pinned', JSON.stringify(isSidebarPinned));
@@ -209,7 +210,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="hidden md:flex flex-col border-t border-app p-2 space-y-1">
-          {(isSuperAdmin(user?.uid, user?.email) || (profile as any)?.role === 'super_admin' || localStorage.getItem('boho_debug_admin') === 'Gear9150') && isSidebarExpanded && (
+          {isSidebarExpanded && (
             <button
               onClick={() => navigate('/admin_dashboard')}
               className="w-full flex items-center gap-3 p-2 text-[10px] font-black uppercase tracking-widest text-[#C17767] hover:bg-[#C17767]/10 rounded-xl transition-all group"

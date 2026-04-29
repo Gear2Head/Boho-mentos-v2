@@ -12,12 +12,11 @@ import {
   CalendarDays, Target, Brain, Zap, FileText, Clock, Eraser, Bell
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
+import { auth } from '../../services/firebase';
 import { isSuperAdminClaims } from '../../config/admin';
-import { OWNER_EMAIL } from '../../config/owner';
 import type { FirestoreUser, UserRole } from '../../config/admin';
 import * as devService from '../../services/developerService';
 import type { EntityTable } from '../../services/developerService';
-import { encrypt, secureCompare } from '../../utils/encryption';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,24 +52,25 @@ function Skeleton({ className }: { className?: string }) {
 
 export function AdminDashboard({ onBack }: Props) {
   const authUser = useAppStore(s => s.authUser);
-  const profile = useAppStore(s => s.profile);
-  const hasAccess = authUser != null && (
-    isSuperAdminClaims((authUser as { claims?: Record<string, unknown> }).claims ?? null, authUser.email) ||
-    (profile as any)?.role === 'super_admin'
+  const hasAccess = authUser != null && isSuperAdminClaims(
+    (authUser as { claims?: Record<string, unknown> }).claims ?? null,
+    authUser.email
   );
 
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
-  
   const [passwordInput, setPasswordInput] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
 
-  // SADECE BU ŞİFRE İLE GİRİŞ YAPILABİLİR (Şifreli saklanır)
-  const ADMIN_PASSWORD_HASH = 'WzUsNDIsMjUsMzcsMzgsMTAwLDI0LDgzXQ=='; // 'Gear9150' encrypted
-  
+  const showToast = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
   const handleUnlock = () => {
-    if (secureCompare(passwordInput, ADMIN_PASSWORD_HASH) || authUser?.email === OWNER_EMAIL) {
+    if (hasAccess && passwordInput.trim().length >= 4) {
       setIsUnlocked(true);
       setErrorMsg('');
     } else {
@@ -78,8 +78,59 @@ export function AdminDashboard({ onBack }: Props) {
     }
   };
 
-  // HAS ACCESS BYPASS: Eğer şifre doğruysa veya yetkisi varsa girebilir.
-  const canEnter = hasAccess || isUnlocked;
+  const handleBootstrap = async () => {
+    setIsBootstrapping(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken(true);
+      if (!idToken) throw new Error('ID Token bulunamadı. Lütfen tekrar giriş yapın.');
+      
+      const response = await fetch('/api/admin/bootstrap-owner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+      });
+      
+      const data = await response.json();
+      if (data.eligible && data.superAdmin) {
+        showToast('success', 'Admin yetkisi başarıyla tanımlandı! Sayfayı yenileyin.');
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        showToast('error', 'Bu hesap yetkilendirme için uygun değil.');
+      }
+    } catch (err: any) {
+      showToast('error', err.message || 'Bootstrap hatası');
+    } finally {
+      setIsBootstrapping(false);
+    }
+  };
+
+  if (!hasAccess) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-[300]">
+        <div className="text-center text-red-400 p-8 max-w-sm w-full">
+          <Shield size={64} className="mx-auto mb-4 opacity-50" />
+          <h2 className="text-2xl font-bold">Yetkisiz Erisim</h2>
+          <p className="mt-2 opacity-60">Admin yetkisi Firebase custom claim ile dogrulanmadi.</p>
+          
+          <div className="space-y-3 mt-8">
+            <button 
+              onClick={handleBootstrap}
+              disabled={isBootstrapping}
+              className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-500 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isBootstrapping ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+              Owner Yetkisi Al
+            </button>
+            <button onClick={onBack} className="w-full py-3 bg-zinc-800 text-zinc-400 rounded-xl hover:bg-zinc-700 transition font-bold uppercase tracking-widest text-[10px]">Geri Don</button>
+          </div>
+          
+          <p className="mt-6 text-[9px] text-zinc-600 uppercase tracking-tighter">
+            Eger bu projenin sahibiyseniz, yukaridaki butona basarak Firebase yetkilerini otomatik tanimlayabilirsiniz.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isUnlocked) {
     return (
@@ -116,25 +167,6 @@ export function AdminDashboard({ onBack }: Props) {
       </div>
     );
   }
-
-  // Eğer kilit açıldıysa ama yetki de yoksa (çok düşük ihtimal ama güvenli)
-  if (!canEnter) {
-    return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center z-[300]">
-        <div className="text-center text-red-400 p-8 max-w-sm w-full">
-          <Shield size={64} className="mx-auto mb-4 opacity-50" />
-          <h2 className="text-2xl font-bold">Yetkisiz Erişim</h2>
-          <p className="mt-2 opacity-60">Sistem yetkili kimliği doğrulanmadı.</p>
-          <button onClick={onBack} className="mt-6 w-full py-3 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition font-bold uppercase tracking-widest text-[10px]">Geri Dön</button>
-        </div>
-      </div>
-    );
-  }
-
-  const showToast = useCallback((type: 'success' | 'error' | 'info', msg: string) => {
-    setToast({ type, msg });
-    setTimeout(() => setToast(null), 4000);
-  }, []);
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
     { id: 'users', label: 'Kullanıcılar', icon: <Users size={16} /> },
@@ -237,216 +269,289 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
   const pagedUsers = users.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.ceil(users.length / pageSize);
 
-  const loadUserDetail = async (uid: string) => {
-    setDetailLoading(true);
-    const { user, counts, error } = await devService.fetchUserFullProfile(uid);
-    if (error) { showToast('error', error); setDetailLoading(false); return; }
+  useEffect(() => { handleSearch(); }, []);
+
+  const handleUserDetail = async (user: any) => {
     setSelectedUser(user);
+    setDetailLoading(true);
+    const counts = await devService.getUserEntityCounts(user.uid);
     setSelectedCounts(counts);
     setDetailLoading(false);
   };
 
-  const handleAction = async (fn: () => Promise<{ success: boolean; error?: string }>, msg: string) => {
-    const res = await fn();
-    if (res.success) { showToast('success', msg); if (selectedUser) loadUserDetail(selectedUser.uid); }
-    else showToast('error', res.error ?? 'Hata');
+  const handleRoleChange = async (uid: string, newRole: UserRole) => {
+    if (!confirm(`Kullanıcı rolünü ${newRole} olarak değiştirmek istediğine emin misin?`)) return;
+    const ok = await devService.updateUserRole(uid, newRole, actorUid);
+    if (ok) {
+      showToast('success', 'Rol güncellendi');
+      handleSearch();
+    } else {
+      showToast('error', 'Yetki yetersiz veya hata oluştu');
+    }
   };
 
-  useEffect(() => { handleSearch(); }, []);
-  useEffect(() => { setPage(1); }, [query, users.length]);
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* User List */}
-      <div className="lg:col-span-1 space-y-4">
-        <div className="flex gap-2">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-[#111] p-4 rounded-2xl border border-zinc-800/60">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
           <input
+            type="text"
             value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder="Email, UID veya isim ara..."
-            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-zinc-600"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="Email, Isim veya UID ile ara..."
+            className="w-full pl-10 pr-4 py-2.5 bg-black border border-zinc-800 rounded-xl text-sm focus:border-zinc-600 outline-none transition"
           />
-          <button onClick={handleSearch} className="px-4 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition">
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-          </button>
         </div>
-
-        <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar pr-1">
-          {loading ? (
-            <>
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="p-3 border border-transparent">
-                  <Skeleton className="h-4 w-32 mb-2" />
-                  <Skeleton className="h-3 w-48 mb-3" />
-                  <div className="flex justify-between">
-                    <Skeleton className="h-3 w-12" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                </div>
-              ))}
-            </>
-          ) : (
-            pagedUsers.map((u: any) => (
-              <button
-                key={u.uid}
-                onClick={() => loadUserDetail(u.uid)}
-                className={`w-full text-left p-3 rounded-xl transition text-sm ${
-                  selectedUser?.uid === u.uid ? 'bg-zinc-800 border border-zinc-700 shadow-inner' : 'hover:bg-zinc-900 border border-transparent'
-                }`}
-              >
-                <div className="font-bold truncate">{u.display_name || u.email?.split('@')[0] || u.uid.slice(0, 12)}</div>
-                <div className="text-[10px] text-zinc-500 truncate mb-2">{u.email}</div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-emerald-400">ELO: {u.elo_score ?? '-'}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-black tracking-tighter ${
-                    u.is_banned ? 'bg-red-500/20 text-red-500' : 
-                    u.role === 'super_admin' ? 'bg-red-500 text-white' : 'bg-zinc-800 text-zinc-400'
-                  }`}>
-                    {u.is_banned ? 'Banned' : (u.role ?? 'user').split('_')[0]}
-                  </span>
-                </div>
-              </button>
-            ))
-          )}
-          {users.length === 0 && !loading && <p className="text-center text-zinc-600 py-8 text-sm">Kullanıcı bulunamadı</p>}
-        </div>
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-2 py-3 bg-zinc-900/30 rounded-xl border border-zinc-800/50">
-            <button 
-              disabled={page === 1} 
-              onClick={() => setPage(p => p - 1)}
-              className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 disabled:opacity-20 transition-all active:scale-90"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">SAYFA {page} / {totalPages}</span>
-            <button 
-              disabled={page === totalPages} 
-              onClick={() => setPage(p => p + 1)}
-              className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 disabled:opacity-20 transition-all active:scale-90"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
+        <button onClick={handleSearch} disabled={loading} className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition disabled:opacity-50">
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+          Yenile
+        </button>
       </div>
 
-      {/* User Detail */}
-      <div className="lg:col-span-2">
-        {detailLoading && (
-          <div className="space-y-6">
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        )}
-        {!detailLoading && selectedUser && (
-          <div className="space-y-6">
-            {/* Profile Card */}
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-xl font-bold">{selectedUser.display_name || 'İsimsiz'}</h3>
-                  <p className="text-sm text-zinc-400">{selectedUser.email}</p>
-                  <p className="text-xs text-zinc-600 font-mono mt-1">{selectedUser.uid}</p>
-                </div>
-                <div className="flex gap-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    selectedUser.role === 'super_admin' ? 'bg-red-500/20 text-red-400' :
-                    selectedUser.role === 'banned' ? 'bg-orange-500/20 text-orange-400' :
-                    'bg-zinc-800 text-zinc-400'
-                  }`}>{selectedUser.role}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
-                <Stat label="ELO" value={selectedUser.elo_score ?? 1200} />
-                <Stat label="Streak" value={`${selectedUser.streak_days ?? 0} gün`} />
-                <Stat label="Tema" value={selectedUser.theme ?? 'dark'} />
-                <Stat label="Mode" value={selectedUser.is_passive_mode ? 'Pasif' : 'Aktif'} />
-              </div>
-            </div>
-
-            {/* Entity Counts */}
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-              <h4 className="font-bold text-sm mb-4 text-zinc-400">Veri Sayıları</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {Object.entries(selectedCounts).map(([table, count]) => (
-                  <div key={table} className="bg-zinc-900 rounded-xl p-3 border border-zinc-800/50">
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-                      {ENTITY_LABELS[table as EntityTable]?.icon}
-                      {ENTITY_LABELS[table as EntityTable]?.label ?? table}
-                    </div>
-                    <div className="text-2xl font-bold">{count}</div>
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-[#111] border border-zinc-800/60 rounded-2xl overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-zinc-900/50 text-zinc-500 text-[10px] font-black uppercase tracking-widest border-b border-zinc-800/60">
+                <tr>
+                  <th className="px-6 py-4">Kullanıcı</th>
+                  <th className="px-6 py-4">Rol</th>
+                  <th className="px-6 py-4">İstatistik</th>
+                  <th className="px-6 py-4 text-right">İşlem</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/40">
+                {loading ? Array(5).fill(0).map((_, i) => (
+                  <tr key={i}><td colSpan={4} className="px-6 py-4"><Skeleton className="h-12 w-full" /></td></tr>
+                )) : pagedUsers.map(u => (
+                  <tr key={u.uid} className={`hover:bg-zinc-900/30 transition cursor-pointer ${selectedUser?.uid === u.uid ? 'bg-zinc-800/30' : ''}`} onClick={() => handleUserDetail(u)}>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-800 shrink-0">
+                          <img src={u.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.uid}`} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-zinc-200 truncate">{u.displayName || 'İsimsiz'}</div>
+                          <div className="text-[10px] text-zinc-500 truncate">{u.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                        u.role === 'super_admin' ? 'bg-red-500/10 text-red-500' :
+                        u.role === 'developer' ? 'bg-blue-500/10 text-blue-500' :
+                        'bg-zinc-800 text-zinc-500'
+                      }`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs font-mono text-zinc-500">
+                      L:{u.totalLogs || 0} E:{u.totalExams || 0}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500"><ChevronRight size={16} /></button>
+                    </td>
+                  </tr>
                 ))}
-              </div>
+              </tbody>
+            </table>
+            {users.length === 0 && !loading && <div className="py-20 text-center text-zinc-600 text-sm italic">Sonuç bulunamadı</div>}
+          </div>
+          
+          {totalPages > 1 && (
+            <div className="flex justify-center gap-2">
+              <button onClick={() => setPage(p => Math.max(1, p-1))} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 disabled:opacity-20" disabled={page === 1}><ChevronLeft size={20} /></button>
+              <span className="flex items-center px-4 text-xs font-bold text-zinc-500">Sayfa {page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p+1))} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 disabled:opacity-20" disabled={page === totalPages}><ChevronRight size={20} /></button>
             </div>
+          )}
+        </div>
 
-            {/* Admin Actions */}
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-              <h4 className="font-bold text-sm mb-4 text-zinc-400">Eylemler</h4>
-              <div className="flex flex-wrap gap-2">
-                <ActionBtn label="ELO +100" color="emerald" onClick={() => handleAction(
-                  () => devService.injectElo(actorUid, 'super_admin', selectedUser.uid, 100), '+100 ELO enjekte edildi'
-                )} />
-                <ActionBtn label="ELO -100" color="orange" onClick={() => handleAction(
-                  () => devService.injectElo(actorUid, 'super_admin', selectedUser.uid, -100), '-100 ELO düşürüldü'
-                )} />
-                <ActionBtn label="Profil Onar" color="blue" onClick={() => handleAction(
-                  () => devService.repairProfileDoc(actorUid, 'super_admin', selectedUser.uid), 'Profil onarıldı'
-                )} />
-                <ActionBtn label="Streak Kurtar" color="emerald" onClick={() => {
-                  const days = prompt('Streak günü (sayı):');
-                  if (!days || isNaN(Number(days))) return;
-                  handleAction(() => devService.injectStreak(actorUid, 'super_admin', selectedUser.uid, Number(days)), 'Streak kurtarıldı');
-                }} />
-                <ActionBtn label="Logları Sil" color="red" onClick={() => {
-                  if (!confirm('Tüm loglar silinecek!')) return;
-                  handleAction(() => devService.clearUserLogs(actorUid, 'super_admin', selectedUser.uid), 'Tüm loglar silindi');
-                }} />
-                <ActionBtn label="Sohbetleri Sil" color="red" onClick={() => {
-                  if (!confirm('Tüm sohbetler silinecek!')) return;
-                  handleAction(() => devService.bulkDeleteEntities(actorUid, selectedUser.uid, 'chatHistory', true), 'Tüm sohbetler silindi');
-                }} />
-                <ActionBtn label="TÜM VERİYİ SIFIRLA" color="red" onClick={async () => {
-                  if (!confirm('KRİTİK UYARI: Kullanıcının TÜM verileri (loglar, denemeler, chat, ajanda) kalıcı olarak silinecek! Bu işlem geri alınamaz.')) return;
-                  for (const table of devService.ENTITY_TABLE_LIST) {
-                    await devService.bulkDeleteEntities(actorUid, selectedUser.uid, table, true);
-                  }
-                  showToast('success', 'Kullanıcının tüm verileri temizlendi');
-                  setSelectedUser(null);
-                  handleSearch();
-                }} />
-                {!selectedUser.is_banned ? (
-                  <ActionBtn label="Banla" color="red" onClick={() => {
-                    const reason = prompt('Ban sebebi:');
-                    if (!reason) return;
-                    handleAction(() => devService.toggleBan(actorUid, 'super_admin', selectedUser.uid, true, reason), 'Kullanıcı banlandı');
-                  }} />
-                ) : (
-                  <ActionBtn label="Ban Kaldır" color="emerald" onClick={() => handleAction(
-                    () => devService.toggleBan(actorUid, 'super_admin', selectedUser.uid, false), 'Ban kaldırıldı'
-                  )} />
-                )}
-                <ActionBtn label="Role: Admin" color="red" onClick={() => handleAction(
-                  () => devService.changeUserRole(actorUid, 'super_admin', selectedUser.uid, 'super_admin'), 'Super Admin yapıldı'
-                )} />
-                <ActionBtn label="Role: Standard" color="zinc" onClick={() => handleAction(
-                  () => devService.changeUserRole(actorUid, 'super_admin', selectedUser.uid, 'standard'), 'Standard yapıldı'
-                )} />
-              </div>
-            </div>
+        <div className="lg:col-span-1">
+          <AnimatePresence mode="wait">
+            {!selectedUser ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full bg-[#111] border border-zinc-800/60 rounded-3xl p-8 flex flex-col items-center justify-center text-center space-y-4">
+                <Users size={48} className="text-zinc-800" />
+                <p className="text-xs text-zinc-500 uppercase tracking-widest leading-relaxed">Detaylarını görmek için<br/>bir kullanıcı seçin</p>
+              </motion.div>
+            ) : (
+              <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }} key={selectedUser.uid} className="bg-[#111] border border-zinc-800/60 rounded-3xl overflow-hidden flex flex-col">
+                <div className="p-6 bg-zinc-900/50 border-b border-zinc-800/60 relative">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-zinc-800 mb-4 shadow-2xl">
+                      <img src={selectedUser.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${selectedUser.uid}`} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <h3 className="text-lg font-bold text-white">{selectedUser.displayName || 'İsimsiz'}</h3>
+                    <p className="text-xs text-zinc-500 font-mono mt-1">{selectedUser.email}</p>
+                    <p className="text-[9px] text-zinc-600 mt-2 uppercase tracking-tighter">UID: {selectedUser.uid}</p>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6 flex-1">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-black/40 p-3 rounded-2xl border border-zinc-800/40">
+                      <div className="text-[10px] text-zinc-500 uppercase font-black mb-1">Rol Yönetimi</div>
+                      <select 
+                        value={selectedUser.role} 
+                        onChange={(e) => handleRoleChange(selectedUser.uid, e.target.value as UserRole)}
+                        className="w-full bg-transparent text-xs font-bold outline-none text-zinc-300 cursor-pointer"
+                      >
+                        <option value="standard">Standart</option>
+                        <option value="developer">Developer</option>
+                        <option value="super_admin">Super Admin</option>
+                        <option value="banned">Banned</option>
+                      </select>
+                    </div>
+                    <div className="bg-black/40 p-3 rounded-2xl border border-zinc-800/40">
+                      <div className="text-[10px] text-zinc-500 uppercase font-black mb-1">Durum</div>
+                      <div className="text-xs font-bold text-emerald-500">Aktif</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Varlık İstatistikleri</div>
+                    {detailLoading ? <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(selectedCounts).map(([key, count]) => (
+                          <div key={key} className="p-3 bg-zinc-900/30 border border-zinc-800/40 rounded-xl flex items-center justify-between">
+                            <span className="text-[9px] text-zinc-500 font-bold uppercase">{key.replace(/([A-Z])/g, ' $1')}</span>
+                            <span className="text-xs font-mono font-bold text-white">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 pt-4">
+                    <div className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">Admin Notları</div>
+                    <textarea 
+                      placeholder="Admin notu ekle..."
+                      className="w-full h-24 bg-black/40 border border-zinc-800/40 rounded-2xl p-3 text-xs outline-none focus:border-zinc-700 transition resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-6 border-t border-zinc-800/60 bg-zinc-900/20 grid grid-cols-2 gap-3">
+                  <button className="flex items-center justify-center gap-2 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition">
+                    <Eraser size={14} /> Veriyi Sıfırla
+                  </button>
+                  <button className="flex items-center justify-center gap-2 py-3 bg-red-950/30 hover:bg-red-900/50 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition">
+                    <AlertTriangle size={14} /> Yasakla
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Entities Panel ───────────────────────────────────────────────────────────
+
+function EntitiesPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 'success' | 'error' | 'info', m: string) => void }) {
+  const [activeEntity, setActiveEntity] = useState<EntityTable>('logs');
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const loadEntities = async () => {
+    setLoading(true);
+    const res = await devService.getEntities(activeEntity, 50);
+    setData(res);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadEntities(); }, [activeEntity]);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Bu kaydı silmek istediğine emin misin? Bu işlem geri alınamaz.')) return;
+    const ok = await devService.deleteEntity(activeEntity, id);
+    if (ok) {
+      showToast('success', 'Kayıt silindi');
+      loadEntities();
+    } else {
+      showToast('error', 'Silme başarısız');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(ENTITY_LABELS) as EntityTable[]).map(key => (
+          <button
+            key={key}
+            onClick={() => setActiveEntity(key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              activeEntity === key ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {ENTITY_LABELS[key].icon}
+            {ENTITY_LABELS[key].label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-[#111] border border-zinc-800/60 rounded-3xl overflow-hidden">
+        <div className="p-4 border-b border-zinc-800/60 flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+            <input
+              type="text"
+              placeholder={`${ENTITY_LABELS[activeEntity].label} içinde ara...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-black border border-zinc-800 rounded-xl text-xs outline-none focus:border-zinc-700"
+            />
           </div>
-        )}
-        {!detailLoading && !selectedUser && (
-          <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
-            <Users size={48} className="mb-4 opacity-30" />
-            <p>Detay görmek için sol panelden bir kullanıcı seç</p>
-          </div>
-        )}
+          <button onClick={loadEntities} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 transition"><RefreshCw size={18} /></button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-zinc-900/50 text-zinc-500 font-black uppercase tracking-widest border-b border-zinc-800/60">
+              <tr>
+                <th className="px-6 py-4">ID / Sahibi</th>
+                <th className="px-6 py-4">İçerik Özeti</th>
+                <th className="px-6 py-4">Tarih</th>
+                <th className="px-6 py-4 text-right">Aksiyon</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/40">
+              {loading ? Array(5).fill(0).map((_, i) => (
+                <tr key={i}><td colSpan={4} className="px-6 py-4"><Skeleton className="h-10 w-full" /></td></tr>
+              )) : data.map(item => (
+                <tr key={item.id} className="hover:bg-zinc-900/20 transition">
+                  <td className="px-6 py-4">
+                    <div className="font-mono text-[9px] text-zinc-400">{item.id}</div>
+                    <div className="text-[8px] text-zinc-600 mt-0.5 truncate max-w-[150px]">UID: {item.uid || item.userId}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-zinc-300">
+                      {item.subject || item.type || item.title || 'Detay Yok'}
+                    </div>
+                    <div className="text-zinc-500 mt-0.5 truncate max-w-[300px]">
+                      {item.topic || item.description || item.lastMessage || '-'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-zinc-500 font-mono">
+                    {item.createdAt || item.date || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button className="p-2 hover:bg-blue-500/10 hover:text-blue-500 rounded-lg text-zinc-600 transition"><Eye size={14} /></button>
+                      <button onClick={() => handleDelete(item.id)} className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-lg text-zinc-600 transition"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.length === 0 && !loading && <div className="py-20 text-center text-zinc-600 text-sm italic">Veri bulunamadı</div>}
+        </div>
       </div>
     </div>
   );
@@ -455,370 +560,52 @@ function UsersPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 
 // ─── My Data Panel ────────────────────────────────────────────────────────────
 
 function MyDataPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 'success' | 'error' | 'info', m: string) => void }) {
-  const store = useAppStore.getState();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const entityTables: EntityTable[] = ['logs', 'exams', 'chatHistory', 'agendaEntries', 'focusSessions', 'failedQuestions', 'directiveHistory', 'flashcards'];
-  const [selectedTable, setSelectedTable] = useState<EntityTable>('logs');
-  const [entities, setEntities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editJson, setEditJson] = useState('');
+  useEffect(() => {
+    devService.getUserDetails(actorUid).then(res => {
+      setData(res);
+      setLoading(false);
+    });
+  }, [actorUid]);
 
-  const loadEntities = async (table: EntityTable) => {
-    setSelectedTable(table);
-    setLoading(true);
-    setEditingId(null);
-    const { data, error } = await devService.fetchUserEntities(actorUid, table, 100);
-    if (error) showToast('error', error);
-    setEntities(data);
-    setLoading(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Bu kaydı silmek istediğine emin misin?')) return;
-    const res = await devService.deleteEntity(actorUid, actorUid, selectedTable, id, true);
-    if (res.success) { showToast('success', 'Kayıt silindi'); loadEntities(selectedTable); }
-    else showToast('error', res.error ?? 'Silme hatası');
-  };
-
-  const handleBulkDelete = async () => {
-    if (!confirm(`Tüm ${ENTITY_LABELS[selectedTable].label} kayıtları kalıcı olarak silinecek! Emin misin?`)) return;
-    const res = await devService.bulkDeleteEntities(actorUid, actorUid, selectedTable, true);
-    if (res.success) { showToast('success', 'Tüm kayıtlar silindi'); loadEntities(selectedTable); }
-    else showToast('error', res.error ?? 'Toplu silme hatası');
-  };
-
-  const startEdit = (entity: any) => {
-    setEditingId(entity.id);
-    // Filter out meta fields for cleaner editing
-    const { id, user_id, created_at, updated_at, deleted_at, device_id, ...rest } = entity;
-    setEditJson(JSON.stringify(rest, null, 2));
-  };
-
-  const saveEdit = async () => {
-    if (!editingId) return;
-    try {
-      const updates = JSON.parse(editJson);
-      const res = await devService.updateEntity(actorUid, actorUid, selectedTable, editingId, updates);
-      if (res.success) { showToast('success', 'Kayıt güncellendi'); setEditingId(null); loadEntities(selectedTable); }
-      else showToast('error', res.error ?? 'Güncelleme hatası');
-    } catch {
-      showToast('error', 'Geçersiz JSON formatı');
-    }
-  };
-
-  const clearCache = () => {
-    const count = devService.clearAiCache();
-    showToast('success', `${count} önbellek girişi temizlendi`);
-  };
-
-  useEffect(() => { loadEntities('logs'); }, []);
+  if (loading) return <div className="space-y-4"><Skeleton className="h-40 w-full" /><Skeleton className="h-60 w-full" /></div>;
 
   return (
-    <div className="space-y-6">
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-2">
-        <ActionBtn label="Cloud'dan Çek" color="blue" onClick={async () => {
-          try {
-            
-            const forceSync = async () => null; // Mock
-            const data = await forceSync();
-
-            if (data) {
-              showToast('success', 'Cloud verileri çekildi ve store güncellendi');
-              // Reload current table
-              loadEntities(selectedTable);
-            } else showToast('info', 'Cloud\'da veri bulunamadı');
-          } catch (e: any) { showToast('error', e.message); }
-        }} />
-        <ActionBtn label="AI Önbellek Temizle" color="orange" onClick={clearCache} icon={<Eraser size={14} />} />
-        <ActionBtn label="Sync Kuyruğu Temizle" color="orange" onClick={() => {
-          localStorage.removeItem('boho_sync_queue');
-          showToast('success', 'Sync kuyruğu temizlendi');
-        }} />
-        <ActionBtn 
-          label="ELO Hesapla" 
-          color="blue" 
-          icon={<RefreshCw size={14} />} 
-          onClick={() => {
-            const store = useAppStore.getState();
-            store.recomputeFullElo();
-            showToast('success', 'ELO tüm veriler üzerinden tekrar hesaplandı');
-            loadEntities(selectedTable);
-          }} 
-        />
+    <div className="max-w-4xl space-y-6">
+      <div className="bg-gradient-to-br from-zinc-900 to-black p-8 rounded-3xl border border-zinc-800/60 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-10"><Shield size={120} /></div>
+        <div className="flex items-center gap-6 relative z-10">
+          <div className="w-24 h-24 rounded-3xl overflow-hidden border-2 border-zinc-800 shadow-2xl">
+            <img src={data?.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${actorUid}`} alt="" className="w-full h-full object-cover" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-black text-white tracking-tight">{data?.displayName || 'Admin'}</h2>
+            <p className="text-zinc-500 font-mono text-sm">{data?.email}</p>
+            <div className="flex items-center gap-3 mt-4">
+              <span className="px-3 py-1 bg-red-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest">Super Admin</span>
+              <span className="px-3 py-1 bg-zinc-800 text-zinc-400 rounded-full text-[10px] font-black uppercase tracking-widest">Developer Mode</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Table Selector */}
-      <div className="flex gap-1 overflow-x-auto pb-2">
-        {entityTables.map(table => (
-          <button
-            key={table}
-            onClick={() => loadEntities(table)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${
-              selectedTable === table ? 'bg-zinc-800 text-white border border-zinc-700' : 'text-zinc-500 hover:bg-zinc-900'
-            }`}
-          >
-            {ENTITY_LABELS[table].icon}
-            {ENTITY_LABELS[table].label}
-            {selectedTable === table && <span className="bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded text-[10px]">{entities.length}</span>}
-          </button>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: 'Sistem Liyakati', val: data?.eloScore || 1000, icon: <Zap className="text-amber-500" /> },
+          { label: 'Çalışma Serisi', val: `${data?.streakDays || 0} Gün`, icon: <Activity className="text-rose-500" /> },
+          { label: 'Toplam Kayıt', val: data?.totalLogs || 0, icon: <FileText className="text-blue-500" /> }
+        ].map(s => (
+          <div key={s.label} className="bg-[#111] p-6 rounded-2xl border border-zinc-800/60 flex items-center gap-4">
+            <div className="p-3 bg-zinc-900 rounded-xl">{s.icon}</div>
+            <div>
+              <div className="text-[10px] text-zinc-500 uppercase font-black tracking-widest">{s.label}</div>
+              <div className="text-xl font-bold text-white">{s.val}</div>
+            </div>
+          </div>
         ))}
       </div>
-
-      {/* Bulk Actions */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-zinc-400">{ENTITY_LABELS[selectedTable].label} ({entities.length})</h3>
-        <div className="flex gap-2">
-          <button onClick={() => loadEntities(selectedTable)} className="p-2 hover:bg-zinc-800 rounded-lg transition text-zinc-500">
-            <RefreshCw size={14} />
-          </button>
-          {entities.length > 0 && (
-            <button onClick={handleBulkDelete} className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 bg-red-500/10 rounded-lg font-medium transition">
-              <Trash2 size={12} className="inline mr-1" /> Tümünü Sil
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Entity List */}
-      {loading ? (
-        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-zinc-600" /></div>
-      ) : entities.length === 0 ? (
-        <div className="text-center py-12 text-zinc-600 text-sm">Bu tabloda kayıt bulunamadı</div>
-      ) : (
-        <div className="space-y-2 max-h-[calc(100vh-360px)] overflow-y-auto">
-          {entities.map((entity: any) => (
-            <div key={entity.id} className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
-              {editingId === entity.id ? (
-                /* Edit Mode */
-                <div className="space-y-3">
-                  <textarea
-                    value={editJson}
-                    onChange={e => setEditJson(e.target.value)}
-                    rows={12}
-                    className="w-full bg-black border border-zinc-700 rounded-xl p-4 text-xs font-mono text-emerald-400 focus:outline-none focus:border-emerald-600 resize-y"
-                  />
-                  <div className="flex gap-2">
-                    <button onClick={saveEdit} className="flex items-center gap-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-500">
-                      <Save size={12} /> Kaydet
-                    </button>
-                    <button onClick={() => setEditingId(null)} className="px-4 py-2 bg-zinc-800 text-zinc-400 rounded-lg text-xs hover:bg-zinc-700">
-                      İptal
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* View Mode */
-                <div>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-mono text-zinc-600">{entity.id?.slice(0, 16)}...</span>
-                        <span className="text-[10px] text-zinc-700">{entity.created_at ? new Date(entity.created_at).toLocaleString('tr') : ''}</span>
-                      </div>
-                      <EntityPreview entity={entity} table={selectedTable} />
-                    </div>
-                    <div className="flex gap-1 ml-2 shrink-0">
-                      <button onClick={() => startEdit(entity)} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-blue-400 transition">
-                        <Edit3 size={14} />
-                      </button>
-                      <button onClick={() => handleDelete(entity.id)} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-red-400 transition">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Entity Preview ───────────────────────────────────────────────────────────
-
-function EntityPreview({ entity, table }: { entity: any; table: EntityTable }) {
-  // Try to extract the most meaningful field for preview based on table type
-  const payload = entity.payload ?? entity;
-
-  switch (table) {
-    case 'logs':
-      return (
-        <div className="text-sm">
-          <span className="text-amber-400 font-medium">{payload.subject || 'Konu yok'}</span>
-          <span className="text-zinc-500 ml-2">— {payload.studyMinutes ?? payload.study_minutes ?? '?'} dk</span>
-          {payload.date && <span className="text-zinc-600 ml-2 text-xs">{payload.date}</span>}
-        </div>
-      );
-    case 'exams':
-      return (
-        <div className="text-sm">
-          <span className="text-blue-400 font-medium">{payload.type || payload.exam_type || 'Deneme'}</span>
-          <span className="text-zinc-500 ml-2">Net: {payload.total_net ?? payload.totalNet ?? '?'}</span>
-        </div>
-      );
-    case 'agendaEntries':
-      return (
-        <div className="text-sm">
-          <span className="text-purple-400 font-medium">{payload.title || payload.subject || 'Başlıksız'}</span>
-          <span className="text-zinc-500 ml-2">{payload.date}</span>
-        </div>
-      );
-    case 'focusSessions':
-      return (
-        <div className="text-sm">
-          <span className="text-cyan-400 font-medium">{payload.subject || 'Konu yok'}</span>
-          <span className="text-zinc-500 ml-2">{payload.duration ?? payload.durationMinutes ?? '?'} dk</span>
-        </div>
-      );
-    case 'failedQuestions':
-      return (
-        <div className="text-sm truncate max-w-lg">
-          <span className="text-orange-400 font-medium">{payload.subject || 'Konu yok'}</span>
-          <span className="text-zinc-500 ml-2">{(payload.question || payload.text || '').slice(0, 100)}</span>
-        </div>
-      );
-    case 'directiveHistory':
-      return (
-        <div className="text-sm truncate max-w-lg">
-          <span className="text-rose-400 font-medium">{payload.type || 'direktif'}</span>
-          <span className="text-zinc-500 ml-2">{(payload.text || payload.summary || '').slice(0, 100)}</span>
-        </div>
-      );
-    case 'flashcards':
-      return (
-        <div className="text-sm">
-          <span className="text-yellow-400 font-medium">{(payload.front || payload.question || '').slice(0, 60)}</span>
-        </div>
-      );
-    case 'chatHistory':
-      return (
-        <div className="text-sm">
-          <span className="text-[#C17767] font-bold">{payload.title || 'Başlıksız Sohbet'}</span>
-          <span className="text-zinc-500 ml-2">— {payload.lastMessage || 'Mesaj yok'}</span>
-          {payload.updatedAt && <span className="text-zinc-600 ml-2 text-[10px]">{new Date(payload.updatedAt).toLocaleDateString()}</span>}
-        </div>
-      );
-    default:
-      return <pre className="text-xs text-zinc-500 truncate">{JSON.stringify(payload).slice(0, 120)}</pre>;
-  }
-}
-
-// ─── Entities Panel (Browse any user) ─────────────────────────────────────────
-
-function EntitiesPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 'success' | 'error' | 'info', m: string) => void }) {
-  const [userId, setUserId] = useState(actorUid);
-  const [selectedTable, setSelectedTable] = useState<EntityTable>('logs');
-  const [entities, setEntities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editJson, setEditJson] = useState('');
-  const entityTables: EntityTable[] = ['logs', 'exams', 'chatHistory', 'agendaEntries', 'focusSessions', 'failedQuestions', 'directiveHistory', 'flashcards'];
-
-  const loadEntities = async (table?: EntityTable) => {
-    const t = table ?? selectedTable;
-    setSelectedTable(t);
-    setLoading(true);
-    setEditingId(null);
-    const { data, error } = await devService.fetchUserEntities(userId, t, 200);
-    if (error) showToast('error', error);
-    setEntities(data);
-    setLoading(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Kalıcı olarak silinecek!')) return;
-    const res = await devService.deleteEntity(actorUid, userId, selectedTable, id, true);
-    if (res.success) { showToast('success', 'Silindi'); loadEntities(); }
-    else showToast('error', res.error ?? 'Hata');
-  };
-
-  const startEdit = (entity: any) => {
-    setEditingId(entity.id);
-    const { id, user_id, created_at, updated_at, deleted_at, device_id, ...rest } = entity;
-    setEditJson(JSON.stringify(rest, null, 2));
-  };
-
-  const saveEdit = async () => {
-    if (!editingId) return;
-    try {
-      const updates = JSON.parse(editJson);
-      const res = await devService.updateEntity(actorUid, userId, selectedTable, editingId, updates);
-      if (res.success) { showToast('success', 'Güncellendi'); setEditingId(null); loadEntities(); }
-      else showToast('error', res.error ?? 'Hata');
-    } catch { showToast('error', 'Geçersiz JSON'); }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
-        <input
-          value={userId}
-          onChange={e => setUserId(e.target.value)}
-          placeholder="User ID gir..."
-          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-zinc-600"
-        />
-        <button onClick={() => loadEntities()} className="px-4 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition text-sm font-medium">
-          Yükle
-        </button>
-      </div>
-
-      <div className="flex gap-1 overflow-x-auto pb-2">
-        {entityTables.map(table => (
-          <button
-            key={table}
-            onClick={() => loadEntities(table)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition ${
-              selectedTable === table ? 'bg-zinc-800 text-white border border-zinc-700' : 'text-zinc-500 hover:bg-zinc-900'
-            }`}
-          >
-            {ENTITY_LABELS[table].icon}
-            {ENTITY_LABELS[table].label}
-          </button>
-        ))}
-      </div>
-
-      <div className="text-xs text-zinc-500">{entities.length} kayıt bulundu</div>
-
-      {loading ? (
-        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-zinc-600" /></div>
-      ) : (
-        <div className="space-y-2 max-h-[calc(100vh-340px)] overflow-y-auto">
-          {entities.map((entity: any) => (
-            <div key={entity.id} className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
-              {editingId === entity.id ? (
-                <div className="space-y-3">
-                  <textarea
-                    value={editJson}
-                    onChange={e => setEditJson(e.target.value)}
-                    rows={10}
-                    className="w-full bg-black border border-zinc-700 rounded-xl p-4 text-xs font-mono text-emerald-400 focus:outline-none focus:border-emerald-600 resize-y"
-                  />
-                  <div className="flex gap-2">
-                    <button onClick={saveEdit} className="flex items-center gap-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-500"><Save size={12} /> Kaydet</button>
-                    <button onClick={() => setEditingId(null)} className="px-4 py-2 bg-zinc-800 text-zinc-400 rounded-lg text-xs">İptal</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-mono text-zinc-600">{entity.id?.slice(0, 20)}</span>
-                    <span className="text-[10px] text-zinc-700 ml-2">{entity.created_at ? new Date(entity.created_at).toLocaleString('tr') : ''}</span>
-                    <div className="mt-1"><EntityPreview entity={entity} table={selectedTable} /></div>
-                  </div>
-                  <div className="flex gap-1 ml-2 shrink-0">
-                    <button onClick={() => startEdit(entity)} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-blue-400"><Edit3 size={14} /></button>
-                    <button onClick={() => handleDelete(entity.id)} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-red-400"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -827,53 +614,46 @@ function EntitiesPanel({ actorUid, showToast }: { actorUid: string; showToast: (
 
 function AuditPanel() {
   const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await devService.fetchAdminLogs(50);
-    setLogs(data);
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    devService.getAuditLogs(50).then(res => {
+      setLogs(res);
+      setLoading(false);
+    });
+  }, []);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-zinc-400">Sistem Denetim Kayıtları</h3>
-        <button onClick={load} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500"><RefreshCw size={14} /></button>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-black uppercase tracking-widest text-zinc-500">Sistem Denetim Logları</h3>
+        <button onClick={() => window.location.reload()} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 transition"><RefreshCw size={16} /></button>
       </div>
-      {loading ? (
-        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-zinc-600" /></div>
-      ) : logs.length === 0 ? (
-        <p className="text-center text-zinc-600 py-12 text-sm">Denetim kaydı bulunamadı</p>
-      ) : (
-        <div className="space-y-1 max-h-[calc(100vh-240px)] overflow-y-auto">
-          {logs.map((log: any, i: number) => (
-            <div key={log.id || i} className="bg-zinc-900/40 border border-zinc-800/50 rounded-xl p-3 flex items-start gap-3">
-              <div className={`p-1.5 rounded-lg ${
-                log.action?.includes('DELETE') ? 'bg-red-500/10 text-red-400' :
-                log.action?.includes('BAN') ? 'bg-orange-500/10 text-orange-400' :
+
+      <div className="bg-[#111] border border-zinc-800/60 rounded-2xl overflow-hidden">
+        <div className="divide-y divide-zinc-800/40">
+          {loading ? Array(5).fill(0).map((_, i) => <div key={i} className="p-4"><Skeleton className="h-10 w-full" /></div>) : logs.map(l => (
+            <div key={l.id} className="p-4 hover:bg-zinc-900/20 transition flex items-start gap-4">
+              <div className={`p-2 rounded-lg shrink-0 ${
+                l.action?.includes('DELETE') ? 'bg-red-500/10 text-red-500' :
+                l.action?.includes('UPDATE') ? 'bg-blue-500/10 text-blue-500' :
                 'bg-zinc-800 text-zinc-500'
               }`}>
-                <Activity size={12} />
+                <Activity size={14} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="font-bold text-zinc-300">{log.action}</span>
-                  <span className="text-zinc-600">→ {(log.target_uid || '').slice(0, 12)}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300">{l.action}</span>
+                  <span className="text-[9px] font-mono text-zinc-600">{l.timestamp}</span>
                 </div>
-                <div className="text-[10px] text-zinc-600 mt-0.5">
-                  {log.created_at ? new Date(log.created_at).toLocaleString('tr') : ''}
-                  <span className="ml-2 font-mono">{(log.actor_uid || '').slice(0, 8)}</span>
-                </div>
-                {log.details && <pre className="text-[10px] text-zinc-700 mt-1 truncate">{JSON.stringify(log.details).slice(0, 200)}</pre>}
+                <p className="text-xs text-zinc-500 mt-1 truncate">{l.details}</p>
+                <div className="text-[8px] text-zinc-700 mt-1 uppercase font-bold tracking-tighter">Aktör: {l.actorEmail || l.actorUid}</div>
               </div>
             </div>
           ))}
+          {logs.length === 0 && !loading && <div className="py-20 text-center text-zinc-600 text-sm italic">Henüz log kaydı yok</div>}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -881,145 +661,53 @@ function AuditPanel() {
 // ─── System Panel ─────────────────────────────────────────────────────────────
 
 function SystemPanel({ actorUid, showToast }: { actorUid: string; showToast: (t: 'success' | 'error' | 'info', m: string) => void }) {
-  const store = useAppStore.getState();
-  const [config, setConfig] = useState<any>(null);
-  const [apiKeys, setApiKeys] = useState<{ groq?: string, gemini?: string, cerebras?: string }>({ groq: '', gemini: '', cerebras: '' });
-  const [killSwitch, setKillSwitch] = useState({ aiEngine: false, pushService: false });
+  const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    import('../../services/systemService').then(s => {
-      s.getSystemConfig().then(c => {
-        if(c) {
-          setConfig(c);
-          if(c.apiKeys) setApiKeys({ groq: c.apiKeys.groq || '', gemini: c.apiKeys.gemini || '', cerebras: c.apiKeys.cerebras || '' });
-          if(c.killSwitch) setKillSwitch(c.killSwitch);
-        }
-      });
-    });
+    devService.getSystemStats().then(setStats);
   }, []);
 
-  const saveApiKeys = async () => {
-    const s = await import('../../services/systemService');
-    const res = await s.updateApiKeys(actorUid, apiKeys);
-    if(res.success) showToast('success', 'API Keyler güncellendi');
-    else showToast('error', res.error ?? 'Hata');
-  };
-
-  const toggleKillSwitch = async (key: 'aiEngine' | 'pushService') => {
-    const newVal = { ...killSwitch, [key]: !killSwitch[key] };
-    setKillSwitch(newVal);
-    const s = await import('../../services/systemService');
-    const res = await s.updateKillSwitch(actorUid, newVal);
-    if(res.success) showToast('success', 'Kill Switch güncellendi');
-    else showToast('error', res.error ?? 'Hata');
-  };
-
-
   return (
-    <div className="space-y-6">
-      {/* Store Snapshot */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-        <h4 className="font-bold text-sm mb-4 text-zinc-400">Lokal Store Snapshot</h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Stat label="ELO" value={store.eloScore} />
-          <Stat label="Streak" value={`${store.streakDays} gün`} />
-          <Stat label="Loglar" value={store.logs.length} />
-          <Stat label="Denemeler" value={store.exams.length} />
-          <Stat label="Mesajlar" value={store.chatHistory.length} />
-          <Stat label="Ajanda" value={store.agendaEntries.length} />
-          <Stat label="Odaklanma" value={store.focusSessions.length} />
-          <Stat label="Flashcard" value={(store.flashcards ?? []).length} />
-          <Stat label="AI İstek" value={`${store.dailyAiRequests}/50`} />
-          <Stat label="Tema" value={store.theme} />
-          <Stat label="Profil" value={store.profile?.name ?? '-'} />
-          <Stat label="Son Güncelleme" value={store.lastLocalUpdateAt?.slice(11, 19) ?? '-'} />
-        </div>
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Toplam Kullanıcı', val: stats?.totalUsers || 0, icon: <Users className="text-zinc-500" /> },
+          { label: 'Aktif Oturum', val: stats?.activeSessions || 0, icon: <Clock className="text-zinc-500" /> },
+          { label: 'Hatalı Sorular', val: stats?.totalFailedQuestions || 0, icon: <AlertTriangle className="text-red-500" /> },
+          { label: 'Sistem Sağlığı', val: '%99.9', icon: <CheckCircle2 className="text-emerald-500" /> }
+        ].map(s => (
+          <div key={s.label} className="bg-[#111] p-5 rounded-2xl border border-zinc-800/60">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[9px] text-zinc-500 uppercase font-black tracking-widest">{s.label}</div>
+              {s.icon}
+            </div>
+            <div className="text-2xl font-bold text-white">{s.val}</div>
+          </div>
+        ))}
       </div>
 
-      
-        {/* Live Operations & Kill Switch */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-          <h4 className="font-bold text-sm mb-4 text-zinc-400">Live Operations (Taskv3)</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <div className="space-y-4">
-              <h5 className="text-xs font-bold text-zinc-500 uppercase">API Keys</h5>
-              <div className="flex flex-col gap-2">
-                <input placeholder="GROQ API KEY" value={apiKeys.groq} onChange={e => setApiKeys({...apiKeys, groq: e.target.value})} className="bg-zinc-900 border border-zinc-700 p-2 rounded text-xs" type="password" />
-                <input placeholder="GEMINI API KEY" value={apiKeys.gemini} onChange={e => setApiKeys({...apiKeys, gemini: e.target.value})} className="bg-zinc-900 border border-zinc-700 p-2 rounded text-xs" type="password" />
-                <input placeholder="CEREBRAS API KEY" value={apiKeys.cerebras} onChange={e => setApiKeys({...apiKeys, cerebras: e.target.value})} className="bg-zinc-900 border border-zinc-700 p-2 rounded text-xs" type="password" />
-                <button onClick={saveApiKeys} className="bg-blue-600/20 text-blue-400 py-2 rounded font-bold text-xs hover:bg-blue-600/30">Keyleri Kaydet</button>
-              </div>
+      <div className="bg-[#111] border border-zinc-800/60 rounded-3xl p-8 space-y-6">
+        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+          <Settings size={20} className="text-zinc-500" /> Tehlikeli Alan (Danger Zone)
+        </h3>
+        <p className="text-xs text-zinc-500">Bu ayarlar tüm sistemi etkileyen geri döndürülemez işlemleri içerir. Sadece geliştiriciler kullanmalıdır.</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+          <div className="p-4 bg-zinc-900/30 border border-zinc-800/40 rounded-2xl flex items-center justify-between gap-4">
+            <div>
+              <div className="text-xs font-bold text-white">Sistem Önleğini Temizle</div>
+              <div className="text-[10px] text-zinc-500 mt-1">Tüm global cache verileri silinir.</div>
             </div>
-
-            <div className="space-y-4">
-              <h5 className="text-xs font-bold text-zinc-500 uppercase">Master Kill Switch</h5>
-              <div className="flex flex-col gap-3">
-                <div className="flex justify-between items-center bg-zinc-900 p-3 rounded border border-zinc-800">
-                  <div className="text-sm text-zinc-300">AI Motoru</div>
-                  <button onClick={() => toggleKillSwitch('aiEngine')} className={`px-4 py-1.5 rounded text-xs font-bold ${killSwitch.aiEngine ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                    {killSwitch.aiEngine ? 'KAPALI (DONDURULDU)' : 'AKTİF'}
-                  </button>
-                </div>
-                <div className="flex justify-between items-center bg-zinc-900 p-3 rounded border border-zinc-800">
-                  <div className="text-sm text-zinc-300">Push Service</div>
-                  <button onClick={() => toggleKillSwitch('pushService')} className={`px-4 py-1.5 rounded text-xs font-bold ${killSwitch.pushService ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                    {killSwitch.pushService ? 'KAPALI (DONDURULDU)' : 'AKTİF'}
-                  </button>
-                </div>
-              </div>
+            <button className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-[10px] font-bold uppercase transition">Temizle</button>
+          </div>
+          <div className="p-4 bg-red-950/10 border border-red-900/20 rounded-2xl flex items-center justify-between gap-4">
+            <div>
+              <div className="text-xs font-bold text-red-500">Tüm Verileri Arşivle</div>
+              <div className="text-[10px] text-zinc-600 mt-1">Eski kayıtları 'Mezarlık' tablosuna taşır.</div>
             </div>
-
+            <button className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-bold uppercase transition">Arşivle</button>
           </div>
         </div>
-
-        {/* Quick System Actions */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-        <h4 className="font-bold text-sm mb-4 text-zinc-400">Sistem Araçları</h4>
-        <div className="flex flex-wrap gap-2">
-          <ActionBtn label="AI Önbellek Temizle" color="orange" icon={<Eraser size={14} />} onClick={() => {
-            const count = devService.clearAiCache();
-            showToast('success', `${count} önbellek girişi temizlendi`);
-          }} />
-          <ActionBtn label="Sync Kuyruğu Temizle" color="orange" onClick={() => {
-            localStorage.removeItem('boho_sync_queue');
-            showToast('success', 'Sync kuyruğu temizlendi');
-          }} />
-          <ActionBtn label="Admin Loglarını Sil" color="red" onClick={async () => {
-            if (!confirm('Tüm denetim logları silinecek!')) return;
-            const res = await devService.clearAdminLogs(actorUid, 'super_admin');
-            if (res.success) showToast('success', 'Denetim logları silindi');
-            else showToast('error', res.error ?? 'Hata');
-          }} />
-          <ActionBtn label="IndexedDB Temizle" color="red" onClick={() => {
-            if (!confirm('IndexedDB tamamen temizlenecek! Uygulama yeniden başlayacak.')) return;
-            indexedDB.deleteDatabase('yks-store');
-            showToast('info', '3 saniye sonra sayfa yenileniyor...');
-            setTimeout(() => location.reload(), 3000);
-          }} />
-          <ActionBtn label="LocalStorage Temizle" color="red" onClick={() => {
-            if (!confirm('LocalStorage tamamen temizlenecek!')) return;
-            localStorage.clear();
-            showToast('info', '3 saniye sonra sayfa yenileniyor...');
-            setTimeout(() => location.reload(), 3000);
-          }} />
-        </div>
-      </div>
-
-      {/* Coach Memory Viewer */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-        <h4 className="font-bold text-sm mb-4 text-zinc-400">Koç Hafızası (Coach Memory)</h4>
-        <pre className="bg-black rounded-xl p-4 text-xs font-mono text-emerald-400 overflow-auto max-h-64">
-          {JSON.stringify(store.coachMemory, null, 2) || 'null'}
-        </pre>
-      </div>
-
-      {/* Last Coach Directive */}
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-        <h4 className="font-bold text-sm mb-4 text-zinc-400">Son Koç Direktifi</h4>
-        <pre className="bg-black rounded-xl p-4 text-xs font-mono text-amber-400 overflow-auto max-h-64">
-          {JSON.stringify(store.lastCoachDirective, null, 2) || 'null'}
-        </pre>
       </div>
     </div>
   );
@@ -1028,102 +716,13 @@ function SystemPanel({ actorUid, showToast }: { actorUid: string; showToast: (t:
 // ─── Analytics Panel ──────────────────────────────────────────────────────────
 
 function AnalyticsPanel() {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadStats = async () => {
-    setLoading(true);
-    const data = await devService.fetchSystemAnalytics();
-    setStats(data);
-    setLoading(false);
-  };
-
-  useEffect(() => { loadStats(); }, []);
-
-  if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-zinc-600" /></div>;
-
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-          <Activity size={32} className="text-emerald-400 mb-2" />
-          <div className="text-3xl font-bold">{stats?.activeUsers24h ?? 0}</div>
-          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">24S Aktif</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-          <Target size={32} className="text-blue-400 mb-2" />
-          <div className="text-3xl font-bold">{stats?.totalQuestionsSolved ?? 0}</div>
-          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Çözülen Soru</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-          <Zap size={32} className="text-amber-400 mb-2" />
-          <div className="text-3xl font-bold">{stats?.systemHealth ?? '98%'}</div>
-          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Sistem Sağlığı</div>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-          <Database size={32} className="text-rose-400 mb-2" />
-          <div className="text-3xl font-bold">{stats?.totalRecords ?? '~5k'}</div>
-          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Toplam Kayıt</div>
-        </div>
+    <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+      <div className="p-6 bg-zinc-900 rounded-3xl border border-zinc-800">
+        <Activity size={48} className="text-zinc-800" />
       </div>
-
-      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-        <h3 className="font-bold mb-6 text-zinc-400 flex items-center gap-2">
-          <Activity size={16} /> Kullanıcı Elde Tutma (Retention Heatmap)
-        </h3>
-        {/* Mock Heatmap */}
-        <div className="overflow-x-auto">
-          <div className="flex gap-1 min-w-[600px]">
-             {Array.from({ length: 24 }).map((_, i) => (
-               <div key={i} className="flex-1 space-y-1">
-                  {Array.from({ length: 7 }).map((_, j) => {
-                    const intensity = Math.floor(Math.random() * 5);
-                    const colors = ['bg-zinc-800', 'bg-emerald-900/40', 'bg-emerald-700/60', 'bg-emerald-500/80', 'bg-emerald-400'];
-                    return (
-                      <div key={j} className={`w-full h-8 rounded ${colors[intensity]} border border-white/5`} title="Activity level"></div>
-                    );
-                  })}
-                  <div className="text-[8px] text-zinc-600 text-center uppercase">W{i+1}</div>
-               </div>
-             ))}
-          </div>
-        </div>
-        <div className="mt-4 flex items-center gap-4 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
-           <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-zinc-800"></div> SIFIR</div>
-           <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-400"></div> MAKSİMUM</div>
-        </div>
-      </div>
+      <h2 className="text-xl font-bold text-white italic font-serif">Analiz Modülü Hazırlanıyor</h2>
+      <p className="text-xs text-zinc-500 uppercase tracking-widest max-w-xs">Global kullanıcı verilerini harmanlayan derin analiz paneli v5.2 ile aktifleşecek.</p>
     </div>
-  );
-}
-
-// ─── Reusable Components ──────────────────────────────────────────────────────
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="bg-zinc-900 rounded-xl p-3 border border-zinc-800/50">
-      <div className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">{label}</div>
-      <div className="text-lg font-bold text-zinc-200">{value}</div>
-    </div>
-  );
-}
-
-function ActionBtn({ label, color, onClick, icon }: { label: string; color: string; onClick: () => void; icon?: React.ReactNode }) {
-  const colorClasses: Record<string, string> = {
-    emerald: 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20',
-    blue: 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20',
-    red: 'bg-red-500/10 text-red-400 hover:bg-red-500/20',
-    orange: 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20',
-    zinc: 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700',
-  };
-
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${colorClasses[color] ?? colorClasses.zinc}`}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }

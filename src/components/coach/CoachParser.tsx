@@ -40,9 +40,15 @@ export function CoachParser({ content }: CoachParserProps) {
       }
 
       if (openMatch) {
-        const action = openMatch[1].toLowerCase();
+        const rawAction = openMatch[1].toLowerCase();
+        const [action, ...paramParts] = rawAction.split(':');
+        const params = new URLSearchParams(paramParts.join('&').replace(/:/g, '&'));
         const handleClick = () => {
-          if (action === 'log_study') setLogWidgetOpen(true);
+          if (action === 'log_study') {
+            const date = params.get('date');
+            if (date) localStorage.setItem('boho_prefill_log_date', date);
+            setLogWidgetOpen(true);
+          }
           if (action === 'add_exam') setExamModalOpen(true);
           if (action === 'archive') setArchiveWidgetOpen(true);
           if (action === 'profile') setEditingProfile(true);

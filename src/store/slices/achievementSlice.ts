@@ -17,7 +17,7 @@ export const createAchievementSlice = (set: any, get: any): AchievementSlice => 
   userAchievements: [],
   
   unlockAchievement: (id: string, rewardElo: number) => {
-    const { authUser, unlockedAchievementIds, userAchievements, eloScore } = get();
+    const { authUser, unlockedAchievementIds, userAchievements, addElo } = get();
     
     // Prevent double unlock
     if (unlockedAchievementIds.includes(id)) {
@@ -32,21 +32,18 @@ export const createAchievementSlice = (set: any, get: any): AchievementSlice => 
     
     const updatedIds = [...unlockedAchievementIds, id];
     const updatedUserAchievements = [...userAchievements, newAchievement];
-    const newElo = (eloScore || 0) + rewardElo;
-
     set({
       unlockedAchievementIds: updatedIds,
       pendingCelebrations: [...get().pendingCelebrations, id],
       userAchievements: updatedUserAchievements,
-      eloScore: newElo
     });
+    if (rewardElo) addElo(rewardElo, 'achievement_unlock', `achievement:${id}:elo`);
 
     // Firestore Sync
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid), {
         unlockedAchievementIds: updatedIds,
         userAchievements: updatedUserAchievements,
-        eloScore: newElo
       }, { merge: true }).catch(err => console.error('[Achievements] Sync Error:', err));
     }
   },

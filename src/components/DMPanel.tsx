@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Send, User, MessageCircle, ArrowLeft } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useShallow } from 'zustand/react/shallow';
-import { onSnapshot, collection, query, orderBy, where } from 'firebase/firestore';
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forceTargetUid?: string | null }) {
@@ -28,6 +28,21 @@ export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forc
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!authUser?.uid || !selectedUser?.uid) return;
+    const chatRoomId = [authUser.uid, selectedUser.uid].sort().join('_');
+    const q = query(collection(db, 'global_chats', chatRoomId, 'messages'), orderBy('timestamp', 'asc'));
+    return onSnapshot(q, (snap) => {
+      const incoming = snap.docs.map(d => d.data() as any);
+      useAppStore.setState((state: any) => ({
+        directMessages: {
+          ...(state.directMessages || {}),
+          [selectedUser.uid]: incoming,
+        },
+      }));
+    }, console.error);
+  }, [authUser?.uid, selectedUser?.uid]);
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -45,13 +60,16 @@ export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forc
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed inset-y-0 right-0 w-full md:w-96 glass-nav border-l border-white/5 z-[150] flex flex-col shadow-2xl"
+      className="fixed inset-y-0 right-0 w-full md:w-96 glass-nav border-l border-white/5 z-[150] flex flex-col shadow-2xl pb-[env(safe-area-inset-bottom)]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={activeTab === 'list' ? 'Mesajlar' : `${selectedUser?.name} sohbeti`}
     >
       {/* Header */}
       <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
         <div className="flex items-center gap-3">
           {activeTab === 'chat' && (
-            <button onClick={() => setActiveTab('list')} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500">
+            <button onClick={() => setActiveTab('list')} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#C17767]/40" aria-label="Mesaj listesine don">
                <ArrowLeft size={18} />
             </button>
           )}
@@ -62,7 +80,7 @@ export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forc
             <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-black">Boho Social Engine</p>
           </div>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500">
+        <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#C17767]/40" aria-label="Mesaj panelini kapat">
           <X size={20} />
         </button>
       </div>
@@ -103,7 +121,7 @@ export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forc
               {(directMessages[selectedUser?.uid || ''] || []).map((msg, i) => {
                 const isMe = msg.senderId === authUser?.uid;
                 return (
-                  <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id ?? `${msg.timestamp}-${i}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
                       isMe ? 'bg-[#C17767] text-white rounded-br-sm' : 'bg-white/5 border border-white/10 text-zinc-200 rounded-bl-sm'
                     }`}>
@@ -122,12 +140,14 @@ export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forc
                   onChange={e => setMessage(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSend()}
                   placeholder="Mesaj yaz..."
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C17767]/50"
+                  aria-label="Mesaj yaz"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C17767]/50 focus:ring-2 focus:ring-[#C17767]/20 min-h-11"
                 />
                 <button 
                   onClick={handleSend}
                   disabled={!message.trim()}
-                  className="w-11 h-11 rounded-xl bg-[#C17767] text-white flex items-center justify-center hover:scale-105 transition-all disabled:opacity-50"
+                  aria-label="Mesaj gonder"
+                  className="w-11 h-11 rounded-xl bg-[#C17767] text-white flex items-center justify-center hover:scale-105 transition-all disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C17767]/40"
                 >
                   <Send size={18} />
                 </button>

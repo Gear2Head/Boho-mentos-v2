@@ -12,7 +12,7 @@ import {
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
 import { YOK_ATLAS_DATA, type YokAtlasProgram } from '../data/yokAtlasData';
-import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet } from '../utils/statistics';
+import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet, calculateBurnoutRisk } from '../utils/statistics';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { SourceROIPanel } from './SourceROIPanel';
 import { toDateMs } from '../utils/date';
@@ -104,6 +104,16 @@ export function StrategyHub() {
     }
     return data;
   }, [exams, projection]);
+
+  const burnout = useMemo(() => calculateBurnoutRisk(logs), [logs]);
+
+  const fatigueChartData = useMemo(() => {
+    return logs.slice(-7).map(l => ({
+      name: new Date(l.date).toLocaleDateString('tr-TR', { weekday: 'short' }),
+      fatigue: l.fatigue || 3,
+      accuracy: Math.round((l.correct / (l.questions || 1)) * 100)
+    }));
+  }, [logs]);
 
   const buildBaseContext = () => {
     const recentLogs = logs.slice(-7);
@@ -316,6 +326,22 @@ Son denemeler: ${recentExams || 'Yok'}`;
           </div>
         </div>
 
+        <div className="bg-surface-2 p-5 rounded-2xl border border-app-subtle group hover:border-red-500/30 transition-colors">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-2 bg-red-500/10 text-red-500 rounded-lg"><AlertTriangle size={18} /></div>
+            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Burnout Riski</span>
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="text-2xl font-bold text-ink">%{burnout.probability}</div>
+            <div className={`text-[10px] font-bold mb-1 ${burnout.probability > 70 ? 'text-red-500' : burnout.probability > 40 ? 'text-amber-500' : 'text-emerald-500'}`}>
+              {burnout.probability > 70 ? 'KRİTİK' : burnout.probability > 40 ? 'RİSKLİ' : 'DÜŞÜK'}
+            </div>
+          </div>
+          <p className="text-[9px] text-ink-muted mt-1 font-medium leading-tight">
+            {burnout.reason}
+          </p>
+        </div>
+
         <div className="bg-accent/5 p-5 rounded-2xl border border-accent/20 flex flex-col justify-between group hover:border-accent/40 transition-colors">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -339,64 +365,97 @@ Son denemeler: ${recentExams || 'Yok'}`;
         </div>
       </div>
 
-      <div className="bg-surface-2 border border-app-subtle rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-sm">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/50 to-green-500/50"></div>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-          <div>
-            <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3">
-              <TrendingUp size={24} className="text-blue-500" /> Tahmini TYT Projeksiyonu
-            </h3>
-            <p className="text-[10px] uppercase tracking-widest text-ink-muted mt-2 font-bold">Veri Seti: Son 5 Deneme + ELO Liyakati</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-surface-2 border border-app-subtle rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-sm">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/50 to-green-500/50"></div>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+            <div>
+              <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3">
+                <TrendingUp size={24} className="text-blue-500" /> Tahmini TYT Projeksiyonu
+              </h3>
+              <p className="text-[10px] uppercase tracking-widest text-ink-muted mt-2 font-bold">Veri Seti: Son 5 Deneme + ELO Liyakati</p>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full border border-blue-500/20 font-bold uppercase tracking-widest">Regresyon Modeli: Aktif</span>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <span className="text-[10px] bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full border border-blue-500/20 font-bold uppercase tracking-widest">Regresyon Modeli: Aktif</span>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="bg-surface/50 backdrop-blur-md border border-accent/20 rounded-2xl p-5 group hover:border-accent/40 transition-colors">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="text-accent font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (TYT)</h4>
+                <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
+              </div>
+              <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-accent/50 pl-3">
+                "{profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-accent text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredTyt.confidence}</strong>."
+              </p>
+            </div>
+            <div className="bg-surface/50 backdrop-blur-md border border-amber-500/20 rounded-2xl p-5 group hover:border-amber-500/40 transition-colors">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="text-amber-500 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (AYT)</h4>
+                <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
+              </div>
+              <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-amber-500/50 pl-3">
+                "Alan testindeki ivmen, doğru/yanlış analizine ve algoritmanın regresyon hesabına göre AYT'de <strong className="text-amber-500 text-xl">{aiPredAyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredAyt.confidence}</strong>."
+              </p>
+            </div>
           </div>
+
+          {projection.tyt.hasEnoughData ? (
+            <div className="mt-8 w-full h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} opacity={0.2} />
+                  <XAxis dataKey="name" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
+                  <YAxis stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: '12px', fontSize: '10px' }}
+                    itemStyle={{ fontWeight: 'bold' }}
+                  />
+                  {profile?.tytTarget && <ReferenceLine y={profile.tytTarget} stroke="var(--color-accent)" strokeDasharray="3 3" />}
+                  <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
+                  <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed border-app-subtle rounded-2xl gap-3">
+              <TrendingUp size={32} className="opacity-10" />
+              <p className="text-[10px] uppercase tracking-widest text-ink-muted italic font-bold text-center">Projeksiyon için yeterli deneme kaydı bulunmuyor.</p>
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          <div className="bg-surface/50 backdrop-blur-md border border-accent/20 rounded-2xl p-5 group hover:border-accent/40 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <h4 className="text-accent font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (TYT)</h4>
-              <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
+        <div className="bg-surface-2 border border-app-subtle rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-sm">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/50 to-amber-500/50"></div>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+            <div>
+              <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3">
+                <AlertCircle size={24} className="text-red-500" /> Fatigue & Accuracy Korelasyonu
+              </h3>
+              <p className="text-[10px] uppercase tracking-widest text-ink-muted mt-2 font-bold">Son 7 Çalışma Günü Trendi</p>
             </div>
-            <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-accent/50 pl-3">
-              "{profile?.name?.split(' ')[0] || 'Dostum'}, bu tempoyla ve mevcut ELO liyakatinle gidersen TYT'de <strong className="text-accent text-xl">{aiPredTyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredTyt.confidence}</strong>."
-            </p>
           </div>
-          <div className="bg-surface/50 backdrop-blur-md border border-amber-500/20 rounded-2xl p-5 group hover:border-amber-500/40 transition-colors">
-            <div className="flex justify-between items-start mb-2">
-              <h4 className="text-amber-500 font-bold uppercase tracking-widest text-[10px] flex items-center gap-2"><Zap size={14} /> Sınav Günü Simülasyonu (AYT)</h4>
-              <span className="text-ink-muted text-[9px] uppercase font-bold tracking-tighter">{daysRemaining} GÜN KALDI</span>
-            </div>
-            <p className="text-ink-muted text-sm leading-relaxed italic border-l-2 border-amber-500/50 pl-3">
-              "Alan testindeki ivmen, doğru/yanlış analizine ve algoritmanın regresyon hesabına göre AYT'de <strong className="text-amber-500 text-xl">{aiPredAyt.predictedNet} nete</strong> ulaşma olasılığın <strong className="text-ink font-mono">%{aiPredAyt.confidence}</strong>."
-            </p>
-          </div>
-        </div>
 
-        {projection.tyt.hasEnoughData ? (
-          <div className="mt-8 w-full h-[320px] min-h-[320px]">
-            <ResponsiveContainer width="100%" height={200} minHeight={200}>
-              <LineChart data={projectionChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+          <div className="w-full h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={fatigueChartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} opacity={0.2} />
                 <XAxis dataKey="name" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
-                <YAxis stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} />
+                <YAxis yAxisId="left" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} domain={[0, 5]} />
+                <YAxis yAxisId="right" orientation="right" stroke="var(--color-ink-muted)" tick={{ fill: 'var(--color-ink-muted)', fontSize: 10 }} domain={[0, 100]} />
                 <Tooltip
                   contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: '12px', fontSize: '10px' }}
-                  itemStyle={{ fontWeight: 'bold' }}
                 />
-                {profile?.tytTarget && <ReferenceLine y={profile.tytTarget} stroke="var(--color-accent)" strokeDasharray="3 3" />}
-                <Line type="monotone" dataKey="gercek" name="Gerçekleşen Net" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6' }} />
-                <Line type="monotone" dataKey="tahmin" name="Tahmini Gidişat" stroke="#10B981" strokeWidth={3} strokeDasharray="5 5" dot={{ r: 4, fill: '#10B981' }} />
+                <Line yAxisId="left" type="monotone" dataKey="fatigue" name="Yorgunluk (1-5)" stroke="#EF4444" strokeWidth={3} dot={{ r: 4, fill: '#EF4444' }} />
+                <Line yAxisId="right" type="monotone" dataKey="accuracy" name="Başarı %" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: '#10B981' }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
-        ) : (
-          <div className="h-40 flex flex-col items-center justify-center border-2 border-dashed border-app-subtle rounded-2xl gap-3">
-            <TrendingUp size={32} className="opacity-10" />
-            <p className="text-[10px] uppercase tracking-widest text-ink-muted italic font-bold text-center">Projeksiyon için yeterli deneme kaydı bulunmuyor.</p>
+          <div className="mt-4 p-4 bg-red-500/5 rounded-2xl border border-red-500/10 text-[10px] text-ink-muted italic leading-relaxed">
+            <strong>Analiz:</strong> {burnout.advice}
           </div>
-        )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

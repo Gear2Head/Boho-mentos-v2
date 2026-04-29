@@ -180,6 +180,7 @@ export function parseStructuredDirective(
         warnings: parsed.warnings,
         followUpQuestion: parsed.followUpQuestion,
         detectedLogs: parsed.detectedLogs,
+        clientActions: parsed.clientActions,
         text: rawText,
         createdAt: new Date().toISOString(),
         intent,

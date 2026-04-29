@@ -11,6 +11,7 @@ import { TYT_SUBJECTS, AYT_SUBJECTS } from '../../constants';
 import type { DailyLog } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
 import confetti from 'canvas-confetti';
+import { toLocalISODateOnly } from '../../utils/date';
 
 interface LogEntryWidgetProps {
   onSubmit: (log: DailyLog) => void;
@@ -20,6 +21,14 @@ interface LogEntryWidgetProps {
 export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
   const { toast } = useToast();
   const [examType, setExamType] = useState<'TYT' | 'AYT'>('TYT');
+  const [logDate, setLogDate] = useState(() => {
+    const stored = localStorage.getItem('boho_prefill_log_date');
+    if (stored) {
+      localStorage.removeItem('boho_prefill_log_date');
+      return stored;
+    }
+    return toLocalISODateOnly();
+  });
   const [subject, setSubject] = useState('');
   const [topic, setTopic] = useState('');
   const [correct, setCorrect] = useState<number | ''>('');
@@ -48,8 +57,8 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
       return;
     }
 
-    const log: DailyLog = {
-      date: new Date().toISOString(),
+      const log: DailyLog = {
+      date: new Date(`${logDate}T12:00:00`).toISOString(),
       subject: `${examType} ${subject}`,
       topic,
       questions: Number(correct) + Number(wrong) + Number(empty),
@@ -60,6 +69,7 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
       fatigue,
       tags: tags.split(',').map(t => t.trim().startsWith('#') ? t.trim() : `#${t.trim()}`).filter(t => t !== '#'),
       sourceName: sourceName.trim() || undefined,
+      source: 'manual',
     };
 
     confetti({
@@ -142,6 +152,17 @@ export function LogEntryWidget({ onSubmit, onCancel }: LogEntryWidgetProps) {
               AYT
             </button>
           </div>
+        </div>
+
+        {/* Ders ve Konu */}
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <label className="text-[10px] uppercase font-black tracking-[0.3em] text-accent md:w-32">Tarih</label>
+          <input
+            type="date"
+            value={logDate}
+            onChange={e => setLogDate(e.target.value)}
+            className="flex-1 bg-surface-2 border border-app text-ink p-4 rounded-xl text-sm focus:outline-none focus:border-accent transition-all font-mono font-bold shadow-sm"
+          />
         </div>
 
         {/* Ders ve Konu */}

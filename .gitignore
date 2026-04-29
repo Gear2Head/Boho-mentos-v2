@@ -120,6 +120,8 @@ src/config/owner.ts
 brain/
 *.resolved
 *.md
+!task.md
+!src/config/owner.ts
 !README.md
 !docs/*.md
 !CHANGELOG.md

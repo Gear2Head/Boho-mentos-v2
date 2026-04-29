@@ -133,14 +133,14 @@ export default function App() {
   // --- STORE SELECTORS ---
   const selectors = useAppSelectors();
   const {
-    morningUnlockedDate, notifications, isSyncing, theme, addLog, addExam, isPassiveMode,
+    morningUnlockedDate, notifications, isSyncing, theme, addLog, addAgendaEntry, addExam, isPassiveMode,
     setPassiveMode, logs, setTheme, hardReset, trophies, unlockTrophy, addChatMessage, profile,
     chatHistory, activeAlerts, qaSession, setQaSession, updateQaAnswer, tytSubjects, aytSubjects,
     lastCoachDirective, setLastCoachDirective, hasHydrated, setHasHydrated, setProfile,
     isMorningBlockerEnabled, setMorningUnlockedDate, exams, eloScore, streakDays, setFocusSidePanelOpen,
     subjectViewMode, setSubjectViewMode, updateTytSubject, updateAytSubject,
     bulkMasterTytSubjectsByName, bulkMasterAytSubjectsByName, addFailedQuestion, solveFailedQuestion,
-    removeFailedQuestion, isDevMode, failedQuestions, migrateLegacyChat, recomputeFullElo
+    removeFailedQuestion, isDevMode, failedQuestions, migrateLegacyChat, recomputeFullElo, recomputeStreak
   } = selectors;
   const ambientColor = useAppStore(s => s.ambientColor);
 
@@ -166,6 +166,16 @@ export default function App() {
 
   // --- CORE HOOKS ---
   const { user, isLoading, signOut } = useAuth();
+  useEffect(() => {
+    if (user?.uid && hasHydrated) {
+      const timer = setTimeout(() => {
+        recomputeStreak(false);
+        recomputeFullElo();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [user?.uid, hasHydrated, recomputeStreak, recomputeFullElo]);
+
   const { triggerLogAnalysis, triggerExamDebrief, sendMessage, isTyping: coachIsTyping } = useCoachCore();
   const { toast: toastAPI } = useToast();
   const navigate = useNavigate();
@@ -182,7 +192,8 @@ export default function App() {
   const [countdownSession, setCountdownSession] = useState<'TYT' | 'AYT'>('TYT');
   const [inputMessage, setInputMessage] = useState('');
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
-  const [isLogWidgetOpen, setIsLogWidgetOpen] = useState(false);
+  const isLogWidgetOpen = useAppStore((s) => s.isLogWidgetOpen);
+  const setIsLogWidgetOpen = useAppStore((s) => s.setLogWidgetOpen);
   const [isArchiveWidgetOpen, setIsArchiveWidgetOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -310,7 +321,17 @@ export default function App() {
     setIsLogWidgetOpen(false);
     const isPassive = log.fatigue >= 8;
 
-    addLog(log);
+    const logId = log.id ?? `log_${Date.now()}`;
+    const logWithId = { ...log, id: logId };
+    addLog(logWithId);
+    addAgendaEntry({
+      id: `agenda_log_${logId}`,
+      date: logWithId.date,
+      content: `LOG: ${logWithId.subject} / ${logWithId.topic} - ${logWithId.questions} soru, ${logWithId.correct}D ${logWithId.wrong}Y ${logWithId.empty}B, ${logWithId.avgTime} dk`,
+      linkedLogIds: [logId],
+      source: 'log',
+      tags: ['log', logWithId.subject],
+    });
     if (isPassive && !isPassiveMode) setPassiveMode(true);
 
     // Unlock Trophy
@@ -618,7 +639,9 @@ export default function App() {
           <Route path="/social" element={
             <div className={scrollCls}>
               <motion.div key="social" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
-                <SocialPage />
+                <Suspense fallback={<SkeletonScreen />}>
+                  <SocialPage />
+                </Suspense>
               </motion.div>
             </div>
           } />

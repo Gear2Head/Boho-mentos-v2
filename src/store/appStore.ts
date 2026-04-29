@@ -122,6 +122,8 @@ export const useAppStore = create<AppState>()(
             directiveHistory: [],
             coachMemory: null,
             lastCoachDirective: null,
+            bohoCoins: 0,
+            economyLedger: [],
           });
         }
       },
