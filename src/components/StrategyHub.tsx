@@ -357,7 +357,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
                 <div className="text-2xl font-bold text-emerald-500">%{aiPredTyt.confidence}</div>
              </div>
           </div>
-          <div className="h-[200px] w-full">
+          <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={projectionChartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
@@ -376,7 +376,7 @@ Son denemeler: ${recentExams || 'Yok'}`;
           <h3 className="font-serif italic text-2xl text-ink flex items-center gap-3 mb-6">
             <AlertCircle size={24} className="text-red-500" /> Fatigue Trend
           </h3>
-          <div className="h-[200px] w-full mt-auto">
+          <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={fatigueData}>
                 <defs>

@@ -204,7 +204,7 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
                              <p className="text-[10px] font-mono text-zinc-500 mt-1">UID: {u.uid}</p>
                            </div>
                            <div className="text-right">
-                             <div className="text-xs font-bold text-[#C17767]">{u.eloScore || 1200} ELO</div>
+                             <div className="text-xs font-bold text-[#C17767]">{u.eloScore || 0} ELO</div>
                              <div className="text-[9px] uppercase tracking-widest opacity-50 mt-1">{u.role}</div>
                              <div className="text-[8px] text-zinc-500 mt-1">Son: {admin.formatRelativeTime(u.lastSignedInAt)}</div>
                            </div>

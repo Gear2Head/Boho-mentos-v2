@@ -34,11 +34,11 @@ import { NetworkBanner } from './components/NetworkBanner';
 import { SpotifyWidget } from './components/SpotifyWidget';
 
 import { DataIntegrationPanel } from './components/admin/DataIntegrationPanel';
-import { FocusSidePanel } from './components/FocusSidePanel';
+import { FocusPage } from './components/FocusPage';
 import { EloRankCard } from './components/EloRankCard';
 import { ThemeToggle } from './components/ThemeToggle';
 import { MobileGuard } from './components/MobileGuard';
-import { MorningBlocker } from './components/MorningBlocker';
+// [DEPRECATED] MorningBlocker archived — no longer gates login flow
 import { ProfileShowcase } from './components/ProfileShowcase';
 import { SubjectMapAdvanced } from './components/SubjectMapAdvanced';
 // [PERF-001 FIX]: Ağır bileşenler Lazy load ediliyor
@@ -57,6 +57,7 @@ import { ArchiveWidget } from './components/warroom/ArchiveWidget';
 import { markdownComponents } from './config/markdownConfig';
 import { CoachInterventionModal } from './components/CoachInterventionModal';
 import { CoachScreen } from './components/coach/CoachScreen';
+import { StorePage } from './components/store/StorePage';
 import { calcWorkloadRemaining, calcSourceROI, calculatePredictedNet, detectHabitAlerts } from './utils/statistics';
 
 import { LogEntryWidget } from './components/forms/LogEntryWidget';
@@ -133,11 +134,11 @@ export default function App() {
   // --- STORE SELECTORS ---
   const selectors = useAppSelectors();
   const {
-    morningUnlockedDate, notifications, isSyncing, theme, addLog, addAgendaEntry, addExam, isPassiveMode,
+    notifications, isSyncing, theme, addLog, addAgendaEntry, addExam, isPassiveMode,
     setPassiveMode, logs, setTheme, hardReset, trophies, unlockTrophy, addChatMessage, profile,
     chatHistory, activeAlerts, qaSession, setQaSession, updateQaAnswer, tytSubjects, aytSubjects,
     lastCoachDirective, setLastCoachDirective, hasHydrated, setHasHydrated, setProfile,
-    isMorningBlockerEnabled, setMorningUnlockedDate, exams, eloScore, streakDays, setFocusSidePanelOpen,
+    exams, eloScore, streakDays, setFocusSidePanelOpen,
     subjectViewMode, setSubjectViewMode, updateTytSubject, updateAytSubject,
     bulkMasterTytSubjectsByName, bulkMasterAytSubjectsByName, addFailedQuestion, solveFailedQuestion,
     removeFailedQuestion, isDevMode, failedQuestions, migrateLegacyChat, recomputeFullElo, recomputeStreak
@@ -286,11 +287,10 @@ export default function App() {
   const isSidebarExpanded = isSidebarPinned || isNavHovered;
   const isTyping = coachIsTyping;
   const todayIso = new Date().toISOString().slice(0, 10);
-  const isMorningUnlocked = morningUnlockedDate === todayIso;
   const unreadCount = notifications.filter(n => !n.read).length;
   const isCurrentlySyncing = isSyncing;
   const syncStatus = 'synced' as string;
-  const forceSync = async (a?: boolean) => console.log('Force sync called', a);
+  const forceSync = async (_force?: boolean) => undefined;
   const syncButtonTitle = syncStatus === 'offline'
     ? 'Çevrimdışı - eşitleme internet gelince yeniden denenebilir'
     : isCurrentlySyncing
@@ -306,6 +306,7 @@ export default function App() {
       case 'war_room': color = '#EF4444'; break; // Red
       case 'subjects': color = '#10B981'; break; // Emerald
       case 'strategy': color = '#8B5CF6'; break; // Purple
+      case 'store': color = '#F59E0B'; break; // Amber
       default: color = 'transparent'; break;
     }
     useAppStore.getState().setAmbientColor(color);
@@ -523,10 +524,7 @@ export default function App() {
     return <ProfileSettings onSubmit={(p) => setProfile(p)} />;
   }
 
-  // Morning Blocker (Sabah Sorusu Kilidi) — [BUG-010 FIX]: persist store tabanlı
-  if (isMorningBlockerEnabled && !isMorningUnlocked) {
-    return <MorningBlocker onUnlock={() => setMorningUnlockedDate(todayIso)} />;
-  }
+  // [DEPRECATED] MorningBlocker removed from login flow — archived as legacy feature
 
   const scrollCls = "flex-1 overflow-y-auto relative scroll-smooth custom-scrollbar";
 
@@ -579,6 +577,14 @@ export default function App() {
             </div>
           } />
 
+          <Route path="/clock" element={
+            <div className={scrollCls}>
+              <motion.div key="clock" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+                <FocusPage />
+              </motion.div>
+            </div>
+          } />
+
           <Route path="/countdown" element={
             <div className={scrollCls}>
               <motion.div key="countdown" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="p-8 flex flex-col items-center justify-center min-h-full">
@@ -612,11 +618,17 @@ export default function App() {
           <Route path="/logs" element={
             <div className={scrollCls}>
               <motion.div key="logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
-                <header>
+                <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                  <div>
                   <h2 className="font-display italic text-3xl text-[#C17767]">Çalışma Kayıtları</h2>
                   <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Tüm seanslarının detaylı dökümü</p>
+                  </div>
+                  <button onClick={() => setIsLogWidgetOpen(true)} className="px-4 py-2 bg-[#C17767] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-[#C17767]/20 flex items-center gap-2 self-start sm:self-auto">
+                    <Plus size={14} /> Yeni KayÄ±t
+                  </button>
                 </header>
                 <LogHistory logs={logs} onLogClick={setSelectedLog} />
+                {isLogWidgetOpen && <LogEntryWidget onSubmit={handleLogSubmit} onCancel={() => setIsLogWidgetOpen(false)} />}
               </motion.div>
             </div>
           } />
@@ -700,6 +712,14 @@ export default function App() {
             </div>
           } />
 
+          <Route path="/store" element={
+            <div className={scrollCls}>
+              <motion.div key="store" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+                <StorePage />
+              </motion.div>
+            </div>
+          } />
+
           <Route path="/callback" element={<SpotifyCallback />} />
 
           <Route path="/settings" element={
@@ -767,7 +787,7 @@ export default function App() {
         <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={profile?.track || 'Sayısal'} onSave={(exam) => { addExam(exam); setIsExamModalOpen(false); unlockTrophy('first_blood'); }} />
         <ExamDetailModal isOpen={!!selectedExam} onClose={() => setSelectedExam(null)} exam={selectedExam} isAdmin={isSuperAdmin(user?.uid, user?.email)} />
         <LogDetailModal isOpen={!!selectedLog} onClose={() => setSelectedLog(null)} log={selectedLog} isAdmin={isSuperAdmin(user?.uid, user?.email)} />
-        <FocusSidePanel />
+
         <CoachInterventionModal />
         <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
       </MainLayout>

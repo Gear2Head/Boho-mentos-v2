@@ -223,18 +223,50 @@ export const AudioEngine = {
     _filteredNoise(ctx, now, 0.9, 0.08, 1400);
   },
 
-  playCrateWin(rarity: 'basic' | 'epic' | 'legendary' = 'basic') {
+  playClick() {
     const ctx = getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const scale = rarity === 'legendary'
+    _playNote(ctx, 520, now, 0.035, 'sine', 0.08);
+    _playNote(ctx, 740, now + 0.025, 0.045, 'triangle', 0.05);
+  },
+
+  playSlotSpin() {
+    const ctx = getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    for (let i = 0; i < 18; i++) {
+      _playNote(ctx, 180 + (i % 6) * 55, now + i * 0.06, 0.04, 'square', 0.045);
+    }
+    _filteredNoise(ctx, now, 1.05, 0.05, 900);
+  },
+
+  playSlotStop(isWin = false) {
+    const ctx = getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = isWin ? [392, 523.25, 659.25, 880] : [300, 230, 180];
+    notes.forEach((freq, i) => _playNote(ctx, freq, now + i * 0.07, 0.09, isWin ? 'sine' : 'triangle', isWin ? 0.12 : 0.06));
+    _haptic(isWin ? [35, 30, 70] : 25);
+  },
+
+  playCrateWin(rarity: 'basic' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'jackpot' = 'basic') {
+    const ctx = getContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const scale = rarity === 'jackpot' || rarity === 'mythic'
+      ? [392, 523.25, 659.25, 783.99, 1046.5, 1318.51]
+      : rarity === 'legendary'
       ? [392, 523.25, 659.25, 783.99, 1046.5]
+      : rarity === 'rare'
+        ? [293.66, 392, 493.88]
       : rarity === 'epic'
         ? [329.63, 440, 554.37, 659.25]
         : [261.63, 329.63, 392];
-    scale.forEach((freq, i) => _playNote(ctx, freq, now + i * 0.09, 0.28, 'sine', rarity === 'legendary' ? 0.22 : 0.16));
-    _filteredNoise(ctx, now, rarity === 'legendary' ? 0.5 : 0.28, 0.05, rarity === 'legendary' ? 3200 : 2200);
-    _haptic(rarity === 'legendary' ? [50, 40, 80, 40, 140] : [40, 40, 80]);
+    const rich = rarity === 'legendary' || rarity === 'mythic' || rarity === 'jackpot';
+    scale.forEach((freq, i) => _playNote(ctx, freq, now + i * 0.09, 0.28, 'sine', rich ? 0.22 : 0.16));
+    _filteredNoise(ctx, now, rich ? 0.5 : 0.28, 0.05, rich ? 3200 : 2200);
+    _haptic(rich ? [50, 40, 80, 40, 140] : [40, 40, 80]);
   },
 
   // 📚 Flashcard flip sesi

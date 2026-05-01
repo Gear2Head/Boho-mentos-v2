@@ -196,10 +196,10 @@ async function spotifyFetch(url: string, options: RequestInit = {}): Promise<Res
       const newHeaders = { ...options.headers, Authorization: `Bearer ${newToken}` };
       response = await fetch(url, { ...options, headers: newHeaders });
     } else {
-      // Refresh failed or no refresh token - clear and reload
+      // Refresh failed — clear tokens silently instead of hard redirect
       localStorage.removeItem('spotify_token');
       localStorage.removeItem('spotify_refresh_token');
-      if (typeof window !== 'undefined') window.location.assign('/');
+      throw new Error('Spotify token refresh failed');
     }
   }
 
@@ -212,10 +212,13 @@ export async function getCurrentTrack(): Promise<SpotifyCurrentlyPlaying | null>
   if (!SPOTIFY_ENABLED) return null;
   try {
     const response = await spotifyFetch('https://api.spotify.com/v1/me/player/currently-playing');
-    if (response.status === 204) return null;
+    if (response.status === 204 || response.status === 202) return null;
     if (!response.ok) return null;
-    return response.json() as Promise<SpotifyCurrentlyPlaying>;
-  } catch (e) {
+    const data = await response.json();
+    // Guard against empty/null item responses
+    if (!data || !data.item) return { is_playing: false, item: null, progress_ms: 0 };
+    return data as SpotifyCurrentlyPlaying;
+  } catch {
     return null;
   }
 }
@@ -261,7 +264,7 @@ export async function getUserPlaylists(): Promise<SpotifyPlaylist[]> {
     const response = await spotifyFetch('https://api.spotify.com/v1/me/playlists?limit=20');
     if (!response.ok) return [];
     const data = await response.json();
-    return data.items as SpotifyPlaylist[];
+    return (data?.items ?? []) as SpotifyPlaylist[];
   } catch {
     return [];
   }

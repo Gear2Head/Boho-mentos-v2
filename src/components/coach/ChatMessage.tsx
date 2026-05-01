@@ -6,7 +6,7 @@
 
 import React, { memo, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Target, Play, FileText, Link as LinkIcon, Bot, Skull, Flame, BarChart3, CheckCircle2, Volume2 } from 'lucide-react';
+import { Target, Play, FileText, Link as LinkIcon, Bot, Skull, Flame, BarChart3, CheckCircle2 } from 'lucide-react';
 import { classifyMessage } from '../../utils/classifyMessage';
 import { getResourcesForSubject } from '../../utils/resourceEngine';
 import { CoachParser } from './CoachParser';
@@ -14,7 +14,6 @@ import { FlashcardBubble } from './FlashcardBubble';
 import type { FlashcardBubbleData } from './FlashcardBubble';
 import type { ChatMessage as ChatMessageType } from '../../types';
 import { useAppStore } from '../../store/appStore';
-import { AudioEngine } from '../../utils/audioEngine';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -179,15 +178,6 @@ export const ChatMessage = memo(function ChatMessage({
               {isHardcore ? '☣️ TOXIC' : `${classification.emoji} ${classification.badge}`}
             </span>
             
-            {/* TTS Button */}
-            <button 
-              onClick={() => AudioEngine.playTts(message.content)}
-              className="p-1.5 rounded-lg hover:bg-surface-2 text-ink-muted/60 hover:text-accent transition-all active:scale-90"
-              title="Sesli Oku"
-            >
-              <Volume2 size={12} />
-            </button>
-
             <span className="text-[9px] text-ink-muted/40 font-mono font-black ml-auto">{time}</span>
           </div>
         )}

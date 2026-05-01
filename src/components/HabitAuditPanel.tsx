@@ -1,31 +1,127 @@
 /**
- * AMAÇ: Öğrenci çalışma alışkanlıklarını analiz edip risk uyarısı vermek
+ * AMAÇ: Öğrenci çalışma alışkanlıklarını analiz edip risk uyarısı vermek ve rapor indirmek
  * MANTIK: statistics.ts içindeki detectHabitAlerts fonksiyonunu kullanır
  */
 
-import React from 'react';
-import { AlertTriangle, CheckCircle2, TrendingDown, Clock, BookOpen, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, CheckCircle2, Clock, BookOpen, Zap, Download, FileText } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { detectHabitAlerts } from '../utils/statistics';
 import { motion } from 'motion/react';
 
+function generateReportText(
+  alerts: ReturnType<typeof detectHabitAlerts>,
+  totalFocusHours: number,
+  totalQuestions: number,
+  generatedAt: string
+): string {
+  const lines: string[] = [
+    '═══════════════════════════════════════════════',
+    '  BOHO MENTOS — ALİŞKANLIK DENETİM RAPORU',
+    '═══════════════════════════════════════════════',
+    `  Oluşturulma: ${generatedAt}`,
+    '',
+    `  ÖZET`,
+    `  ─────────────────────────────────────────────`,
+    `  Toplam Odak Süresi : ${totalFocusHours} saat`,
+    `  Toplam Soru Hacmi  : ${totalQuestions.toLocaleString('tr-TR')} soru`,
+    `  Tespit Edilen Uyarı: ${alerts.length}`,
+    '',
+  ];
+
+  if (alerts.length === 0) {
+    lines.push('  ✔ RADAR TEMİZ — Çalışma disiplinin şu an stabil.');
+  } else {
+    lines.push('  UYARILAR');
+    lines.push('  ─────────────────────────────────────────────');
+    alerts.forEach((a, i) => {
+      const severity = a.type === 'danger' ? '🔴 KRİTİK' : a.type === 'warning' ? '🟡 UYARI' : '🟢 BİLGİ';
+      lines.push(`  ${i + 1}. [${severity}] ${a.title}`);
+      lines.push(`     ${a.description}`);
+      lines.push(`     ETKİ: ${a.impact}`);
+      lines.push('');
+    });
+  }
+
+  lines.push('═══════════════════════════════════════════════');
+  lines.push('  Bu rapor Boho Mentos AI Koç sistemi tarafından');
+  lines.push('  otomatik olarak oluşturulmuştur.');
+  lines.push('═══════════════════════════════════════════════');
+
+  return lines.join('\n');
+}
+
 export function HabitAuditPanel() {
   const logs = useAppStore(s => s.logs);
   const alerts = detectHabitAlerts(logs);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [lastGenerated, setLastGenerated] = useState<string | null>(null);
+
+  const totalFocusHours = Math.round(logs.reduce((acc, l) => acc + (l.avgTime || 0), 0) / 60);
+  const totalQuestions = logs.reduce((acc, l) => acc + (l.questions || 0), 0);
+
+  const handleDownload = async () => {
+    setIsGenerating(true);
+    await new Promise(r => setTimeout(r, 600)); // UX pause
+
+    const now = new Date();
+    const generatedAt = now.toLocaleString('tr-TR', { dateStyle: 'long', timeStyle: 'short' });
+    const fileName = `habit-audit-${now.toISOString().slice(0, 10)}.txt`;
+
+    const reportText = generateReportText(alerts, totalFocusHours, totalQuestions, generatedAt);
+
+    const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setLastGenerated(generatedAt);
+    setIsGenerating(false);
+  };
 
   return (
     <div className="bg-[#121212] border border-[#2A2A2A] rounded-3xl p-6 shadow-sm overflow-hidden relative">
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#C17767]/5 to-transparent rounded-bl-full pointer-events-none" />
 
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-[#C17767]/10 rounded-xl text-[#C17767]">
-          <Zap size={20} />
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[#C17767]/10 rounded-xl text-[#C17767]">
+            <Zap size={20} />
+          </div>
+          <div>
+            <h3 className="font-serif italic text-xl text-zinc-200">Alışkanlık Analizi (Habit Audit)</h3>
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Kübra Derin Analiz Modu</p>
+          </div>
         </div>
-        <div>
-          <h3 className="font-serif italic text-xl text-zinc-200">Alışkanlık Analizi (Habit Audit)</h3>
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Kübra Derin Analiz Modu</p>
-        </div>
+
+        <button
+          onClick={handleDownload}
+          disabled={isGenerating}
+          className="flex items-center gap-2 px-4 py-2 bg-[#C17767]/10 text-[#C17767] border border-[#C17767]/20 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#C17767]/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          aria-label="Habit Audit Raporu İndir"
+        >
+          {isGenerating ? (
+            <>
+              <FileText size={14} className="animate-pulse" />
+              Hazırlanıyor...
+            </>
+          ) : (
+            <>
+              <Download size={14} />
+              Rapor İndir
+            </>
+          )}
+        </button>
       </div>
+
+      {lastGenerated && (
+        <p className="text-[9px] text-zinc-600 uppercase tracking-widest mb-4 italic">
+          Son rapor: {lastGenerated}
+        </p>
+      )}
 
       {alerts.length === 0 ? (
         <div className="flex items-center gap-4 p-5 bg-green-500/5 border border-green-500/20 rounded-2xl">
@@ -72,7 +168,7 @@ export function HabitAuditPanel() {
             <Clock size={12} /> Odak Süresi
           </div>
           <div className="text-lg font-serif italic text-zinc-200">
-            {Math.round(logs.reduce((acc, l) => acc + (l.avgTime || 0), 0) / 60)} <span className="text-xs non-italic opacity-40 uppercase">Saat</span>
+            {totalFocusHours} <span className="text-xs non-italic opacity-40 uppercase">Saat</span>
           </div>
         </div>
         <div className="p-4 bg-[#1A1A1A] rounded-2xl border border-zinc-800/50 group hover:border-[#C17767]/30 transition-colors">
@@ -80,7 +176,7 @@ export function HabitAuditPanel() {
             <BookOpen size={12} /> Soru Hacmi
           </div>
           <div className="text-lg font-serif italic text-zinc-200">
-            {logs.reduce((acc, l) => acc + (l.questions || 0), 0).toLocaleString()} <span className="text-xs non-italic opacity-40 uppercase">Soru</span>
+            {totalQuestions.toLocaleString('tr-TR')} <span className="text-xs non-italic opacity-40 uppercase">Soru</span>
           </div>
         </div>
       </div>

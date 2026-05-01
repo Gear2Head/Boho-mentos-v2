@@ -37,6 +37,7 @@ export const SYNC_ROOT_WHITELIST = [
   // Coach direktivler (kalıcı hafıza için)
   'lastCoachDirective',
   'coachMemory',
+  'inventory',
 ] as const;
 
 export type SyncRootKey = (typeof SYNC_ROOT_WHITELIST)[number];

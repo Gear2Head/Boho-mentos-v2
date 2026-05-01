@@ -19,12 +19,16 @@ export function CoachParser({ content }: CoachParserProps) {
   const setArchiveWidgetOpen = useAppStore((s) => s.setArchiveWidgetOpen);
   const setEditingProfile = useAppStore((s) => s.setEditingProfile);
 
+  const blocks = content.split('\n\n').filter(b => b.trim() !== '');
+
   // Pattern detection: [[NAV:tab]] or [[OPEN:action]]
   const processTags = (text: string) => {
-    const parts = text.split(/(\[\[(?:NAV|OPEN):[^\]]+\]\])/g);
+    const parts = text.split(/(\[\[(?:NAV|OPEN|SOCRATIC(?:_DEEP)?|ORACLE_PREDICTION):?[^\]]*\]\])/g);
     return parts.map((part, i) => {
       const navMatch = part.match(/\[\[NAV:([^\]]+)\]\]/);
       const openMatch = part.match(/\[\[OPEN:([^\]]+)\]\]/);
+      const socraticMatch = part.match(/\[\[SOCRATIC(?:_DEEP)?:([^\]]+)\]\]/);
+      const oracleMatch = part.match(/\[\[ORACLE_PREDICTION\]\]/);
 
       if (navMatch) {
         const tab = navMatch[1].toLowerCase();
@@ -53,7 +57,7 @@ export function CoachParser({ content }: CoachParserProps) {
           if (action === 'archive') setArchiveWidgetOpen(true);
           if (action === 'profile') setEditingProfile(true);
         };
-        
+
         const label = action === 'log_study' ? 'Çalışma Kaydet'
           : action === 'add_exam' ? 'Deneme Ekle'
           : action === 'archive' ? 'Arşivi Aç'
@@ -70,13 +74,10 @@ export function CoachParser({ content }: CoachParserProps) {
           </button>
         );
       }
-
       return part;
     });
   };
 
-  const blocks = content.split('\n\n');
-  
   const renderBlock = (block: string, idx: number) => {
     const lower = block.toLowerCase();
     

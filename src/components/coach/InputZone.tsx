@@ -5,7 +5,7 @@
  * T-008: Dosya ekleme + attachment preview.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { startTransition, useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Plus, X, Paperclip, ScanLine, ClipboardList, BarChart3, CalendarDays, BookOpen, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { CoachIntent } from '../../types/coach';
@@ -59,25 +59,65 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
   const [isSending, setIsSending] = useState(false);
   const [isOCRLoading, setIsOCRLoading] = useState(false);
   const [attachment, setAttachment] = useState<{ base64: string; mediaType: string; name: string } | null>(null);
+  const [draftValue, setDraftValue] = useState(value);
+  const latestDraftRef = useRef(value);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeRafRef = useRef<number | null>(null);
 
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'warning' = 'success') => {
     toastAPI[type](msg);
   }, []);
 
-  const isEmpty = !value.trim() && !attachment;
-  const charCount = value.length;
+  const commitChange = useCallback((nextValue: string) => {
+    latestDraftRef.current = nextValue;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    startTransition(() => onChange(nextValue));
+  }, [onChange]);
+
+  const scheduleChange = useCallback((nextValue: string) => {
+    latestDraftRef.current = nextValue;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      startTransition(() => onChange(latestDraftRef.current));
+    }, 300);
+  }, [onChange]);
+
+  const isEmpty = !draftValue.trim() && !attachment;
+  const charCount = draftValue.length;
+
+  useEffect(() => {
+    setDraftValue(value);
+    latestDraftRef.current = value;
+  }, [value]);
+
+  useEffect(() => () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      onChange(latestDraftRef.current);
+    }
+    if (resizeRafRef.current !== null) cancelAnimationFrame(resizeRafRef.current);
+  }, [onChange]);
 
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    ta.style.height = 'auto';
-    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
-  }, [value]);
+    if (resizeRafRef.current !== null) cancelAnimationFrame(resizeRafRef.current);
+    resizeRafRef.current = requestAnimationFrame(() => {
+      ta.style.height = 'auto';
+      ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+      resizeRafRef.current = null;
+    });
+  }, [draftValue]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     if (val.length > MAX_CHARS) return;
-    onChange(val);
+    setDraftValue(val);
+    scheduleChange(val);
     if (val.startsWith('/') && !val.includes(' ')) {
       setSlashFilter(val.slice(1).toLowerCase());
       setSlashOpen(true);
@@ -85,29 +125,30 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
     } else {
       setSlashOpen(false);
     }
-  }, [onChange]);
+  }, [scheduleChange]);
 
   const filteredSlash = SLASH_COMMANDS.filter(
     c => c.cmd.includes(slashFilter) || c.label.toLowerCase().includes(slashFilter)
   );
 
   const applySlashCommand = useCallback((cmd: typeof SLASH_COMMANDS[0]) => {
-    onChange(cmd.label);
+    setDraftValue(cmd.label);
+    commitChange(cmd.label);
     setSlashOpen(false);
     setTimeout(() => textareaRef.current?.focus(), 50);
-  }, [onChange]);
+  }, [commitChange]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOpen) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedSlash(p => (p + 1) % filteredSlash.length); return; }
-      if (e.key === 'ArrowUp')   { e.preventDefault(); setSelectedSlash(p => (p - 1 + filteredSlash.length) % filteredSlash.length); return; }
+      if (e.key === 'ArrowDown' && filteredSlash.length > 0) { e.preventDefault(); setSelectedSlash(p => (p + 1) % filteredSlash.length); return; }
+      if (e.key === 'ArrowUp' && filteredSlash.length > 0)   { e.preventDefault(); setSelectedSlash(p => (p - 1 + filteredSlash.length) % filteredSlash.length); return; }
       if (e.key === 'Enter' && filteredSlash[selectedSlash]) { e.preventDefault(); applySlashCommand(filteredSlash[selectedSlash]); return; }
       if (e.key === 'Escape') { setSlashOpen(false); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-    if (e.key === 'Escape') { onChange(''); textareaRef.current?.blur(); }
+    if (e.key === 'Escape') { setDraftValue(''); commitChange(''); textareaRef.current?.blur(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slashOpen, slashFilter, selectedSlash, filteredSlash, value]);
+  }, [slashOpen, slashFilter, selectedSlash, filteredSlash, draftValue]);
 
   const handleSend = useCallback(async () => {
     if (isEmpty || isTyping) return;
@@ -117,12 +158,13 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
       AudioEngine.playSend();
     });
 
-    onSubmit(value, undefined, attachment ?? undefined);
-    onChange('');
+    onSubmit(draftValue, undefined, attachment ?? undefined);
+    setDraftValue('');
+    commitChange('');
     setAttachment(null);
     await new Promise(r => setTimeout(r, 300));
     setIsSending(false);
-  }, [isEmpty, isTyping, value, attachment, onSubmit, onChange]);
+  }, [isEmpty, isTyping, draftValue, attachment, onSubmit, commitChange]);
 
   const handlePill = useCallback((pill: typeof QUICK_REPLIES[0]) => {
     onSubmit(pill.value, pill.intent);
@@ -251,7 +293,7 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
           {/* Textarea */}
           <textarea
             ref={textareaRef}
-            value={value}
+            value={draftValue}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={isOCRLoading ? 'OCR taranıyor...' : 'Mesaj yaz veya / ile araçları kullan...'}
@@ -261,8 +303,8 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
           />
 
           {/* Clear */}
-          {value && (
-            <button onClick={() => onChange('')} className="absolute right-16 bottom-5 text-ink-muted/30 hover:text-[#C17767] transition-colors hidden md:block">
+          {draftValue && (
+            <button onClick={() => { setDraftValue(''); commitChange(''); }} className="absolute right-16 bottom-5 text-ink-muted/30 hover:text-[#C17767] transition-colors hidden md:block">
               <X size={14} />
             </button>
           )}

@@ -17,7 +17,7 @@ export default async function handler(req: Request) {
 
     // Ideally would call supabase.rpc('add_elo', { user_id: uid, delta })
     // Returning a mock success response to fulfill the structure
-    return new Response(JSON.stringify({ newEloScore: 1200 + delta, delta }), {
+    return new Response(JSON.stringify({ newEloScore: delta, delta }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });

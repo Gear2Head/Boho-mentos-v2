@@ -165,7 +165,7 @@ export interface CoachDirective {
   }>;
   /** İstemci tarafında tetiklenecek özel aksiyonlar */
   clientActions?: Array<{
-    type: 'CELEBRATE' | 'OPEN_MARKET' | 'ADD_GOAL' | 'START_FOCUS' | 'TRIGGER_VOICE' | 'ADD_FAILED_QUESTION';
+    type: 'CELEBRATE' | 'OPEN_MARKET' | 'ADD_GOAL' | 'START_FOCUS' | 'TRIGGER_VOICE' | 'ADD_FAILED_QUESTION' | 'LOCK_ROUTE' | 'MASSIVE_CELEBRATION';
     payload?: Record<string, unknown>;
   }>;
 }
@@ -211,6 +211,10 @@ export interface CoachMemory {
   persistentNotes: string[];
   /** Son haftalık net trend */
   netTrend: 'rising' | 'falling' | 'stable' | 'unknown';
+  /** V3 God-Tier: Saat dilimi bazlı doğruluk oranları */
+  timeOfDayStats?: Record<string, number>;
+  /** V3 God-Tier: Gün bazlı doğruluk oranları */
+  dayOfWeekStats?: Record<string, number>;
   /** Son güncellenme */
   updatedAt: string;
   /**
@@ -265,6 +269,10 @@ export interface CoachSystemContext {
   lastWarRoomScore?: number;
   eloTrend?: string;
   netTrend?: 'rising' | 'falling' | 'stable' | 'unknown';
+  
+  // V3 God-Tier Fields
+  timeOfDayStats?: Record<string, number>; // e.g. "morning": 80, "night": 45
+  dayOfWeekStats?: Record<string, number>; // e.g. "Monday": 75, "Sunday": 30
 }
 
 // ─── API Request ──────────────────────────────────────────────────────────────

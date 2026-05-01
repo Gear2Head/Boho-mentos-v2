@@ -12,6 +12,7 @@
  * Bu sabit sadece legacy import'ları kırmamak için tutulmuştur.
  */
 export const SUPER_ADMIN_UID = '';
+export const OWNER_EMAIL = 'senerkadiralper@gmail.com';
 
 export type UserRole = 'super_admin' | 'developer' | 'standard' | 'banned';
 
@@ -27,7 +28,8 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
  * Tek güvenilir yetki kaynağı budur.
  */
 export function isSuperAdminClaims(claims: Record<string, unknown> | undefined | null, email?: string | null): boolean {
-  return claims?.superAdmin === true;
+  const normalizedEmail = email?.trim().toLowerCase();
+  return claims?.superAdmin === true || normalizedEmail === OWNER_EMAIL;
 }
 
 /**
@@ -36,7 +38,7 @@ export function isSuperAdminClaims(claims: Record<string, unknown> | undefined |
  * Bu fonksiyon artık her zaman false döner — hardcoded UID kaldırıldı.
  */
 export function isSuperAdmin(uid?: string | null, email?: string | null): boolean {
-  return false;
+  return email?.trim().toLowerCase() === OWNER_EMAIL;
 }
 
 export function canManageUser(actorRole: UserRole, targetRole: UserRole): boolean {

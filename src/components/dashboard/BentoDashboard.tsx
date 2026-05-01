@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../../store/appStore';
-import { Clock, CheckCircle2, Calendar, AlertTriangle, BookOpen, Target, Activity, Brain, Zap, Trophy } from 'lucide-react';
+import { Clock, CheckCircle2, Calendar, AlertTriangle, BookOpen, Target, Activity, Brain, Zap, Trophy, Coins } from 'lucide-react';
 import { calcWorkloadRemaining, calcSourceROI, detectHabitAlerts } from '../../utils/statistics';
 import { parseFlexibleDate, toISODateOnly } from '../../utils/date';
 import { MiniFlapClock } from '../FlapClock';
@@ -55,7 +55,6 @@ const BentoStatCard = ({ title, value, total, unit, icon }: any) => (
 import { GhostRivalWidget } from './GhostRivalWidget';
 import { MemoryDecayWidget } from './MemoryDecayWidget';
 import { WeakLinkWidget } from './WeakLinkWidget';
-import { WeeklyBossFight } from '../WeeklyBossFight';
 import { StudyProgressRing } from './StudyProgressRing';
 import { DailyMotivationWidget } from './DailyMotivationWidget';
 import { StreakHistoryWidget } from './StreakHistoryWidget';
@@ -67,6 +66,7 @@ import { SubjectMasterySunburst } from './SubjectMasterySunburst';
 
 export function BentoDashboard() {
   const profile = useAppStore(s => s.profile);
+  const bohoCoins = useAppStore(s => s.bohoCoins);
   const tytSubjects = useAppStore(s => s.tytSubjects);
   const aytSubjects = useAppStore(s => s.aytSubjects);
   const logs = useAppStore(s => s.logs);
@@ -168,6 +168,7 @@ export function BentoDashboard() {
             </div>
           </div>
 
+
           <h2 className="font-display italic text-5xl text-zinc-100 mb-6 z-10">Hoş geldin, <span className={`${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}>{profile?.name}</span></h2>
           <div className="flex flex-col md:flex-row gap-6 text-sm font-medium z-10">
             <div className="flex-1">
@@ -208,15 +209,14 @@ export function BentoDashboard() {
       </motion.div>
 
       <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}>
-        <HabitAudit />
+        <EloRankCard />
       </motion.div>
 
       <div className="mt-8">
         <CrateShop />
       </div>
 
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <WeeklyBossFight />
+      <div className="mt-8">
         <GlobalLeaderboard />
       </div>
 
@@ -307,7 +307,7 @@ export function BentoDashboard() {
         <div className="space-y-6">
           <StudyProgressRing dailyGoalQuestions={profile?.minDailyQuestions ?? 200} />
           <DailyMotivationWidget />
-          <EloRankCard />
+          <HabitAudit />
           <SubjectMasterySunburst />
           <GhostRivalWidget />
           <WeakLinkWidget logs={logs} />
@@ -321,9 +321,7 @@ export function BentoDashboard() {
         </div>
       </motion.div>
 
-      <div className="mb-6">
-        <WeeklyBossFight />
-      </div>
+
 
       <div className="mb-20">
         <AchievementsPanel />

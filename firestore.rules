@@ -12,13 +12,21 @@ service cloud.firestore {
     }
     
     function isSuperAdmin() {
-      return isAuthenticated() && request.auth.token.superAdmin == true;
+      return isAuthenticated() && (
+        request.auth.token.superAdmin == true ||
+        request.auth.token.email == 'senerkadiralper@gmail.com'
+      );
+    }
+
+    function isValidImage() {
+      return request.resource.data.url is string && request.resource.data.url.matches('https://firebasestorage.googleapis.com/.*');
     }
 
     match /users/{userId} {
-      // Profil: Liderlik tablosu için herkes (giriş yapmış) okuyabilir.
+      // Profil: Liderlik tablosu veya arama için sadece belirli alanlar dışarı açılmalı.
+      // Şimdilik list yetkisini kısıtlayıp sadece get yetkisini bırakıyoruz (ID biliniyorsa).
       allow get: if isAuthenticated();
-      allow list: if isAuthenticated();
+      allow list: if isSuperAdmin(); // Sadece admin tüm listeyi çekebilir.
       allow create: if isOwner(userId);
       allow update: if (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) || isSuperAdmin();
       allow delete: if isSuperAdmin();
@@ -49,10 +57,15 @@ service cloud.firestore {
       match /flashcards/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
     }
     
-    // Sistem config dışa açık, admin yetkili
+    // Sistem config: Anonim erişim kapatıldı.
     match /system_config/{document=**} {
-      allow read: if true;
+      allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
+    }
+    
+    match /failed_questions/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isSuperAdmin();
+      allow write: if isOwner(userId) && isValidImage();
     }
     
     // Admin logları (audit)

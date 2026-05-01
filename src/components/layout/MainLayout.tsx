@@ -9,27 +9,14 @@ import { isSuperAdminClaims } from '../../config/admin';
 import { confirmDialog } from '../../contexts/ToastContext';
 
 import { NavItem } from '../NavItem';
+import { NAV_ITEMS } from '../../config/navItems';
 import { NotificationCenter } from '../NotificationCenter';
 import { NetworkBanner } from '../NetworkBanner';
 import { CompactSpotify as SpotifyWidget } from '../ui/CompactSpotify';
 import { MobileMenuModal } from './MobileMenuModal';
 import { CelebrationPortal } from '../CelebrationPortal';
 
-const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, mobileVisible: true, desktopVisible: true },
-  { id: 'coach', label: 'Ai Koç', icon: <BrainCircuit size={18} />, mobileVisible: true, desktopVisible: true },
-  { id: 'agenda', label: 'Ajanda', icon: <Calendar size={18} />, mobileVisible: true, desktopVisible: true },
-  { id: 'subjects', label: 'Müfredat', icon: <MapIcon size={18} />, mobileVisible: true, desktopVisible: true },
-  { id: 'questions', label: 'Soru Analizi', icon: <Target size={18} />, mobileVisible: false, desktopVisible: true },
-  { id: 'explain', label: 'Konu Analizi', icon: <BookOpen size={18} />, mobileVisible: false, desktopVisible: true },
-  { id: 'strategy', label: 'Strateji', icon: <PenTool size={18} />, mobileVisible: false, desktopVisible: true },
-  { id: 'logs', label: 'Kayıtlar', icon: <List size={18} />, mobileVisible: true, desktopVisible: true },
-  { id: 'exams', label: 'Denemeler', icon: <LayoutList size={18} />, mobileVisible: true, desktopVisible: true },
-  { id: 'social', label: 'Özel Sohbet', icon: <MessageCircle size={18} />, mobileVisible: true, desktopVisible: true },
-  { id: 'archive', label: 'Mezarlık', icon: <Archive size={18} />, mobileVisible: false, desktopVisible: true },
-  { id: 'countdown', label: 'Geri Sayım', icon: <Clock size={18} />, mobileVisible: false, desktopVisible: true },
-  { id: 'settings', label: 'Ayarlar', icon: <Settings size={18} />, mobileVisible: false, desktopVisible: true },
-];
+// Centralized nav items used from config
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -44,7 +31,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
 
   const syncStatus = 'synced' as string; // Type-safe placeholder
-  const storeForceSync = () => console.log('Sync forced');
+  const storeForceSync = () => undefined;
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarPinned, setIsSidebarPinned] = useState(() => {
@@ -101,9 +88,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             {syncStatus === 'offline' ? <CloudOff size={18} /> : <RefreshCcw size={18} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
           </button>
           <div className="w-8 h-8 rounded-full overflow-hidden border border-app cursor-pointer" onClick={() => navigate('/profile')}>
-            {profile.avatar
+            {profile?.avatar
               ? <img src={profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />
-              : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`} alt="P" className="w-full h-full rounded-full bg-surface" />
+              : <img src={`https://api.dicebear.com/7.x/bottts/svg?seed=${profile?.name || 'user'}`} alt="P" className="w-full h-full rounded-full bg-surface" />
             }
           </div>
         </div>
@@ -117,7 +104,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           opacity: isZenMode ? 0 : 1
         }}
         transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 1 }}
-        className={`fixed bottom-0 left-0 right-0 md:bottom-auto md:left-auto md:right-auto md:relative border-t md:border-t-0 glass-nav flex flex-row md:flex-col z-[90] pb-[env(safe-area-inset-bottom)] md:h-[100dvh] shadow-xl md:shadow-none ${scrollDirection === 'down' ? 'translate-y-full md:translate-y-0' : 'translate-y-0'} ${isZenMode ? 'pointer-events-none' : ''}`}
+        className={`fixed bottom-3 left-3 right-3 md:bottom-auto md:left-auto md:right-auto md:relative border border-white/10 md:border-t-0 md:border-x-0 md:border-b-0 glass-nav bg-zinc-950/80 md:bg-transparent backdrop-blur-2xl md:backdrop-blur-none flex flex-row md:flex-col z-[90] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:p-0 md:h-[100dvh] rounded-[28px] md:rounded-none shadow-2xl md:shadow-none transition-transform duration-300 ${scrollDirection === 'down' ? 'translate-y-[calc(100%+1rem)] md:translate-y-0' : 'translate-y-0'} ${isZenMode ? 'pointer-events-none' : ''}`}
         onMouseEnter={() => !isZenMode && setIsNavHovered(true)}
         onMouseLeave={() => setIsNavHovered(false)}
       >
@@ -192,7 +179,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
 
 
-        <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 px-1 md:px-3 md:space-y-1 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar">
+        <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 px-1 md:px-3 md:space-y-1 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar gap-1 md:gap-0">
           {NAV_ITEMS.map((item) => (
             <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full`}>
               <NavItem
@@ -259,7 +246,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </div>
       </motion.nav>
 
-      <main className={`flex-1 overflow-hidden relative flex flex-col bg-app pb-16 md:pb-0 pt-0 transition-all duration-700 ${isZenMode ? 'p-0' : ''}`}>
+      <main className={`flex-1 overflow-hidden relative flex flex-col bg-app pb-28 md:pb-0 pt-0 transition-all duration-700 ${isZenMode ? 'p-0' : ''}`}>
         {isZenMode && (
           <motion.button
             initial={{ opacity: 0, scale: 0.8 }}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useAnimation } from 'motion/react';
 import {
     Crown, Flame, Gem, Shield, Star, Swords, Target, Trophy, Zap,
@@ -6,8 +7,8 @@ import {
 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────
-export type CrateTier = 'standard' | 'epic' | 'legendary';
-export type Rarity = 'basic' | 'epic' | 'legendary' | 'jackpot';
+export type CrateTier = 'standard' | 'epic' | 'legendary' | 'wooden' | 'bronze' | 'silver' | 'gold' | 'mythic' | 'cosmic';
+export type Rarity = 'basic' | 'rare' | 'epic' | 'legendary' | 'mythic' | 'jackpot';
 
 export interface Reward {
     id: string;
@@ -36,12 +37,47 @@ export const ALL_REWARDS: Reward[] = [
     { id: 'diamond_core', name: 'Elmas Cekirdek MAX', rarity: 'legendary', coinReward: 4500, icon: <Diamond size={26} />, description: '+4,500 BohoCoin' },
     { id: 'spark_legend', name: 'Efsane Kilici', rarity: 'legendary', coinReward: 3800, shieldReward: 2, icon: <Sparkles size={26} />, description: '+2 Kalkan & 3,800 Coin' },
     { id: 'jackpot', name: 'BOHO JACKPOT', rarity: 'jackpot', coinReward: 10000, shieldReward: 5, icon: <Coins size={26} />, description: '10,000 Coin + 5 Kalkan!' },
+    { id: 'frame_fire', name: 'Alev Cerceve', rarity: 'rare', coinReward: 800, icon: <Flame size={26} />, description: 'Alev profil cercevesi' },
+    { id: 'title_focus', name: 'Odak Operatoru', rarity: 'rare', coinReward: 950, icon: <Target size={26} />, description: 'Kariyer unvani' },
+    { id: 'theme_cyber', name: 'Siberpunk Tema', rarity: 'epic', coinReward: 1200, icon: <Zap size={26} />, description: 'Neon tema' },
+    { id: 'theme_aurora', name: 'Aurora Tema', rarity: 'legendary', coinReward: 1800, icon: <Sparkles size={26} />, description: 'Aurora vitrin temasi' },
+    { id: 'theme_obsidian', name: 'Obsidyen Tema', rarity: 'mythic', coinReward: 2400, icon: <Diamond size={26} />, description: 'Mitik tema' },
+    { id: 'persona_analyst', name: 'Veri Cerrahi', rarity: 'legendary', coinReward: 1600, icon: <Target size={26} />, description: 'Analyst koc modu' },
+    { id: 'focus_badge', name: 'Derin Odak Rozeti', rarity: 'legendary', coinReward: 2200, icon: <Trophy size={26} />, description: 'Premium kariyer rozeti' },
+    { id: 'freeze_3', name: 'Uclu Seri Kalkani', rarity: 'mythic', coinReward: 2000, shieldReward: 3, icon: <Shield size={26} />, description: '+3 Seri Kalkani' },
+    { id: 'cosmic_crown', name: 'Kozmik Tac', rarity: 'mythic', coinReward: 3200, shieldReward: 2, icon: <Crown size={26} />, description: 'Kozmik profil taci' },
 ];
 
 type WeightedReward = { reward: Reward; weight: number };
 
 export const POOLS: Record<CrateTier, WeightedReward[]> = {
     standard: [
+        { reward: ALL_REWARDS[0], weight: 30 },
+        { reward: ALL_REWARDS[1], weight: 30 },
+        { reward: ALL_REWARDS[2], weight: 25 },
+        { reward: ALL_REWARDS[3], weight: 20 },
+        { reward: ALL_REWARDS[4], weight: 8 },
+        { reward: ALL_REWARDS[5], weight: 5 },
+        { reward: ALL_REWARDS[6], weight: 3 },
+    ],
+    wooden: [
+        { reward: ALL_REWARDS[0], weight: 30 },
+        { reward: ALL_REWARDS[1], weight: 30 },
+        { reward: ALL_REWARDS[2], weight: 25 },
+        { reward: ALL_REWARDS[3], weight: 20 },
+        { reward: ALL_REWARDS[4], weight: 8 },
+        { reward: ALL_REWARDS[5], weight: 5 },
+        { reward: ALL_REWARDS[6], weight: 3 },
+    ],
+    bronze: [
+        { reward: ALL_REWARDS[0], weight: 26 },
+        { reward: ALL_REWARDS[1], weight: 22 },
+        { reward: ALL_REWARDS[5], weight: 18 },
+        { reward: ALL_REWARDS[15], weight: 14 },
+        { reward: ALL_REWARDS[16], weight: 12 },
+        { reward: ALL_REWARDS[17], weight: 8 },
+    ],
+    silver: [
         { reward: ALL_REWARDS[0], weight: 30 },
         { reward: ALL_REWARDS[1], weight: 30 },
         { reward: ALL_REWARDS[2], weight: 25 },
@@ -59,7 +95,34 @@ export const POOLS: Record<CrateTier, WeightedReward[]> = {
         { reward: ALL_REWARDS[9], weight: 12 },
         { reward: ALL_REWARDS[10], weight: 5 },
     ],
+    gold: [
+        { reward: ALL_REWARDS[4], weight: 25 },
+        { reward: ALL_REWARDS[5], weight: 25 },
+        { reward: ALL_REWARDS[6], weight: 20 },
+        { reward: ALL_REWARDS[7], weight: 18 },
+        { reward: ALL_REWARDS[8], weight: 15 },
+        { reward: ALL_REWARDS[9], weight: 12 },
+        { reward: ALL_REWARDS[10], weight: 5 },
+    ],
+    mythic: [
+        { reward: ALL_REWARDS[18], weight: 22 },
+        { reward: ALL_REWARDS[19], weight: 18 },
+        { reward: ALL_REWARDS[20], weight: 18 },
+        { reward: ALL_REWARDS[21], weight: 16 },
+        { reward: ALL_REWARDS[12], weight: 14 },
+        { reward: ALL_REWARDS[22], weight: 8 },
+        { reward: ALL_REWARDS[23], weight: 4 },
+    ],
     legendary: [
+        { reward: ALL_REWARDS[6], weight: 15 },
+        { reward: ALL_REWARDS[9], weight: 15 },
+        { reward: ALL_REWARDS[10], weight: 22 },
+        { reward: ALL_REWARDS[11], weight: 18 },
+        { reward: ALL_REWARDS[12], weight: 14 },
+        { reward: ALL_REWARDS[13], weight: 11 },
+        { reward: ALL_REWARDS[14], weight: 5 },
+    ],
+    cosmic: [
         { reward: ALL_REWARDS[6], weight: 15 },
         { reward: ALL_REWARDS[9], weight: 15 },
         { reward: ALL_REWARDS[10], weight: 22 },
@@ -91,6 +154,13 @@ export const RARITY_CFG: Record<Rarity, {
         winBg: 'radial-gradient(ellipse at 50% 30%, rgba(80,80,100,0.4) 0%, rgba(0,0,0,0.97) 70%)',
         particleColors: ['#94a3b8', '#cbd5e1', '#64748b', '#e2e8f0'], particleCount: 20,
     },
+    rare: {
+        bg: '#082f49', border: '#38bdf8', iconColor: '#7dd3fc', glow: '0 0 24px rgba(56,189,248,0.45)', glowColor: 'rgba(56,189,248,0.35)',
+        labelBg: '#0c4a6e', labelText: '#bae6fd', labelName: 'NADIR', accentColor: '#38bdf8',
+        gradient: 'linear-gradient(135deg, #071f33 0%, #0c314d 50%, #061827 100%)',
+        winBg: 'radial-gradient(ellipse at 50% 30%, rgba(14,116,144,0.45) 0%, rgba(0,0,0,0.97) 70%)',
+        particleColors: ['#38bdf8', '#7dd3fc', '#e0f2fe', '#0ea5e9'], particleCount: 32,
+    },
     epic: {
         bg: '#160d25', border: '#7c3aed', iconColor: '#c084fc', glow: '0 0 30px rgba(124,58,237,0.7)', glowColor: 'rgba(124,58,237,0.5)',
         labelBg: '#3b1f6b', labelText: '#d8b4fe', labelName: 'EPİK', accentColor: '#a855f7',
@@ -103,14 +173,21 @@ export const RARITY_CFG: Record<Rarity, {
         labelBg: '#78350f', labelText: '#fef3c7', labelName: 'EFSANE', accentColor: '#f59e0b',
         gradient: 'linear-gradient(135deg, #1a0f00 0%, #231400 50%, #1a0a00 100%)',
         winBg: 'radial-gradient(ellipse at 50% 30%, rgba(160,90,0,0.6) 0%, rgba(0,0,0,0.97) 70%)',
-        particleColors: ['#fbbf24', '#f59e0b', '#fde68a', '#fff', '#f97316', '#fef08a'], particleCount: 70,
+        particleColors: ['#fbbf24', '#f59e0b', '#fde68a', '#fff', '#f97316', '#fef08a'], particleCount: 40,
+    },
+    mythic: {
+        bg: '#22051b', border: '#ec4899', iconColor: '#f9a8d4', glow: '0 0 54px rgba(236,72,153,0.75)', glowColor: 'rgba(236,72,153,0.65)',
+        labelBg: '#831843', labelText: '#fce7f3', labelName: 'MITIK', accentColor: '#ec4899',
+        gradient: 'linear-gradient(135deg, #22051b 0%, #3b082c 48%, #160314 100%)',
+        winBg: 'radial-gradient(ellipse at 50% 30%, rgba(190,24,93,0.62) 0%, rgba(0,0,0,0.97) 68%)',
+        particleColors: ['#ec4899', '#f9a8d4', '#f0abfc', '#fff', '#fb7185'], particleCount: 52,
     },
     jackpot: {
         bg: '#0a0a00', border: '#ffe234', iconColor: '#ffe234', glow: '0 0 60px rgba(255,226,52,0.9)', glowColor: 'rgba(255,226,52,0.8)',
         labelBg: '#7a5c00', labelText: '#fff9c4', labelName: '★ JACKPOT', accentColor: '#ffe234',
         gradient: 'linear-gradient(135deg, #0a0a00 0%, #1a1400 50%, #0a0a00 100%)',
         winBg: 'radial-gradient(ellipse at 50% 30%, rgba(200,160,0,0.7) 0%, rgba(0,0,0,0.97) 65%)',
-        particleColors: ['#ffe234', '#ffd700', '#fff', '#ffec8b', '#ffa500', '#ff6347', '#ff1493'], particleCount: 120,
+        particleColors: ['#ffe234', '#ffd700', '#fff', '#ffec8b', '#ffa500', '#ff6347', '#ff1493'], particleCount: 60,
     },
 };
 
@@ -126,15 +203,13 @@ const AudioEngine = (() => {
     const playTick = (pitch = 1.0, vol = 0.25) => {
         try {
             const ac = getCtx();
-            const osc = ac.createOscillator(); const gain = ac.createGain(); const filt = ac.createBiquadFilter();
-            filt.type = 'bandpass'; filt.frequency.value = 1400 * pitch; filt.Q.value = 10;
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(1000 * pitch, ac.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(350 * pitch, ac.currentTime + 0.045);
+            const osc = ac.createOscillator(); const gain = ac.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800 * pitch, ac.currentTime);
             gain.gain.setValueAtTime(vol, ac.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.07);
-            osc.connect(filt); filt.connect(gain); gain.connect(ac.destination);
-            osc.start(); osc.stop(ac.currentTime + 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.05);
+            osc.connect(gain); gain.connect(ac.destination);
+            osc.start(); osc.stop(ac.currentTime + 0.06);
         } catch { }
     };
 
@@ -173,8 +248,10 @@ const AudioEngine = (() => {
             const ac = getCtx();
             const seqs: Record<Rarity, number[]> = {
                 basic: [392, 494, 523],
+                rare: [392, 523, 659],
                 epic: [392, 523, 659, 784],
                 legendary: [523, 659, 784, 1047, 1319],
+                mythic: [440, 554, 659, 880, 1108, 1319],
                 jackpot: [4400, 5540, 6590, 8800, 10470, 13190, 17600],
             };
             const type = rarity === 'basic' ? 'triangle' : 'sine';
@@ -217,7 +294,7 @@ function Particles({ rarity }: { rarity: Rarity }) {
         , [rarity]);
 
     return (
-        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 400, overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9800, overflow: 'hidden' }}>
             {particles.map(p => (
                 <motion.div key={p.id}
                     initial={{ y: '-5vh', x: `${p.x}vw`, opacity: 1, rotate: 0, scale: 1 }}
@@ -233,7 +310,13 @@ function Particles({ rarity }: { rarity: Rarity }) {
 // ─── Crate Cinematic ─────────────────────────────────────────────────────────────
 function CrateCinematic({ tier, onDone }: { tier: CrateTier; onDone: () => void }) {
     const [phase, setPhase] = useState<'appear' | 'shake' | 'open' | 'gone'>('appear');
-    const accent = tier === 'legendary' ? '#f59e0b' : tier === 'epic' ? '#7c3aed' : '#6b7280';
+    const accent = 
+        tier === 'mythic' ? '#ec4899' :
+        tier === 'legendary' || tier === 'cosmic' ? '#f59e0b' : 
+        tier === 'epic' || tier === 'gold' ? '#7c3aed' : 
+        tier === 'silver' ? '#94a3b8' : 
+        tier === 'bronze' ? '#b45309' :
+        tier === 'wooden' ? '#8b4513' : '#6b7280';
 
     useEffect(() => {
         const t0 = setTimeout(() => { setPhase('shake'); AudioEngine.playCrateShake(); }, 350);
@@ -245,7 +328,7 @@ function CrateCinematic({ tier, onDone }: { tier: CrateTier; onDone: () => void 
     }, []);
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9600, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <AnimatePresence>
                 {phase !== 'gone' && (
                     <motion.div
@@ -322,12 +405,12 @@ function RewardReveal({ reward, onDone }: { reward: Reward; onDone: () => void }
         return () => [t1, t2, t3].forEach(clearTimeout);
     }, []);
 
-    const isRich = reward.rarity === 'legendary' || reward.rarity === 'jackpot';
+    const isRich = reward.rarity === 'legendary' || reward.rarity === 'mythic' || reward.rarity === 'jackpot';
 
     return (
         <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 350, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: cfg.winBg }}
+            style={{ position: 'fixed', inset: 0, zIndex: 9700, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: cfg.winBg }}
         >
             {/* Light beams */}
             {isRich && (
@@ -490,8 +573,7 @@ export function CrateOpening({
     const winner = reelRewards[WINNER_IDX];
 
     const startSpin = useCallback(async () => {
-        const containerHalf = typeof window !== 'undefined' && window.innerWidth < 768 ? 155 : 220;
-        const finalOffset = WINNER_IDX * STRIDE - containerHalf + CARD_W / 2;
+        const finalOffset = WINNER_IDX * STRIDE + CARD_W / 2;
         const DURATION = 7000;
         const startTime = Date.now();
         let lastFired = -1;
@@ -501,7 +583,7 @@ export function CrateOpening({
             const p = Math.min(el / DURATION, 1);
             const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
             const currentOff = eased * finalOffset;
-            const idx = Math.round((currentOff + containerHalf - CARD_W / 2) / STRIDE);
+            const idx = Math.round((currentOff - CARD_W / 2) / STRIDE);
             if (idx !== lastFired && idx >= 0 && idx < REEL_LEN) {
                 lastFired = idx;
                 const speed = 1 - p;
@@ -511,7 +593,7 @@ export function CrateOpening({
 
         await controls.start({
             x: -finalOffset,
-            transition: { duration: DURATION / 1000, ease: [0.12, 0, 0.08, 1] },
+            transition: { duration: DURATION / 1000, ease: [0.15, 0, 0.05, 1] },
         });
 
         if (tickRef.current) clearInterval(tickRef.current);
@@ -530,7 +612,7 @@ export function CrateOpening({
 
     useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
 
-    return (
+    const content = (
         <>
             {phase === 'result' && result && <Particles rarity={result.rarity} />}
             {phase === 'crate' && <CrateCinematic tier={crateTier} onDone={handleCrateDone} />}
@@ -541,7 +623,7 @@ export function CrateOpening({
                     <motion.div
                         key="spin"
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.96)' }}
+                        style={{ position: 'fixed', inset: 0, zIndex: 9500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.96)' }}
                     >
                         <motion.div
                             initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
@@ -578,7 +660,7 @@ export function CrateOpening({
                                 borderTop: '1px solid rgba(255,255,255,0.07)', borderBottom: '1px solid rgba(255,255,255,0.07)',
                                 background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center',
                             }}>
-                                <motion.div animate={controls} style={{ display: 'flex', gap: CARD_GAP, paddingLeft: '50%', x: 0 }}>
+                                <motion.div animate={controls} style={{ display: 'flex', gap: CARD_GAP, paddingLeft: '50%', x: 0, willChange: 'transform' }}>
                                     {reelRewards.map((rw, i) => {
                                         const rcfg = RARITY_CFG[rw.rarity];
                                         return (
@@ -617,4 +699,6 @@ export function CrateOpening({
             </AnimatePresence>
         </>
     );
+
+    return typeof document === 'undefined' ? content : createPortal(content, document.body);
 }

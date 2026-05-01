@@ -74,7 +74,7 @@ export function SubjectMasterySunburst() {
           <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold">Tamamlandı</span>
         </div>
 
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={180}>
           <PieChart>
             <Pie
               data={data}

@@ -93,13 +93,18 @@ desktop.ini
 .cline/
 .windsurfrules
 .ai-context/
+.ai_context/
 .ai context/
+.ai/
+.agents/
+.gemini/
+.antigravity/
 brain/
 prompt/
 prompts/
 promt/
-context.md
-contex.md
+*context.md
+*contex.md
 *.resolved
 # Scratch scripts/data
 scratch/
@@ -134,3 +139,19 @@ bohoohoh.json
 src/config/owner.ts
 # Owner configi localde kalmalı ancak şablon paylaşılabilir.
 !src/config/owner.example.ts
+
+
+claude.md
+claude/
+Claude/
+skills/
+!skills/
+"Console logs/"
+
+# Archived Features
+src/archived/
+"task.md"
+task/
+task
+.md
+C:\Projects\Boho-mentos-v2\task.md

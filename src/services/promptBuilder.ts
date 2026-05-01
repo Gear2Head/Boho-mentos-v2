@@ -28,7 +28,7 @@ export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   weekly_review: `Haftalık retrospektif: Haftalık gelişim grafiğini ve verilerini (Ders, Toplam Soru, Başarı %) TABLO ile sun. Ne oldu (veri), neden oldu (örüntü analizi), gelecek hafta ne değişecek (somut 3 karar). Net veriyle konuş, tahmin değil gözlem.`,
   micro_feedback: `Log kaydedildi. KURAL: Övme yasak. Verileri minimalist bir TABLO veya liste ile sun. Format — kesinlikle 3 cümle: 1. [Veri Analizi]: net sayısı, doğruluk oranı ve hızın müfredat ortalamasına kıyasla durumu. 2. [Anomali]: bu seansın gösterdiği tek kritik metodolojik hata veya risk. 3. [Acil Emir]: bugün yatmadan önce yapılacak tek spesifik şey (Örn: 20 soru tekrar). Toplam 3 cümle, fazlası yasak.`,
 
-  // TODO-007: Kübra v2 intent'leri
+  // Ters koçluk: öğrenci anlatır, Kübra dinler ve boşlukları yakalar
   inverse_coaching: `Artık öğrenci rolünü oynuyorsun. Kullanıcı sana konuyu anlatacak. Sen meraklı ama kavramsal boşlukları yakalayan bir öğrenci gibi sorular sor. Yanlış anlar gibi davran, net olmayan noktaları zorla. Anlatım bittiğinde: 3 maddeli güçlü/zayıf özet ve tespit ettiğin 1 gerçek hata yaz.`,
 
   flashcard_generation: `Konuşma geçmişinden veya verilen konudan 5 adet çalışma kartı üret. SADECE JSON dizi döndür, başka metin ekleme:
@@ -119,7 +119,7 @@ export function buildContextString(ctx?: Partial<CoachSystemContext>): string {
 }
 
 /**
- * TODO-001: Bracket-balance JSON parser — greedy regex yerine.
+ * Bracket-balance JSON parser — greedy regex yerine.
  * Nested array/object içeren directive'lerde parse hatasını önler.
  */
 function extractFirstJsonObject(raw: string): string | null {

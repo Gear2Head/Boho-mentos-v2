@@ -121,7 +121,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
           </div>
         </header>
 
-        {isAdmin && (
+        {
           <div className="mb-6 flex items-center justify-end gap-2">
             {!isEditing ? (
               <button
@@ -150,7 +150,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
               </>
             )}
           </div>
-        )}
+        }
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
           <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6">
@@ -258,7 +258,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
           </div>
         </div>
 
-        {isAdmin && (
+        {
           <div className="pt-6 border-t border-red-900/30 flex justify-end">
             <button
               onClick={handleDelete}
@@ -268,7 +268,7 @@ export function ExamDetailModal({ exam, isOpen, onClose, isAdmin }: ExamDetailMo
               <Trash2 size={16} /> Denemeyi Sil
             </button>
           </div>
-        )}
+        }
       </div>
     </div>
   );

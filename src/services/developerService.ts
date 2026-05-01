@@ -131,7 +131,7 @@ export async function injectElo(
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) return { success: false, error: 'Kullanıcı bulunamadı.' };
 
-    const currentElo = userSnap.data().eloScore || 1200;
+    const currentElo = userSnap.data().eloScore || 0;
     const newElo = currentElo + amount;
     
     await updateDoc(userRef, { eloScore: newElo });
@@ -201,7 +201,7 @@ export async function repairProfileDoc(
   try {
     const userRef = doc(db, 'users', targetUid);
     await updateDoc(userRef, { 
-      eloScore: 1200, 
+      eloScore: 0, 
       streakDays: 0,
       role: 'standard', 
       updated_at: new Date().toISOString() 

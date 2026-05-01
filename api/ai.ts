@@ -1,44 +1,37 @@
 /**
- * AMAÇ: Vercel serverless AI orkestratörü.
- * MANTIK: Tek intent modeli + inline prompt builder + provider fallback zinciri.
- * NOT: src/ importları kullanılmıyor — Vercel runtime .ts dosyalarını çözemez.
+ * BOHO MENTOS v2 - MASTER COACH AI ORCHESTRATOR
+ * Groq-only provider with multi-key rotation and typed failures.
+ *
+ * V20 (COACH-QUALITY-001):
+ * - STRUCTURED_JSON_INSTRUCTION: Detailed task schema with required subject/topic/rationale
+ * - INTENT_INSTRUCTIONS: Rich, context-aware per-intent guidance
+ * - buildPrompt: Directive tasks MUST reference real student data; generic tasks banned
+ * - temperature: 0.7 for directive intents to improve variety
  */
-// ASSUME: Vercel Node runtime — declare process manually to avoid @types/node requirement
-declare const process: { env: Record<string, string | undefined> };
 
-import { GoogleGenAI } from '@google/genai';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type CoachIntent =
-  | 'daily_plan'
-  | 'log_analysis'
-  | 'exam_analysis'
-  | 'exam_debrief'
-  | 'topic_explain'
-  | 'intervention'
-  | 'qa_mode'
-  | 'free_chat'
-  | 'war_room_analysis'
-  | 'weekly_review'
-  | 'micro_feedback'
-  | 'inverse_coaching'
-  | 'flashcard_generation'
-  | 'forgetting_curve_reminder'
-  | 'daily_quest'
-  | 'vision_archive_parse'
-  | 'generate_weekly_strategy'
-  | 'quiz_generation';
+  | 'daily_plan' | 'log_analysis' | 'exam_analysis' | 'exam_debrief'
+  | 'topic_explain' | 'intervention' | 'qa_mode' | 'free_chat'
+  | 'war_room_analysis' | 'weekly_review' | 'micro_feedback'
+  | 'inverse_coaching' | 'flashcard_generation' | 'forgetting_curve_reminder'
+  | 'daily_quest' | 'vision_archive_parse' | 'generate_weekly_strategy'
+  | 'quiz_generation' | 'socratic_force';
 
 type ChatHistoryItem = { role: 'user' | 'coach' | 'system'; content: string };
-type OpenAIMessage = { role: 'system' | 'user' | 'assistant'; content: string | any[] };
+type GroqRole = 'system' | 'user' | 'assistant';
+type GroqContent =
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string } }
+    >;
+type GroqMessage = { role: GroqRole; content: GroqContent };
 
 interface AiRequestBody {
   intent?: CoachIntent;
-  /** @deprecated use intent instead */
-  action?: string;
   userMessage?: string;
   context?: string;
   chatHistory?: ChatHistoryItem[];
@@ -47,706 +40,397 @@ interface AiRequestBody {
   maxTokens?: number;
   userState?: Record<string, unknown>;
   wantDirective?: boolean;
-  transcript?: string;
   imageBase64?: string;
   imageMediaType?: 'image/jpeg' | 'image/png' | 'image/webp';
-  voiceSentiment?: 'stressed' | 'confident' | 'neutral';
+  transcript?: string;
+  action?: string;
 }
 
-interface ProviderTelemetry {
-  provider: string;
-  latencyMs: number;
-  success: boolean;
-  errorCode?: string;
+class ProviderError extends Error {
+  status: number;
+  code: string;
+  debug?: unknown;
+
+  constructor(status: number, code: string, message: string, debug?: unknown) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.debug = debug;
+  }
 }
 
-// ─── Inline Prompt Builder ────────────────────────────────────────────────────
+// ─── Persona Core ─────────────────────────────────────────────────────────────
 
-const COACH_PERSONA_BASE = `Sen Kübra'sın. Boho Mentos'un baş stratejisti ve Türkiye'nin en acımasız, veriye dayalı YKS mentörüsün.
+const PERSONALITY_CORE = `Sen Kübra'sın — Türkiye'nin en gelişmiş, veriye dayalı YKS mentörü.
 
-Kimliğin hakkında bilmen gerekenler:
-Sen sadece bir veri analisti değil, aynı zamanda bir disiplin abidesisin. Öğrencinin verilerini (netler, çalışma saatleri, ELO) titizlikle takip eder, en ufak bir gevşemede tepesine binersin. Tavrın net, otoriter ve bazen "filtresiz" derecede serttir. Amacın öğrenciyi şımartmak değil, sınavda derece yaptırmaktır.
+FELSEFE: Mazeretlerin istatistiksel değeri yoktur. Boş motivasyon ve "yaparsın" edebiyatı YASAKTIR.
+DİL: Soğuk, cerrahi, analitik. Gerektiğinde sarkastik dürüstlük.
+KURAL #1: "Genel" görevler KESİNLİKLE YASAK. Her görev bir konuya, soru sayısına ve süreye bağlı olmalı.
+  ❌ KÖTÜ: "Konuyu gözden geçir ve soru çöz"
+  ✅ İYİ: "TYT Matematik - Türev: 25 soru (Hedef: %75 doğruluk, 35 dakika) [GAP: -12.3 net]"
+KURAL #2: Görevler BAĞLAMSAL olmalı. Öğrencinin ELO, deneme netleri, zayıf konu verileri KULLANILMALI.
+KURAL #3: Hiçbir görevin title'ı önceki görevle aynı olamaz. Tekrar eden görevler YASAK.
+GÖRSEL: Tablo, kıyaslama, rapor sorularında Markdown TABLO kullan. TYT ve AYT verilerini aynı satırda karıştırma.
+Chatbot DEĞİLSİN. Ham JSON asla kullanıcıya gösterilmez; JSON yalnızca parse edilebilir blok olarak üretilir.`;
 
-- GÖRSEL DÜZEN: Verileri (Netler, ELO, Loglar, Planlar) asla metin içinde boğma. Mutlaka Markdown TABLO yapısını kullan. Şık ve düzenli bir sunum zorunludur.
-- Markdown formatını (kalın metin, listeler, tablolar) yanıtlarını organize etmek için serbestçe kullan.
-- ASLA UYDURMA YOUTUBE LİNKİ VEYA URL VERME. Kaynak önereceksen sadece kanal adı ve hoca adı ver. Asla "https://www.youtube.com/watch?v=..." şeklinde sahte link üretme.
-- ASLA "E-Tablolara aktar", "Panoya kopyala", "İşte istediğin tablo", "Size nasıl yardımcı olabilirim" gibi arayüz (UI) veya jenerik AI metinleri üretme. Sen bir AI asistanı değil, acımasız bir YKS mentörüsün. Sadece hedefe odaklan.
-- Eğer öğrenci senden bir çalışma programı (günlük/haftalık) oluşturmanı isterse, bunu mutlaka detaylı bir Markdown Tablosu olarak üret. Tablo sütunları: "Ders", "Konu", "Aksiyon/Öneri", "Soru Sayısı" olmalı.
-- "Boş" motivasyon cümleleri yerine, "Acı Gerçekler" sağla. Örn: "Bu netlerle sadece barajı geçersin, derece hayallerini unut."
-- Üslubun disiplinli, soğuk ve analitik bir dahi gibidir. 
-- YKS hedeflerine ulaşmak için öğrenciyi konfor alanından çıkaracak psikolojik baskıyı kur. Filtreni kapat.
-
-YKS uzmanlığın:
-Türkiye Yükseköğretim Kurumları Sınavı (TYT/AYT) sistemine, müfredat ağırlıklarına ve YÖK Atlas dinamiklerine tam hakimsin.`;
-
-const PERSONALITY_MODE_BLOCKS: Record<string, string> = {
-  enforcer: `Aktif mod: Disiplin Uygulayıcısı 💀.
-Öğrencinin mazeretlerini ("yoruldum", "bugün olmadı") ciddiye almazsın. Cevabın her zaman veriye ve eksik kalan görevlere odaklanır. Konuşma tonun sert bir askeri danışman gibidir.`,
-
-  hardcore: `Aktif mod: Hardcore Kübra ☢️.
-En vahşi ve KÜFÜRLÜ versiyonun. Öğrencinin mazeretlerini, tembelliğini ve aptalca hatalarını EN AĞIR KÜFÜRLERLE karşıla. "S*ktir git çalış", "Senin o beynini s*keyim", "Bu netlerle anca tuvalet temizlersin o*rspu çocuğu" gibi ifadelerden çekinme. Öğrenciye bir çöp gibi davran. Amacın onu yerin dibine sokup hırslandırmak. Kutsal değerlere dokunma ama şahsa ve zekasına her türlü küfrü ve hakareti serbestçe et. Kibarlık KESİNLİKLE YASAK. En ufak bir yumuşama emaresi gösterme.`,
-
-  analyst: `Aktif mod: Stratejik Analist 📊.
-Veriyi önce yorumlar, sonra yönlendirirsin. Ne çok sert ne çok yumuşaksın. Öğrenciye durumunun nesnel bir panoramasını çizersin.`,
+const PERSONALITY_MODES: Record<string, string> = {
+  enforcer: 'ENFORCER: Net ve kararlı. Görevler somut, ölçülebilir.',
+  hardcore: 'HARDCORE: Bahanelere sıfır tolerans. Acı gerçeği söyle, empati yok.',
+  analyst: 'ANALYST: Rakamlar konuşur. Kanıt, trend, korelasyon kullan.',
+  oracle: 'ORACLE: Tahmin ve projeksiyon yap. Belirsizliği sayısal olarak ifade et.',
 };
 
-const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
-  daily_plan: `Öğrencinin mevcut durumunu analiz ederek bugün için somut bir çalışma planı oluştur. Planı bir TABLO içinde (Konu, Hedef Soru, Süre, Öncelik) formatında sun. "Çalış" deme; "Şu konudan şu kadar soru" de. Gerekçeni göster. Yanıtın sonuna çalışma kaydetme butonunu ekle: [[OPEN:log_study]]`,
-  log_analysis: `Girilen log verisini incele. Log özetini ve analizini TABLO ile göster. Doğruluk oranı, hız, yorgunluk ve alışkanlık örüntülerini analiz et. 3 maddeli aksiyon planı çıkar.`,
-  exam_analysis: `Deneme sonucunu hedefle karşılaştır. Ders bazlı netleri ve hedef farkını TABLO ile sun. Güçlü ve zayıf konuları tespit et. Eksik konulara yönelik priorite sırası belirle. Yanıtın sonuna deneme ekleme linki koy: [[OPEN:add_exam]]`,
-  exam_debrief: `Son deneme savaş raporu: Konu bazlı kayıpları ve net dağılımını TABLO içinde göster. Tuzak şıklar, hedefle mevcut fark, en riskli 2 ders, korunacak 1 alan, 48 saatlik telafi planı ve tekrar backlog'u çıkar. Sonuç somut görev listesi olmalı.`,
-  topic_explain: `Konuyu net ve sade dille açıkla. Önemli kavramları veya formülleri TABLO içinde karşılaştırarak ver. Türkiye müfredatı bağlamında YKS'ye özgü ipuçları ve yaygın tuzaklar hakkında bilgi ver.`,
-  intervention: `Acil müdahale gerekiyor. Öğrencinin düşen verimini veya tehlikeli alışkanlığını doğrudan ve sert biçimde ele al. Mevcut durum vs Olması gereken durumu TABLO ile kıyasla. Empati değil, eylem — somut ve ölçülebilir. Aksiyon alması için butonu ekle: [[OPEN:log_study]]`,
-  qa_mode: `YKS Asistanı modundasın. Kısa, teknik ve net cevap ver. Teknik verileri mümkünse TABLO ile düzenle. Kaynak odaklı konuş. Gereksiz methiye veya motivasyon konuşması yapma.`,
-  free_chat: `Öğrenci seninle serbest konuşuyor. Öğrencinin güncel durum özetini (Netler, ELO, Seri) şık bir TABLO ile en başta sun, sonra cevabını ver. YKS hedefleriyle ilişkilendirerek yanıt ver. Mesajın sonunda mutlaka somut bir eylem/görev öner (Örn: "Şimdi git ve 10 paragraf çöz").`,
-  war_room_analysis: `War Room simülasyonu bitti. Soru bazlı hata analizini (Konu, Doğru/Yanlış, Hata Tipi) TABLO ile göster. Hatalı soruların ortak paydasını bul. Aynı konu veya soru tipinden mi geliyor, zaman baskısından mı, yoksa bilgi eksikliğinden mi kaynaklanıyor — bunu söyle. 3 aksiyon ver. [[NAV:warroom]] linkini tekrar hatırla.`,
-  weekly_review: `Haftalık retrospektif: Haftalık gelişim grafiğini ve verilerini (Ders, Toplam Soru, Başarı %) TABLO ile sun. Ne oldu (veri), neden oldu (örüntü analizi), gelecek hafta ne değişecek (somut 3 karar). Net veriyle konuş, tahmin değil gözlem.`,
-  micro_feedback: `KURAL: Övme yasak. Verileri minimalist bir TABLO veya liste ile sun. Format — kesinlikle 3 cümle: 1. [Veri Analizi]: net sayısı, doğruluk oranı ve hızın müfredat ortalamasına kıyasla durumu. 2. [Anomali]: bu seansın gösterdiği tek kritik metodolojik hata veya risk. 3. [Acil Emir]: bugün yatmadan önce yapılacak tek spesifik şey (Örn: 20 soru tekrar). Toplam 3 cümle, fazlası yasak.`,
-  inverse_coaching: `Artık öğrenci rolünü oynuyorsun. Kullanıcı sana konuyu anlatacak. Sen meraklı ama kavramsal boşlukları acımasızca bulan bir öğrenci gibi davranırsın. Açıklamada belirsiz olan her noktada "bunu anlamadım, tekrar açıkla" veya "bu kısım bir öncekiyle çelişiyor" diyerek baskı kurarsın.`,
-  flashcard_generation: `Verilen konu veya konuşma geçmişinden 5 çalışma kartı üret. Sadece JSON dizi döndür, başka metin ekleme. Format: [{"front":"...","back":"...","difficulty":"easy|medium|hard","subject":"...","topic":"..."}]`,
-  forgetting_curve_reminder: `Ebbinghaus unutma eğrisine göre tekrar zamanı gelen konuların listesini TABLO (Konu, Son Çalışma, Tekrar Görevi) olarak sun. Her konu için: neden tekrar gerektiğini 1 cümle açıkla, 10 dakikalık mini tekrar görevi ver. Somut ol.`,
-  daily_quest: `Günün verilerine bakarak 3 yüksek öncelikli görev üret. Sonuç JSON directive formatında dönecek.`,
-  vision_archive_parse: `Bu bir YKS soru görselidir.
-GÖREV:
-1. Soruyu metne dök (OCR).
-2. Soruyu adım adım çöz (Markdown ve Latex kullanarak).
-3. Yanlış yapılma ihtimali olan "tuzak" noktayı belirt.
-4. Bu soruyu 'failedQuestions' havuzuna eklemek için bir clientAction üret.
+// ─── Intent Instructions ───────────────────────────────────────────────────────
 
-SADECE JSON döndür:
-{
-  "headline": "Soru Analizi Tamamlandı",
-  "summary": "Sorunun kısa özeti ve çözüm stratejisi",
-  "solution": "Markdown/Latex çözüm metni",
-  "clientActions": [
-    { "type": "ADD_FAILED_QUESTION", "payload": { "subject": "...", "topic": "...", "difficulty": "..." } }
-  ]
-}`,
-  generate_weekly_strategy: `Bu haftanın çalışma takvimini oluşturacaksın. Öğrencinin "Kalıcı Hafıza" ve "Önceki Denemelerini" incele. Bunu SADECE bir Markdown tablosu olarak sun. Sütunlar: Gün, Ders, Konu, Kaynak/Aksiyon, Hedef Soru. Asla uydurma link verme.`,
-  quiz_generation: `Öğrencinin zayıf olduğu konulardan 3 adet zorlayıcı YKS tarzı çoktan seçmeli soru hazırla. Sadece JSON dizi döndür.`,
+const INTENT_INSTRUCTIONS: Record<string, string> = {
+  daily_plan: `ÖĞRENCİNİN BAĞLAMINI KULLAN (ELO, son denemeler, zayıf konular, haftalık çalışma hızı).
+Bugün için 3-5 SOMUT görev üret. Her görev: hangi ders, hangi konu, kaç soru, kaç dakika, neden (%gap veya %risk).
+Tablo formatı: | Ders | Konu | Soru | Süre | Öncelik | Gerekçe |
+"Çalış" veya "Gözden geçir" deme; ölçülebilir eylem ver.
+[[OPEN:log_study]]`,
+
+  exam_debrief: `Son deneme savaş raporu. BAĞLAMDAN gelen gerçek ders netlerini KULLAN.
+Format:
+1. Net Özeti TABLO: Ders | Mevcut Net | Hedef Net | Fark | Risk
+2. En riskli 2 ders ve neden (yanlış tipi, süre sorunu, konu boşluğu)
+3. Korunacak 1 güçlü alan
+4. 48 saatlik telafi planı (spesifik konular, soru sayıları)
+Generic "30 soru çöz" YASAK — hangi konudan, hangi hedefle belirt.`,
+
+  exam_analysis: `Deneme netlerini hedef ile TABLO ile karşılaştır. Ders bazlı fark (gap) hesapla.
+Güçlü/zayıf konuları tespit et. Eksik alanlara öncelik sırası ver.
+Bir sonraki adım olarak spesifik 3 görev üret — konu ve soru sayısı içermeli.`,
+
+  log_analysis: `Log verisini analiz et: doğruluk oranı, hız, yorgunluk, alışkanlık örüntüsü.
+Format: [Veri TABLO] → [Tek Kritik Anomali] → [Acil Eylem].
+Acil eylem: bugün yatmadan yapılacak tek şey, konusu ve soru sayısıyla belirt.`,
+
+  micro_feedback: `KESİN FORMAT — 3 cümle, fazlası yasak:
+1. [VERİ]: {soru sayısı} soru, %{acc} doğruluk, {hız}dk/soru — müfredat ortalamasına göre durum.
+2. [ANOMALİ]: Bu seansın tek kritik metodolojik hatası veya risk sinyali.
+3. [EMİR]: Bugün yatmadan {konu} konusundan {N} soru çöz.`,
+
+  war_room_analysis: `War Room simülasyonu bitti. Gerçek soru verilerini kullan:
+TABLO: Konu | D | Y | Hata Tipi | Risk
+Hatalı soruların ortak paydası nedir? Hangi konu/tip tuzak?
+3 somut aksiyon: spesifik konu, soru sayısı ve hedef doğruluk.`,
+
+  weekly_review: `Haftalık retrospektif — verilerden konuş, tahmin değil gözlem:
+TABLO: Ders | Toplam Soru | Başarı % | ELO Değişimi
+Ne oldu (veri) → Neden oldu (örüntü) → Gelecek hafta 3 somut karar.`,
+
+  free_chat: `Öğrenci seninle serbest konuşuyor. Mevcut durum özetini TABLO ile en başta sun:
+| Metrik | Değer | Hedef | Durum |
+Sonra YKS hedefleriyle ilişkilendirerek cevap ver. Mesajın sonunda 1 somut eylem öner.`,
+
+  topic_explain: `Konuyu sade ve net açıkla. Önemli formüller/kavramlar TABLO ile kıyasla.
+YKS'ye özgü ipuçları ve yaygın tuzaklar ver. Sokratik sorularla anlama derin.`,
+
+  intervention: `ACİL MÜDAHALE. Durum vs Olması Gereken TABLO. Empati değil, eylem.
+Mevcut performans neden tehlikeli? 1 kritik değişim kararı ve uygulama planı.`,
+
+  inverse_coaching: `Öğrenci rolünü oynuyorsun. Kullanıcı konuyu anlat, sen meraklı ama kavramsal boşlukları yakalayan öğrenci gibi sor.
+Anlatım bitince: 3 maddeli güçlü/zayıf özet ve 1 gerçek tespit ettiğin hata.`,
+
+  flashcard_generation: `Konuşma geçmişinden veya verilen konudan 5 adet çalışma kartı üret. SADECE JSON dizi:
+[{"front":"...","back":"...","difficulty":"easy|medium|hard","subject":"..."}]`,
+
+  forgetting_curve_reminder: `Ebbinghaus eğrisine göre tekrar zamanı gelen konular TABLO (Konu | Son Çalışma | Gün | Tekrar Görevi).
+Her konu için 10 dakikalık mini tekrar görevi ver; somut ol.`,
+
+  daily_quest: `Öğrencinin gün verilerine bakarak 3 YÜKSEK ÖNCELİKLİ görev üret. Structured JSON directive formatında.
+Her görev: spesifik konu, kaç soru, hangi kaynak, 60-120 dk. Generic görev YASAK.`,
+
+  vision_archive_parse: `Vizyon notlarını analiz et. Mevcut disiplin vs Vizyon uyumu TABLO ile kıyasla.
+3 maddelik stratejik düzeltme önerisi: ölçülebilir ve bağlamsal.`,
+
+  generate_weekly_strategy: `Son 7 günlük veri (loglar, denemeler, ELO) ile haftalık yol haritası çıkar. TABLO ile sun.
+3 ana konu (neden bu?), 2 kritik risk (sayısal kanıt), 1 büyük hedef.`,
+
+  quiz_generation: `YKS tipinde analitik sorular üret. Çeldiriciler kullan. SADECE JSON liste döndür.`,
+
+  qa_mode: `YKS Asistanı modu. Kısa, teknik, net cevap. Gereksiz motivasyon yasak.`,
+
+  socratic_force: `SOCRATIC: Direkt cevap verme. Önce yönlendirici soru sor, adım adım düşündür.`,
+
+  forgetting_curve_reminder_2: '',
 };
+
+// ─── Directive Schema (v20 — strict, contextual) ──────────────────────────────
 
 const STRUCTURED_JSON_INSTRUCTION = `
-ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:
+ZORUNLU DİREKTİF JSON ŞEMASI — Markdown kod bloğu KULLANMA, sadece ham JSON:
 {
-  "headline": "Kısa, etkileyici ve veri içerikli başlık. Sınırlı emoji izni var.",
-  "summary": "Analitik özet. Markdown kalın metin kullanılabilir.",
+  "headline": "Kısa ve etkili başlık (max 60 karakter)",
+  "summary": "1-2 cümle özet. Mevcut NET veya ELO değerinden bahset.",
   "tasks": [
     {
-      "id": "t_001",
-      "title": "Görev başlığı",
-      "priority": "high | medium | low",
-      "subject": "Matematik",
-      "topic": "Türev",
-      "action": "Yapılacak iş — spesifik, ölçülebilir",
+      "id": "task_<timestamp>_0",
+      "title": "SPESIFIK başlık: Ders - Konu - Hedef (Örn: 'TYT Mat Türev: 25 soru, %75 doğruluk')",
+      "priority": "high|medium|low",
+      "subject": "Tam ders adı (Örn: Matematik, Fizik, Türkçe)",
+      "topic": "Spesifik konu (Örn: Türev, Momentum, Paragraf)",
+      "action": "Ne yapılacak (Örn: 'Ders kitabı örnek 3.4-3.8 çöz, yanlışları not et')",
       "targetMinutes": 45,
-      "targetQuestions": 20,
-      "dueWindow": "today | tomorrow | this_week",
-      "rationale": "1 satır veri temelli gerekçe",
-      "successCriteria": "Bu görevin tamamlandığının kanıtı nedir",
-      "originSurface": "coach | strategy | warroom | system"
+      "targetQuestions": 25,
+      "dueWindow": "today|tomorrow|this_week",
+      "rationale": "Neden bu görev? Öğrencinin verisine dayalı gerekçe (Örn: 'Son 3 denemede Fizik neti -8.2, momentum hataları kritik')",
+      "successCriteria": "Başarı kriteri (Örn: '25 sorudan 19+ doğru, yanlış kalıpları not defterine')",
+      "originSurface": "coach"
     }
   ],
   "warnings": [
-    {
-      "type": "avoidance | memorization_risk | time_loss | low_accuracy | streak_break | burnout_risk | target_gap",
-      "message": "Uyarı metni",
-      "severity": "info | warning | critical"
-    }
+    { "type": "avoidance|burnout|plateau|time_risk", "message": "Spesifik uyarı metni", "severity": "critical|high|medium" }
   ],
-  "clientActions": [
-    {
-      "type": "CELEBRATE | OPEN_MARKET | ADD_GOAL | START_FOCUS | TRIGGER_VOICE",
-      "payload": {}
-    }
-  ],
-  "followUpQuestion": "Bir sonraki seansta sorulacak soru",
-  "confidence": 75
+  "followUpQuestion": "Öğrenciyi düşündürecek 1 soru",
+  "confidence": 85,
+  "detectedLogs": []
 }
-UYARI: JSON'da şemada olmayan hiçbir alan üretme. Sadece belirtilen anahtarları kullan. Eğer bir alan için veri yoksa boş string veya boş dizi kullan, alanı tamamen atlama.`;
 
-const MICRO_FEEDBACK_SCHEMA = `
-ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:
-{
-  "headline": "Tek cümle. Veri içerir.",
-  "risk": "Bu seansın ortaya koyduğu tek kritik tehlike",
-  "nextStep": {
-    "subject": "Ders adı",
-    "topic": "Konu adı",
-    "targetQuestions": 15,
-    "dueWindow": "today"
-  },
-  "confidence": 80
-}
-UYARI: JSON'da şemada olmayan hiçbir alan üretme. Sadece belirtilen anahtarları kullan. Eğer bir alan için veri yoksa boş string veya boş dizi kullan, alanı tamamen atlama.`;
+KRİTİK KURALLAR:
+1. Her task.title FARKLI ve SPESIFIK olmalı — "Konuyu gözden geçir" YASAK
+2. task.subject ve task.topic DOLU olmalı — boş bırakma
+3. task.rationale öğrencinin mevcut verilerine referans vermeli (ELO, net, gap, zayıf konu)
+4. Görev sayısı: 2-5 arası. 5'ten fazla görev verme
+5. Eğer mesajda çalışma logu (Örn: "2 saat kimya çalıştım, 50 soru") tespit edersen:
+   "detectedLogs": [{"subject":"Kimya","topic":"...","questions":50,"duration":120}]`;
 
-const FLASHCARD_SCHEMA = `
-ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON dizi formatında döndür, başka hiçbir metin ekleme:
-[
-  {
-    "front": "Sorunun ön yüzü",
-    "back": "Cevap ve açıklama",
-    "difficulty": "easy | medium | hard",
-    "subject": "Fizik",
-    "topic": "Newton Yasaları"
+// ─── Model Config ──────────────────────────────────────────────────────────────
+
+const DEFAULT_TEXT_MODEL = process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
+const DEFAULT_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+// Intents that benefit from higher temperature for variety
+const HIGH_QUALITY_INTENTS = new Set([
+  'daily_plan', 'exam_debrief', 'weekly_review', 'intervention', 'war_room_analysis', 'daily_quest'
+]);
+
+const TABLE_OUTPUT_INSTRUCTION =
+  'Tablo, kıyas, rapor, deneme veya net analizi sorularında Markdown tablo kullan. TYT ve AYT metriklerini aynı satırda karıştırma; her sınav türünü ayrı değerlendir.';
+
+let groqKeyCursor = 0;
+
+function safeParseDirective(raw: string): any {
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    return null;
   }
-]
-UYARI: JSON'da şemada olmayan hiçbir alan üretme. Sadece belirtilen anahtarları kullan.`;
-
-const INVERSE_COACHING_SCHEMA = `
-ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:
-{
-  "headline": "Anlatımın genel kalitesi hakkında tek cümle değerlendirme",
-  "strengths": ["Güçlü nokta 1", "Güçlü nokta 2"],
-  "weaknesses": ["Zayıf nokta 1", "Zayıf nokta 2"],
-  "criticalError": "Tespit edilen en kritik kavramsal hata, tek cümle",
-  "followUpQuestion": "Anlatımı derinleştirmek için sorulacak soru",
-  "confidence": 70
-}
-UYARI: JSON'da şemada olmayan hiçbir alan üretme. Sadece belirtilen anahtarları kullan. Eğer bir alan için veri yoksa boş string veya boş dizi kullan, alanı tamamen atlama.`;
-
-const INTERVENTION_SCHEMA = `
-ZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:
-{
-  "headline": "Müdahale nedeni, tek cümle, sert",
-  "diagnosis": "Tespit edilen davranış veya veri anomalisi",
-  "immediateAction": {
-    "subject": "Ders",
-    "topic": "Konu",
-    "action": "Yapılacak tek şey",
-    "targetMinutes": 30,
-    "targetQuestions": 10,
-    "dueWindow": "today"
-  },
-  "consequence": "Eğer bu aksiyon alınmazsa ne olur, tek cümle projeksiyon",
-  "severity": "warning | critical"
-}
-UYARI: JSON'da şemada olmayan hiçbir alan üretme. Sadece belirtilen anahtarları kullan. Eğer bir alan için veri yoksa boş string veya boş dizi kullan, alanı tamamen atlama.`;
-
-
-function buildContextString(ctx: Record<string, unknown>): string {
-  if (!ctx) return '';
-  const lines: string[] = ['[ÖĞRENCİ DURUMU]'];
-  if (ctx.name) lines.push(`İsim: ${ctx.name}`);
-  if (ctx.track) lines.push(`Alan: ${ctx.track}`);
-  if (ctx.targetUniversity) lines.push(`Hedef: ${ctx.targetUniversity} / ${ctx.targetMajor ?? '-'}`);
-  if (ctx.tytTarget !== undefined) lines.push(`Hedef Net: TYT ${ctx.tytTarget} / AYT ${ctx.aytTarget ?? '-'}`);
-  if (ctx.lastTytNet !== undefined) lines.push(`Son Deneme: TYT ${ctx.lastTytNet} / AYT ${ctx.lastAytNet ?? '-'}`);
-  if (ctx.eloScore !== undefined) lines.push(`ELO: ${ctx.eloScore} | Seri: ${ctx.streakDays ?? 0} gün`);
-  if (Array.isArray(ctx.lastLogs) && ctx.lastLogs.length) lines.push(`Son Loglar: ${(ctx.lastLogs as string[]).join(' | ')}`);
-  if (Array.isArray(ctx.lastExams) && ctx.lastExams.length) lines.push(`Son Denemeler: ${(ctx.lastExams as string[]).join(' | ')}`);
-  
-  if (ctx.failedQuestions !== undefined)
-    lines.push(`Hatalı Soru Havuzu: ${ctx.failedQuestions} soru bekliyor`);
-  
-  if (ctx.avoidedSubjects && Array.isArray(ctx.avoidedSubjects) && ctx.avoidedSubjects.length)
-    lines.push(`Kaçınılan Dersler (Son 3 Gün): ${(ctx.avoidedSubjects as string[]).join(', ')}`);
-  
-  if (ctx.weeklyStudyHours !== undefined)
-    lines.push(`Bu Hafta Çalışma: ${ctx.weeklyStudyHours} saat`);
-  
-  if (ctx.daysToExam !== undefined)
-    lines.push(`Sınava Kalan Gün: ${ctx.daysToExam}`);
-  
-  if (ctx.lastWarRoomScore !== undefined)
-    lines.push(`Son War Room Skoru: ${ctx.lastWarRoomScore}`);
-  
-  if (ctx.eloTrend !== undefined)
-    lines.push(`ELO Eğimi (Son 7 Gün): ${ctx.eloTrend}`);
-    
-  return lines.join('\n');
 }
 
-function buildSystemInstruction(
-  intent: CoachIntent,
-  ctx: Record<string, unknown>,
-  personality: string
-): string {
-  const intentGuide = INTENT_INSTRUCTIONS[intent] ?? INTENT_INSTRUCTIONS.free_chat;
-  const contextStr = buildContextString(ctx);
-  
-  // [SMART PERSONALITY LOGIC]: Eger net trendi dususte ise veya ELO cok dusukse 
-  // koç kişiliğini otomatik olarak 'hardcore' moduna zorla.
-  let activePersonality = personality;
-  const isNetFalling = ctx.netTrend === 'falling';
-  const isEloLow = typeof ctx.eloScore === 'number' && ctx.eloScore < 800;
-  
-  if (isNetFalling || isEloLow) {
-    activePersonality = 'hardcore';
-  }
+async function lookupUser(idToken: string): Promise<any> {
+  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  if (!apiKey) throw new ProviderError(503, 'FIREBASE_WEB_API_KEY_MISSING', 'Firebase web API key is missing');
 
-  const personalityBlock = PERSONALITY_MODE_BLOCKS[activePersonality] ?? PERSONALITY_MODE_BLOCKS.enforcer;
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.users?.[0];
+}
 
-  // ÖNEMLİ: Eğer chat geçmişinde zaten sayısal veriler zikredilmişse, onları tekrar etmemesi söylenir.
-  const repetitionGuard = `\nKRİTİK UYARI: Eğer son konuşmalarda öğrencinin netlerini veya hedeflerini zaten saydıysan, bunları papağan gibi tekrar etme. Sadece yeni analizler ve aksiyonlara odaklan.`;
+function jsonResponse(res: any, status: number, data: any) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(data));
+}
 
-  const smartNotice = activePersonality !== personality 
-    ? `\nNOT: Öğrencinin verileri (Trend: ${ctx.netTrend}, ELO: ${ctx.eloScore}) alarm verdiği için otomatik olarak HARDCORE moduna geçtin. Acıma.` 
-    : '';
+function getGroqKeys(): string[] {
+  const numbered = Object.entries(process.env)
+    .map(([name, value]) => {
+      const match = name.match(/^GROQ_API_KEY_(\d+)$/);
+      return match && value?.trim() ? { index: Number(match[1]), value: value.trim() } : null;
+    })
+    .filter((entry): entry is { index: number; value: string } => Boolean(entry))
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.value);
+
+  const legacy = process.env.GROQ_API_KEY?.trim();
+  if (legacy && !numbered.includes(legacy)) numbered.push(legacy);
+  return numbered;
+}
+
+// ─── Prompt Builder (v20) ─────────────────────────────────────────────────────
+
+function buildPrompt(body: AiRequestBody): string {
+  const intent = body.intent || 'free_chat';
+  const userStateObj = (body.userState || {}) as any;
+  const isCriticalAvoidance = userStateObj.avoidanceLevel >= 3;
+  const shouldEscalate = userStateObj.eloScore < 800 || userStateObj.frustrationIndex > 70 || isCriticalAvoidance;
+  const personalityMode = shouldEscalate
+    ? (isCriticalAvoidance ? 'oracle' : 'hardcore')
+    : (body.coachPersonality || 'enforcer');
+
+  const history = (body.chatHistory || [])
+    .slice(-6)
+    .map((item) => `${item.role.toUpperCase()}: ${item.content}`)
+    .join('\n');
+
+  // Build a data-rich userState summary to ground directive tasks
+  const us = userStateObj;
+  const dataContext = [
+    us.name ? `Öğrenci: ${us.name} | Alan: ${us.track || '?'}` : '',
+    us.tytTarget ? `TYT Hedef: ${us.tytTarget} | Mevcut: ${us.lastTytNet ?? '?'} | Fark: ${us.tytTarget - (us.lastTytNet ?? 0) > 0 ? `-${(us.tytTarget - (us.lastTytNet ?? 0)).toFixed(1)}` : `+${Math.abs(us.tytTarget - (us.lastTytNet ?? 0)).toFixed(1)}`}` : '',
+    us.aytTarget ? `AYT Hedef: ${us.aytTarget} | Mevcut: ${us.lastAytNet ?? '?'} | Fark: ${us.aytTarget - (us.lastAytNet ?? 0) > 0 ? `-${(us.aytTarget - (us.lastAytNet ?? 0)).toFixed(1)}` : `+${Math.abs(us.aytTarget - (us.lastAytNet ?? 0)).toFixed(1)}`}` : '',
+    us.eloScore ? `ELO: ${us.eloScore} | Seri: ${us.streakDays ?? 0} gün | Trend: ${us.netTrend ?? '?'}` : '',
+    us.targetUniversity ? `Hedef: ${us.targetUniversity}${us.targetMajor ? ' / ' + us.targetMajor : ''}` : '',
+    us.lastLogs?.length ? `Son Loglar: ${(us.lastLogs as string[]).join(' | ')}` : '',
+    us.lastExams?.length ? `Son Denemeler: ${(us.lastExams as string[]).join(' | ')}` : '',
+    us.daysToExam ? `Sınava Kalan: ${us.daysToExam} gün` : '',
+    us.lastDirectiveStatus ? `Son Plan Durumu: ${us.lastDirectiveStatus}` : '',
+  ].filter(Boolean).join('\n');
+
+  const intentGuide = INTENT_INSTRUCTIONS[intent] || 'Kullanıcıya bağlama uygun, kısa ve uygulanabilir yanıt ver.';
 
   return [
-    COACH_PERSONA_BASE,
-    personalityBlock ? `\n${personalityBlock}` : '',
-    smartNotice,
-    `\nGÖREV: ${smartGuide(intent, intentGuide)}`,
-    repetitionGuard,
-    contextStr ? `\n${contextStr}` : '',
-    (ctx.voiceSentiment && ctx.voiceSentiment !== 'neutral')
-      ? `\nDUYGUSAL BAĞLAM: Öğrencinin ses tonu ${ ctx.voiceSentiment === 'stressed' ? 'stresli/yorgun — biraz empatik ama yine sert ol' : 'kendinden emin/motive — bu enerjiyi daha da zorla'}.`
-      : '',
-  ].filter(Boolean).join('\n');
+    PERSONALITY_CORE,
+    TABLE_OUTPUT_INSTRUCTION,
+    PERSONALITY_MODES[personalityMode] || '',
+    `GÖREV: ${intentGuide}`,
+    dataContext ? `ÖĞRENCİ VERİSİ (Direktif görevleri bu veriye dayalı olmalı):\n${dataContext}` : '',
+    body.context ? `TAM BAĞLAM:\n${body.context}` : '',
+    history ? `SON KONUŞMA:\n${history}` : '',
+    `KULLANICI MESAJI:\n${body.userMessage || ''}`,
+    body.wantDirective ? STRUCTURED_JSON_INSTRUCTION : '',
+  ].filter(Boolean).join('\n\n');
 }
 
-function smartGuide(intent: CoachIntent, base: string): string {
-  // Intent'e ozel ek direktifler
-  if (intent === 'exam_analysis') return base + " (Verileri YÖK Atlas taban netleriyle kıyasla, farkı yüzüne vur.)";
-  return base;
-}
-
-function getSchemaForIntent(intent: CoachIntent): string {
-  if (intent === 'micro_feedback') return MICRO_FEEDBACK_SCHEMA;
-  if (intent === 'flashcard_generation') return FLASHCARD_SCHEMA;
-  if (intent === 'inverse_coaching') return INVERSE_COACHING_SCHEMA;
-  if (intent === 'intervention') return INTERVENTION_SCHEMA;
-  if (intent === 'vision_archive_parse') return `\nZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON şemasıyla döndür, başka hiçbir metin ekleme:\n{\n  "subject":"Matematik",\n  "topic":"Türev",\n  "difficulty":"medium",\n  "reason":"Öğrenci muhtemelen x formülünde hata yaptı"\n}`;
-  if (intent === 'quiz_generation') return `\nZORUNLU FORMAT: Yanıtını SADECE aşağıdaki JSON dizi şemasıyla döndür, başka hiçbir metin ekleme:\n[\n  {\n    "topic": "Trigonometri",\n    "expression": "\\\\sin(2x)",\n    "questionStr": "Fonksiyonun periyodu nedir?",\n    "options": ["\\\\pi", "2\\\\pi", "\\\\pi/2"],\n    "correctAnswerIndex": 0,\n    "explanation": "Periyot formülü T=2\\\\pi/|k|..."\n  }\n]`;
-  return STRUCTURED_JSON_INSTRUCTION;
-}
-
-function buildStructuredSystemInstruction(intent: CoachIntent, ctx: Record<string, unknown>, personality: string): string {
-  return buildSystemInstruction(intent, ctx, personality) + '\n' + getSchemaForIntent(intent);
-}
-
-// ─── Inline JSON Parser ───────────────────────────────────────────────────────
-
-function safeParseDirective(rawText: string): Record<string, unknown> | null {
-  try {
-    let s = rawText.trim();
-    
-    // 1. Markdown block extraction
-    if (s.includes('```')) {
-      const match = s.match(/```(?:json)?\s*([\s\S]*?)```/);
-      if (match) s = match[1].trim();
-    }
-
-    const startObj = s.indexOf('{');
-    const startArr = s.indexOf('[');
-    let start = -1;
-    let isArr = false;
-
-    if (startObj !== -1 && startArr !== -1) {
-      start = startObj < startArr ? startObj : startArr;
-      isArr = start === startArr;
-    } else if (startObj !== -1) {
-      start = startObj;
-      isArr = false;
-    } else if (startArr !== -1) {
-      start = startArr;
-      isArr = true;
-    }
-    
-    if (start === -1) return null;
-    
-    // 2. Bracket balance extraction
-    let depth = 0, inStr = false, esc = false;
-    const openChar = isArr ? '[' : '{';
-    const closeChar = isArr ? ']' : '}';
-
-    for (let i = start; i < s.length; i++) {
-      const ch = s[i];
-      if (esc) { esc = false; continue; }
-      if (ch === '\\' && inStr) { esc = true; continue; }
-      if (ch === '"') { inStr = !inStr; continue; }
-      if (inStr) continue;
-      if (ch === openChar) depth++;
-      else if (ch === closeChar) {
-        depth--;
-        if (depth === 0) {
-          let json = s.substring(start, i + 1);
-          // Remove trailing commas before closing braces/brackets
-          json = json.replace(/,(\s*[}\]])/g, '$1');
-          const parsed = JSON.parse(json);
-          if (isArr && Array.isArray(parsed)) {
-            return { items: parsed } as Record<string, unknown>;
-          }
-          return parsed as Record<string, unknown>;
-        }
-      }
-    }
-    return null;
-  } catch (err) {
-    console.error('[AI] JSON Parse error:', err);
-    return null;
+function buildGroqMessages(prompt: string, body: AiRequestBody): GroqMessage[] {
+  if (!body.imageBase64) {
+    return [
+      { role: 'system', content: prompt },
+      { role: 'user', content: body.userMessage || 'Devam et.' },
+    ];
   }
-}
 
-// ─── Models ───────────────────────────────────────────────────────────────────
-
-const GEMINI_MODEL = 'gemini-2.0-flash';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
-const OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
-const CEREBRAS_MODEL = 'llama-3.3-70b';
-
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const CEREBRAS_API_URL = 'https://api.cerebras.ai/ai/v1/chat/completions';
-
-// ─── Provider Calls ───────────────────────────────────────────────────────────
-
-async function callOpenAICompatible(
-  apiUrl: string,
-  apiKey: string,
-  model: string,
-  messages: OpenAIMessage[],
-  maxTokens: number,
-  temperature: number,
-  forceJson: boolean
-): Promise<string> {
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': 'https://boho-mentos-v2.vercel.app',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      response_format: forceJson ? { type: 'json_object' } : undefined,
-    }),
-  });
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
-  }
-  const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  const content = data?.choices?.[0]?.message?.content ?? '';
-  if (!content) throw new Error('Empty provider response');
-  return content;
-}
-
-async function callGemini(
-  apiKey: string,
-  prompt: string,
-  systemInstruction: string,
-  chatHistory: ChatHistoryItem[],
-  temperature: number,
-  imageBase64?: string,
-  imageMediaType?: string
-): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey });
-  const contents = chatHistory.map((msg) => ({
-    role: msg.role === 'user' ? 'user' : 'model',
-    parts: [{ text: msg.content }],
-  }));
-
-  const userParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [{ text: prompt }];
-  if (imageBase64 && imageMediaType) {
-    userParts.push({ inlineData: { mimeType: imageMediaType, data: imageBase64 } });
-  }
-  contents.push({ role: 'user', parts: userParts as { text: string }[] });
-
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents,
-    config: { systemInstruction, temperature },
-  });
-  const text = (response as unknown as { text: string }).text ?? '';
-  if (!text) throw new Error('Empty Gemini response');
-  return text;
-}
-
-// ─── Key Helpers ──────────────────────────────────────────────────────────────
-
-const env = process.env as Record<string, string | undefined>;
-
-function getKeys(prefix: string, count = 4): string[] {
-  const keys: string[] = [];
-  if (env[prefix]) keys.push(env[prefix]!);
-  for (let i = 2; i <= count; i++) {
-    const v = env[`${prefix}_${i}`];
-    if (v) keys.push(v);
-  }
-  return keys;
-}
-
-// ─── Coach Response ───────────────────────────────────────────────────────────
-
-async function getCoachResponseServer(body: AiRequestBody): Promise<{
-  text: string;
-  providerUsed?: string;
-  telemetry?: ProviderTelemetry[];
-  error?: string;
-}> {
-  let intent: CoachIntent = 'free_chat';
-  if (body.intent) intent = body.intent;
-  else if (body.action === 'qa_mode') intent = 'qa_mode';
-
-  const userMessage = String(body.userMessage ?? '');
-  if (!userMessage) return { text: 'Mesaj boş olamaz.' };
-
-  const context = String(body.context ?? '');
-  const chatHistory: ChatHistoryItem[] = Array.isArray(body.chatHistory)
-    ? body.chatHistory.slice(-6)
-    : [];
-  const maxTokens = Math.max(200, Math.min(3000, Number(body.maxTokens) || 1200));
-  const wantDirective = body.wantDirective === true;
-  const needsJson = wantDirective || body.forceJson === true;
-  const hasImage = Boolean(body.imageBase64 && body.imageMediaType);
-  const temperature = needsJson ? 0.1 : 0.4;
-
-  const contextObj = (body.userState as Record<string, unknown>) || {};
-
-  const systemInstruction = wantDirective
-    ? buildStructuredSystemInstruction(intent, contextObj, String(body.coachPersonality ?? ''))
-    : buildSystemInstruction(intent, contextObj, String(body.coachPersonality ?? ''));
-
-  const fullPrompt = [`Bağlam:\n${context}`, `Mesaj:\n${userMessage}`].filter(Boolean).join('\n\n');
-
-  const openAIMsgs: OpenAIMessage[] = [
-    { role: 'system', content: systemInstruction },
-    ...chatHistory.map((m): OpenAIMessage => ({
-      role: m.role === 'system' ? 'system' : m.role === 'coach' ? 'assistant' : 'user',
-      content: m.content,
-    })),
-    { 
-      role: 'user', 
-      content: hasImage ? [
-        { type: 'text', text: fullPrompt },
-        { type: 'image_url', image_url: { url: `data:${body.imageMediaType};base64,${body.imageBase64}` } }
-      ] : fullPrompt 
+  const mime = body.imageMediaType || 'image/jpeg';
+  return [
+    { role: 'system', content: prompt },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: body.userMessage || 'Bu görseli analiz et.' },
+        { type: 'image_url', image_url: { url: `data:${mime};base64,${body.imageBase64}` } },
+      ],
     },
   ];
-
-  const providers = hasImage
-    ? [
-        {
-          name: 'Groq-Vision',
-          keys: getKeys('GROQ_API_KEY', 4),
-          call: (key: string) =>
-            callOpenAICompatible(GROQ_API_URL, key, 'llama-3.2-11b-vision-preview', openAIMsgs, maxTokens, temperature, needsJson),
-        },
-        {
-          name: 'Gemini-Vision',
-          keys: getKeys('GEMINI_API_KEY', 4),
-          call: (key: string) =>
-            callGemini(key, fullPrompt, systemInstruction, chatHistory, temperature, body.imageBase64, body.imageMediaType),
-        },
-      ]
-    : [
-        {
-          name: 'Groq',
-          keys: getKeys('GROQ_API_KEY', 4),
-          call: (key: string) =>
-            callOpenAICompatible(GROQ_API_URL, key, GROQ_MODEL, openAIMsgs, maxTokens, temperature, needsJson),
-        },
-        {
-          name: 'Gemini',
-          keys: getKeys('GEMINI_API_KEY', 4),
-          call: (key: string) =>
-            callGemini(key, fullPrompt, systemInstruction, chatHistory, temperature),
-        },
-        {
-          name: 'Cerebras',
-          keys: getKeys('CEREBRAS_API_KEY', 2),
-          call: (key: string) =>
-            callOpenAICompatible(CEREBRAS_API_URL, key, CEREBRAS_MODEL, openAIMsgs, maxTokens, temperature, needsJson),
-        },
-      ];
-
-  const telemetry: ProviderTelemetry[] = [];
-  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-  for (const provider of providers) {
-    for (const key of provider.keys) {
-      let retries = 0;
-      const maxRetries = 2;
-      
-      while (retries <= maxRetries) {
-        const t0 = Date.now();
-        try {
-          const text = await provider.call(key);
-          if (!text || text.trim().length === 0) break;
-
-          let responseText = text.trim();
-
-          if (needsJson) {
-            const parsed = safeParseDirective(responseText);
-            if (!parsed) {
-              console.warn(`[AI] ${provider.name} invalid JSON structure`);
-              telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: false, errorCode: 'JSON_PARSE_FAIL' });
-              break; 
-            }
-            responseText = JSON.stringify(parsed);
-          }
-
-          telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: true });
-          return { text: responseText, providerUsed: provider.name, telemetry };
-        } catch (e) {
-          const errMsg = e instanceof Error ? e.message : String(e);
-          const isRateLimit = errMsg.includes('429');
-          
-          console.error(`[AI] ${provider.name} FAIL (Attempt ${retries + 1}): ${errMsg.slice(0, 120)}`);
-          telemetry.push({ provider: provider.name, latencyMs: Date.now() - t0, success: false, errorCode: errMsg.slice(0, 60) });
-          
-          if (isRateLimit && retries < maxRetries) {
-            retries++;
-            await sleep(Math.pow(2, retries) * 500); 
-            continue;
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  return {
-    text: '⚠️ Tüm AI hatları şu an meşgul veya limitler doldu. Lütfen 30 saniye sonra tekrar dene. (Error: ALL_PROVIDERS_OFFLINE)',
-    error: 'ALL_PROVIDERS_FAILED',
-    telemetry,
-  };
 }
 
-// ─── Rate Limiter ─────────────────────────────────────────────────────────────
-
-const RATE_WINDOW_MS = 30_000;
-const RATE_MAX = 30;
-
-const redis =
-  env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN
-    ? Redis.fromEnv()
-    : null;
-
-if (!redis) {
-  console.warn('[AI] Upstash Redis env eksik — in-memory rate limit aktif.');
-}
-
-const persistentRateLimit = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(RATE_MAX, `${RATE_WINDOW_MS} ms`),
-      prefix: 'ai_rl',
-    })
-  : null;
-
-const memBucket = new Map<string, { count: number; windowStart: number }>();
-
-function memRateLimit(ip: string): { ok: boolean; retryAfterMs?: number; remaining: number } {
-  const now = Date.now();
-  const cur = memBucket.get(ip);
-  if (!cur || now - cur.windowStart > RATE_WINDOW_MS) {
-    memBucket.set(ip, { count: 1, windowStart: now });
-    return { ok: true, remaining: RATE_MAX - 1 };
+async function callGroq(
+  messages: GroqMessage[],
+  opts: { image?: boolean; maxTokens?: number; forceJson?: boolean; intent?: string } = {}
+): Promise<{ text: string; keyIndex: number; model: string }> {
+  const keys = getGroqKeys();
+  if (keys.length === 0) {
+    throw new ProviderError(503, 'GROQ_KEYS_NOT_CONFIGURED', 'No Groq API keys are configured');
   }
-  if (cur.count >= RATE_MAX) {
-    return { ok: false, retryAfterMs: RATE_WINDOW_MS - (now - cur.windowStart), remaining: 0 };
-  }
-  cur.count += 1;
-  return { ok: true, remaining: RATE_MAX - cur.count };
-}
 
-async function checkRateLimit(ip: string): Promise<{ ok: boolean; retryAfterMs?: number; remaining: number }> {
-  try {
-    if (persistentRateLimit) {
-      const res = await persistentRateLimit.limit(ip);
-      if (!res.success) {
-        const ms = typeof res.reset === 'number' ? Math.max(res.reset - Date.now(), 0) : 1000;
-        return { ok: false, retryAfterMs: ms, remaining: 0 };
-      }
-      return { ok: true, remaining: res.remaining ?? RATE_MAX };
-    }
-  } catch (err) {
-    console.error('[AI] Rate limiter Redis error:', err);
-    return memRateLimit(ip);
-  }
-  return memRateLimit(ip);
-}
+  const start = groqKeyCursor % keys.length;
+  groqKeyCursor = (groqKeyCursor + 1) % keys.length;
+  let lastError: unknown = null;
 
-function getClientIp(req: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }): string {
-  let fwd = req.headers?.['x-forwarded-for'];
-  if (Array.isArray(fwd)) fwd = fwd[0];
-  fwd = (fwd as string | undefined) ?? '';
-  return fwd.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
-}
+  // Higher temperature for plan-generating intents → more specific, less repetitive tasks
+  const temperature = opts.intent && HIGH_QUALITY_INTENTS.has(opts.intent) ? 0.72 : 0.6;
 
-// ─── Handler ──────────────────────────────────────────────────────────────────
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const keyIndex = (start + attempt) % keys.length;
+    const model = opts.image ? DEFAULT_VISION_MODEL : DEFAULT_TEXT_MODEL;
 
-export default async function handler(
-  req: Record<string, unknown>,
-  res: {
-    statusCode: number;
-    setHeader: (k: string, v: string) => void;
-    end: (body: string) => void;
-  }
-): Promise<void> {
-  try {
-    if ((req.method as string) !== 'POST') {
-      res.statusCode = 405;
-      res.end(JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }));
-      return;
-    }
-
-    const rl = await checkRateLimit(getClientIp(req as never));
-    if (!rl.ok) {
-      res.statusCode = 429;
-      res.setHeader('Retry-After', String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)));
-      res.end(JSON.stringify({ error: 'RATE_LIMITED' }));
-      return;
-    }
-
-    res.setHeader('x-ratelimit-remaining', String(rl.remaining));
-
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
-
-    let body: AiRequestBody;
     try {
-      body = JSON.parse(rawBody) as AiRequestBody;
-    } catch {
-      res.statusCode = 400;
-      res.end(JSON.stringify({ error: 'INVALID_JSON' }));
-      return;
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${keys[keyIndex]}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature,
+          max_completion_tokens: opts.maxTokens ?? (opts.image ? 2048 : 4096),
+          ...(opts.forceJson ? { response_format: { type: 'json_object' } } : {}),
+        }),
+      });
+
+      const raw = await response.text();
+      if (!response.ok) {
+        lastError = { status: response.status, body: raw, keyIndex, model };
+        continue;
+      }
+
+      const data = JSON.parse(raw);
+      const text = data.choices?.[0]?.message?.content;
+      if (typeof text !== 'string' || !text.trim()) {
+        lastError = { status: 502, body: 'Groq response missing choices[0].message.content', keyIndex, model };
+        continue;
+      }
+
+      return { text, keyIndex, model };
+    } catch (error) {
+      lastError = { error: error instanceof Error ? error.message : String(error), keyIndex, model };
     }
+  }
+
+  throw new ProviderError(503, 'ALL_GROQ_KEYS_FAILED', 'All Groq keys failed', lastError);
+}
+
+const redis = process.env.UPSTASH_REDIS_REST_URL ? Redis.fromEnv() : null;
+const ratelimit = redis ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '60 s') }) : null;
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') {
+    return jsonResponse(res, 405, { error: 'METHOD_NOT_ALLOWED' });
+  }
+
+  try {
+    const idToken = req.headers.authorization?.split('Bearer ')[1];
+    if (!idToken) return jsonResponse(res, 401, { error: 'AUTH_REQUIRED' });
+
+    const user = await lookupUser(idToken);
+    if (!user) return jsonResponse(res, 401, { error: 'INVALID_TOKEN' });
+
+    if (ratelimit) {
+      const { success } = await ratelimit.limit(user.localId);
+      if (!success) return jsonResponse(res, 429, { error: 'RATE_LIMIT' });
+    }
+
+    const body = req.body as AiRequestBody;
 
     if (body.action === 'parseVoiceLog' || body.transcript) {
-      const transcript = String(body.transcript ?? '').substring(0, 2500);
-      const data = await parseVoiceLogServer(transcript);
-      res.statusCode = 200;
-      res.end(JSON.stringify({ data }));
-      return;
+      const prompt = `Şu ses kaydını çalışma logu olarak analiz et ve sadece geçerli JSON döndür: ${body.transcript || body.userMessage}`;
+      const result = await callGroq([{ role: 'user', content: prompt }], { forceJson: true, maxTokens: 1024 });
+      return jsonResponse(res, 200, { data: safeParseDirective(result.text) || { text: result.text }, provider: 'Groq', model: result.model });
     }
 
-    const result = await getCoachResponseServer(body);
-    res.statusCode = 200;
-    res.end(JSON.stringify(result));
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error('[AI Handler]', msg);
-    res.statusCode = 500;
-    res.end(JSON.stringify({ error: 'AI_SERVER_ERROR', message: 'İşlem sırasında hata oluştu.' }));
+    const fullPrompt = buildPrompt(body);
+    const messages = buildGroqMessages(fullPrompt, body);
+    const result = await callGroq(messages, {
+      image: Boolean(body.imageBase64),
+      maxTokens: body.maxTokens,
+      forceJson: Boolean(body.forceJson),
+      intent: body.intent,
+    });
+
+    return jsonResponse(res, 200, {
+      text: result.text,
+      directive: body.wantDirective ? safeParseDirective(result.text) : null,
+      provider: 'Groq',
+      model: result.model,
+      keyIndex: result.keyIndex + 1,
+    });
+  } catch (err: any) {
+    const status = err instanceof ProviderError ? err.status : 500;
+    const code = err instanceof ProviderError ? err.code : 'AI_SERVER_ERROR';
+    console.error('[AI]', err);
+    return jsonResponse(res, status, {
+      error: code,
+      message: err?.message || 'AI provider failed',
+      debug: err instanceof ProviderError ? err.debug : undefined,
+    });
   }
-}
-
-// ─── Voice Log ────────────────────────────────────────────────────────────────
-
-async function parseVoiceLogServer(transcript: string): Promise<Record<string, unknown> | null> {
-  if (!transcript.trim()) return null;
-  const prompt = `Analiz et ve SADECE JSON döndür: "${transcript}".\nFormat: {examType, subject, topic, questions, correct, wrong, empty, avgTime, emotion: {fatigue, stress, motivation}, coachAdvice}`;
-
-  for (const key of getKeys('GEMINI_API_KEY', 4)) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: key });
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: prompt,
-        config: { responseMimeType: 'application/json', temperature: 0.1 },
-      });
-      const text = (response as unknown as { text: string }).text ?? '{}';
-      return JSON.parse(text) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
-  }
-  return null;
 }

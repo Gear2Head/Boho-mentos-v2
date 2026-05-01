@@ -9,6 +9,13 @@ service firebase.storage {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.superAdmin == true ||
+        request.auth.token.email == 'senerkadiralper@gmail.com'
+      );
+    }
     
     function isValidImage() {
       // Dosya tipi resim olmalı ve max 5 MB olmalı
@@ -23,7 +30,7 @@ service firebase.storage {
     }
     
     match /failed_questions/{userId}/{allPaths=**} {
-      allow read: if isAuthenticated();
+      allow read: if isOwner(userId) || isSuperAdmin();
       allow write: if isOwner(userId) && isValidImage();
     }
   }

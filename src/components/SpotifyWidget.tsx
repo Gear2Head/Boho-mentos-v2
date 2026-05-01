@@ -87,9 +87,12 @@ export function SpotifyWidget() {
           setIsPlaying(data.is_playing);
           setProgress(data.progress_ms || 0);
           setDuration(data.item.duration_ms);
+        } else if (data) {
+          // ASSUME: Playing but no track item means ad or transition
+          setIsPlaying(data.is_playing);
         }
-      } catch (err) {
-        console.error('[Spotify] Token hatası:', err);
+      } catch {
+        // Token expired or network issue — silently degrade
       }
     };
 
@@ -97,8 +100,8 @@ export function SpotifyWidget() {
       try {
         const pl = await getUserPlaylists();
         setPlaylists(pl);
-      } catch (e) {
-        console.error(e);
+      } catch {
+        // Silently degrade — user can retry
       }
     };
 

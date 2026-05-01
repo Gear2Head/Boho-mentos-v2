@@ -13,7 +13,7 @@ export function calculateBaseElo(
   tytSubjects: SubjectStatus[] = [],
   aytSubjects: SubjectStatus[] = []
 ): number {
-  let currentElo = 1200; // Base ELO
+  let currentElo = 0; // Base ELO
 
   // Combine and sort events chronologically
   const events: Array<{ type: 'log' | 'exam'; date: number; payload: any }> = [];

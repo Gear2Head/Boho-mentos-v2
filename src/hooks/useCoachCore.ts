@@ -253,10 +253,6 @@ export function useCoachCore(): UseCoachCoreReturn {
         });
 
         // Konuşma sentezi (TTS)
-        import('../utils/speechEngine').then(({ SpeechEngine }) => {
-          SpeechEngine.speak(directive?.summary || cleanText, profile?.coachPersonality === 'hardcore');
-        });
-
         return { text: cleanText, directive };
       } catch (err) {
         console.error('[CoachCore] sendMessage error:', err);

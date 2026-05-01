@@ -17,8 +17,9 @@ export function ExamListWidget({ onSelect }: { onSelect: (exam: any) => void }) 
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {sortedExams.map((exam, idx) => {
-            const prevExam = sortedExams[idx + 1];
+            const prevExam = sortedExams.slice(idx + 1).find((item) => item.type === exam.type);
             const isImproving = prevExam ? exam.totalNet >= prevExam.totalNet : true;
+            const delta = prevExam ? exam.totalNet - prevExam.totalNet : 0;
             
             return (
               <motion.button
@@ -45,7 +46,7 @@ export function ExamListWidget({ onSelect }: { onSelect: (exam: any) => void }) 
                          {prevExam && (
                            <div className={`flex items-center gap-0.5 text-[9px] font-black ${isImproving ? 'text-emerald-400' : 'text-rose-400'}`}>
                              {isImproving ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                             {Math.abs(exam.totalNet - prevExam.totalNet).toFixed(2)}
+                             {exam.type} {Math.abs(delta).toFixed(2)}
                            </div>
                          )}
                       </div>

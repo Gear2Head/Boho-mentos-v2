@@ -14,6 +14,21 @@ export function AuthGate() {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [autoName, setAutoName] = useState(true);
+
+  const inferNameFromEmail = (value: string) => {
+    const local = value.split('@')[0]?.toLowerCase().replace(/\d+/g, '') ?? '';
+    if (!local) return '';
+    if (local === 'alpersener') return 'Alper Şener';
+    if (local === 'senerkadiralper') return 'Şener Kadir Alper';
+    const tokens = local.includes('.') || local.includes('_') || local.includes('-')
+      ? local.split(/[._-]+/).filter(Boolean)
+      : local.match(/alper|sener|şener|kadir|[a-zçğıöşü]+/gi) || [];
+    return tokens
+      .map((token) => token === 'sener' ? 'Şener' : token.charAt(0).toLocaleUpperCase('tr-TR') + token.slice(1))
+      .join(' ')
+      .trim();
+  };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +79,10 @@ export function AuthGate() {
             </button>
             <button
               type="button"
-              onClick={() => setMode('register')}
+              onClick={() => {
+                setMode('register');
+                if (autoName && !displayName) setDisplayName(inferNameFromEmail(email));
+              }}
               className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-widest transition-all ${mode === 'register' ? 'bg-[#C17767] text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
             >
               Hesap Ac
@@ -98,8 +116,11 @@ export function AuthGate() {
                 <input
                   type="text"
                   placeholder="Adin / mahlasın"
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
+                value={displayName}
+                  onChange={e => {
+                    setAutoName(false);
+                    setDisplayName(e.target.value);
+                  }}
                   autoComplete="name"
                   className="w-full rounded-xl border border-[#2A2A2A] bg-[#1A1A1A] py-3 pl-10 pr-4 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#C17767]"
                 />
@@ -112,7 +133,11 @@ export function AuthGate() {
                 type="email"
                 placeholder="E-posta"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => {
+                  const nextEmail = e.target.value;
+                  setEmail(nextEmail);
+                  if (mode === 'register' && autoName) setDisplayName(inferNameFromEmail(nextEmail));
+                }}
                 required
                 autoComplete="email"
                 className="w-full rounded-xl border border-[#2A2A2A] bg-[#1A1A1A] py-3 pl-10 pr-4 text-sm text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#C17767]"

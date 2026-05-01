@@ -14,6 +14,7 @@ import { auth, db } from '../services/firebase';
 import { useAppStore } from '../store/appStore';
 import { parseAuthError } from '../utils/parseAuthError';
 import { loginWithSpotify } from '../services/spotifyService';
+import { OWNER_EMAIL } from '../config/owner';
 
 type AuthMode = 'login' | 'register';
 
@@ -38,18 +39,24 @@ export function useAuth() {
         const tokenResult = await user.getIdTokenResult(true).catch(() => null);
         const mappedUser = { ...mapFirebaseUser(user), claims: tokenResult?.claims ?? {} };
         setAuthUser(mappedUser);
-        fetch('/api/admin/bootstrap-owner', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken: await user.getIdToken().catch(() => '') }),
-        })
-          .then(async (res) => {
-            if (res.ok) {
-              const refreshed = await user.getIdTokenResult(true);
-              setAuthUser({ ...mapFirebaseUser(user), claims: refreshed.claims });
-            }
+        
+        if (user.email?.trim().toLowerCase() === OWNER_EMAIL) {
+          fetch('/api/admin/bootstrap-owner', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-bootstrap-secret': import.meta.env.VITE_BOOTSTRAP_SECRET || 'BohoAdmin2024!_Secure'
+            },
+            body: JSON.stringify({ idToken: await user.getIdToken().catch(() => '') }),
           })
-          .catch(() => {});
+            .then(async (res) => {
+              if (res.ok) {
+                const refreshed = await user.getIdTokenResult(true);
+                setAuthUser({ ...mapFirebaseUser(user), claims: refreshed.claims });
+              }
+            })
+            .catch(() => {});
+        }
 
         try {
           const userRef = doc(db, 'users', user.uid);
@@ -60,7 +67,7 @@ export function useAuth() {
                 email: user.email,
                 display_name: mappedUser.displayName,
                 photo_url: mappedUser.photoURL,
-                eloScore: 1200, // Default ELO
+                eloScore: 0, 
                 streakDays: 0,
                 bohoCoins: 0,
                 economyLedger: [],
@@ -85,31 +92,54 @@ export function useAuth() {
     const unsubscribe = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
          const data = docSnap.data();
-         // Sadece verileri State'e yansıt (Loop engellemek için action çağırmıyoruz)
-         useAppStore.setState({
-           ...(data.profile && { profile: data.profile }),
-           ...(data.theme && { theme: data.theme }),
-           ...(data.eloScore !== undefined && { eloScore: data.eloScore }),
-           ...(data.streakDays !== undefined && { streakDays: data.streakDays }),
-           ...(data.bohoCoins !== undefined && { bohoCoins: data.bohoCoins }),
-           ...(data.economyLedger && { economyLedger: data.economyLedger }),
-           ...(data.trophies && { trophies: data.trophies }),
-           ...(data.activeAlerts && { activeAlerts: data.activeAlerts }),
-           ...(data.isPassiveMode !== undefined && { isPassiveMode: data.isPassiveMode }),
-           ...(data.tytSubjects && { tytSubjects: data.tytSubjects }),
-           ...(data.aytSubjects && { aytSubjects: data.aytSubjects }),
-           ...(data.dailyAiRequests !== undefined && { dailyAiRequests: data.dailyAiRequests }),
-           ...(data.lastCoachDirective && { lastCoachDirective: data.lastCoachDirective }),
-           ...(data.coachMemory && { coachMemory: data.coachMemory }),
-           ...(data.exams && { exams: data.exams }),
-           ...(data.logs && { logs: data.logs }),
-           ...(data.failedQuestions && { failedQuestions: data.failedQuestions }),
-           ...(data.agendaEntries && { agendaEntries: data.agendaEntries }),
-           ...(data.focusSessions && { focusSessions: data.focusSessions }),
-           ...(data.flashcards && { flashcards: data.flashcards }),
-           ...(data.unlockedAchievementIds && { unlockedAchievementIds: data.unlockedAchievementIds }),
-           ...(data.userAchievements && { userAchievements: data.userAchievements }),
+         const store = useAppStore.getState();
+         
+         // Batch updates to avoid multiple re-renders and use deep equality for large arrays
+         const updates: any = {};
+         
+         const fields = [
+           'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
+           'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
+           'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
+           'coachMemory', 'exams', 'logs', 'failedQuestions', 'agendaEntries',
+           'focusSessions', 'flashcards', 'unlockedAchievementIds', 'userAchievements'
+         ];
+
+         fields.forEach(field => {
+           if (data[field] !== undefined) {
+             // Basic equality check for arrays/objects to prevent noise
+             const currentVal = (store as any)[field];
+             let newVal = data[field];
+
+             if (field === 'streakDays') {
+               const remoteStreak = typeof newVal === 'number' ? newVal : 0;
+               const localStreak = typeof currentVal === 'number' ? currentVal : 0;
+               if (remoteStreak < localStreak) return;
+             }
+
+             if (field === 'profile' && currentVal && newVal) {
+               const localActiveDays = Array.isArray(currentVal.activeDays) ? currentVal.activeDays : [];
+               const remoteActiveDays = Array.isArray(newVal.activeDays) ? newVal.activeDays : [];
+               newVal = {
+                 ...currentVal,
+                 ...newVal,
+                 activeDays: Array.from(new Set([...localActiveDays, ...remoteActiveDays])).slice(-365),
+                 usedStreakShieldDates: Array.from(new Set([
+                   ...(Array.isArray(currentVal.usedStreakShieldDates) ? currentVal.usedStreakShieldDates : []),
+                   ...(Array.isArray(newVal.usedStreakShieldDates) ? newVal.usedStreakShieldDates : []),
+                 ])).slice(-365),
+               };
+             }
+             
+             if (JSON.stringify(currentVal) !== JSON.stringify(newVal)) {
+               updates[field] = newVal;
+             }
+           }
          });
+
+         if (Object.keys(updates).length > 0) {
+           useAppStore.setState(updates);
+         }
       }
     });
 
@@ -137,7 +167,6 @@ export function useAuth() {
       try {
         if (mode === 'register') {
           await createUserWithEmailAndPassword(auth, email, password);
-          // displayName is not directly settable in creation this way without updating profile, skipping for now
         } else {
           await signInWithEmailAndPassword(auth, email, password);
         }

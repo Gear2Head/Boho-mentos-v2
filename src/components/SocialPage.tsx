@@ -35,7 +35,7 @@ export function SocialPage() {
         return {
           uid: doc.id,
           name: d.profile?.name || d.display_name || 'Savaşçı',
-          eloScore: d.eloScore || 1200,
+          eloScore: d.eloScore || 0,
           streakDays: d.streakDays || 0,
           avatar: d.profile?.avatar || d.photo_url,
           targetUniversity: d.profile?.targetUniversity,

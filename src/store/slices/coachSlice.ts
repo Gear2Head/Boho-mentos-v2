@@ -33,34 +33,41 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
     if (!record || !record.directive.tasks[index]) return;
 
     const task = record.directive.tasks[index];
+
+    // GUARD: Skip if task is already in a terminal state
+    if (task.status === 'completed' || task.status === 'cancelled' || task.status === 'failed') return;
+
     import('../../services/directiveHistory').then(m => {
       const nr = m.completeTask(record, index);
       const newHistory = m.updateInHistory(directiveHistory, nr);
       const newMemory = m.updateCoachMemory(newHistory, coachMemory);
-      
+
       const bonus = task.priority === 'high' ? 40 : 25;
 
       // ─── OTOMASYON: LOG VE AJANDA KAYDI ───
-      addLog({
-        id: `auto_log_${Date.now()}`,
-        date: new Date().toISOString(),
-        subject: task.subject || 'Genel Çalışma',
-        topic: task.title,
-        questions: 0,
-        correct: 0,
-        wrong: 0,
-        avgTime: task.targetMinutes || 30,
-        empty: 0,
-        fatigue: 0,
-        notes: `AI Koç Görevi: ${task.title}`
-      });
+      // GUARD: Only create log/agenda if task has a valid title (prevents zero-question malformed logs)
+      if (task.title && task.title.trim().length > 0) {
+        addLog({
+          id: `auto_log_${Date.now()}`,
+          date: new Date().toISOString(),
+          subject: task.subject || 'Genel Çalışma',
+          topic: task.title,
+          questions: task.targetQuestions || 0,
+          correct: task.targetQuestions || 0,
+          wrong: 0,
+          avgTime: task.targetMinutes || 30,
+          empty: 0,
+          fatigue: 0,
+          notes: `AI Koç Görevi: ${task.title}`
+        });
 
-      addAgendaEntry({
-        id: `auto_agenda_${Date.now()}`,
-        date: new Date().toISOString(),
-        content: `GÖREV TAMAMLANDI: ${task.title}\n${task.action}`,
-        tags: ['AI-Task', task.subject || 'Genel'],
-      });
+        addAgendaEntry({
+          id: `auto_agenda_${Date.now()}`,
+          date: new Date().toISOString(),
+          content: `GÖREV TAMAMLANDI: ${task.title}\n${task.action || ''}`.trim(),
+          tags: ['AI-Task', task.subject || 'Genel'],
+        });
+      }
 
       // Konfeti ve Store Güncelleme
       triggerConfetti();
@@ -129,14 +136,13 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
         isResolved: false,
         taskStatus: recTasks.map(() => 'pending' as const)
       };
-      // Note: We need to push this to storage via setLastCoachDirective elsewhere or here
       set({ lastCoachDirective: (newRecord.directive as any) });
     });
   },
 
   generateStrategyPlan: () => {
-    console.log('[Strategy] Generating weekly plan...');
-    // Real implementation would call Gemini
+    if (import.meta.env.DEV) console.log('[Strategy] Generating weekly plan...');
+    // Real implementation would call the AI provider
   },
 
   analyzeUserData: () => {

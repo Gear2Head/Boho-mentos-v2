@@ -33,7 +33,7 @@ export function GlobalLeaderboard() {
         return {
           uid: doc.id,
           name: d.profile?.name || d.display_name || 'Savaşçı',
-          eloScore: d.eloScore !== undefined ? d.eloScore : 1200,
+          eloScore: d.eloScore !== undefined ? d.eloScore : 0,
           streakDays: d.streakDays || 0,
           avatar: d.profile?.avatar || d.photo_url,
         } as LeaderboardEntry;

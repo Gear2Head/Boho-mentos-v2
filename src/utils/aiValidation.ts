@@ -104,6 +104,22 @@ export const InterventionSchema = z.object({
   severity: z.enum(['warning', 'critical']).default('warning'),
 });
 
+// ─── God-Tier Schemas ──────────────────────────────────────────────────────────
+
+export const SocraticValidationSchema = z.object({
+  isAnswerSufficient: z.boolean().default(false),
+  analysis: z.string().default(''),
+  nextQuestion: z.string().optional(),
+  unlocked: z.boolean().default(false),
+});
+
+export const OraclePredictionSchema = z.object({
+  trajectoryAnalysis: z.string().default(''),
+  predictedYksRankDrop: z.number().default(0),
+  brutalTruth: z.string().default(''),
+  suggestedAction: z.string().default(''),
+});
+
 // ─── Safe Parse Helper ─────────────────────────────────────────────────────────
 
 type IntentSchemaMap = {
@@ -123,6 +139,8 @@ const INTENT_SCHEMA_MAP: IntentSchemaMap = {
   flashcard_generation: FlashcardArraySchema,
   quiz_generation: QuizQuestionsSchema,
   intervention: InterventionSchema,
+  socratic_validation: SocraticValidationSchema,
+  oracle_prediction: OraclePredictionSchema,
 };
 
 /**

@@ -93,12 +93,6 @@ VITE_SPOTIFY_CLIENT_ID="your_client_id"
 SPOTIFY_CLIENT_SECRET="your_secret"
 ```
 
-### 4. Geliştirme Sunucusunu Başlatın
-```bash
-npm run dev
-```
-- Frontend: `http://localhost:3000`
-- Backend API: `http://localhost:3001`
 
 ---
 
@@ -121,24 +115,4 @@ npm run dev
 └── tailwind.config.js    # Stil yapılandırması
 ```
 
----
 
-## 🔐 Güvenlik & Yetkilendirme
-- Uygulama, Firebase Custom Claims kullanarak **SuperAdmin**, **Admin** ve **Student** rollerini yönetir.
-- Kritik admin fonksiyonları sadece `super_admin` yetkisine sahip kullanıcılara açıktır.
-- API istekleri Upstash Redis üzerinden IP tabanlı rate-limit'e tabidir.
-
----
-
-## 🤝 Katkıda Bulunma
-1. Projeyi fork edin.
-2. Yeni bir feature branch açın (`git checkout -b feature/amazing-feature`).
-3. Değişikliklerinizi commit edin (`git commit -m 'feat: Add amazing feature'`).
-4. Branch'inizi push edin (`git push origin feature/amazing-feature`).
-5. Bir Pull Request açın.
-
----
-
-<div align="center">
-  <p>Built with ❤️ for better education by <b>Antigravity</b></p>
-</div>

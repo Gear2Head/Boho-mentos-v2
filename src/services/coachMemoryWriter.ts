@@ -18,6 +18,8 @@ export function createDefaultMemory(): CoachMemory {
     strongSubjects: [],
     persistentNotes: [],
     netTrend: 'unknown',
+    timeOfDayStats: {},
+    dayOfWeekStats: {},
     updatedAt: new Date().toISOString(),
   };
 }
@@ -89,6 +91,40 @@ export function updateCoachMemory(
     const delta = last - prev;
     mem.netTrend = delta > 2 ? 'rising' : delta < -2 ? 'falling' : 'stable';
   }
+
+  // ─── 5. God-Tier Time of Day & Day of Week Stats ───────────────────────────
+  const todCorrect = new Map<string, number>();
+  const todTotal = new Map<string, number>();
+  const dowCorrect = new Map<string, number>();
+  const dowTotal = new Map<string, number>();
+
+  logs.forEach(l => {
+    if (l.questions <= 0) return;
+    const d = new Date(l.date);
+    const hour = d.getHours();
+    let tod = 'night';
+    if (hour >= 6 && hour < 12) tod = 'morning';
+    else if (hour >= 12 && hour < 18) tod = 'afternoon';
+    else if (hour >= 18 && hour < 23) tod = 'evening';
+
+    const dow = d.toLocaleDateString('en-US', { weekday: 'long' });
+
+    todCorrect.set(tod, (todCorrect.get(tod) || 0) + l.correct);
+    todTotal.set(tod, (todTotal.get(tod) || 0) + l.questions);
+    
+    dowCorrect.set(dow, (dowCorrect.get(dow) || 0) + l.correct);
+    dowTotal.set(dow, (dowTotal.get(dow) || 0) + l.questions);
+  });
+
+  mem.timeOfDayStats = {};
+  todTotal.forEach((total, tod) => {
+    if (total >= 10) mem.timeOfDayStats![tod] = Math.round((todCorrect.get(tod)! / total) * 100);
+  });
+
+  mem.dayOfWeekStats = {};
+  dowTotal.forEach((total, dow) => {
+    if (total >= 10) mem.dayOfWeekStats![dow] = Math.round((dowCorrect.get(dow)! / total) * 100);
+  });
 
   mem.updatedAt = new Date().toISOString();
   return mem;

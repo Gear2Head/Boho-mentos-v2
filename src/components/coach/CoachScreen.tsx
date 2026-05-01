@@ -15,9 +15,6 @@ import { ConversationSidebar } from './ConversationSidebar';
 import { PanelLeftOpen } from 'lucide-react';
 import type { CoachIntent } from '../../types/coach';
 import { CoachBriefing } from '../CoachBriefing';
-import { ContextBar } from './ContextBar';
-import { useAppSelectors } from '../../store/selectors';
-import { AudioEngine } from '../../utils/audioEngine';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,9 +41,6 @@ export function CoachScreen({
   const activeId = useAppStore((s) => s.activeConversationId);
   const migrate = useAppStore((s) => s.migrateLegacyChat);
   const profile = useAppStore((s) => s.profile);
-  
-  const { isTtsEnabled } = useAppSelectors();
-  
   const activeConversation = conversations.find(c => c.id === activeId);
   const messages = activeConversation?.messages || [];
 
@@ -86,12 +80,6 @@ export function CoachScreen({
       if (isAtBottom) {
         const raf = requestAnimationFrame(() => scrollToBottom('smooth'));
         
-        // Auto-TTS for new coach messages
-        const lastMsg = messages[messages.length - 1];
-        if (isTtsEnabled && lastMsg && lastMsg.role === 'coach') {
-          AudioEngine.playTts(lastMsg.content);
-        }
-
         return () => cancelAnimationFrame(raf);
       } else {
         setNewMsgCount((prev) => prev + 1);
@@ -267,7 +255,6 @@ export function CoachScreen({
       </div>
 
       {/* ── Context Bar (sağ panel, sadece lg+) ────────────────────── */}
-      <ContextBar onQuickAction={onSendMessage} />
     </div>
   );
 }

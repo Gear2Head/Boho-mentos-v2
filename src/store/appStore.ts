@@ -13,12 +13,14 @@ import { WarRoomSlice, createWarRoomSlice } from './slices/warRoomSlice';
 import { CoachSlice, createCoachSlice } from './slices/coachSlice';
 import { UISlice, createUISlice } from './slices/uiSlice';
 import { AchievementSlice, createAchievementSlice } from './slices/achievementSlice';
+import { UiBehaviorSlice, createUiBehaviorSlice } from './slices/uiBehaviorSlice';
+import { EconomySlice, createEconomySlice } from './slices/economySlice';
 import { SubjectStatus } from '../types';
 
 export const COACH_NAME = 'Kübra';
 export const COACH_SYSTEM_NAME = 'kübra_v2';
 
-export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & WarRoomSlice & CoachSlice & UISlice & AchievementSlice & {
+export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & WarRoomSlice & CoachSlice & UISlice & AchievementSlice & UiBehaviorSlice & EconomySlice & {
   lastLocalUpdateAt: string;
   hardReset: (scope?: 'full' | 'ui' | 'all-data') => void;
   addTargetGoal: (goal: import('../types').AtlasProgram) => void;
@@ -32,27 +34,32 @@ export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & 
 
 // IndexDB Storage Setup
 let dbPromise: ReturnType<typeof openDB> | null = null;
-const getDb = () => {
+const getDb = async () => {
   if (!dbPromise) {
     dbPromise = openDB('yks-store', 1, {
       upgrade(db) { db.createObjectStore('keyval'); },
     });
   }
-  return dbPromise;
+  const db = await dbPromise;
+  db.onclose = () => { dbPromise = null; };
+  return db;
 };
 
 const idbStorage: StateStorage = {
   getItem: async (name) => {
-    const raw = await (await getDb()).get('keyval', name);
+    const db = await getDb();
+    const raw = await db.get('keyval', name);
     if (!raw) return null;
     return decrypt(raw);
   },
   setItem: async (name, value) => {
     const encrypted = encrypt(value);
-    await (await getDb()).put('keyval', encrypted, name);
+    const db = await getDb();
+    await db.put('keyval', encrypted, name);
   },
   removeItem: async (name) => {
-    await (await getDb()).delete('keyval', name);
+    const db = await getDb();
+    await db.delete('keyval', name);
   },
 };
 
@@ -104,12 +111,13 @@ export const useAppStore = create<AppState>()(
       ...createCoachSlice(set, get, api),
       ...createUISlice(set, get, api),
       ...createAchievementSlice(set, get),
+      ...createUiBehaviorSlice(set, get, api),
+      ...createEconomySlice(set, get, api),
 
       lastLocalUpdateAt: toISODateTime(),
 
       hardReset: (scope = 'full') => {
         if (scope === 'full') {
-          // Note: Full reset logic should ideally re-init all slices
           window.location.reload(); 
         } else if (scope === 'all-data') {
           set({
@@ -180,6 +188,7 @@ export const useAppStore = create<AppState>()(
           isLogWidgetOpen, isArchiveWidgetOpen, isEditingProfile,
           isNotifOpen, isAdminPanelOpen, isFocusSidePanelOpen,
           warRoomTimeLeft, warRoomSession,
+          lockedRoutes, uiLockState, socraticDepth,
           ...rest
         } = state;
         return rest;

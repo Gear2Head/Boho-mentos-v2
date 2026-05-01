@@ -635,7 +635,7 @@ function MyDataPanel({ actorUid, showToast }: { actorUid: string; showToast: (t:
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'Sistem Liyakati', val: data?.eloScore || 1000, icon: <Zap className="text-amber-500" /> },
+          { label: 'Sistem Liyakati', val: data?.eloScore || 0, icon: <Zap className="text-amber-500" /> },
           { label: 'Çalışma Serisi', val: `${data?.streakDays || 0} Gün`, icon: <Activity className="text-rose-500" /> },
           { label: 'Toplam Kayıt', val: data?.totalLogs || 0, icon: <FileText className="text-blue-500" /> }
         ].map(s => (

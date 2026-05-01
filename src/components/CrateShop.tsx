@@ -252,6 +252,19 @@ function CrateCard({ crate, canAfford, onBuy, onPreview }: {
 
     return (
         <motion.div
+            role="button"
+            tabIndex={canAfford ? 0 : -1}
+            aria-disabled={!canAfford}
+            onClick={() => {
+                if (canAfford) onBuy();
+            }}
+            onKeyDown={(event) => {
+                if (!canAfford) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onBuy();
+                }
+            }}
             onHoverStart={() => setHovered(true)}
             onHoverEnd={() => setHovered(false)}
             animate={{ scale: hovered ? 1.025 : 1 }}
@@ -262,7 +275,7 @@ function CrateCard({ crate, canAfford, onBuy, onPreview }: {
                 borderRadius: 28,
                 padding: '28px 24px',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-                cursor: 'default', position: 'relative', overflow: 'hidden',
+                cursor: canAfford ? 'pointer' : 'not-allowed', position: 'relative', overflow: 'hidden',
                 boxShadow: hovered ? `0 0 50px ${crate.glowColor}, 0 20px 60px rgba(0,0,0,0.5)` : '0 8px 30px rgba(0,0,0,0.3)',
                 transition: 'border-color 0.25s, box-shadow 0.25s',
             }}
@@ -309,7 +322,10 @@ function CrateCard({ crate, canAfford, onBuy, onPreview }: {
 
             <div className="flex flex-col w-full gap-3">
                 <button
-                    onClick={onPreview}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onPreview();
+                    }}
                     style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         padding: '6px 14px', borderRadius: 99,
@@ -322,7 +338,10 @@ function CrateCard({ crate, canAfford, onBuy, onPreview }: {
                 </button>
 
                 <button
-                    onClick={onBuy}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        if (canAfford) onBuy();
+                    }}
                     disabled={!canAfford}
                     style={{
                         width: '100%', padding: '14px 0', borderRadius: 14,

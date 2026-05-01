@@ -51,7 +51,19 @@ export function LogDetailModal({ log, isOpen, onClose, isAdmin }: LogDetailModal
   };
 
   const saveEdit = () => {
-    updateLog(log.id, draft);
+    const normalized: Partial<DailyLog> = {
+      ...draft,
+      subject: String(draft.subject ?? log.subject).trim() || log.subject,
+      topic: String(draft.topic ?? log.topic).trim() || log.topic,
+      notes: draft.notes ? String(draft.notes) : undefined,
+      questions: Math.max(0, Number(draft.questions ?? log.questions) || 0),
+      correct: Math.max(0, Number(draft.correct ?? log.correct) || 0),
+      wrong: Math.max(0, Number(draft.wrong ?? log.wrong) || 0),
+      empty: Math.max(0, Number(draft.empty ?? log.empty) || 0),
+      avgTime: Math.max(0, Number(draft.avgTime ?? log.avgTime) || 0),
+      fatigue: Math.max(0, Math.min(10, Number(draft.fatigue ?? log.fatigue) || 0)),
+    };
+    updateLog(log.id, normalized);
     setIsEditing(false);
   };
 
@@ -88,7 +100,7 @@ export function LogDetailModal({ log, isOpen, onClose, isAdmin }: LogDetailModal
           </div>
         </header>
 
-        {isAdmin && (
+        {
           <div className="mb-6 flex items-center justify-end gap-2">
             {!isEditing ? (
               <button
@@ -114,7 +126,41 @@ export function LogDetailModal({ log, isOpen, onClose, isAdmin }: LogDetailModal
               </>
             )}
           </div>
-        )}
+        }
+
+        <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 mb-8">
+          <h3 className="font-serif italic text-zinc-400 mb-4 border-b border-[#2A2A2A] pb-2 text-sm flex items-center gap-2">
+            <BookOpen size={14} className="opacity-50" /> KayÄ±t Bilgisi
+          </h3>
+          {!isEditing ? (
+            <div className="space-y-3 text-sm text-zinc-300">
+              <div><span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold block mb-1">Ders</span>{log.subject}</div>
+              <div><span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold block mb-1">Konu</span>{log.topic}</div>
+              {log.notes && <div><span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold block mb-1">Not</span>{log.notes}</div>}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <input
+                value={String(draft.subject ?? '')}
+                onChange={(event) => setDraft({ ...draft, subject: event.target.value })}
+                className="w-full bg-black/40 border border-[#3A3A3A] rounded-xl px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-[#C17767]"
+                placeholder="Ders"
+              />
+              <input
+                value={String(draft.topic ?? '')}
+                onChange={(event) => setDraft({ ...draft, topic: event.target.value })}
+                className="w-full bg-black/40 border border-[#3A3A3A] rounded-xl px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-[#C17767]"
+                placeholder="Konu"
+              />
+              <textarea
+                value={String(draft.notes ?? '')}
+                onChange={(event) => setDraft({ ...draft, notes: event.target.value })}
+                className="w-full min-h-24 bg-black/40 border border-[#3A3A3A] rounded-xl px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-[#C17767] resize-none"
+                placeholder="Detay / not"
+              />
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 flex flex-col items-center justify-center text-center">
@@ -194,7 +240,7 @@ export function LogDetailModal({ log, isOpen, onClose, isAdmin }: LogDetailModal
           </div>
         </div>
 
-        {isAdmin && (
+        {
           <div className="pt-6 border-t border-red-900/20 flex justify-end">
             <button
               onClick={handleDelete}
@@ -203,7 +249,7 @@ export function LogDetailModal({ log, isOpen, onClose, isAdmin }: LogDetailModal
               <Trash2 size={14} /> Kaydı Sil
             </button>
           </div>
-        )}
+        }
       </div>
     </div>
   );

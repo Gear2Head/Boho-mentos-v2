@@ -209,15 +209,15 @@ export async function generateWarRoomQuestions(
       }
     } catch (e) { console.warn('[WarRoom] JSON regex fallback failed:', e); }
 
-    console.log('[WarRoom] Raw AI response:', raw.substring(0, 500));
+    if (import.meta.env.DEV) console.log('[WarRoom] Raw AI response:', raw.substring(0, 500));
 
     const parsedData = parseAiArray(jsonString, (question) =>
       validateAndNormalizeQuestion(question, 1, examType, difficulty)
     );
 
-    console.log('[WarRoom] Parsed questions count:', parsedData?.length || 0);
+    if (import.meta.env.DEV) console.log('[WarRoom] Parsed questions count:', parsedData?.length || 0);
     if (parsedData && parsedData.length > 0) {
-      console.log('[WarRoom] First question:', parsedData[0]);
+      if (import.meta.env.DEV) console.log('[WarRoom] First question:', parsedData[0]);
     }
 
     if (!parsedData || parsedData.length === 0) {

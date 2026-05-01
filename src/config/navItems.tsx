@@ -3,14 +3,14 @@ import {
   LayoutDashboard, MessageSquare, Target, Swords,
   BrainCircuit, BookOpen, BarChart2, List,
   CalendarDays, Archive, Map as MapIcon, Telescope,
-  Settings, UserCircle, Clock
+  Settings, UserCircle, Clock, ShoppingBag, Timer
 } from 'lucide-react';
 
 export type ActiveTab =
   | 'dashboard' | 'coach' | 'countdown' | 'war_room'
   | 'questions' | 'explain' | 'exams' | 'logs'
   | 'agenda' | 'archive' | 'subjects' | 'strategy'
-  | 'settings' | 'profile' | 'admin_dashboard';
+  | 'settings' | 'profile' | 'admin_dashboard' | 'store' | 'clock';
 
 export interface NavItemConfig {
   id: ActiveTab;
@@ -24,6 +24,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
   { id: 'dashboard',  label: 'Ana Sayfa',  icon: <LayoutDashboard size={18} />, mobileVisible: true,  desktopVisible: true  },
   { id: 'coach',      label: 'Koç',        icon: <MessageSquare    size={18} />, mobileVisible: true,  desktopVisible: true  },
   { id: 'countdown',  label: 'Sayaç',      icon: <Clock            size={18} />, mobileVisible: false, desktopVisible: true  },
+  { id: 'clock',      label: 'Odak',       icon: <Timer            size={18} />, mobileVisible: true,  desktopVisible: true  },
   { id: 'war_room',   label: 'Savaş',      icon: <Swords           size={18} />, mobileVisible: true,  desktopVisible: true  },
   { id: 'questions',  label: 'Quiz',       icon: <BrainCircuit     size={18} />, mobileVisible: false, desktopVisible: true  },
   { id: 'explain',    label: 'Anlatım',    icon: <BookOpen         size={18} />, mobileVisible: false, desktopVisible: true  },
@@ -35,4 +36,5 @@ export const NAV_ITEMS: NavItemConfig[] = [
   { id: 'strategy',   label: 'Strateji',   icon: <Telescope        size={18} />, mobileVisible: false, desktopVisible: true  },
   { id: 'settings',   label: 'Ayarlar',    icon: <Settings         size={18} />, mobileVisible: false, desktopVisible: true  },
   { id: 'profile',    label: 'Profil',     icon: <UserCircle       size={18} />, mobileVisible: true,  desktopVisible: true  },
+  { id: 'store',      label: 'Mağaza',     icon: <ShoppingBag      size={18} />, mobileVisible: true,  desktopVisible: true  },
 ];

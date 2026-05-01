@@ -76,7 +76,7 @@ async function safeFetch(
     const response = await fetch(url, options);
     if ((response.status === 429 || response.status >= 500) && retries > 0) {
       console.warn(
-        `[Gemini] HTTP ${response.status}. ${backoff}ms sonra retry. Kalan: ${retries}`
+        `[AI] HTTP ${response.status}. ${backoff}ms sonra retry. Kalan: ${retries}`
       );
       await delay(backoff);
       return safeFetch(url, options, retries - 1, backoff * 2);
@@ -151,14 +151,20 @@ export async function getCoachResponse(
     // Cache hit — free_chat ve inverse_coaching hariç cache kontrol ediyoruz
     const NO_CACHE_INTENTS = ['free_chat', 'inverse_coaching', 'intervention'];
     if (cachedResponse && !NO_CACHE_INTENTS.includes(intent)) {
-      console.log(`[SemanticCache] Hit: ${intent}`);
+      if (import.meta.env.DEV) console.log('[SemanticCache] Hit: ' + intent);
       // ASSUME: Cache'den dönen yanıtlar daily limit'i tüketmez
       return cachedResponse;
     }
 
+    const { auth } = await import('../services/firebase');
+    const idToken = await auth.currentUser?.getIdToken();
+
     const response = await safeFetch('/api/ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken || ''}`
+      },
       body: JSON.stringify(payload),
     });
 
@@ -185,7 +191,7 @@ export async function getCoachResponse(
     useAppStore.getState().incrementAiRequest();
     return finalResponse;
   } catch (err) {
-    console.error('[Gemini] Fetch error:', err);
+    console.error('[AI] Fetch error:', err);
     return resolveErrorMessage(err);
   }
 }
@@ -197,9 +203,14 @@ export async function parseVoiceLog(
 ): Promise<Record<string, unknown> | null> {
   if (!transcript.trim()) return null;
   try {
+    const { auth } = await import('../services/firebase');
+    const idToken = await auth.currentUser?.getIdToken();
     const response = await fetch('/api/ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken || ''}`,
+      },
       body: JSON.stringify({ action: 'parseVoiceLog', transcript }),
     });
     if (!response.ok) return null;
