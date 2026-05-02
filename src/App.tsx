@@ -86,6 +86,11 @@ import { isSameLocalDay, parseFlexibleDate, toISODateOnly } from './utils/date';
 import { BentoDashboard } from './components/dashboard/BentoDashboard';
 import { ThemeStudio } from './components/ThemeStudio';
 import { useAchievementMonitor } from './hooks/useAchievementMonitor';
+import { DailySpinWheel } from './components/DailySpinWheel';
+import { YKSSimulator } from './components/YKSSimulator';
+import { CommunityGoalBanner } from './components/CommunityGoalBanner';
+import { PublisherAnalytics } from './components/PublisherAnalytics';
+import { ActiveBoostStrip } from './components/ActiveBoostStrip';
 
 // --- Helper ---
 
@@ -660,6 +665,7 @@ export default function App() {
                   </button>
                 </header>
                 <ExamListWidget onSelect={setSelectedExam} />
+                <PublisherAnalytics />
               </motion.div>
             </div>
           } />
@@ -788,6 +794,22 @@ export default function App() {
               </motion.div>
             </div>
           } />
+          <Route path="/spin" element={
+            <div className={scrollCls}>
+              <motion.div key="spin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 max-w-lg mx-auto">
+                <DailySpinWheel />
+              </motion.div>
+            </div>
+          } />
+
+          <Route path="/yks-sim" element={
+            <div className={scrollCls}>
+              <motion.div key="yks-sim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8">
+                <YKSSimulator />
+              </motion.div>
+            </div>
+          } />
+
         </Routes>
 
         <ExamEntryModal isOpen={isExamModalOpen} onClose={() => setIsExamModalOpen(false)} track={profile?.track || 'Sayısal'} onSave={(exam) => { addExam(exam); setIsExamModalOpen(false); unlockTrophy('first_blood'); }} />

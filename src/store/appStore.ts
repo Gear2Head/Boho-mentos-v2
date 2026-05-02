@@ -198,8 +198,15 @@ export const useAppStore = create<AppState>()(
       };
     },
     {
-
       name: 'yks_coach_storage_v2',
+      version: 1, // Store schema version
+      migrate: (persistedState: any, version: number) => {
+        // Future schema migrations go here
+        if (version === 0) {
+          // e.g., if we added a new field, we could initialize it here
+        }
+        return persistedState;
+      },
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => {
         const {

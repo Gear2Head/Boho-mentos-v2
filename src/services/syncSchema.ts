@@ -38,6 +38,11 @@ export const SYNC_ROOT_WHITELIST = [
   'lastCoachDirective',
   'coachMemory',
   'inventory',
+  // Gamification & Achievement
+  'purchasedItems',
+  'claimedQuests',
+  'unlockedAchievementIds',
+  'userAchievements',
 ] as const;
 
 export type SyncRootKey = (typeof SYNC_ROOT_WHITELIST)[number];

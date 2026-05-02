@@ -3,7 +3,7 @@ import { AppState } from '../appStore';
 import { DailyLog, ExamResult, FailedQuestion, SubjectStatus, AgendaEntry, FocusSessionRecord } from '../../types';
 import { Flashcard } from '../../types/coach';
 import { toISODateOnly } from '../../utils/date';
-import { doc, setDoc, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, increment } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
 import { calculateBaseElo } from "../../utils/eloRecomputator";
@@ -202,6 +202,16 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
       // PERF: Only write to subcollection. Never push full logs[] array to main doc.
       setDoc(doc(db, 'users', authUser.uid, 'logs', logWithId.id), cleanForFirestore(logWithId)).catch(console.error);
       setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ streakDays: newStreak }), { merge: true }).catch(console.error);
+
+      // Community goal increment — haftalık topluluk hedefi sayacını artır
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const week = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+      const weekId = `${now.getFullYear()}-W${week}`;
+      setDoc(doc(db, 'communityGoals', weekId), {
+        current: increment(log.questions || 1),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true }).catch(console.error);
     }
   },
 

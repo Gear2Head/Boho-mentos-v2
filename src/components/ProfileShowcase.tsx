@@ -13,6 +13,9 @@ import { GlobalHeatmap } from './GlobalHeatmap';
 import { AnimatePresence, motion } from 'motion/react';
 import { ALL_SHOP_ITEMS } from '../types/economy';
 import type { BoostKey } from '../types/economy';
+import { ProfileWall } from './ProfileWall';
+import { CommunityGoalBanner } from './CommunityGoalBanner';
+import { InventorySummaryCard } from './ActiveBoostStrip';
 
 const ICON_MAP: Record<string, React.FC<any>> = {
   Trophy, Star, Crown, Zap, Flame, Award, Target, BookOpen, Hexagon, Shield, Package, Coins, BarChart3, BrainCircuit, Palette, Gem, Timer, Sparkles
@@ -615,6 +618,24 @@ export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; t
       </div>
 
       <HabitAuditPanel />
+
+      {/* Profil Ziyaretçi Duvarı */}
+      {(isPublic || targetUid) && targetUid && (
+        <div className="mt-6">
+          <ProfileWall
+            targetUid={targetUid}
+            isOwnProfile={authUser?.uid === targetUid}
+          />
+        </div>
+      )}
+
+      {/* Topluluk Hedefi — sadece kendi profilinde */}
+      {!isPublic && (
+        <div className="mt-4 space-y-4">
+          <InventorySummaryCard />
+          <CommunityGoalBanner />
+        </div>
+      )}
 
       <AnimatePresence>
         {isExplorerOpen && (

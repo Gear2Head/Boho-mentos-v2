@@ -154,4 +154,31 @@ src/archived/
 task/
 task
 .md
-C:\Projects\Boho-mentos-v2\task.md
+
+# ---------------------------------------------------
+# 11. ANDROID & CAPACITOR (MOBILE)
+# ---------------------------------------------------
+android/local.properties
+android/app/build/
+android/build/
+android/captures/
+android/.gradle/
+.gradle/
+.gradle-cache/
+/android/app/src/main/assets/public
+/android/app/src/main/res/drawable
+/android/app/src/main/res/mipmap-*
+# Capacitor web assets should be ignored if they are generated
+!android/app/src/main/assets/public/index.html
+!android/app/src/main/assets/public/sw.js
+
+# Gradle specific
+.gradle
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# Build artifacts
+*.apk
+*.aar
+*.js.map

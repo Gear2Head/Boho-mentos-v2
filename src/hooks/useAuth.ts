@@ -30,7 +30,8 @@ function mapFirebaseUser(user: FirebaseUser) {
 export function useAuth() {
   const setAuthUser = useAppStore((s) => s.setAuthUser);
   const authUser = useAppStore((s) => s.authUser);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -83,8 +84,9 @@ export function useAuth() {
         }
       } else {
         setAuthUser(null);
+        setIsProfileLoading(false);
       }
-      setIsLoading(false);
+      setIsAuthLoading(false);
     });
 
     return () => unsubscribe();
@@ -106,8 +108,10 @@ export function useAuth() {
 
          // CONFLICT RESOLUTION: If remote data is older than our last local change, ignore it.
          // This prevents "flickering" or data loss during sync races.
-         if (new Date(remoteUpdateAt).getTime() < new Date(localUpdateAt).getTime()) {
+         // Ancak yerelde profil yoksa (ilk yükleme) mutlaka uzak veriyi kabul et.
+         if (store.profile && new Date(remoteUpdateAt).getTime() < new Date(localUpdateAt).getTime()) {
            console.log('[Sync] Remote data is stale, keeping local version.');
+           setIsProfileLoading(false);
            return;
          }
 
@@ -115,7 +119,9 @@ export function useAuth() {
            'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
            'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
            'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
-           'coachMemory', 'unlockedAchievementIds', 'userAchievements'
+           'coachMemory', 'unlockedAchievementIds', 'userAchievements',
+           'logs', 'exams', 'failedQuestions', 'agendaEntries', 'focusSessions',
+           'flashcards', 'chatHistory', 'directiveHistory'
          ];
 
          fields.forEach(field => {
@@ -153,6 +159,7 @@ export function useAuth() {
            useAppStore.setState({ ...updates, lastLocalUpdateAt: remoteUpdateAt });
          }
       }
+      setIsProfileLoading(false);
     });
 
     return () => unsubscribe();
@@ -175,7 +182,7 @@ export function useAuth() {
   const signInWithEmail = useCallback(
     async (email: string, password: string, mode: AuthMode, displayName?: string) => {
       setAuthError(null);
-      setIsLoading(true);
+      setIsAuthLoading(true);
       try {
         if (mode === 'register') {
           await createUserWithEmailAndPassword(auth, email, password);
@@ -185,7 +192,7 @@ export function useAuth() {
       } catch (error: any) {
         setAuthError(parseAuthError(error.message));
       } finally {
-        setIsLoading(false);
+        setIsAuthLoading(false);
       }
     },
     []
@@ -222,7 +229,9 @@ export function useAuth() {
           'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
           'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
           'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
-          'coachMemory', 'unlockedAchievementIds', 'userAchievements'
+          'coachMemory', 'unlockedAchievementIds', 'userAchievements',
+          'logs', 'exams', 'failedQuestions', 'agendaEntries', 'focusSessions',
+          'flashcards', 'chatHistory', 'directiveHistory'
         ];
 
         fields.forEach(field => {
@@ -244,7 +253,7 @@ export function useAuth() {
 
   return {
     user: authUser,
-    isLoading,
+    isLoading: isAuthLoading || isProfileLoading,
     authError,
     setAuthError,
     signInWithGoogle,

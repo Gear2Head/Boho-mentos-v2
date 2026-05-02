@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
+import { getMobileRuntimeCapabilities } from '../services/mobileCapabilities';
 
 export function useAndroidView() {
   useEffect(() => {
-    // PWA olduğu için artık Capacitor'a gerek yok.
-    // Gerekirse manifesto ve CSS ile native-like davranılır.
+    const caps = getMobileRuntimeCapabilities();
+    document.documentElement.dataset.standalone = String(caps.standalone);
+    document.documentElement.dataset.haptics = String(caps.vibration);
+    document.documentElement.dataset.camera = String(caps.camera);
   }, []);
 }

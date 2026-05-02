@@ -64,7 +64,10 @@ export function DataIntegrationPanel() {
           (Samsung Notes ve Google Keep API'leri dış geliştiricilere kapalı olduğu için şu an desteklenmemektedir.)
         </p>
 
-        <div className="space-y-4">
+        <form 
+          className="space-y-4"
+          onSubmit={(e) => { e.preventDefault(); handleNotionSync(); }}
+        >
           <div>
             <label className="text-xs text-zinc-500 font-bold uppercase tracking-wider block mb-1">Notion Internal API Key</label>
             <input 
@@ -88,14 +91,14 @@ export function DataIntegrationPanel() {
           </div>
 
           <button 
-            onClick={handleNotionSync}
+            type="submit"
             disabled={syncing || !notionKey || !notionDb}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-6 py-3 rounded-xl font-bold transition"
           >
             {syncing ? <Loader2 size={18} className="animate-spin" /> : <LinkIcon size={18} />}
             Notion'a Eşitle
           </button>
-        </div>
+        </form>
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">

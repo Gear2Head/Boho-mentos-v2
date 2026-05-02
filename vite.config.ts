@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => ({
   esbuild: {
     drop: mode === 'production' ? ['console', 'debugger'] : [],
   },
-  base: '/', // PWA ve Vercel uyumluluğu için kök dizin temelli path
+  base: '/',
   plugins: [
     tailwindcss(),
     react(),
@@ -18,57 +18,63 @@ export default defineConfig(({ mode }) => ({
       manifest: {
         name: 'Boho Mentosluk',
         short_name: 'BohoApp',
-        description: 'YKS 2026 Mentörlük İşletim Sistemi',
+        description: 'YKS 2026 mentorluk isletim sistemi',
         theme_color: '#121212',
         background_color: '#121212',
         display: 'standalone',
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
         orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+        ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,ico,png,svg,woff,woff2,ttf}'],
-        navigateFallback: null, // Force network-first or no-cache for navigation
+        navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
           {
             urlPattern: /^\/api\/(?!ai).*/,
             handler: 'NetworkFirst',
-            options: { cacheName: 'api-cache' }
-          }
-        ]
-      }
-    })
+            options: { cacheName: 'api-cache' },
+          },
+        ],
+      },
+    }),
   ],
   server: {
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3001',
         changeOrigin: true,
-        rewrite: (path) => path
-      }
-    }
+        rewrite: (path) => path,
+      },
+    },
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
   build: {
-    emptyOutDir: true, // Her build öncesi dist'i temizle
+    emptyOutDir: true,
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {

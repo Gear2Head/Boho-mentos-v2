@@ -5,6 +5,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { triggerConfetti } from '../../utils/confetti';
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
+import { triggerHaptic } from '../../services/mobileCapabilities';
 
 export interface CoachSlice {
   lastCoachDirective: CoachDirective | null;
@@ -71,6 +72,7 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
 
       // Konfeti ve Store Güncelleme
       triggerConfetti();
+      void triggerHaptic('success');
       import('../../utils/audioEngine').then(({ AudioEngine }) => AudioEngine.playSuccess());
       set({ directiveHistory: newHistory, coachMemory: newMemory });
       addElo(bonus, 'coach_task_complete', `coach_task:${recordId}:${index}:complete`);
@@ -110,6 +112,7 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       const newHistory = m.updateInHistory(directiveHistory, nr);
       const newMemory = m.updateCoachMemory(newHistory, coachMemory);
       set({ directiveHistory: newHistory, coachMemory: newMemory });
+      void triggerHaptic('warning');
       addElo(-15, 'coach_task_fail', `coach_task:${recordId}:${index}:fail`);
       if (authUser?.uid) {
         setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);

@@ -185,12 +185,14 @@ export function AdminDashboard({ onBack }: Props) {
           <h2 className="text-xl font-bold text-center text-white mb-2">Admin Paneli Kilidi</h2>
           <p className="text-xs text-zinc-500 text-center mb-8 uppercase tracking-widest">Girmek için şifreyi girin</p>
           
-          <div className="space-y-4">
+          <form 
+            className="space-y-4"
+            onSubmit={(e) => { e.preventDefault(); handleUnlock(); }}
+          >
             <input 
               type="password"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
               placeholder="Şifre"
               className="w-full px-4 py-3 bg-black border border-zinc-800 rounded-xl text-center text-xl tracking-[0.5em] outline-none focus:border-zinc-600 transition-colors"
               autoFocus
@@ -198,13 +200,13 @@ export function AdminDashboard({ onBack }: Props) {
             />
             {errorMsg && <p className="text-[10px] text-red-500 text-center font-bold">{errorMsg}</p>}
             <button 
-              onClick={handleUnlock}
+              type="submit"
               className="w-full py-4 bg-white text-black rounded-xl font-black uppercase tracking-[0.2em] text-xs hover:bg-zinc-200 transition-all shadow-lg"
             >
               Kilidi Aç
             </button>
-            <button onClick={onBack} className="w-full py-2 text-zinc-600 text-[10px] uppercase font-bold tracking-widest hover:text-zinc-400">Vazgeç</button>
-          </div>
+            <button type="button" onClick={onBack} className="w-full py-2 text-zinc-600 text-[10px] uppercase font-bold tracking-widest hover:text-zinc-400">Vazgeç</button>
+          </form>
         </div>
       </div>
     );

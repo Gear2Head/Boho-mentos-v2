@@ -5,6 +5,7 @@ import {
     Crown, Flame, Gem, Shield, Star, Swords, Target, Trophy, Zap,
     Sparkles, Rocket, Diamond, Coins, Package, Palette, Timer, BrainCircuit, BarChart3, Hexagon
 } from 'lucide-react';
+import { triggerHaptic } from '../../services/mobileCapabilities';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 export type CrateTier = 'standard' | 'epic' | 'legendary' | 'wooden' | 'bronze' | 'silver' | 'gold' | 'mythic' | 'cosmic';
@@ -506,6 +507,7 @@ export function CrateOpening({
     const winner = reelRewards[WINNER_IDX];
 
     const startSpin = useCallback(async () => {
+        void triggerHaptic('light');
         const finalOffset = WINNER_IDX * STRIDE + CARD_W / 2;
         const DURATION = 7000;
         const startTime = Date.now();
@@ -532,6 +534,7 @@ export function CrateOpening({
         if (tickRef.current) clearInterval(tickRef.current);
         setResult(winner);
         setPhase('result');
+        void triggerHaptic('reward');
     }, [controls, winner]);
 
     const handleCrateDone = useCallback(() => {
@@ -540,6 +543,7 @@ export function CrateOpening({
     }, [startSpin]);
 
     const handleResultDone = useCallback(() => {
+        void triggerHaptic('success');
         onComplete(winner);
     }, [onComplete, winner]);
 

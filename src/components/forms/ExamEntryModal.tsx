@@ -48,6 +48,7 @@ export function ExamEntryModal({ isOpen, onClose, onSave, track }: ExamEntryModa
   const [examType, setExamType] = useState<'TYT' | 'AYT'>('TYT');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [scores, setScores] = useState<Record<string, { correct: number, wrong: number }>>({});
+  const [publisher, setPublisher] = useState('');
 
   const sections = examType === 'TYT' ? TYT_SECTIONS : (AYT_SECTIONS[track] || []);
 
@@ -111,8 +112,9 @@ export function ExamEntryModal({ isOpen, onClose, onSave, track }: ExamEntryModa
       date,
       type: examType,
       totalNet: safeTotal,
-      scores: processedScores
-    });
+      scores: processedScores,
+      ...(publisher.trim() ? { publisher: publisher.trim() } : {}),
+    } as any);
   };
 
   if (!isOpen) return null;
@@ -151,6 +153,27 @@ export function ExamEntryModal({ isOpen, onClose, onSave, track }: ExamEntryModa
                    className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-2.5 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors"
                  />
                </div>
+            </div>
+
+            {/* Yayın Etiketi */}
+            <div>
+              <label className="text-[10px] uppercase font-bold tracking-widest text-[#C17767] block mb-2">Yayın / Kaynak</label>
+              <select
+                value={publisher}
+                onChange={e => setPublisher(e.target.value)}
+                className="w-full bg-[#121212] border border-[#2A2A2A] text-zinc-200 p-2.5 rounded-xl text-sm focus:outline-none focus:border-[#C17767] transition-colors"
+              >
+                <option value="">Belirtilmemiş</option>
+                <option value="3D Yayınları">3D Yayınları</option>
+                <option value="Bilgi Sarmal">Bilgi Sarmal</option>
+                <option value="Orijinal YKS">Orijinal YKS</option>
+                <option value="Dijital Test">Dijital Test</option>
+                <option value="AYT Denemesi">AYT Denemesi</option>
+                <option value="TYT Denemesi">TYT Denemesi</option>
+                <option value="Türkiye Geneli">Türkiye Geneli</option>
+                <option value="Kurum Denemesi">Kurum Denemesi</option>
+                <option value="Diğer">Diğer</option>
+              </select>
             </div>
 
             <div className="flex-1 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">

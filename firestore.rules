@@ -1,16 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Yardımcı fonskiyonlar
+
+    // ─── Yardımcı Fonksiyonlar ────────────────────────────────────────────────
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
     function isSuperAdmin() {
       return isAuthenticated() && (
         request.auth.token.superAdmin == true ||
@@ -19,63 +19,130 @@ service cloud.firestore {
     }
 
     function isValidImage() {
-      return !('url' in request.resource.data) || (request.resource.data.url is string && request.resource.data.url.matches('https://firebasestorage.googleapis.com/.*'));
+      return !('url' in request.resource.data) ||
+        (request.resource.data.url is string &&
+         request.resource.data.url.matches('https://firebasestorage.googleapis.com/.*'));
     }
 
+    function ownerSafeUserUpdate() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role',
+        'claims',
+        'superAdmin',
+        'admin',
+        'uid',
+        'email',
+        'created_at'
+      ]);
+    }
+
+    // ─── Kullanıcılar ─────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Profil: Liderlik tablosu veya arama için sadece belirli alanlar dışarı açılmalı.
+      // Liderlik tablosu için tüm authenticated kullanıcılar okuyabilir.
       allow read: if isAuthenticated();
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isSuperAdmin();
+      allow update: if isSuperAdmin() || (isOwner(userId) && ownerSafeUserUpdate());
       allow delete: if isSuperAdmin();
-      
-      // -- Alt Koleksiyonlar (Subcollections) --
-      
+
+      // -- Akademik Alt Koleksiyonlar --
       match /logs/{logId} {
         allow read, delete: if isOwner(userId) || isSuperAdmin();
-        // Minimal schema: only core identity fields required. Other fields (fatigue, avgTime, etc.) are optional.
-        allow create, update: if (isOwner(userId) || isSuperAdmin()) && 
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
                               request.resource.data.keys().hasAll(['id', 'date', 'subject']);
       }
-      
+
       match /exams/{examId} {
         allow read, delete: if isOwner(userId) || isSuperAdmin();
-        // Schema Validation
         allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
-                              request.resource.data.keys().hasAll(['id', 'date', 'type', 'totalNet', 'scores']); 
+                              request.resource.data.keys().hasAll(['id', 'date', 'type', 'totalNet', 'scores']);
       }
 
-      // Diğer veriler için standart sahiplik kontrolü
-      match /chatHistory/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
-      match /conversations/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
-      match /agendaEntries/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
-      match /focusSessions/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      // -- Genel Alt Koleksiyonlar --
+      match /chatHistory/{document=**}     { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /conversations/{document=**}   { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /agendaEntries/{document=**}   { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /focusSessions/{document=**}   { allow read, write: if isOwner(userId) || isSuperAdmin(); }
       match /failedQuestions/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
-      match /directiveHistory/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
-      match /flashcards/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /directiveHistory/{document=**}{ allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /flashcards/{document=**}      { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+
+      // -- Profil Ziyaretçi Duvarı (Wall) --
+      // Herkes okuyabilir; yazarken günlük spam koruması Firestore'dan ziyade servis katmanında.
+      match /wall/{entryId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() &&
+                      request.resource.data.keys().hasAll(['from', 'emoji', 'note', 'createdAt']) &&
+                      request.resource.data.note is string &&
+                      request.resource.data.note.size() <= 200;
+        allow delete: if isOwner(userId) || isSuperAdmin();
+        allow update: if false; // Duvar notları düzenlenemez
+      }
+
+      // -- Başarı Sertifikaları --
+      match /certificates/{certId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isOwner(userId) || isSuperAdmin();
+        allow delete: if isSuperAdmin();
+      }
     }
-    
-    // Sistem config: Anonim erişim kapatıldı.
+
+    // ─── Sistem Konfigürasyonu ─────────────────────────────────────────────────
     match /system_config/{document=**} {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
     }
-    
+
+    // ─── Küresel Topluluk Hedefleri ───────────────────────────────────────────
+    // Herkes okuyabilir; yazma sadece increment operasyonu olan authenticated kullanıcılar.
+    match /communityGoals/{goalId} {
+      allow read: if isAuthenticated();
+      allow create: if isSuperAdmin();
+      // Kullanıcılar yalnızca `current` sayacını artırabilir, yapıyı değiştiremez.
+      allow update: if isAuthenticated() &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current', 'updatedAt']) &&
+                    request.resource.data.current >= resource.data.current;
+      allow delete: if isSuperAdmin();
+
+      match /participants/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId) || isSuperAdmin();
+      }
+    }
+
+    // ─── Başarı Sertifikaları (Genel Galeri) ──────────────────────────────────
+    match /publicCertificates/{certId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    request.resource.data.uid == request.auth.uid;
+      allow delete: if resource.data.uid == request.auth.uid || isSuperAdmin();
+      allow update: if false;
+    }
+
+    // ─── Eski Yapı (Geriye Dönük Uyumluluk) ──────────────────────────────────
     match /failed_questions/{userId}/{allPaths=**} {
       allow read: if isOwner(userId) || isSuperAdmin();
       allow write: if isOwner(userId) && isValidImage();
     }
-    
-    // Admin logları (audit)
+
+    // ─── Admin Logları ────────────────────────────────────────────────────────
     match /admin_logs/{document=**} {
       allow read, write: if isSuperAdmin();
     }
-    
-    // DM Chat Odaları
+
+    // ─── DM Chat Odaları (global_chats) ──────────────────────────────────────
+    // Chat odası ID'si her zaman iki UID'nin alfabetik birleşimi olmalı.
     match /global_chats/{chatRoomId} {
-      allow read, write: if isAuthenticated() && chatRoomId.matches('.*' + request.auth.uid + '.*');
+      allow read, write: if isAuthenticated() &&
+                          chatRoomId.matches('.*' + request.auth.uid + '.*');
       match /messages/{messageId} {
-        allow read, write: if isAuthenticated() && chatRoomId.matches('.*' + request.auth.uid + '.*');
+        allow read: if isAuthenticated() &&
+                     chatRoomId.matches('.*' + request.auth.uid + '.*');
+        allow create: if isAuthenticated() &&
+                       chatRoomId.matches('.*' + request.auth.uid + '.*') &&
+                       request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp']) &&
+                       request.resource.data.senderId == request.auth.uid &&
+                       (request.resource.data.text is string && request.resource.data.text.size() <= 2000);
+        allow update, delete: if false; // Mesajlar silinemez/düzenlenemez (istemci tarafından)
       }
     }
   }

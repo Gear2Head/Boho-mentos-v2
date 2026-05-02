@@ -80,9 +80,14 @@ export function useVisualViewportHeight(): void {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    let rafId: number;
+
     function syncHeight() {
-      const height = window.visualViewport?.height ?? window.innerHeight;
-      document.documentElement.style.setProperty("--vh", `${height * 0.01}px`);
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const height = window.visualViewport?.height ?? window.innerHeight;
+        document.documentElement.style.setProperty("--vh", `${height * 0.01}px`);
+      });
     }
 
     syncHeight();
@@ -94,10 +99,14 @@ export function useVisualViewportHeight(): void {
       return () => {
         vv.removeEventListener("resize", syncHeight);
         vv.removeEventListener("scroll", syncHeight);
+        if (rafId) cancelAnimationFrame(rafId);
       };
     } else {
       window.addEventListener("resize", syncHeight, { passive: true });
-      return () => window.removeEventListener("resize", syncHeight);
+      return () => {
+        window.removeEventListener("resize", syncHeight);
+        if (rafId) cancelAnimationFrame(rafId);
+      };
     }
   }, []);
 }
