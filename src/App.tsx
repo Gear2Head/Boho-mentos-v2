@@ -95,6 +95,7 @@ import { ActiveBoostStrip } from './components/ActiveBoostStrip';
 // --- Helper ---
 
 import { YKS_TARGET_DATE_TYT, YKS_TARGET_DATE_AYT } from './config/examConfig';
+import { Analytics } from '@vercel/analytics/react';
 
 const YKS_2026_TYT_DATE = YKS_TARGET_DATE_TYT;
 const YKS_2026_AYT_DATE = YKS_TARGET_DATE_AYT;
@@ -847,6 +848,7 @@ export default function App() {
           )}
         </AnimatePresence>
       </MainLayout>
+      <Analytics />
     </MobileGuard>
   );
 }
