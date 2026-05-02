@@ -9,9 +9,9 @@ import { CrateCard } from './CrateCard';
 import { SlotMachine } from './SlotMachine';
 
 const RewardPreviewPopup = ({ crate, onClose }: { crate: typeof CRATE_CONFIG[keyof typeof CRATE_CONFIG]; onClose: () => void }) => {
-  const pool = REWARD_POOLS[crate.tier] || [];
+  const pool = (REWARD_POOLS && crate?.tier) ? (REWARD_POOLS[crate.tier] || []) : [];
   const allItems = ALL_SHOP_ITEMS || [];
-  const totalWeight = pool.reduce((s: number, e: any) => s + e.weight, 0);
+  const totalWeight = pool.reduce((s: number, e: any) => s + (e.weight || 0), 0);
 
   return (
     <motion.div

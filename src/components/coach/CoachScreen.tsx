@@ -12,6 +12,7 @@ import { ChatMessage } from './ChatMessage';
 import { TypingIndicator } from './TypingIndicator';
 import { InputZone } from './InputZone';
 import { ConversationSidebar } from './ConversationSidebar';
+import { ContextBar } from './ContextBar';
 import { PanelLeftOpen } from 'lucide-react';
 import type { CoachIntent } from '../../types/coach';
 import { CoachBriefing } from '../CoachBriefing';
@@ -152,8 +153,32 @@ export function CoachScreen({
 
       {/* ── Main Chat Area ──────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0 relative bg-app">
+        <header className="shrink-0 border-b border-app bg-app/90 backdrop-blur-xl px-4 md:px-6 py-3">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {!isSidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="p-2 bg-surface border border-app text-ink-muted hover:text-ink transition-all rounded-lg shadow-sm"
+                  title="Gecmisi goster"
+                  aria-label="Gecmisi goster"
+                >
+                  <PanelLeftOpen size={16} />
+                </button>
+              )}
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-accent font-black">Kubra Mentor</div>
+                <p className="text-xs text-ink-muted truncate">Sakin muhakeme, net aksiyon, kontrollu hafiza.</p>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 text-[10px] text-ink-muted font-bold uppercase tracking-widest">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              Canli
+            </div>
+          </div>
+        </header>
         {/* Sticky Header Actions */}
-        <div className="absolute top-4 left-4 z-20 flex gap-2">
+        <div className="absolute top-4 left-4 z-20 hidden">
           {!isSidebarOpen && (
             <button 
               onClick={() => setSidebarOpen(true)}
@@ -173,7 +198,7 @@ export function CoachScreen({
           aria-live="polite"
           aria-label="Koç sohbet geçmişi"
         >
-          <div className="p-4 md:p-6 space-y-5 pb-4 max-w-3xl mx-auto w-full">
+          <div className="p-4 md:p-8 space-y-6 pb-4 max-w-3xl mx-auto w-full">
             {isEmpty ? (
               /* Empty state — CoachBriefing */
               <CoachBriefing
@@ -255,6 +280,7 @@ export function CoachScreen({
       </div>
 
       {/* ── Context Bar (sağ panel, sadece lg+) ────────────────────── */}
+      <ContextBar onQuickAction={onSendMessage} />
     </div>
   );
 }

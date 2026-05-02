@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { InlineMath, BlockMath } from 'react-katex';
-import CanvasDraw from 'react-canvas-draw';
 import { useAppStore } from '../../store/appStore';
 import { KaTeXBoundary } from '../KaTeXBoundary';
 
@@ -45,35 +44,6 @@ export function QuestionPanel({ question, children }: { question: any, children?
       )}
 
       {children}
-    </div>
-  );
-}
-
-export function CanvasLayer({ canvasRef }: { canvasRef: React.RefObject<any> }) {
-  const drawingMode = useAppStore(s => s.drawingMode);
-  const isDrawing = drawingMode !== 'pointer';
-
-  return (
-    <div 
-      className="absolute inset-0 z-30 transition-opacity duration-300 pointer-events-none"
-      style={{ 
-        pointerEvents: isDrawing ? 'auto' : 'none',
-        opacity: isDrawing ? 0.7 : 0.3,
-      }}
-    >
-      <div className="w-[2000px] h-[3000px]">
-        <CanvasDraw
-          ref={canvasRef}
-          brushColor={drawingMode === 'eraser' ? 'transparent' : '#C17767'}
-          brushRadius={drawingMode === 'eraser' ? 20 : 3}
-          lazyRadius={0}
-          canvasWidth={2000}
-          canvasHeight={3000}
-          hideGrid={true}
-          backgroundColor="transparent"
-          className="w-full h-full"
-        />
-      </div>
     </div>
   );
 }

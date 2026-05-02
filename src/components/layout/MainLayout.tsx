@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BrainCircuit, Calendar, Map as MapIcon, Target, BookOpen, PenTool, List, LayoutList, Archive, Clock, Settings, Eye, EyeOff, CloudOff, RefreshCcw, Pin, Trophy, AlertTriangle, Menu, LogOut, MessageCircle } from 'lucide-react';
+import { LayoutDashboard, BrainCircuit, Calendar, Map as MapIcon, Target, BookOpen, PenTool, List, LayoutList, Archive, Clock, Settings, Eye, EyeOff, CloudOff, RefreshCcw, Pin, Trophy, AlertTriangle, Menu, LogOut, MessageCircle, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { useAppStore } from '../../store/appStore';
@@ -31,15 +31,32 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const { isSyncing, isZenMode, setZenMode } = useAppStore(useShallow(s => ({ isSyncing: s.isSyncing, isZenMode: s.isZenMode, setZenMode: s.setZenMode })));
   const { isPassiveMode } = useAppStore(useShallow(s => ({ isPassiveMode: s.isPassiveMode })));
   const notifications = useAppStore(s => s.notifications);
+  const activeBoost = useAppStore(s => 
+    s.profile?.coachMemory?.commitments?.some(c =>
+      (c.startsWith('xpMultiplier:') || c.startsWith('coinMultiplier:')) &&
+      new Date(c.split(':')[1]) > new Date()
+    ) ?? false
+  );
 
   const syncStatus = 'synced' as string; 
   const [lastSyncClick, setLastSyncClick] = useState(0);
-  const COOLDOWN = 30000;
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const COOLDOWN = 60000; // 60 seconds
+
+  useEffect(() => {
+    if (cooldownRemaining > 0) {
+      const timer = setInterval(() => {
+        setCooldownRemaining(prev => Math.max(0, prev - 1000));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [cooldownRemaining]);
 
   const storeForceSync = () => {
     const now = Date.now();
     if (now - lastSyncClick < COOLDOWN) return;
     setLastSyncClick(now);
+    setCooldownRemaining(COOLDOWN);
     triggerManualSync();
   };
 
@@ -101,9 +118,32 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           <button onClick={() => setIsDMPanelOpen(true)} className="p-2 text-zinc-500">
             <MessageCircle size={18} />
           </button>
-          <button onClick={() => storeForceSync()} disabled={isCurrentlySyncing} className="p-2 text-zinc-500">
+          <button 
+            onClick={() => storeForceSync()} 
+            disabled={isCurrentlySyncing || cooldownRemaining > 0} 
+            className={`relative p-2 rounded-xl transition-all ${cooldownRemaining > 0 ? 'text-zinc-700' : 'text-zinc-500 hover:bg-white/5'}`}
+            title={cooldownRemaining > 0 ? `Bekle: ${Math.ceil(cooldownRemaining/1000)}s` : 'Senkronize Et'}
+          >
             {syncStatus === 'offline' ? <CloudOff size={18} /> : <RefreshCcw size={18} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
+            {cooldownRemaining > 0 && !isCurrentlySyncing && (
+              <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
+                <circle
+                  cx="50%" cy="50%" r="40%"
+                  fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeDasharray="100"
+                  strokeDashoffset={100 - (cooldownRemaining / COOLDOWN) * 100}
+                  className="opacity-20"
+                />
+              </svg>
+            )}
           </button>
+          {/* Active boost indicator */}
+          {activeBoost && (
+            <div className="relative p-1.5 bg-amber-500/20 rounded-lg" title="Aktif takviye var!">
+              <Zap size={14} className="text-amber-400" />
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full animate-ping" />
+            </div>
+          )}
           <div className="w-8 h-8 rounded-full overflow-hidden border border-app cursor-pointer" onClick={() => navigate('/profile')}>
             {profile?.avatar
               ? <img src={profile.avatar} alt="P" className="w-full h-full rounded-full object-cover" />

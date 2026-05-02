@@ -17,10 +17,11 @@ import type {
   CoachSystemContext,
 } from '../types/coach';
 import { useAppStore } from '../store/appStore';
+import { isCacheableCoachIntent, shouldForceJson, shouldRequestDirective } from './coachContract';
 
 
 // ─── Semantic Cache ─────────────────────────────────────────────────────────
-async function hashPayload(payload: any): Promise<string> {
+async function hashPayload(payload: unknown): Promise<string> {
   const msg = new TextEncoder().encode(JSON.stringify(payload));
   const hashBuffer = await crypto.subtle.digest('SHA-256', msg);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -135,12 +136,12 @@ export async function getCoachResponse(
     intent,
     userMessage,
     context,
-    chatHistory: chatHistory.slice(-6) as any,
+    chatHistory: chatHistory.slice(-8),
     coachPersonality: options.coachPersonality,
-    forceJson: options.forceJson,
+    forceJson: shouldForceJson(intent, shouldRequestDirective(intent, options.wantDirective)),
     maxTokens: options.maxTokens,
     userState: options.userState ?? _defaultUserState(),
-    wantDirective: options.wantDirective ?? false,
+    wantDirective: shouldRequestDirective(intent, options.wantDirective),
     imageBase64: options.imageBase64,
     imageMediaType: options.imageMediaType,
   };
@@ -149,8 +150,7 @@ export async function getCoachResponse(
     const cacheKey = await hashPayload(payload);
     const cachedResponse = getCache(cacheKey);
     // Cache hit — free_chat ve inverse_coaching hariç cache kontrol ediyoruz
-    const NO_CACHE_INTENTS = ['free_chat', 'inverse_coaching', 'intervention'];
-    if (cachedResponse && !NO_CACHE_INTENTS.includes(intent)) {
+    if (cachedResponse && isCacheableCoachIntent(intent)) {
       if (import.meta.env.DEV) console.log('[SemanticCache] Hit: ' + intent);
       // ASSUME: Cache'den dönen yanıtlar daily limit'i tüketmez
       return cachedResponse;
@@ -185,7 +185,7 @@ export async function getCoachResponse(
     }
 
     const finalResponse = data.text ?? 'Yanıt oluşturulamadı. Tekrar dene.';
-    if (data.text && !NO_CACHE_INTENTS.includes(intent)) {
+    if (data.text && isCacheableCoachIntent(intent)) {
       setCache(cacheKey, finalResponse, intent);
     }
     useAppStore.getState().incrementAiRequest();

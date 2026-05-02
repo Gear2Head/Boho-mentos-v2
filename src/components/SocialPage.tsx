@@ -30,6 +30,7 @@ export function SocialPage() {
 
   // Fetch initial warriors (active ones)
   useEffect(() => {
+    if (!authUser?.uid) return; // guard: don't query before auth is ready
     const q = query(collection(db, 'users'), orderBy('eloScore', 'desc'), limit(20));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(doc => {
@@ -187,12 +188,12 @@ export function SocialPage() {
                        <User size={18} />
                     </button>
                   </div>
-                  <button 
-                    onClick={() => navigate(`/profile/${selectedWarrior.uid}`)}
-                    className="w-full py-4 border border-white/10 text-zinc-400 rounded-2xl hover:text-white transition-all text-[10px] font-black uppercase tracking-widest"
-                  >
-                     PROFİLİ AYRINTILI İNCELE
-                  </button>
+                    <button 
+                      onClick={() => { useAppStore.getState().setViewingProfileUid(selectedWarrior.uid); setSelectedWarrior(null); }}
+                      className="w-full py-4 border border-white/10 text-zinc-400 rounded-2xl hover:text-white transition-all text-[10px] font-black uppercase tracking-widest"
+                    >
+                       PROFİLİ AYRINTILI İNCELE
+                    </button>
                </div>
             </motion.div>
           </div>

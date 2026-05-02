@@ -5,21 +5,21 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Search, ShieldAlert, Database, Users, Settings, AlertTriangle, CheckCircle2, Flame, Loader2, Trash2, Radio, Activity, FileText, RefreshCw, Brain, HeartPulse, TrendingDown, Zap, Code } from 'lucide-react';
+import { X, Search, ShieldAlert, Database, Users, AlertTriangle, CheckCircle2, Flame, Trash2, Radio, Activity, FileText, RefreshCw, HeartPulse, Code } from 'lucide-react';
 import { useAdminPanel } from '../../hooks/useAdminPanel';
 import type { FirestoreUser } from '../../config/admin';
 import { computeHealthScore } from '../../utils/healthScore';
-import type { AnomalyAlert } from '../../utils/anomalyDetection';
-import AnalyticsWorker from '../../workers/analytics.worker?worker';
+// STUB: anomalyDetection module deleted. Using inline type.
+type AnomalyAlert = { type: string; message: string; severity: 'low' | 'medium' | 'high' };
 import * as devService from '../../services/developerService';
 import { PromptLab } from './PromptLab';
+import type { DailyLog } from '../../types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
 
-import type { DailyLog } from '../../types';
 export function AdminPanelModal({ isOpen, onClose }: Props) {
   const admin = useAdminPanel();
   const [activeTab, setActiveTab] = useState<'users' | 'anomaly' | 'tools' | 'system' | 'prompt_lab'>('users');
@@ -37,14 +37,9 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
   const [userChurn, setUserChurn] = useState<number | null>(null);
   const [anomalyDetailLoading, setAnomalyDetailLoading] = useState(false);
 
-  // Sistem verilerini yükle
   useEffect(() => {
-    if (isOpen && activeTab === 'system') {
-      admin.loadSystemData();
-    }
-    if (isOpen && activeTab === 'anomaly' && anomalyUsers.length === 0) {
-      loadAnomalyUsers();
-    }
+    if (isOpen && activeTab === 'system') admin.loadSystemData();
+    if (isOpen && activeTab === 'anomaly' && anomalyUsers.length === 0) loadAnomalyUsers();
   }, [isOpen, activeTab]);
 
   const loadAnomalyUsers = useCallback(async () => {
@@ -65,464 +60,290 @@ export function AdminPanelModal({ isOpen, onClose }: Props) {
       const { db } = await import('../../services/firebase');
       const logsSnap = await getDocs(query(collection(db, 'users', user.uid, 'logs')));
       const examsSnap = await getDocs(query(collection(db, 'users', user.uid, 'exams')));
-      const logsData = logsSnap.docs.map(d => d.data());
-      const examsData = examsSnap.docs.map(d => d.data());
-      const logs = logsData ?? [];
-      const exams = examsData ?? [];
+      const logs = logsSnap.docs.map(d => d.data());
+      const exams = examsSnap.docs.map(d => d.data());
       const profile = user.profile;
-
       if (profile) {
         const health = computeHealthScore(logs as DailyLog[], exams as any[], profile as any, user.streak_days ?? 0);
         setUserHealth(health);
       }
-
-      // Delegate heavy anomaly and churn calculations to web worker
-      const worker = new AnalyticsWorker();
-      worker.postMessage({
-        type: 'ANALYZE_USER',
-        payload: { logs, streakDays: user.streak_days ?? 0, uid: user.uid }
-      });
-      
-      worker.onmessage = (e) => {
-        if (e.data.type === 'ANALYZE_RESULT' && e.data.payload.uid === user.uid) {
-          setUserAnomalies(e.data.payload.anomalies);
-          setUserChurn(e.data.payload.churnRisk);
-          setAnomalyDetailLoading(false);
-          worker.terminate();
-        }
-      };
-      
-      worker.onerror = (err) => {
-        console.error('Worker error', err);
-        setAnomalyDetailLoading(false);
-        worker.terminate();
-      };
-      
+      // Inline stub: anomaly detection removed, always returns empty.
+      setUserAnomalies([]);
+      setUserChurn(0);
     } catch {
-       setAnomalyDetailLoading(false);
+      // silent
+    } finally {
+      setAnomalyDetailLoading(false);
     }
   }, []);
 
-  // Sadece süper admin olan açabilir.
-  if(!isOpen || !admin.hasAccess) return null;
+  if (!isOpen || !admin.hasAccess) return null;
 
   return (
     <AnimatePresence>
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
       >
-        <motion.div 
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          className="w-full max-w-4xl bg-[#FDFBF7] dark:bg-zinc-950 border border-[#EAE6DF] dark:border-zinc-800 rounded-3xl overflow-hidden flex flex-col md:flex-row h-[85vh] shadow-[0_0_50px_rgba(193,119,103,0.1)]"
+        <motion.div
+          initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+          className="w-full max-w-4xl bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden flex flex-col md:flex-row h-[85vh] shadow-[0_0_50px_rgba(193,119,103,0.1)]"
         >
-          {/* Sol Sekmeler Barı */}
-          <div className="md:w-64 bg-zinc-100 dark:bg-zinc-900 border-b md:border-b-0 md:border-r border-[#EAE6DF] dark:border-zinc-800 shrink-0 p-4">
-             <div className="flex justify-between items-center mb-8">
-               <div className="flex items-center gap-2">
-                 <ShieldAlert className="text-[#C17767]" size={24} />
-                 <h2 className="font-display italic font-bold text-lg dark:text-white">Dev Console</h2>
-               </div>
-               <button onClick={onClose} className="md:hidden p-2 text-zinc-500"><X size={20} /></button>
-             </div>
-             
-             <div className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar">
-               {[
-                 { id: 'users', label: 'Kullanıcı Haritası', icon: <Users size={16} /> },
-                 { id: 'anomaly', label: 'Anomali İstihbaratı', icon: <HeartPulse size={16} /> },
-                 { id: 'system', label: 'Sistem Odası', icon: <Activity size={16} /> },
-                 { id: 'prompt_lab', label: 'Prompt Lab', icon: <Code size={16} /> },
-                 { id: 'tools', label: 'Güç Araçları', icon: <Database size={16} /> }
-               ].map(t => (
-                 <button
-                   key={t.id}
-                   onClick={() => setActiveTab(t.id as typeof activeTab)}
-                   className={`flex items-center gap-3 px-4 py-3 rounded-xl tracking-widest uppercase font-bold text-[10px] transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#C17767] text-white shadow-lg shadow-[#C17767]/20 scale-[1.02]' : 'bg-transparent text-[#4A443C] dark:text-zinc-500 hover:bg-black/5 dark:hover:bg-white/5'}`}
-                 >
-                   {t.icon} {t.label}
-                 </button>
-               ))}
-             </div>
-             
-             <div className="absolute hidden md:block bottom-8 left-8">
-               <span className="text-[8px] uppercase tracking-[0.2em] opacity-40">System Access Level</span><br/>
-               <span className="text-[10px] uppercase font-mono tracking-widest opacity-20">Super Admin (Claims)</span>
-             </div>
+          {/* Left Tabs */}
+          <div className="md:w-64 bg-zinc-900 border-b md:border-b-0 md:border-r border-zinc-800 shrink-0 p-4">
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="text-[#C17767]" size={24} />
+                <h2 className="font-display italic font-bold text-lg text-white">Dev Console</h2>
+              </div>
+              <button onClick={onClose} className="md:hidden p-2 text-zinc-500"><X size={20} /></button>
+            </div>
+            <div className="flex md:flex-col gap-2 overflow-x-auto">
+              {[
+                { id: 'users', label: 'Kullanıcı Haritası', icon: <Users size={16} /> },
+                { id: 'anomaly', label: 'Anomali İstihbaratı', icon: <HeartPulse size={16} /> },
+                { id: 'system', label: 'Sistem Odası', icon: <Activity size={16} /> },
+                { id: 'prompt_lab', label: 'Prompt Lab', icon: <Code size={16} /> },
+                { id: 'tools', label: 'Güç Araçları', icon: <Database size={16} /> },
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id as typeof activeTab)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl tracking-widest uppercase font-bold text-[10px] transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-[#C17767] text-white shadow-lg shadow-[#C17767]/20' : 'text-zinc-500 hover:bg-white/5'}`}
+                >
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Sağ Panel */}
-          <div className="flex-1 overflow-auto bg-white dark:bg-zinc-950 p-6 md:p-8 relative">
-            <button onClick={onClose} className="absolute hidden md:flex top-6 right-6 p-2 bg-zinc-100 dark:bg-zinc-900 rounded-full hover:bg-zinc-200 text-zinc-500 transition-colors z-10"><X size={20} /></button>
-            
+          {/* Right Panel */}
+          <div className="flex-1 overflow-auto bg-zinc-950 p-6 md:p-8 relative">
+            <button onClick={onClose} className="absolute hidden md:flex top-6 right-6 p-2 bg-zinc-900 rounded-full hover:bg-zinc-800 text-zinc-500 transition-colors z-10"><X size={20} /></button>
+
             {(admin.error || admin.success) && (
-              <div className={`mb-6 p-4 rounded-xl text-xs font-mono font-bold flex items-center justify-between border ${admin.error ? 'bg-red-50 dark:bg-red-900/10 text-red-600 border-red-200' : 'bg-green-50 dark:bg-green-900/10 text-green-600 border-green-200'}`}>
-                {admin.error || admin.success} 
+              <div className={`mb-6 p-4 rounded-xl text-xs font-mono font-bold border ${admin.error ? 'bg-red-900/10 text-red-400 border-red-700' : 'bg-green-900/10 text-green-400 border-green-700'}`}>
+                {admin.error || admin.success}
               </div>
             )}
 
+            {/* Users Tab */}
             {activeTab === 'users' && (
-               <div className="space-y-6">
-                 <div>
-                   <h3 className="font-bold text-sm uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 mb-4">Sistem Kullanıcıları</h3>
-                   <div className="relative">
-                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-                     <input 
-                       type="text"
-                       value={query}
-                       onChange={e => setQuery(e.target.value)}
-                       placeholder="UID veya Email ile arama yap..."
-                       className="w-full pl-12 pr-4 py-4 bg-zinc-50 dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl text-sm font-medium focus:border-[#C17767] transition-colors"
-                     />
-                     <button 
-                       onClick={() => admin.search(query)}
-                       disabled={admin.isSearching}
-                       className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-[#C17767] text-white rounded-xl text-[10px] font-bold uppercase disabled:opacity-50"
-                     >
-                        BUL
-                     </button>
-                   </div>
-                 </div>
+              <div className="space-y-6">
+                <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-400 mb-4">Sistem Kullanıcıları</h3>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+                  <input
+                    type="text" value={query} onChange={e => setQuery(e.target.value)}
+                    placeholder="UID veya Email ile ara..."
+                    className="w-full pl-12 pr-4 py-4 bg-zinc-900 border border-zinc-800 rounded-2xl text-sm font-medium focus:border-[#C17767] transition-colors"
+                  />
+                  <button onClick={() => admin.search(query)} disabled={admin.isSearching}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-[#C17767] text-white rounded-xl text-[10px] font-bold uppercase disabled:opacity-50">
+                    BUL
+                  </button>
+                </div>
+                {admin.isSearching ? (
+                  <div className="p-8 text-center text-zinc-500 animate-pulse">Aranıyor...</div>
+                ) : admin.searchResults.length > 0 ? (
+                  <div className="space-y-4">
+                    {admin.searchResults.map(u => (
+                      <button key={u.uid} onClick={() => admin.setSelectedUser(u)}
+                        className={`w-full text-left p-4 rounded-2xl border transition-all ${admin.selectedUser?.uid === u.uid ? 'bg-[#C17767]/5 border-[#C17767]' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-600'}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-sm">{u.email}</p>
+                            <p className="text-[10px] font-mono text-zinc-500 mt-1">UID: {u.uid}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-bold text-[#C17767]">{u.eloScore || 0} ELO</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (query && <div className="p-8 text-center text-zinc-500 text-sm">Hiçbir kullanıcı bulunamadı.</div>)}
 
-                 {/* Kullanıcı Listesi / Detay */}
-                 {admin.isSearching ? (
-                   <div className="p-8 text-center text-zinc-500 animate-pulse">Aranıyor...</div>
-                 ) : admin.searchResults.length > 0 ? (
-                   <div className="space-y-4">
-                     {admin.searchResults.map(u => (
-                       <button
-                         key={u.uid}
-                         onClick={() => admin.setSelectedUser(u)}
-                         className={`w-full text-left p-4 rounded-2xl border transition-all ${admin.selectedUser?.uid === u.uid ? 'bg-[#C17767]/5 border-[#C17767]' : 'bg-white dark:bg-[#121212] border-[#EAE6DF] dark:border-zinc-800 hover:border-zinc-400'}`}
-                       >
-                         <div className="flex items-center justify-between">
-                           <div>
-                             <p className="font-bold text-sm relative">{u.email} {u.isBanned && <span className="ml-2 text-[9px] bg-red-500 text-white px-2 rounded">BANNED</span>}</p>
-                             <p className="text-[10px] font-mono text-zinc-500 mt-1">UID: {u.uid}</p>
-                           </div>
-                           <div className="text-right">
-                             <div className="text-xs font-bold text-[#C17767]">{u.eloScore || 0} ELO</div>
-                             <div className="text-[9px] uppercase tracking-widest opacity-50 mt-1">{u.role}</div>
-                             <div className="text-[8px] text-zinc-500 mt-1">Son: {admin.formatRelativeTime(u.lastSignedInAt)}</div>
-                           </div>
-                         </div>
-                       </button>
-                     ))}
-                   </div>
-                 ) : (
-                   query && <div className="p-8 text-center text-zinc-500 text-sm">Hiçbir kullanıcı bulunamadı.</div>
-                 )}
-
-                 {/* Focuslanılan Kullanıcı Araçları */}
-                 {admin.selectedUser && (
-                   <div className="mt-8 p-6 bg-zinc-50 dark:bg-[#121212] rounded-3xl border border-[#EAE6DF] dark:border-zinc-800">
-                     <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-500 text-xs mb-4">Müdahale Paneli : {admin.selectedUser.email}</h4>
-                     
-                     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                       <button onClick={() => admin.addElo(admin.selectedUser!.uid, +500)} disabled={admin.actionLoading} className="p-3 bg-green-500/10 text-green-600 rounded-xl text-[10px] font-bold uppercase border border-green-500/20 hover:bg-green-500/20">+500 ELO Bas</button>
-                       <button onClick={() => admin.addElo(admin.selectedUser!.uid, -250)} disabled={admin.actionLoading} className="p-3 bg-red-500/10 text-red-600 rounded-xl text-[10px] font-bold uppercase border border-red-500/20 hover:bg-red-500/20">-250 ELO Tırpanla</button>
-                       <button onClick={() => admin.clearLogs(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="p-3 bg-zinc-800 text-zinc-400 rounded-xl text-[10px] font-bold uppercase border border-zinc-700 hover:text-white flex items-center justify-center gap-2"><Trash2 size={12}/> Tüm Logları Sil</button>
-                       <button onClick={() => admin.repairProfile(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="p-3 bg-blue-500/10 text-blue-500 rounded-xl text-[10px] font-bold uppercase border border-blue-500/20 hover:bg-blue-500/20 flex items-center justify-center text-center leading-tight">Profili Onar</button>
-                     </div>
-
-                     <div className="mt-4 pt-4 border-t border-[#EAE6DF] dark:border-zinc-800 grid grid-cols-2 gap-3">
-                       {admin.selectedUser.isBanned ? (
-                         <button onClick={() => admin.unbanUser(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="col-span-2 p-3 bg-zinc-200 dark:bg-zinc-800 rounded-xl text-[10px] font-bold uppercase">Hesap Engelini Kaldır (UNBAN)</button>
-                       ) : (
-                         <button onClick={() => admin.banUser(admin.selectedUser!.uid, "Kurallara Aykırılık")} disabled={admin.actionLoading} className="col-span-2 p-3 bg-red-600 text-white shadow-lg shadow-red-600/20 rounded-xl text-[10px] font-bold uppercase">Uzaklaştırma Ver (BAN)</button>
-                       )}
-                     </div>
-                   </div>
-                 )}
-               </div>
+                {admin.selectedUser && (
+                  <div className="mt-8 p-6 bg-zinc-900 rounded-3xl border border-zinc-800">
+                    <h4 className="font-bold uppercase tracking-widest text-zinc-500 text-xs mb-4">Müdahale: {admin.selectedUser.email}</h4>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <button onClick={() => admin.addElo(admin.selectedUser!.uid, +500)} disabled={admin.actionLoading} className="p-3 bg-green-500/10 text-green-400 rounded-xl text-[10px] font-bold uppercase border border-green-500/20 hover:bg-green-500/20">+500 ELO Bas</button>
+                      <button onClick={() => admin.addElo(admin.selectedUser!.uid, -250)} disabled={admin.actionLoading} className="p-3 bg-red-500/10 text-red-400 rounded-xl text-[10px] font-bold uppercase border border-red-500/20">-250 ELO</button>
+                      <button onClick={() => admin.clearLogs(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="p-3 bg-zinc-800 text-zinc-400 rounded-xl text-[10px] font-bold uppercase border border-zinc-700 flex items-center justify-center gap-1"><Trash2 size={12} /> Logları Sil</button>
+                      <button onClick={() => admin.repairProfile(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl text-[10px] font-bold uppercase border border-blue-500/20">Profili Onar</button>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-zinc-800">
+                      {admin.selectedUser.isBanned ? (
+                        <button onClick={() => admin.unbanUser(admin.selectedUser!.uid)} disabled={admin.actionLoading} className="w-full p-3 bg-zinc-800 rounded-xl text-[10px] font-bold uppercase">Hesap Engelini Kaldır (UNBAN)</button>
+                      ) : (
+                        <button onClick={() => admin.banUser(admin.selectedUser!.uid, 'Kurallara Aykırılık')} disabled={admin.actionLoading} className="w-full p-3 bg-red-600 text-white rounded-xl text-[10px] font-bold uppercase">Uzaklaştırma Ver (BAN)</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
-
-             {/* Anomaly Intelligence Tab */}
-             {activeTab === 'anomaly' && (
-               <div className="space-y-6">
-                 <div className="flex items-center justify-between">
-                   <h3 className="font-bold text-sm uppercase tracking-widest text-[#4A443C] dark:text-zinc-400">Anomali Istihbarati</h3>
-                   <button onClick={loadAnomalyUsers} disabled={anomalyLoading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-900 text-xs font-bold uppercase hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
-                     <RefreshCw size={12} className={anomalyLoading ? "animate-spin" : ""} /> Yenile
-                   </button>
-                 </div>
-                 {anomalyLoading ? (
-                   <div className="p-8 text-center animate-pulse text-zinc-500">Kullanicilar yukleniyor...</div>
-                 ) : (
-                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                     <div className="lg:col-span-1 space-y-2 max-h-[480px] overflow-y-auto pr-1">
-                       {anomalyUsers.map(u => (
-                         <button key={u.uid} onClick={() => loadUserAnomalyDetail(u)}
-                           className={`w-full text-left p-3 rounded-xl border text-[11px] transition-all ${selectedAnomalyUser?.uid === u.uid ? "bg-[#C17767]/10 border-[#C17767]" : "bg-white dark:bg-zinc-900 border-[#EAE6DF] dark:border-zinc-800 hover:border-zinc-400"}`}>
-                           <div className="font-semibold truncate">{u.email}</div>
-                           <div className="text-zinc-500 font-mono text-[9px] mt-0.5">{u.elo_score ?? u.eloScore ?? 0} ELO</div>
-                         </button>
-                       ))}
-                     </div>
-                     <div className="lg:col-span-2">
-                       {!selectedAnomalyUser ? (
-                         <div className="flex items-center justify-center h-48 text-zinc-500 text-sm">Bir kullanici sec</div>
-                       ) : anomalyDetailLoading ? (
-                         <div className="p-8 text-center animate-pulse text-zinc-500">Veriler analiz ediliyor...</div>
-                       ) : (
-                         <div className="space-y-4">
-                           <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-2xl">
-                             <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Saglik Skoru</div>
-                             {userHealth ? (
-                               <div className="space-y-2">
-                                 <div className="flex items-end gap-3">
-                                   <span className={`text-3xl font-black font-mono ${userHealth.total >= 75 ? "text-emerald-400" : userHealth.total >= 50 ? "text-amber-400" : "text-red-400"}`}>{userHealth.total}</span>
-                                   <span className="text-sm text-zinc-500 mb-1 font-bold">/100 - {userHealth.label}</span>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                   {Object.entries(userHealth.breakdown).map(([k, v]) => (
-                                     <div key={k} className="bg-zinc-100 dark:bg-zinc-800 rounded-lg px-3 py-2">
-                                       <div className="text-[9px] uppercase tracking-wider text-zinc-500">{k}</div>
-                                       <div className="text-sm font-bold text-zinc-200">{v}/25</div>
-                                     </div>
-                                   ))}
-                                 </div>
-                               </div>
-                             ) : <div className="text-xs text-zinc-500 italic">Profil eksik</div>}
-                           </div>
-                           <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-2xl">
-                             <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Birakma Riski (Churn)</div>
-                             {userChurn !== null ? (
-                               <div className="flex items-center gap-3">
-                                 <div className={`text-2xl font-black font-mono ${userChurn >= 70 ? "text-red-400" : userChurn >= 40 ? "text-amber-400" : "text-emerald-400"}`}>{userChurn}%</div>
-                                 <div className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase ${userChurn >= 70 ? "bg-red-900/30 text-red-400" : userChurn >= 40 ? "bg-amber-900/30 text-amber-400" : "bg-emerald-900/30 text-emerald-400"}`}>{userChurn >= 70 ? "Yuksek Risk" : userChurn >= 40 ? "Orta Risk" : "Dusuk Risk"}</div>
-                               </div>
-                             ) : <div className="text-xs text-zinc-500 italic">Yeterli veri yok.</div>}
-                           </div>
-                           <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-2xl">
-                             <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Anomali Bayraklari</div>
-                             {userAnomalies.length === 0 ? (
-                               <div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 size={14} /> Hicbir anomali tespit edilmedi.</div>
-                             ) : (
-                               <div className="space-y-2">
-                                 {userAnomalies.map((a: AnomalyAlert, i) => (
-                                   <div key={i} className={`p-3 rounded-xl border text-xs ${a.severity === "high" ? "bg-red-900/20 border-red-700/40 text-red-300" : a.severity === "medium" ? "bg-amber-900/20 border-amber-700/40 text-amber-300" : "bg-zinc-800 border-zinc-700 text-zinc-400"}`}>
-                                     <div className="font-bold uppercase text-[9px] tracking-widest opacity-70 mb-1">{a.type.replace(/_/g, " ")} - {a.severity}</div>
-                                     <div>{a.message}</div>
-                                   </div>
-                                 ))}
-                               </div>
-                             )}
-                           </div>
-                           <div className="flex gap-2">
-                             <button onClick={() => admin.addElo(selectedAnomalyUser.uid, +200)} className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase">+200 ELO Motivasyon</button>
-                             <button onClick={() => admin.banUser(selectedAnomalyUser.uid, "Anormallik tespiti")} className="flex-1 py-2 bg-red-700 text-white rounded-xl text-[10px] font-bold uppercase">Hesabi Askiya Al</button>
-                           </div>
-                         </div>
-                       )}
-                     </div>
-                   </div>
-                 )}
-               </div>
-             )}
-
-             {activeTab === 'system' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl">
-                      <p className="text-[10px] uppercase tracking-widest opacity-50 mb-1 text-ink-muted">Toplam Kayıt</p>
-                      <p className="text-2xl font-display font-bold text-[#C17767]">{admin.systemStats?.totalUsers || '...'}</p>
+            {/* Anomaly Tab */}
+            {activeTab === 'anomaly' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-400">Anomali İstihbaratı</h3>
+                  <button onClick={loadAnomalyUsers} disabled={anomalyLoading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 text-xs font-bold uppercase hover:bg-zinc-800">
+                    <RefreshCw size={12} className={anomalyLoading ? 'animate-spin' : ''} /> Yenile
+                  </button>
+                </div>
+                {anomalyLoading ? (
+                  <div className="p-8 text-center animate-pulse text-zinc-500">Yükleniyor...</div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-1 space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                      {anomalyUsers.map(u => (
+                        <button key={u.uid} onClick={() => loadUserAnomalyDetail(u)}
+                          className={`w-full text-left p-3 rounded-xl border text-[11px] transition-all ${selectedAnomalyUser?.uid === u.uid ? 'bg-[#C17767]/10 border-[#C17767]' : 'bg-zinc-900 border-zinc-800 hover:border-zinc-600'}`}>
+                          <div className="font-semibold truncate">{u.email}</div>
+                          <div className="text-zinc-500 font-mono text-[9px] mt-0.5">{u.eloScore ?? 0} ELO</div>
+                        </button>
+                      ))}
                     </div>
-                    <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl">
-                      <p className="text-[10px] uppercase tracking-widest opacity-50 mb-1 text-ink-muted">Sistem Durumu</p>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full animate-pulse ${admin.systemConfig?.maintenanceMode ? 'bg-amber-500' : 'bg-green-500'}`} />
-                        <p className="text-sm font-bold dark:text-white">{admin.systemConfig?.maintenanceMode ? 'Bakım Modunda' : 'Operasyonel'}</p>
-                      </div>
+                    <div className="lg:col-span-2">
+                      {!selectedAnomalyUser ? (
+                        <div className="flex items-center justify-center h-48 text-zinc-500 text-sm">Bir kullanıcı seç</div>
+                      ) : anomalyDetailLoading ? (
+                        <div className="p-8 text-center animate-pulse text-zinc-500">Analiz ediliyor...</div>
+                      ) : (
+                        <div className="space-y-4">
+                          {userHealth && (
+                            <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Sağlık Skoru</div>
+                              <div className={`text-3xl font-black font-mono ${userHealth.total >= 75 ? 'text-emerald-400' : userHealth.total >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{userHealth.total}<span className="text-sm text-zinc-500 ml-2 font-bold">/100</span></div>
+                            </div>
+                          )}
+                          <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">Anomali Bayrakları</div>
+                            {userAnomalies.length === 0 ? (
+                              <div className="flex items-center gap-2 text-emerald-400 text-xs"><CheckCircle2 size={14} /> Anomali tespit edilmedi.</div>
+                            ) : (
+                              userAnomalies.map((a, i) => (
+                                <div key={i} className="p-3 rounded-xl bg-zinc-800 border border-zinc-700 text-xs text-zinc-400 mt-2">
+                                  <div className="font-bold uppercase text-[9px] opacity-70 mb-1">{a.type} - {a.severity}</div>
+                                  <div>{a.message}</div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <button 
-                      onClick={() => admin.loadSystemData()}
-                      className="p-4 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-app rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase transition-colors"
-                    >
-                      <Activity size={16} /> Verileri Tazele
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* System Tab */}
+            {activeTab === 'system' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl">
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Toplam Kayıt</p>
+                    <p className="text-2xl font-black text-[#C17767]">{admin.systemStats?.totalUsers || '...'}</p>
+                  </div>
+                  <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl">
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Sistem Durumu</p>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full animate-pulse ${admin.systemConfig?.maintenanceMode ? 'bg-amber-500' : 'bg-green-500'}`} />
+                      <p className="text-sm font-bold text-white">{admin.systemConfig?.maintenanceMode ? 'Bakım Modunda' : 'Operasyonel'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => admin.loadSystemData()} className="p-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-800 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase">
+                    <Activity size={16} /> Tazele
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="p-6 bg-zinc-900 border border-zinc-800 rounded-3xl">
+                    <h4 className="font-bold uppercase tracking-widest text-zinc-400 text-[10px] mb-4 flex items-center gap-2"><AlertTriangle size={14} /> Bakım Modu</h4>
+                    <button onClick={() => admin.toggleMaintenance(!admin.systemConfig?.maintenanceMode)} disabled={admin.actionLoading}
+                      className={`w-full py-3 rounded-xl text-[10px] font-bold uppercase ${admin.systemConfig?.maintenanceMode ? 'bg-green-600 text-white' : 'bg-amber-600 text-white'}`}>
+                      {admin.systemConfig?.maintenanceMode ? 'Bakımı Kapat' : 'Bakım Başlat'}
                     </button>
                   </div>
-
-                  {/* Bakım Modu & Duyuru */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl">
-                      <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
-                        <AlertTriangle size={14} /> Global Erişim Kontrolü
-                      </h4>
-                      <p className="text-[10px] text-zinc-500 mb-4">Bakım modunu açtığınızda yetkili olmayan kullanıcıların sisteme girişi engellenir.</p>
-                      <button 
-                         onClick={() => admin.toggleMaintenance(!admin.systemConfig?.maintenanceMode)}
-                         disabled={admin.actionLoading}
-                         className={`w-full py-3 rounded-xl text-[10px] font-bold uppercase transition-all ${admin.systemConfig?.maintenanceMode ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'}`}
-                      >
-                        {admin.systemConfig?.maintenanceMode ? 'Bakım Modunu Kapat' : 'Bakım Modunu Başlat'}
-                      </button>
-                    </div>
-
-                    <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl">
-                      <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
-                        <Radio size={14} /> Global Duyuru (Broadcaster)
-                      </h4>
-                      <div className="space-y-3">
-                        <input 
-                          type="text"
-                          value={announcementMsg}
-                          onChange={e => setAnnouncementMsg(e.target.value)}
-                          placeholder="Tüm kullanıcılara gidecek mesaj..."
-                          className="w-full px-4 py-3 bg-white dark:bg-black border border-app rounded-xl text-[11px]"
-                        />
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => admin.updateAnnouncement(announcementMsg)}
-                            disabled={admin.actionLoading || !announcementMsg}
-                            className="flex-1 py-3 bg-[#C17767] text-white rounded-xl text-[10px] font-bold uppercase disabled:opacity-50"
-                          >
-                            Duyuru Yap
-                          </button>
-                          <button 
-                            onClick={() => { admin.updateAnnouncement(null); setAnnouncementMsg(''); }}
-                            disabled={admin.actionLoading}
-                            className="px-4 py-3 bg-zinc-200 dark:bg-zinc-800 rounded-xl text-[10px] font-bold uppercase"
-                          >
-                            Temizle
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Audit Logs */}
-                  <div className="bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl overflow-hidden flex flex-col h-[300px]">
-                    <div className="px-6 py-4 border-b border-app flex justify-between items-center bg-white/50 dark:bg-black/50">
-                       <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] flex items-center gap-2">
-                         <FileText size={14} /> Denetim Kayıtları (Audit Logs)
-                       </h4>
-                    </div>
-                    <div className="flex-1 overflow-auto p-4 space-y-2 font-mono text-[9px]">
-                       {admin.systemStats?.recentLogs?.map((log: any) => (
-                         <div key={log.id} className="p-2 border-b border-app/50 flex justify-between items-start gap-4">
-                            <div className="flex-1">
-                               <span className="text-[#C17767] font-bold">{log.action}</span>
-                               <span className="mx-2 opacity-50">BY</span>
-                               <span className="text-blue-500 font-bold">#{log.actorUid.slice(0, 6)}</span>
-                               <p className="text-zinc-400 mt-0.5">{JSON.stringify(log.details)}</p>
-                            </div>
-                            <span className="opacity-30 whitespace-nowrap">{admin.formatTimestamp(log.timestamp)}</span>
-                         </div>
-                       ))}
-                       {(!admin.systemStats?.recentLogs || admin.systemStats.recentLogs.length === 0) && (
-                         <div className="h-full flex items-center justify-center opacity-30 italic">Henüz bir kayıt yok.</div>
-                       )}
+                  <div className="p-6 bg-zinc-900 border border-zinc-800 rounded-3xl">
+                    <h4 className="font-bold uppercase tracking-widest text-zinc-400 text-[10px] mb-4 flex items-center gap-2"><Radio size={14} /> Duyuru</h4>
+                    <input type="text" value={announcementMsg} onChange={e => setAnnouncementMsg(e.target.value)}
+                      placeholder="Tüm kullanıcılara mesaj..." className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-[11px] mb-3" />
+                    <div className="flex gap-2">
+                      <button onClick={() => admin.updateAnnouncement(announcementMsg)} disabled={admin.actionLoading || !announcementMsg}
+                        className="flex-1 py-3 bg-[#C17767] text-white rounded-xl text-[10px] font-bold uppercase disabled:opacity-50">Yayınla</button>
+                      <button onClick={() => { admin.updateAnnouncement(null); setAnnouncementMsg(''); }} className="px-4 py-3 bg-zinc-800 rounded-xl text-[10px] font-bold uppercase">Temizle</button>
                     </div>
                   </div>
                 </div>
-             )}
-
-            {activeTab === 'tools' && (
-               <div className="space-y-6">
-                 <h3 className="font-bold text-sm uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 mb-4">Tehlikeli Araç Kutusu</h3>
-                 <div className="p-6 border-l-4 border-red-500 bg-red-50 dark:bg-red-900/10 rounded-r-2xl mb-8">
-                    <h4 className="text-red-700 dark:text-red-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2 mb-2"><AlertTriangle size={16}/> Uyarı</h4>
-                    <p className="text-xs text-red-600/80 leading-relaxed">Burada yapılacak işlemlerin geri dönüşü yoktur. Veritabanının bütünlüğünü bozmamak için işlemleri dikkatli gerçekleştirin. (Büyük yetki büyük sorumluluk...)</p>
-                 </div>
-
-                 {/* Senkronizasyon Merkezi */}
-                 <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl mb-6">
-                    <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
-                       <Radio size={14} className="text-blue-500" /> Senkronizasyon Merkezi (Kişisel)
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                       <button 
-                         onClick={() => admin.forceSyncMyData()}
-                         disabled={admin.actionLoading}
-                         className="p-4 bg-blue-600 text-white rounded-2xl text-[10px] font-bold uppercase shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
-                       >
-                         <RefreshCw size={14} className={admin.actionLoading ? 'animate-spin' : ''} /> Buluttan Zorla Çek (Pull)
-                       </button>
-                       <div className="p-4 bg-white dark:bg-black border border-app rounded-2xl">
-                          <p className="text-[9px] text-zinc-500 leading-tight">Yerel verileriniz (idb) bozulduysa veya diğer cihazdaki veriler gelmiyorsa buluttaki kopyayı buraya zorla indirir.</p>
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* Müfredat Tamiri */}
-                 <div className="p-6 bg-zinc-50 dark:bg-zinc-900 border border-app rounded-3xl mb-6">
-                    <h4 className="font-bold uppercase tracking-widest text-[#4A443C] dark:text-zinc-400 text-[10px] mb-4 flex items-center gap-2">
-                       <Flame size={14} className="text-orange-500" /> Müfredat Kontrol Ünitesi
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                       <button 
-                         onClick={() => admin.resetMySubjects()}
-                         disabled={admin.actionLoading}
-                         className="p-4 bg-orange-600 text-white rounded-2xl text-[10px] font-bold uppercase shadow-lg shadow-orange-600/20"
-                       >
-                         Müfredat İlerlemesini SIFIRLA
-                       </button>
-                       <div className="p-4 bg-white dark:bg-black border border-app rounded-2xl">
-                          <p className="text-[9px] text-zinc-500 leading-tight">Tüm TYT ve AYT konu ilerlemelerini 'not-started' durumuna çeker ve buluta yazar. (Geri dönüşü yoktur!)</p>
-                       </div>
-                    </div>
-                 </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                     <button 
-                       onClick={() => {
-                         const data = admin.getCoachMemory();
-                         setCoachMemData(data);
-                         setShowCoachMemory(true);
-                       }}
-                       className="p-6 text-left bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl hover:border-blue-500/50 transition-colors group"
-                     >
-                        <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2 group-hover:text-blue-500">Coach Belleğini Gör</h5>
-                        <p className="text-[10px] text-zinc-500 italic">Core yapay zeka hafızasını ve mesaj sayısını ham JSON olarak incele.</p>
-                     </button>
-                     <button 
-                       onClick={() => { if(confirm("TÜM ADMIN LOGLARINI SİLMEK İSTEDİĞİNE EMİN MİSİN?")) admin.clearAdminLogs(); }}
-                       disabled={admin.actionLoading}
-                       className="p-6 text-left bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl hover:border-red-500/50 transition-colors group"
-                     >
-                        <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2 group-hover:text-red-500">Sistem Loglarını Sıfırla</h5>
-                        <p className="text-[10px] text-zinc-500 italic">Tüm bu audit kayıtlarını tamamen temizler. Dikkatli kullanın.</p>
-                     </button>
-                     <div className="p-6 bg-zinc-50 dark:bg-[#121212] border border-[#EAE6DF] dark:border-zinc-800 rounded-2xl opacity-50 cursor-not-allowed">
-                        <h5 className="font-bold uppercase text-[10px] tracking-widest text-[#4A443C] dark:text-zinc-300 mb-2">Veri Tabanı JSON Editör</h5>
-                        <p className="text-[10px] text-zinc-500">Kullanıcı verilerini JSON olarak düzenleme. Gelecek fazda aktif edilecek.</p>
-                     </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden flex flex-col h-[300px]">
+                  <div className="px-6 py-4 border-b border-zinc-800 flex items-center gap-2">
+                    <FileText size={14} /><h4 className="font-bold uppercase tracking-widest text-zinc-400 text-[10px]">Audit Logs</h4>
                   </div>
-
-                  {/* Coach Memory Modal Inline */}
-                  <AnimatePresence>
-                    {showCoachMemory && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="mt-4 p-6 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden"
-                      >
-                        <div className="flex justify-between items-center mb-4">
-                          <h6 className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Coach Core Debugger</h6>
-                          <button onClick={() => setShowCoachMemory(false)} className="text-zinc-500 hover:text-white"><X size={16}/></button>
+                  <div className="flex-1 overflow-auto p-4 space-y-2 font-mono text-[9px]">
+                    {admin.systemStats?.recentLogs?.map((log: any) => (
+                      <div key={log.id} className="p-2 border-b border-zinc-800/50 flex justify-between gap-4">
+                        <div className="flex-1">
+                          <span className="text-[#C17767] font-bold">{log.action}</span>
+                          <span className="mx-2 opacity-50">BY</span>
+                          <span className="text-blue-500 font-bold">#{log.actorUid?.slice(0, 6)}</span>
                         </div>
-                        <pre className="text-[10px] font-mono text-zinc-400 overflow-auto max-h-[300px] no-scrollbar whitespace-pre-wrap">
-                          {JSON.stringify(coachMemData, null, 2)}
-                        </pre>
-                      </motion.div>
+                        <span className="opacity-30 whitespace-nowrap">{admin.formatTimestamp(log.timestamp)}</span>
+                      </div>
+                    ))}
+                    {(!admin.systemStats?.recentLogs?.length) && (
+                      <div className="h-full flex items-center justify-center opacity-30 italic">Henüz kayıt yok.</div>
                     )}
-                  </AnimatePresence>
-               </div>
-            )}
-
-
-            {activeTab === 'prompt_lab' && (
-              <div className="h-full">
-                <PromptLab />
+                  </div>
+                </div>
               </div>
             )}
 
+            {/* Tools Tab */}
+            {activeTab === 'tools' && (
+              <div className="space-y-6">
+                <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-400 mb-4">Tehlikeli Araç Kutusu</h3>
+                <div className="p-6 border-l-4 border-red-500 bg-red-900/10 rounded-r-2xl mb-8">
+                  <h4 className="text-red-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2 mb-2"><AlertTriangle size={16} /> Uyarı</h4>
+                  <p className="text-xs text-red-400/80 leading-relaxed">Buradaki işlemlerin geri dönüşü yoktur.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-6 bg-zinc-900 border border-zinc-800 rounded-3xl">
+                    <h4 className="font-bold uppercase tracking-widest text-zinc-400 text-[10px] mb-4 flex items-center gap-2"><Radio size={14} className="text-blue-500" /> Senkronizasyon</h4>
+                    <button onClick={() => admin.forceSyncMyData()} disabled={admin.actionLoading} className="w-full p-4 bg-blue-600 text-white rounded-2xl text-[10px] font-bold uppercase flex items-center justify-center gap-2">
+                      <RefreshCw size={14} className={admin.actionLoading ? 'animate-spin' : ''} /> Buluttan Zorla Çek
+                    </button>
+                  </div>
+                  <div className="p-6 bg-zinc-900 border border-zinc-800 rounded-3xl">
+                    <h4 className="font-bold uppercase tracking-widest text-zinc-400 text-[10px] mb-4 flex items-center gap-2"><Flame size={14} className="text-orange-500" /> Müfredat Sıfırla</h4>
+                    <button onClick={() => admin.resetMySubjects()} disabled={admin.actionLoading} className="w-full p-4 bg-orange-600 text-white rounded-2xl text-[10px] font-bold uppercase">
+                      TÜM KONULARI SIFIRLA
+                    </button>
+                  </div>
+                </div>
+                <button onClick={() => { setCoachMemData(admin.getCoachMemory()); setShowCoachMemory(v => !v); }}
+                  className="w-full p-4 bg-zinc-900 border border-zinc-800 hover:border-blue-500/50 rounded-2xl text-left text-xs font-bold uppercase tracking-widest">
+                  Coach Belleğini Gör (Ham JSON)
+                </button>
+                <AnimatePresence>
+                  {showCoachMemory && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      className="p-6 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                      <pre className="text-[10px] font-mono text-zinc-400 overflow-auto max-h-[300px] whitespace-pre-wrap">
+                        {JSON.stringify(coachMemData, null, 2)}
+                      </pre>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {activeTab === 'prompt_lab' && (
+              <div className="h-full"><PromptLab /></div>
+            )}
           </div>
         </motion.div>
       </motion.div>

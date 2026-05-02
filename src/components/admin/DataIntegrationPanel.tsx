@@ -72,6 +72,7 @@ export function DataIntegrationPanel() {
               value={notionKey} 
               onChange={e => setNotionKey(e.target.value)} 
               placeholder="secret_..." 
+              autoComplete="off"
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
             />
           </div>

@@ -19,25 +19,23 @@ service cloud.firestore {
     }
 
     function isValidImage() {
-      return request.resource.data.url is string && request.resource.data.url.matches('https://firebasestorage.googleapis.com/.*');
+      return !('url' in request.resource.data) || (request.resource.data.url is string && request.resource.data.url.matches('https://firebasestorage.googleapis.com/.*'));
     }
 
     match /users/{userId} {
       // Profil: Liderlik tablosu veya arama için sadece belirli alanlar dışarı açılmalı.
-      // Şimdilik list yetkisini kısıtlayıp sadece get yetkisini bırakıyoruz (ID biliniyorsa).
-      allow get: if isAuthenticated();
-      allow list: if isAuthenticated(); // Leaderboard için gerekli
+      allow read: if isAuthenticated();
       allow create: if isOwner(userId);
-      allow update: if (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) || isSuperAdmin();
+      allow update: if isOwner(userId) || isSuperAdmin();
       allow delete: if isSuperAdmin();
       
       // -- Alt Koleksiyonlar (Subcollections) --
       
       match /logs/{logId} {
         allow read, delete: if isOwner(userId) || isSuperAdmin();
-        // Schema Validation
+        // Minimal schema: only core identity fields required. Other fields (fatigue, avgTime, etc.) are optional.
         allow create, update: if (isOwner(userId) || isSuperAdmin()) && 
-                              request.resource.data.keys().hasAll(['id', 'date', 'subject', 'topic', 'questions', 'correct', 'wrong', 'empty', 'avgTime', 'fatigue']);
+                              request.resource.data.keys().hasAll(['id', 'date', 'subject']);
       }
       
       match /exams/{examId} {

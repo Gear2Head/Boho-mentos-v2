@@ -29,6 +29,19 @@ export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forc
 
   useEffect(() => {
     if (!authUser?.uid || !selectedUser?.uid) return;
+    
+    // Fetch name if it's generic
+    if (selectedUser.name === 'Savaşçı') {
+      import('firebase/firestore').then(({ doc, getDoc }) => {
+        getDoc(doc(db, 'users', selectedUser.uid)).then(snap => {
+          if (snap.exists()) {
+            const data = snap.data();
+            setSelectedUser(prev => prev ? { ...prev, name: data.profile?.name || data.display_name || 'Savaşçı' } : null);
+          }
+        });
+      });
+    }
+
     const chatRoomId = [authUser.uid, selectedUser.uid].sort().join('_');
     const q = query(collection(db, 'global_chats', chatRoomId, 'messages'), orderBy('timestamp', 'asc'));
     return onSnapshot(q, (snap) => {

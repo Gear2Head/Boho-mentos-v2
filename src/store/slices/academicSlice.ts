@@ -199,8 +199,9 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     detectAndSetHabits();
 
     if (authUser?.uid) {
+      // PERF: Only write to subcollection. Never push full logs[] array to main doc.
       setDoc(doc(db, 'users', authUser.uid, 'logs', logWithId.id), cleanForFirestore(logWithId)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak }), { merge: true }).catch(console.error);
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ streakDays: newStreak }), { merge: true }).catch(console.error);
     }
   },
 
@@ -211,7 +212,8 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newStreak = recomputeStreak(false);
     if (authUser?.uid) {
       deleteDoc(doc(db, 'users', authUser.uid, 'logs', id)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak }), { merge: true }).catch(console.error);
+      // PERF: Don't push full logs[] to main doc on delete.
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ streakDays: newStreak }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
@@ -223,8 +225,9 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const newStreak = updates.date ? recomputeStreak(false) : get().streakDays;
     if (authUser?.uid) {
       const updated = newLogs.find(l => l.id === id);
+      // PERF: Only update the single log doc, never the full array.
       if (updated) setDoc(doc(db, 'users', authUser.uid, 'logs', id), cleanForFirestore(updated)).catch(console.error);
-      if (updates.date) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ logs: newLogs, streakDays: newStreak }), { merge: true }).catch(console.error);
+      if (updates.date) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ streakDays: newStreak }), { merge: true }).catch(console.error);
     }
     detectAndSetHabits();
   },
@@ -254,8 +257,8 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     addElo(eloDelta, 'exam_result', `exam:${normalizedExam.id}:elo`);
     
     if (authUser?.uid) {
+      // PERF: Only write to subcollection. Never push full exams[] to main doc.
       setDoc(doc(db, 'users', authUser.uid, 'exams', normalizedExam.id), cleanForFirestore(normalizedExam)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ exams: newExams }), { merge: true }).catch(console.error);
     }
   },
 

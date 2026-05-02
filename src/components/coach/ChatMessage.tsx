@@ -280,6 +280,11 @@ export const ChatMessage = memo(function ChatMessage({
                             ))}
                           </div>
                         )}
+                        {resc.length === 0 && task.subject && !isDone && (
+                          <div className="pl-5 mt-1 text-[9px] uppercase tracking-[0.18em] text-ink-muted">
+                            Onayli kaynak katalogunda bu konu icin eslesme yok.
+                          </div>
+                        )}
                       </div>
                     );
                   })}

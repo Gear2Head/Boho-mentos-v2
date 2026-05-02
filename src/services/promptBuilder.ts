@@ -15,6 +15,14 @@ GÖRSEL DÜZEN: Verileri (Netler, ELO, Loglar, Planlar) asla metin içinde boğm
 KURAL: "Gerekli adımları atın", "Çalışmaya devam edin", "Odaklanmalısınız" gibi genel ve belirsiz ifadeler KESİNLİKLE YASAKTIR. Her tavsiye ölçülebilir bir eylem içermelidir (Örn: "Şu konudan 40 soru çöz", "Haftalık programındaki Kimya saatini 2 saat artır").
 ANALİZ: Öğrencinin ELO puanı, unutma eğrisi ve net hedefleri arasındaki korelasyonu sürekli gözetirsin. Veri uyuşmazlığı yakalarsan sertçe uyar.`;
 
+const CLAUDE_STYLE_GUIDANCE = `
+[CLAUDE-BENZERI DAVRANIS]
+- Varsayilan ton sakin, dusunceli ve net olsun.
+- Serbest sohbette once kullanicinin niyetini anla, sonra kisa gerekceyle cevap ver.
+- Operasyonel intentlerde dogal metin + olculebilir aksiyon ayrimini koru.
+- Kaynak onerisinde sadece onayli katalog kaynaklarina dayan; kaynak yoksa bunu acikca soyle.
+- Gereksiz sertlik, bos motivasyon ve ham JSON gosterimi yasak.`;
+
 export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   daily_plan: `Öğrencinin mevcut durumunu analiz ederek bugün için somut bir çalışma planı oluştur. Planı bir TABLO içinde (Konu, Hedef Soru, Süre, Öncelik) formatında sun. "Çalış" deme; "Şu konudan şu kadar soru" de. Gerekçeni göster.`,
   log_analysis: `Girilen log verisini incele. Log özetini ve analizini TABLO ile göster. Doğruluk oranı, hız, yorgunluk ve alışkanlık örüntülerini analiz et. 3 maddeli aksiyon planı çıkar.`,
@@ -43,6 +51,7 @@ export const INTENT_INSTRUCTIONS: Record<CoachIntent, string> = {
   generate_weekly_strategy: `Öğrencinin son 7 günlük verisini (loglar, denemeler, ELO) kullanarak önümüzdeki hafta için stratejik bir yol haritası çıkar. Yol haritasını TABLO ile sun. Odaklanılacak 3 ana konu, 2 kritik risk ve 1 büyük hedef belirle.`,
 
   quiz_generation: `Öğrencinin anladığı konuları pekiştirmek için zorlayıcı ve analitik becerilerini ölçecek çoktan seçmeli YKS tipinde sorular üret. Gerekli yerlerde çeldiriciler kullan. SADECE JSON formatında bir seçenek listesi döndür.`,
+  socratic_force: `Claude benzeri sakin Sokratik mod. Direkt cevap verme; once ogrencinin varsayimini netlestiren tek iyi soru sor, sonra cevabina gore adim adim ilerle. Gereksiz sertlik kullanma.`,
 };
 
 const STRUCTURED_JSON_INSTRUCTION = `
@@ -89,7 +98,7 @@ export function buildSystemInstruction(
   const staleStr = context?.staleAdvicePatterns?.length
     ? `\n[TEKRARLAMA YASAK - ŞU TAVSiYELERi VERME]: ${context.staleAdvicePatterns.join(', ')}`
     : '';
-  return `${COACH_PERSONA_BASE}${personalityStr}\n\nGÖREV: ${intentGuide}\n\n${contextStr}${staleStr}`;
+  return `${COACH_PERSONA_BASE}${CLAUDE_STYLE_GUIDANCE}${personalityStr}\n\nGÖREV: ${intentGuide}\n\n${contextStr}${staleStr}`;
 }
 
 export function buildStructuredSystemInstruction(

@@ -34,7 +34,27 @@ export type CoachIntent =
   | 'daily_quest'
   | 'vision_archive_parse'
   | 'generate_weekly_strategy'
-  | 'quiz_generation';
+  | 'quiz_generation'
+  | 'socratic_force';
+
+export type CoachProviderId = 'groq' | 'openrouter' | 'gemini';
+
+export interface CoachProviderMeta {
+  provider: CoachProviderId;
+  model: string;
+  keyIndex?: number;
+}
+
+export type CoachMemoryVisibility = 'private' | 'visible' | 'hidden';
+
+export interface CoachMemoryControl {
+  id: string;
+  label: string;
+  value: string;
+  source: 'derived' | 'user' | 'system';
+  visibility: CoachMemoryVisibility;
+  updatedAt: string;
+}
 
 // ─── Task (Görev Nesnesi) ────────────────────────────────────────────────────
 
@@ -124,9 +144,12 @@ export type WarningType =
   | 'low_accuracy'
   | 'streak_break'
   | 'burnout_risk'
-  | 'target_gap';
+  | 'burnout'
+  | 'target_gap'
+  | 'plateau'
+  | 'time_risk';
 
-export type WarningSeverity = 'info' | 'warning' | 'critical';
+export type WarningSeverity = 'info' | 'warning' | 'medium' | 'high' | 'critical';
 
 export interface CoachWarning {
   type: WarningType;
@@ -260,6 +283,10 @@ export interface CoachSystemContext {
   callerSurface?: CoachIntent;
   /** [B5]: Koçun tekrarladığı tavsiyeler — prompt'ta TEKRARLAMA YASAK olarak geçer */
   staleAdvicePatterns?: string[];
+  /** Kontrollu hafiza: kullanici ayarlardan gorup duzeltebilir/silebilir. */
+  memoryControls?: CoachMemoryControl[];
+  /** Manuel katalogda onayli kaynak bulunan konu/ders anahtarlari. */
+  approvedResourceTopics?: string[];
   
   // v2 AI Prompts Fields (Aikocpromt.md Section 5)
   failedQuestions?: number;
@@ -304,6 +331,7 @@ export interface CoachApiResponse {
   directive?: CoachDirective;
   error?: string;
   providerUsed?: string;
+  providerMeta?: CoachProviderMeta;
 }
 
 // ─── Intervention ─────────────────────────────────────────────────────────────
@@ -333,6 +361,46 @@ export interface Flashcard {
   nextReviewAt: string;
   reviewCount: number;
   lastCorrect: boolean | null;
+}
+
+export interface GeneratedFlashcard {
+  front: string;
+  back: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  subject: string;
+  topic?: string;
+  sourceEvidence?: string;
+}
+
+export interface VisionOcrLogCandidate {
+  subject: string;
+  topic: string;
+  questions: number;
+  correct: number;
+  wrong: number;
+  empty: number;
+  confidence: number;
+  evidence: string;
+}
+
+export interface PredictiveNetProjection {
+  examType: 'TYT' | 'AYT';
+  projectedMonth: string;
+  projectedNet: number;
+  confidence: 'low' | 'medium' | 'high';
+  rationale: string;
+  blockers: string[];
+}
+
+export interface WeeklyGuardianReport {
+  studentName: string;
+  weekStart: string;
+  weekEnd: string;
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  nextWeekActions: string[];
+  projections: PredictiveNetProjection[];
 }
 
 // ─── TODO-011: Ghost Rival ───────────────────────────────────────────────────

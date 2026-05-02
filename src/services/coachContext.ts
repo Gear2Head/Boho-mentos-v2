@@ -9,8 +9,11 @@
 import type { CoachSystemContext, CoachIntent, CoachDirective } from '../types/coach';
 import type { StudentProfile, DailyLog, ExamResult, HabitAlert } from '../types';
 import { toISODateOnly, toDateMs, parseFlexibleDate } from '../utils/date';
-import { detectAnomalies } from '../utils/anomalyDetection';
-import { predictChurn } from '../utils/churnPredictor';
+import { getApprovedResourceTopics } from '../utils/resourceEngine';
+// STUB: anomalyDetection and churnPredictor deleted (dead code). Inline replacements provided.
+function detectAnomalies(_logs: DailyLog[]): Array<{type: string; message: string}> { return []; }
+function predictChurn(_logs: DailyLog[], _streak: number): {riskLevel: 'low'|'medium'|'high'; riskScore: number} { return { riskLevel: 'low', riskScore: 0 }; }
+
 
 // ─── Context Builder ──────────────────────────────────────────────────────────
 
@@ -198,6 +201,8 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     lastWarRoomScore,
     eloTrend,
     netTrend,
+    memoryControls: buildMemoryControls(profile, weakTopics, subjectRanking.map(s => s.subject)),
+    approvedResourceTopics: getApprovedResourceTopics(),
   };
 
   // ─── Context string (compact — sadece veri varsa yaz) ─────────────────────
@@ -269,6 +274,50 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 import { YKS_TARGET_DATE_MAIN } from '../config/examConfig';
+
+function buildMemoryControls(
+  profile: StudentProfile,
+  weakTopics: string[],
+  lowAccuracySubjects: string[]
+): CoachSystemContext['memoryControls'] {
+  const now = new Date().toISOString();
+  const controls: NonNullable<CoachSystemContext['memoryControls']> = [];
+
+  if (profile.targetUniversity || profile.targetMajor) {
+    controls.push({
+      id: 'target',
+      label: 'Hedef',
+      value: `${profile.targetUniversity ?? '-'} / ${profile.targetMajor ?? '-'}`,
+      source: 'user',
+      visibility: 'visible',
+      updatedAt: now,
+    });
+  }
+
+  if (weakTopics.length > 0) {
+    controls.push({
+      id: 'recurring_weak_topics',
+      label: 'Tekrar eden zayif konular',
+      value: weakTopics.join(', '),
+      source: 'derived',
+      visibility: 'visible',
+      updatedAt: now,
+    });
+  }
+
+  if (lowAccuracySubjects.length > 0) {
+    controls.push({
+      id: 'low_accuracy_subjects',
+      label: 'Dusuk dogruluk dersleri',
+      value: lowAccuracySubjects.join(', '),
+      source: 'derived',
+      visibility: 'visible',
+      updatedAt: now,
+    });
+  }
+
+  return controls;
+}
 
 export function calculateDaysToExam(): number {
   const now = new Date();

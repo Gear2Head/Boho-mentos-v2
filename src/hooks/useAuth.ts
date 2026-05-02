@@ -115,8 +115,7 @@ export function useAuth() {
            'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
            'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
            'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
-           'coachMemory', 'exams', 'logs', 'failedQuestions', 'agendaEntries',
-           'focusSessions', 'flashcards', 'unlockedAchievementIds', 'userAchievements'
+           'coachMemory', 'unlockedAchievementIds', 'userAchievements'
          ];
 
          fields.forEach(field => {
@@ -223,8 +222,7 @@ export function useAuth() {
           'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
           'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
           'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
-          'coachMemory', 'exams', 'logs', 'failedQuestions', 'agendaEntries',
-          'focusSessions', 'flashcards', 'unlockedAchievementIds', 'userAchievements'
+          'coachMemory', 'unlockedAchievementIds', 'userAchievements'
         ];
 
         fields.forEach(field => {

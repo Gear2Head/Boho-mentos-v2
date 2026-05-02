@@ -19,6 +19,7 @@ import {
   addToHistory,
   updateCoachMemory,
 } from '../services/directiveHistory';
+import { shouldRequestDirective } from '../services/coachContract';
 import { compactChatHistory } from '../services/contextSummarizer';
 import type { CoachIntent, CoachDirective } from '../types/coach';
 import type { DailyLog, ExamResult } from '../types';
@@ -133,9 +134,7 @@ export function useCoachCore(): UseCoachCoreReturn {
 
         // 2. AI çağrısı — intent bazlı (BUILD-001, COACH-003, AI-005)
         // [SOBET-MODE-FIX]: Eğer kullanıcı dertleşiyorsa veya soru soruyorsa forceJson (wantDirective) yapmıyoruz.
-        const shouldForceDirective = wantDirective || 
-          ['daily_plan', 'weekly_review', 'exam_analysis', 'topic_explain'].includes(intent) ||
-          (userMessage.length > 10 && /yap|plan|hedef|görev|analiz/i.test(userMessage));
+        const shouldForceDirective = shouldRequestDirective(intent, wantDirective);
 
         const rawText = await getCoachResponse(
           userMessage,

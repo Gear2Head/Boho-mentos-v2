@@ -30,14 +30,14 @@ function validateAndNormalizeQuestion(
 ): WarRoomQuestion | null {
   if (!raw || typeof raw !== 'object') {
     console.warn(`[WarRoom] Soru ${index}: geçersiz nesne`, raw);
-    return buildFallbackQuestion(fallbackExamType, 'Geçersiz Obje', fallbackDifficulty);
+    return buildFallbackQuestion(fallbackExamType, 'Geçersiz Obje', fallbackDifficulty, index);
   }
 
   const q = raw as Record<string, unknown>;
 
   if (!q.text || typeof q.text !== 'string' || q.text.trim().length < 5) {
     console.warn(`[WarRoom] Soru ${index}: "text" eksik`, q.text);
-    return buildFallbackQuestion(fallbackExamType, 'Geçersiz Soru', fallbackDifficulty);
+    return buildFallbackQuestion(fallbackExamType, 'Geçersiz Soru', fallbackDifficulty, index);
   }
 
   let options: string[] = [];
@@ -81,10 +81,11 @@ function validateAndNormalizeQuestion(
 function buildFallbackQuestion(
   examType: 'TYT' | 'AYT',
   topic: string,
-  difficulty: string
+  difficulty: string,
+  index: number = 0
 ): WarRoomQuestion {
   return {
-    id: `offline_mock_${Date.now()}`,
+    id: `offline_mock_${Date.now()}_${index}`,
     subject: examType,
     topic: topic || 'Temel Kavramlar',
     difficulty: (VALID_DIFFICULTIES.has(difficulty) ? difficulty : 'medium') as WarRoomQuestion['difficulty'],
@@ -103,10 +104,9 @@ function buildFallbackArray(
   topic: string,
   difficulty: string
 ): WarRoomQuestion[] {
-  return Array.from({ length: Math.max(1, count) }, (_, index) => ({
-    ...buildFallbackQuestion(examType, topic, difficulty),
-    id: `offline_mock_${Date.now()}_${index}`,
-  }));
+  return Array.from({ length: Math.max(1, count) }, (_, index) => (
+    buildFallbackQuestion(examType, topic, difficulty, index)
+  ));
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

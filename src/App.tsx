@@ -796,6 +796,34 @@ export default function App() {
 
         <CoachInterventionModal />
         <AdminPanelModal isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} />
+
+        <AnimatePresence>
+          {useAppStore(s => s.viewingProfileUid) && (
+            <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => useAppStore.getState().setViewingProfileUid(null)}
+                className="absolute inset-0 bg-black/90 backdrop-blur-md" 
+              />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative w-full max-w-2xl max-h-[90vh] bg-zinc-950 border border-white/10 rounded-[40px] shadow-2xl overflow-hidden flex flex-col"
+              >
+                <div className="absolute top-6 right-6 z-10">
+                  <button 
+                    onClick={() => useAppStore.getState().setViewingProfileUid(null)}
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-zinc-400 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                  <ProfileShowcase isPublic targetUid={useAppStore.getState().viewingProfileUid!} />
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </MainLayout>
     </MobileGuard>
   );

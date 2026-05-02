@@ -89,8 +89,8 @@ export function useVisualViewportHeight(): void {
 
     const vv = window.visualViewport;
     if (vv) {
-      vv.addEventListener("resize", syncHeight);
-      vv.addEventListener("scroll", syncHeight);
+      vv.addEventListener("resize", syncHeight, { passive: true });
+      vv.addEventListener("scroll", syncHeight, { passive: true });
       return () => {
         vv.removeEventListener("resize", syncHeight);
         vv.removeEventListener("scroll", syncHeight);

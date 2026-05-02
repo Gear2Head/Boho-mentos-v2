@@ -194,6 +194,7 @@ export function AdminDashboard({ onBack }: Props) {
               placeholder="Şifre"
               className="w-full px-4 py-3 bg-black border border-zinc-800 rounded-xl text-center text-xl tracking-[0.5em] outline-none focus:border-zinc-600 transition-colors"
               autoFocus
+              autoComplete="off"
             />
             {errorMsg && <p className="text-[10px] text-red-500 text-center font-bold">{errorMsg}</p>}
             <button 

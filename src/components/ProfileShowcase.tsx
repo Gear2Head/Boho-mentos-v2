@@ -426,115 +426,186 @@ export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; t
         </div>
       </div>
 
-      {/* Inventory Section */}
+      {/* Inventory Section - Pro Max */}
       <div className="bg-surface border border-app rounded-3xl p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <Package size={24} className="text-amber-500" />
-          <h3 className="font-serif italic text-xl text-ink">Envanter & Aktif Takviyeler</h3>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-amber-500/10 rounded-xl">
+            <Package size={20} className="text-amber-500" />
+          </div>
+          <div>
+            <h3 className="font-serif italic text-xl text-ink leading-none">Envanter & Aktif Takviyeler</h3>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-black mt-0.5">
+              {(inventory?.items?.length || 0) + Object.values(inventory?.boosts || {}).reduce((a: number, v) => a + (v as number), 0)} EŞYA
+            </p>
+          </div>
         </div>
 
-        {/* ACTIVE BOOSTS */}
+        {/* ACTIVE TIMED BOOSTS BANNER */}
         {profile?.coachMemory?.commitments?.some(c => c.includes('Multiplier')) && (
-           <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-               {profile.coachMemory.commitments.map((commitment, idx) => {
-                  if (commitment.startsWith('xpMultiplier:') || commitment.startsWith('coinMultiplier:')) {
-                     const [type, expiresAt] = commitment.split(':');
-                     const expiryDate = new Date(expiresAt);
-                     const isExpired = expiryDate < new Date();
-                     if (isExpired) return null;
-                     
-                     const timeLeftMs = expiryDate.getTime() - new Date().getTime();
-                     const minutesLeft = Math.ceil(timeLeftMs / (1000 * 60));
-                     
-                     return (
-                         <div key={`active-${idx}`} className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl flex items-center justify-between relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/20 blur-xl pointer-events-none" />
-                            <div className="flex items-center gap-4 relative z-10">
-                               <div className="p-3 bg-amber-500/20 rounded-xl">
-                                  <Timer className="text-amber-500 animate-pulse" size={20} />
-                               </div>
-                               <div>
-                                  <h4 className="font-bold text-amber-500 text-sm leading-tight">
-                                      {type === 'xpMultiplier' ? '2x Odak Çarpanı' : '2x Coin Çarpanı'}
-                                  </h4>
-                                  <p className="text-[10px] uppercase font-black text-amber-500/80 tracking-widest mt-1">Süre: {minutesLeft} dk</p>
-                               </div>
-                            </div>
-                         </div>
-                     )
-                  }
-                  return null;
-               })}
-           </div>
+          <div className="mt-4 mb-6 space-y-3">
+            <p className="text-[9px] uppercase font-black tracking-[0.3em] text-amber-500/80">◈ AKTİF TAKVİYELER</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {profile.coachMemory.commitments.map((commitment, idx) => {
+                if (!(commitment.startsWith('xpMultiplier:') || commitment.startsWith('coinMultiplier:'))) return null;
+                const [type, expiresAt] = commitment.split(':');
+                const expiryDate = new Date(expiresAt);
+                if (expiryDate < new Date()) return null;
+                const minutesLeft = Math.ceil((expiryDate.getTime() - Date.now()) / 60000);
+                const pct = Math.max(0, Math.min(100, (minutesLeft / 60) * 100));
+                return (
+                  <motion.div
+                    key={`active-${idx}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="relative overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-br from-amber-500/15 to-amber-900/10 p-4"
+                  >
+                    {/* Glow */}
+                    <div className="absolute inset-0 bg-amber-500/5 blur-xl pointer-events-none" />
+                    <div className="relative z-10 flex items-center gap-3">
+                      <div className="relative shrink-0">
+                        <div className="p-2.5 bg-amber-500/20 rounded-xl">
+                          <Zap size={18} className="text-amber-400 animate-pulse" />
+                        </div>
+                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-black text-amber-400 text-sm">
+                          {type === 'xpMultiplier' ? '⚡ 2x ELO Çarpanı' : '🪙 2x Coin Çarpanı'}
+                        </h4>
+                        <p className="text-[9px] uppercase font-black text-amber-500/70 tracking-widest mt-0.5">{minutesLeft} DK KALDI</p>
+                        {/* Progress bar */}
+                        <div className="mt-2 h-1 bg-amber-900/30 rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
         )}
-        
-        {(!inventory?.items?.length) && Object.values(inventory?.boosts || {}).every(v => v === 0) ? (
-          <div className="text-center py-12 border-2 border-dashed border-app rounded-2xl">
-            <p className="text-sm text-ink-muted tracking-wide italic font-medium">Envanterin şu an boş. Mağazadan eşya alabilirsin!</p>
+
+        {/* EMPTY STATE */}
+        {(!inventory?.items?.length) && Object.values(inventory?.boosts || {}).every(v => (v as number) === 0) ? (
+          <div className="text-center py-16 border-2 border-dashed border-white/5 rounded-2xl mt-4">
+            <Package size={40} className="mx-auto mb-3 text-zinc-700" />
+            <p className="text-sm text-zinc-600 font-black uppercase tracking-widest">Envanterin boş</p>
+            <p className="text-xs text-zinc-700 mt-1">Mağazadan eşya alarak koleksiyonunu büyüt!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Boosts */}
-            {Object.entries(inventory?.boosts || {}).filter(([_, count]) => (count as number) > 0).map(([key, count]) => {
-              const itemDef = ALL_SHOP_ITEMS.find(i => i.metadata?.boostKey === key);
-              const Icon = itemDef?.icon ? (ICON_MAP[itemDef.icon] || Zap) : Zap;
-              return (
-                <div key={`boost-${key}`} className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 flex flex-col gap-4 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-amber-500 text-black font-black text-[10px] px-2 rounded-bl-xl shadow-sm">
-                    {String(count)} ADET
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-amber-500/20 text-amber-500 rounded-xl">
-                      <Icon size={20} />
-                    </div>
-                  <div>
-                    <h4 className="font-bold text-zinc-100 text-sm leading-tight">{itemDef?.name || key}</h4>
-                    <span className="text-[9px] uppercase tracking-widest text-amber-500/80 font-black">Takviye Eşyası</span>
-                  </div>
-                  </div>
-                  <button
-                    onClick={() => activateInventoryBoost(key as BoostKey)}
-                    className="w-full py-2 rounded-xl bg-amber-500 text-black text-[10px] font-black uppercase tracking-widest hover:bg-amber-400 active:scale-95 transition-all"
-                  >
-                    KULLAN
-                  </button>
+          <div className="mt-4 space-y-6">
+
+            {/* BOOST ITEMS */}
+            {Object.entries(inventory?.boosts || {}).some(([, v]) => (v as number) > 0) && (
+              <div>
+                <p className="text-[9px] uppercase font-black tracking-[0.3em] text-zinc-500 mb-3">◈ TAKVİYELER</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {Object.entries(inventory?.boosts || {}).map(([key, count]) => {
+                    const cnt = count as number;
+                    if (cnt <= 0) return null;
+                    const itemDef = ALL_SHOP_ITEMS.find(i => i.metadata?.boostKey === key);
+                    const Icon = itemDef?.icon ? (ICON_MAP[itemDef.icon] || Zap) : Zap;
+                    return (
+                      <motion.div
+                        key={`boost-${key}`}
+                        whileHover={{ scale: 1.02 }}
+                        className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 to-transparent p-4 flex flex-col gap-3"
+                      >
+                        {/* Count badge */}
+                        <div className="absolute top-2 right-2 bg-amber-500 text-black font-black text-[9px] px-2 py-0.5 rounded-full shadow-lg shadow-amber-500/30">
+                          x{cnt}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-amber-500/20 rounded-xl text-amber-400 shadow-inner">
+                            <Icon size={18} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-black text-zinc-100 text-sm leading-tight truncate">{itemDef?.name || key}</h4>
+                            <span className="text-[9px] uppercase tracking-widest text-amber-500/70 font-black">Takviye Eşyası</span>
+                          </div>
+                        </div>
+                        {!isPublic && (
+                          <button
+                            onClick={() => activateInventoryBoost(key as any)}
+                            className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5"
+                          >
+                            <Zap size={12} />
+                            KULLAN
+                          </button>
+                        )}
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-            
-            {/* Items (Cosmetics, Personas) */}
-            {inventory?.items?.map(itemId => {
-              const itemDef = ALL_SHOP_ITEMS.find(i => i.id === itemId);
-              if (!itemDef) return null;
-              const Icon = itemDef.icon ? (ICON_MAP[itemDef.icon] || Package) : Package;
-              const isEquipped = inventory.activeFrame === itemId || inventory.activeTheme === itemId || inventory.activeCoachPersona === itemId || inventory.activeTitle === itemId;
-              
-              return (
-                <div key={`item-${itemId}`} className={`rounded-2xl border ${isEquipped ? 'border-green-500/50 bg-green-500/5' : 'border-app bg-surface-2'} p-4 flex flex-col gap-3 relative`}>
-                  {isEquipped && (
-                    <div className="absolute top-0 right-0 bg-green-500 text-white font-black text-[9px] px-2 py-0.5 rounded-bl-xl shadow-sm">
-                      KULLANIMDA
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${isEquipped ? 'bg-green-500/20 text-green-500' : 'bg-zinc-800 text-zinc-400'}`}>
-                      <Icon size={16} />
-                    </div>
-                    <div className="flex flex-col">
-                      <h4 className="font-bold text-zinc-100 text-sm leading-tight">{itemDef.name}</h4>
-                      <span className="text-[8px] uppercase tracking-widest text-zinc-500 font-black">{itemDef.category.replace('_', ' ')}</span>
-                    </div>
-                  </div>
-                  <button 
-                    disabled={isEquipped}
-                    onClick={() => equipInventoryItem(itemId)}
-                    className={`mt-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${isEquipped ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-zinc-800 hover:bg-[#C17767] text-zinc-300 hover:text-white'}`}
-                  >
-                    {isEquipped ? 'DONANILDI' : 'KULLAN'}
-                  </button>
+              </div>
+            )}
+
+            {/* COSMETIC ITEMS */}
+            {inventory?.items?.length > 0 && (
+              <div>
+                <p className="text-[9px] uppercase font-black tracking-[0.3em] text-zinc-500 mb-3">◈ KOZMETİK EŞYALAR</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {inventory.items.map(itemId => {
+                    const itemDef = ALL_SHOP_ITEMS.find(i => i.id === itemId);
+                    if (!itemDef) return null;
+                    const Icon = itemDef.icon ? (ICON_MAP[itemDef.icon] || Package) : Package;
+                    const rarityColor = RARITY_COLOR[itemDef.rarity] || '#94a3b8';
+                    const isEquipped = inventory.activeFrame === itemId || inventory.activeTheme === itemId || inventory.activeCoachPersona === itemId || inventory.activeTitle === itemId;
+                    return (
+                      <motion.div
+                        key={`item-${itemId}`}
+                        whileHover={{ scale: 1.03 }}
+                        className="relative overflow-hidden rounded-2xl border p-4 flex flex-col gap-2 cursor-pointer group"
+                        style={{
+                          borderColor: isEquipped ? rarityColor + '80' : 'rgba(255,255,255,0.06)',
+                          background: isEquipped ? rarityColor + '12' : 'rgba(255,255,255,0.02)',
+                          boxShadow: isEquipped ? `0 0 16px ${rarityColor}22` : 'none',
+                        }}
+                      >
+                        {/* Equipped badge */}
+                        {isEquipped && (
+                          <div
+                            className="absolute top-0 right-0 text-[8px] font-black uppercase px-2 py-0.5 rounded-bl-xl"
+                            style={{ background: rarityColor, color: '#000' }}
+                          >
+                            AKTİF
+                          </div>
+                        )}
+                        {/* Rarity glow */}
+                        {isEquipped && (
+                          <div className="absolute inset-0 pointer-events-none opacity-20 blur-xl" style={{ background: rarityColor }} />
+                        )}
+                        <div className="relative z-10 flex items-center gap-2">
+                          <div className="p-2 rounded-xl" style={{ background: rarityColor + '22', color: rarityColor }}>
+                            <Icon size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-black text-zinc-100 text-xs leading-tight truncate">{itemDef.name}</h4>
+                            <span className="text-[8px] uppercase tracking-widest font-black" style={{ color: rarityColor }}>
+                              {itemDef.rarity}
+                            </span>
+                          </div>
+                        </div>
+                        {!isPublic && (
+                          <button
+                            disabled={isEquipped}
+                            onClick={() => equipInventoryItem(itemId)}
+                            className="relative z-10 mt-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all w-full"
+                            style={isEquipped
+                              ? { background: rarityColor + '22', color: rarityColor, cursor: 'not-allowed' }
+                              : { background: 'rgba(255,255,255,0.05)', color: '#71717a' }
+                            }
+                          >
+                            {isEquipped ? '✓ KULLANIMDA' : 'DONAT'}
+                          </button>
+                        )}
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
         )}
       </div>

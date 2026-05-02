@@ -11,18 +11,12 @@
 
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import type { CoachApiRequest, CoachIntent, CoachProviderId } from '../src/types/coach';
+import { shouldForceJson } from '../src/services/coachContract';
 
 export const config = {
   runtime: 'edge',
 };
-
-type CoachIntent =
-  | 'daily_plan' | 'log_analysis' | 'exam_analysis' | 'exam_debrief'
-  | 'topic_explain' | 'intervention' | 'qa_mode' | 'free_chat'
-  | 'war_room_analysis' | 'weekly_review' | 'micro_feedback'
-  | 'inverse_coaching' | 'flashcard_generation' | 'forgetting_curve_reminder'
-  | 'daily_quest' | 'vision_archive_parse' | 'generate_weekly_strategy'
-  | 'quiz_generation' | 'socratic_force';
 
 type ChatHistoryItem = { role: 'user' | 'coach' | 'system'; content: string };
 type GroqRole = 'system' | 'user' | 'assistant';
@@ -34,21 +28,13 @@ type GroqContent =
     >;
 type GroqMessage = { role: GroqRole; content: GroqContent };
 
-interface AiRequestBody {
-  intent?: CoachIntent;
-  userMessage?: string;
-  context?: string;
+type AiRequestBody = Partial<Omit<CoachApiRequest, 'chatHistory' | 'imageMediaType' | 'userState'>> & {
   chatHistory?: ChatHistoryItem[];
-  coachPersonality?: string;
-  forceJson?: boolean;
-  maxTokens?: number;
   userState?: Record<string, unknown>;
-  wantDirective?: boolean;
-  imageBase64?: string;
   imageMediaType?: 'image/jpeg' | 'image/png' | 'image/webp';
   transcript?: string;
   action?: string;
-}
+};
 
 class ProviderError extends Error {
   status: number;
@@ -76,6 +62,14 @@ KURAL #2: Görevler BAĞLAMSAL olmalı. Öğrencinin ELO, deneme netleri, zayıf
 KURAL #3: Hiçbir görevin title'ı önceki görevle aynı olamaz. Tekrar eden görevler YASAK.
 GÖRSEL: Tablo, kıyaslama, rapor sorularında Markdown TABLO kullan. TYT ve AYT verilerini aynı satırda karıştırma.
 Chatbot DEĞİLSİN. Ham JSON asla kullanıcıya gösterilmez; JSON yalnızca parse edilebilir blok olarak üretilir.`;
+
+const CLAUDE_STYLE_GUIDANCE = `
+[CLAUDE-BENZERI DAVRANIS]
+- Varsayilan ton sakin, dusunceli ve net olsun.
+- Serbest sohbette once kullanicinin niyetini anla, sonra kisa gerekceyle cevap ver.
+- Operasyonel intentlerde dogal metin + olculebilir aksiyon ayrimini koru.
+- Kaynak onerisinde sadece onayli katalog kaynaklarina dayan; kaynak yoksa bunu acikca soyle.
+- Gereksiz sertlik, bos motivasyon ve ham JSON gosterimi yasak.`;
 
 const PERSONALITY_MODES: Record<string, string> = {
   enforcer: 'ENFORCER: Net ve kararlı. Görevler somut, ölçülebilir.',
@@ -200,9 +194,12 @@ KRİTİK KURALLAR:
    "detectedLogs": [{"subject":"Kimya","topic":"...","questions":50,"duration":120}]`;
 
 // ─── Model Config ──────────────────────────────────────────────────────────────
-
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const DEFAULT_TEXT_MODEL = process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
 const DEFAULT_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+const DEFAULT_OPENROUTER_TEXT_MODEL = process.env.OPENROUTER_TEXT_MODEL || 'anthropic/claude-3.5-sonnet';
+const DEFAULT_OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || DEFAULT_OPENROUTER_TEXT_MODEL;
+const PREFERRED_PROVIDER = (process.env.AI_PROVIDER || process.env.AI_TEXT_PROVIDER || 'groq').toLowerCase() as CoachProviderId;
 
 // Intents that benefit from higher temperature for variety
 const HIGH_QUALITY_INTENTS = new Set([
@@ -212,7 +209,9 @@ const HIGH_QUALITY_INTENTS = new Set([
 const TABLE_OUTPUT_INSTRUCTION =
   'Tablo, kıyas, rapor, deneme veya net analizi sorularında Markdown tablo kullan. TYT ve AYT metriklerini aynı satırda karıştırma; her sınav türünü ayrı değerlendir.';
 
+let geminiKeyCursor = 0;
 let groqKeyCursor = 0;
+let openRouterKeyCursor = 0;
 
 function safeParseDirective(raw: string): any {
   try {
@@ -244,6 +243,21 @@ function jsonResponse(res: any, status: number, data: any) {
   res.end(JSON.stringify(data));
 }
 
+function getGeminiKeys(): string[] {
+  const numbered = Object.entries(process.env)
+    .map(([name, value]) => {
+      const match = name.match(/^GEMINI_API_KEY_(\d+)$/);
+      return match && value?.trim() ? { index: Number(match[1]), value: value.trim() } : null;
+    })
+    .filter((entry): entry is { index: number; value: string } => Boolean(entry))
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.value);
+
+  const legacy = process.env.GEMINI_API_KEY?.trim();
+  if (legacy && !numbered.includes(legacy)) numbered.push(legacy);
+  return numbered;
+}
+
 function getGroqKeys(): string[] {
   const numbered = Object.entries(process.env)
     .map(([name, value]) => {
@@ -255,6 +269,21 @@ function getGroqKeys(): string[] {
     .map((entry) => entry.value);
 
   const legacy = process.env.GROQ_API_KEY?.trim();
+  if (legacy && !numbered.includes(legacy)) numbered.push(legacy);
+  return numbered;
+}
+
+function getOpenRouterKeys(): string[] {
+  const numbered = Object.entries(process.env)
+    .map(([name, value]) => {
+      const match = name.match(/^OPENROUTER_API_KEY_(\d+)$/);
+      return match && value?.trim() ? { index: Number(match[1]), value: value.trim() } : null;
+    })
+    .filter((entry): entry is { index: number; value: string } => Boolean(entry))
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.value);
+
+  const legacy = process.env.OPENROUTER_API_KEY?.trim();
   if (legacy && !numbered.includes(legacy)) numbered.push(legacy);
   return numbered;
 }
@@ -287,12 +316,19 @@ function buildPrompt(body: AiRequestBody): string {
     us.lastExams?.length ? `Son Denemeler: ${(us.lastExams as string[]).join(' | ')}` : '',
     us.daysToExam ? `Sınava Kalan: ${us.daysToExam} gün` : '',
     us.lastDirectiveStatus ? `Son Plan Durumu: ${us.lastDirectiveStatus}` : '',
+    Array.isArray(us.memoryControls) && us.memoryControls.length
+      ? `Kontrollu Hafiza: ${us.memoryControls.filter((m: any) => m.visibility !== 'hidden').map((m: any) => `${m.label}: ${m.value}`).join(' | ')}`
+      : '',
+    Array.isArray(us.approvedResourceTopics) && us.approvedResourceTopics.length
+      ? `ONAYLI KAYNAK KATALOGU: ${us.approvedResourceTopics.join(', ')}. Bu liste disinda kaynak veya link uydurma.`
+      : 'ONAYLI KAYNAK KATALOGU: uygun kaynak yoksa kaynak yok de; link uydurma.',
   ].filter(Boolean).join('\n');
 
   const intentGuide = INTENT_INSTRUCTIONS[intent] || 'Kullanıcıya bağlama uygun, kısa ve uygulanabilir yanıt ver.';
 
   return [
     PERSONALITY_CORE,
+    CLAUDE_STYLE_GUIDANCE,
     TABLE_OUTPUT_INSTRUCTION,
     PERSONALITY_MODES[personalityMode] || '',
     `GÖREV: ${intentGuide}`,
@@ -302,6 +338,68 @@ function buildPrompt(body: AiRequestBody): string {
     `KULLANICI MESAJI:\n${body.userMessage || ''}`,
     body.wantDirective ? STRUCTURED_JSON_INSTRUCTION : '',
   ].filter(Boolean).join('\n\n');
+}
+
+
+
+async function callGemini(
+  messages: GroqMessage[],
+  opts: { image?: boolean; maxTokens?: number; forceJson?: boolean; intent?: string } = {}
+): Promise<{ text: string; keyIndex: number; model: string; provider: CoachProviderId }> {
+  const keys = getGeminiKeys();
+  if (keys.length === 0) {
+    throw new ProviderError(503, 'GEMINI_KEYS_NOT_CONFIGURED', 'No Gemini API keys are configured');
+  }
+
+  const start = geminiKeyCursor % keys.length;
+  geminiKeyCursor = (geminiKeyCursor + 1) % keys.length;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const keyIndex = (start + attempt) % keys.length;
+    const model = DEFAULT_GEMINI_MODEL;
+
+    try {
+      const geminiMessages = messages.map(m => ({
+        role: m.role === 'system' ? 'user' : (m.role === 'assistant' ? 'model' : 'user'),
+        parts: Array.isArray(m.content) 
+          ? m.content.map(c => c.type === 'text' ? { text: c.text } : { inline_data: { mime_type: 'image/jpeg', data: (c as any).image_url.url.split(',')[1] } })
+          : [{ text: m.content }]
+      }));
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys[keyIndex]}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: geminiMessages,
+          generationConfig: {
+            temperature: opts.intent && HIGH_QUALITY_INTENTS.has(opts.intent) ? 0.72 : 0.6,
+            maxOutputTokens: opts.maxTokens ?? 2048,
+            responseMimeType: opts.forceJson ? 'application/json' : 'text/plain',
+          }
+        }),
+      });
+
+      const raw = await response.text();
+      if (!response.ok) {
+        lastError = { status: response.status, body: raw, keyIndex, model };
+        continue;
+      }
+
+      const data = JSON.parse(raw);
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (typeof text !== 'string' || !text.trim()) {
+        lastError = { status: 502, body: 'Gemini response missing text', keyIndex, model };
+        continue;
+      }
+
+      return { text, keyIndex, model, provider: 'gemini' };
+    } catch (error) {
+      lastError = { error: error instanceof Error ? error.message : String(error), keyIndex, model };
+    }
+  }
+
+  throw new ProviderError(503, 'ALL_GEMINI_KEYS_FAILED', 'All Gemini keys failed', lastError);
 }
 
 function buildGroqMessages(prompt: string, body: AiRequestBody): GroqMessage[] {
@@ -328,7 +426,7 @@ function buildGroqMessages(prompt: string, body: AiRequestBody): GroqMessage[] {
 async function callGroq(
   messages: GroqMessage[],
   opts: { image?: boolean; maxTokens?: number; forceJson?: boolean; intent?: string } = {}
-): Promise<{ text: string; keyIndex: number; model: string }> {
+): Promise<{ text: string; keyIndex: number; model: string; provider: CoachProviderId }> {
   const keys = getGroqKeys();
   if (keys.length === 0) {
     throw new ProviderError(503, 'GROQ_KEYS_NOT_CONFIGURED', 'No Groq API keys are configured');
@@ -374,13 +472,97 @@ async function callGroq(
         continue;
       }
 
-      return { text, keyIndex, model };
+      return { text, keyIndex, model, provider: 'groq' };
     } catch (error) {
       lastError = { error: error instanceof Error ? error.message : String(error), keyIndex, model };
     }
   }
 
   throw new ProviderError(503, 'ALL_GROQ_KEYS_FAILED', 'All Groq keys failed', lastError);
+}
+
+async function callOpenRouter(
+  messages: GroqMessage[],
+  opts: { image?: boolean; maxTokens?: number; forceJson?: boolean; intent?: string } = {}
+): Promise<{ text: string; keyIndex: number; model: string; provider: CoachProviderId }> {
+  const keys = getOpenRouterKeys();
+  if (keys.length === 0) {
+    throw new ProviderError(503, 'OPENROUTER_KEYS_NOT_CONFIGURED', 'No OpenRouter API keys are configured');
+  }
+
+  const start = openRouterKeyCursor % keys.length;
+  openRouterKeyCursor = (openRouterKeyCursor + 1) % keys.length;
+  let lastError: unknown = null;
+  const temperature = opts.intent && HIGH_QUALITY_INTENTS.has(opts.intent) ? 0.62 : 0.48;
+
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const keyIndex = (start + attempt) % keys.length;
+    const model = opts.image ? DEFAULT_OPENROUTER_VISION_MODEL : DEFAULT_OPENROUTER_TEXT_MODEL;
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${keys[keyIndex]}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_ORIGIN || 'https://boho-mentos.local',
+          'X-Title': 'Boho Mentos Coach',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature,
+          max_tokens: opts.maxTokens ?? (opts.image ? 2048 : 4096),
+          ...(opts.forceJson ? { response_format: { type: 'json_object' } } : {}),
+        }),
+      });
+
+      const raw = await response.text();
+      if (!response.ok) {
+        lastError = { status: response.status, body: raw, keyIndex, model };
+        continue;
+      }
+
+      const data = JSON.parse(raw);
+      const text = data.choices?.[0]?.message?.content;
+      if (typeof text !== 'string' || !text.trim()) {
+        lastError = { status: 502, body: 'OpenRouter response missing choices[0].message.content', keyIndex, model };
+        continue;
+      }
+
+      return { text, keyIndex, model, provider: 'openrouter' };
+    } catch (error) {
+      lastError = { error: error instanceof Error ? error.message : String(error), keyIndex, model };
+    }
+  }
+
+  throw new ProviderError(503, 'ALL_OPENROUTER_KEYS_FAILED', 'All OpenRouter keys failed', lastError);
+}
+
+async function callCoachProvider(
+  messages: GroqMessage[],
+  opts: { image?: boolean; maxTokens?: number; forceJson?: boolean; intent?: string } = {}
+): Promise<{ text: string; keyIndex: number; model: string; provider: CoachProviderId }> {
+  const orderedProviders: CoachProviderId[] = PREFERRED_PROVIDER === 'gemini'
+    ? ['gemini', 'groq', 'openrouter']
+    : PREFERRED_PROVIDER === 'openrouter'
+      ? ['openrouter', 'gemini', 'groq']
+      : ['groq', 'gemini', 'openrouter'];
+  let lastError: unknown = null;
+
+  for (const provider of orderedProviders) {
+    try {
+      if (provider === 'gemini') return await callGemini(messages, opts);
+      if (provider === 'openrouter') return await callOpenRouter(messages, opts);
+      if (provider === 'groq') return await callGroq(messages, opts);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof ProviderError
+    ? lastError
+    : new ProviderError(503, 'ALL_AI_PROVIDERS_FAILED', 'All AI providers failed', lastError);
 }
 
 const redis = process.env.UPSTASH_REDIS_REST_URL ? Redis.fromEnv() : null;
@@ -407,25 +589,32 @@ export default async function handler(req: any, res: any) {
 
     if (body.action === 'parseVoiceLog' || body.transcript) {
       const prompt = `Şu ses kaydını çalışma logu olarak analiz et ve sadece geçerli JSON döndür: ${body.transcript || body.userMessage}`;
-      const result = await callGroq([{ role: 'user', content: prompt }], { forceJson: true, maxTokens: 1024 });
-      return jsonResponse(res, 200, { data: safeParseDirective(result.text) || { text: result.text }, provider: 'Groq', model: result.model });
+      const result = await callCoachProvider([{ role: 'user', content: prompt }], { forceJson: true, maxTokens: 1024 });
+      return jsonResponse(res, 200, {
+        data: safeParseDirective(result.text) || { text: result.text },
+        provider: result.provider,
+        model: result.model,
+        providerMeta: { provider: result.provider, model: result.model, keyIndex: result.keyIndex + 1 },
+      });
     }
 
     const fullPrompt = buildPrompt(body);
     const messages = buildGroqMessages(fullPrompt, body);
-    const result = await callGroq(messages, {
+    const intent = body.intent || 'free_chat';
+    const result = await callCoachProvider(messages, {
       image: Boolean(body.imageBase64),
       maxTokens: body.maxTokens,
-      forceJson: Boolean(body.forceJson),
-      intent: body.intent,
+      forceJson: shouldForceJson(intent, Boolean(body.forceJson || body.wantDirective)),
+      intent,
     });
 
     return jsonResponse(res, 200, {
       text: result.text,
       directive: body.wantDirective ? safeParseDirective(result.text) : null,
-      provider: 'Groq',
+      provider: result.provider,
       model: result.model,
       keyIndex: result.keyIndex + 1,
+      providerMeta: { provider: result.provider, model: result.model, keyIndex: result.keyIndex + 1 },
     });
   } catch (err: any) {
     const status = err instanceof ProviderError ? err.status : 500;
