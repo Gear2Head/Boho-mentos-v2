@@ -26,7 +26,7 @@ service cloud.firestore {
       // Profil: Liderlik tablosu veya arama için sadece belirli alanlar dışarı açılmalı.
       // Şimdilik list yetkisini kısıtlayıp sadece get yetkisini bırakıyoruz (ID biliniyorsa).
       allow get: if isAuthenticated();
-      allow list: if isSuperAdmin(); // Sadece admin tüm listeyi çekebilir.
+      allow list: if isAuthenticated(); // Leaderboard için gerekli
       allow create: if isOwner(userId);
       allow update: if (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) || isSuperAdmin();
       allow delete: if isSuperAdmin();
@@ -71,6 +71,14 @@ service cloud.firestore {
     // Admin logları (audit)
     match /admin_logs/{document=**} {
       allow read, write: if isSuperAdmin();
+    }
+    
+    // DM Chat Odaları
+    match /global_chats/{chatRoomId} {
+      allow read, write: if isAuthenticated() && chatRoomId.matches('.*' + request.auth.uid + '.*');
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated() && chatRoomId.matches('.*' + request.auth.uid + '.*');
+      }
     }
   }
 }

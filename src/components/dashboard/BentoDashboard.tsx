@@ -212,12 +212,8 @@ export function BentoDashboard() {
         <EloRankCard />
       </motion.div>
 
-      <div className="mt-8">
+      <div className="mt-6 mb-6">
         <CrateShop />
-      </div>
-
-      <div className="mt-8">
-        <GlobalLeaderboard />
       </div>
 
       {/* Main Action & Coach */}
@@ -323,12 +319,12 @@ export function BentoDashboard() {
 
 
 
-      <div className="mb-20">
+      <div className="mb-6">
         <AchievementsPanel />
       </div>
 
       {/* Task 9 & 12: Daily Quests + Global Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-20">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <DailyQuestsWidget />
         <GlobalLeaderboard />
       </div>

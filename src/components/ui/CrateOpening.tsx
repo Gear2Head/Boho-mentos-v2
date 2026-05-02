@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useAnimation } from 'motion/react';
 import {
     Crown, Flame, Gem, Shield, Star, Swords, Target, Trophy, Zap,
-    Sparkles, Rocket, Diamond, Coins,
+    Sparkles, Rocket, Diamond, Coins, Package, Palette, Timer, BrainCircuit, BarChart3, Hexagon
 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────
@@ -20,121 +20,52 @@ export interface Reward {
     description?: string;
 }
 
-// ─── Reward Pool ─────────────────────────────────────────────────────────────
-export const ALL_REWARDS: Reward[] = [
-    { id: 'coin_200', name: 'BohoCoin Paketi', rarity: 'basic', coinReward: 1000, icon: <Zap size={26} />, description: '+1,000 BohoCoin' },
-    { id: 'coin_450', name: 'Odak Bonusu', rarity: 'basic', coinReward: 1200, icon: <Target size={26} />, description: '+1,200 BohoCoin' },
-    { id: 'trophy_cache', name: 'Zafer Parcasi', rarity: 'basic', coinReward: 1350, icon: <Trophy size={26} />, description: '+1,350 BohoCoin' },
-    { id: 'basic_flame', name: 'Mini Ates Paketi', rarity: 'basic', coinReward: 900, icon: <Flame size={26} />, description: '+900 BohoCoin' },
-    { id: 'coin_900', name: 'Savas Kredisi', rarity: 'epic', coinReward: 1900, icon: <Swords size={26} />, description: '+1,900 BohoCoin' },
-    { id: 'shield_1', name: 'Seri Kalkani', rarity: 'epic', coinReward: 1300, shieldReward: 1, icon: <Shield size={26} />, description: '+1 Seri Kalkani' },
-    { id: 'streak_fire', name: 'Seri Atesi', rarity: 'epic', coinReward: 2700, icon: <Flame size={26} />, description: '+2,700 BohoCoin' },
-    { id: 'star_cache', name: 'Yildiz Parcasi', rarity: 'epic', coinReward: 1800, icon: <Star size={26} />, description: '+1,800 BohoCoin' },
-    { id: 'rocket_boost', name: 'Roket Takviyesi', rarity: 'epic', coinReward: 2200, icon: <Rocket size={26} />, description: '+2,200 BohoCoin' },
-    { id: 'mega_shield', name: 'Mega Seri Paketi', rarity: 'epic', coinReward: 1500, shieldReward: 3, icon: <Shield size={26} />, description: '+3 Seri Kalkani' },
-    { id: 'gem_1500', name: 'Elmas Cekirdek', rarity: 'legendary', coinReward: 5000, icon: <Gem size={26} />, description: '+5,000 BohoCoin' },
-    { id: 'boho_crown', name: 'Boho Tac Odulu', rarity: 'legendary', coinReward: 3400, shieldReward: 1, icon: <Crown size={26} />, description: '+3,400 Coin & Kalkan' },
-    { id: 'diamond_core', name: 'Elmas Cekirdek MAX', rarity: 'legendary', coinReward: 4500, icon: <Diamond size={26} />, description: '+4,500 BohoCoin' },
-    { id: 'spark_legend', name: 'Efsane Kilici', rarity: 'legendary', coinReward: 3800, shieldReward: 2, icon: <Sparkles size={26} />, description: '+2 Kalkan & 3,800 Coin' },
-    { id: 'jackpot', name: 'BOHO JACKPOT', rarity: 'jackpot', coinReward: 10000, shieldReward: 5, icon: <Coins size={26} />, description: '10,000 Coin + 5 Kalkan!' },
-    { id: 'frame_fire', name: 'Alev Cerceve', rarity: 'rare', coinReward: 800, icon: <Flame size={26} />, description: 'Alev profil cercevesi' },
-    { id: 'title_focus', name: 'Odak Operatoru', rarity: 'rare', coinReward: 950, icon: <Target size={26} />, description: 'Kariyer unvani' },
-    { id: 'theme_cyber', name: 'Siberpunk Tema', rarity: 'epic', coinReward: 1200, icon: <Zap size={26} />, description: 'Neon tema' },
-    { id: 'theme_aurora', name: 'Aurora Tema', rarity: 'legendary', coinReward: 1800, icon: <Sparkles size={26} />, description: 'Aurora vitrin temasi' },
-    { id: 'theme_obsidian', name: 'Obsidyen Tema', rarity: 'mythic', coinReward: 2400, icon: <Diamond size={26} />, description: 'Mitik tema' },
-    { id: 'persona_analyst', name: 'Veri Cerrahi', rarity: 'legendary', coinReward: 1600, icon: <Target size={26} />, description: 'Analyst koc modu' },
-    { id: 'focus_badge', name: 'Derin Odak Rozeti', rarity: 'legendary', coinReward: 2200, icon: <Trophy size={26} />, description: 'Premium kariyer rozeti' },
-    { id: 'freeze_3', name: 'Uclu Seri Kalkani', rarity: 'mythic', coinReward: 2000, shieldReward: 3, icon: <Shield size={26} />, description: '+3 Seri Kalkani' },
-    { id: 'cosmic_crown', name: 'Kozmik Tac', rarity: 'mythic', coinReward: 3200, shieldReward: 2, icon: <Crown size={26} />, description: 'Kozmik profil taci' },
-];
+import { ALL_SHOP_ITEMS, REWARD_POOLS } from '../../types/economy';
+
+export const ALL_REWARDS: Reward[] = ALL_SHOP_ITEMS.map(item => {
+    let icon = <Package size={26} />;
+    if (item.icon === 'Shield') icon = <Shield size={26} />;
+    else if (item.icon === 'Zap') icon = <Zap size={26} />;
+    else if (item.icon === 'Coins') icon = <Coins size={26} />;
+    else if (item.icon === 'Rocket') icon = <Rocket size={26} />;
+    else if (item.icon === 'Palette') icon = <Palette size={26} />;
+    else if (item.icon === 'Sparkles') icon = <Sparkles size={26} />;
+    else if (item.icon === 'Gem') icon = <Gem size={26} />;
+    else if (item.icon === 'Target') icon = <Target size={26} />;
+    else if (item.icon === 'Timer') icon = <Timer size={26} />;
+    else if (item.icon === 'Trophy') icon = <Trophy size={26} />;
+    else if (item.icon === 'BrainCircuit') icon = <BrainCircuit size={26} />;
+    else if (item.icon === 'BarChart3') icon = <BarChart3 size={26} />;
+    else if (item.icon === 'Hexagon') icon = <Hexagon size={26} />;
+    else if (item.icon === 'Flame') icon = <Flame size={26} />;
+    else if (item.icon === 'Crown') icon = <Crown size={26} />;
+
+    return {
+        id: item.id,
+        name: item.name,
+        rarity: (item.rarity === 'common' ? 'basic' : item.rarity === 'cosmic' ? 'mythic' : item.rarity) as Rarity,
+        coinReward: 0, // BohoMentos crates give items, not raw coins anymore
+        shieldReward: item.metadata?.boostKey === 'streakFreezer' ? Number(item.metadata.amount) || undefined : undefined,
+        icon,
+        description: item.description,
+    };
+});
 
 type WeightedReward = { reward: Reward; weight: number };
 
-export const POOLS: Record<CrateTier, WeightedReward[]> = {
-    standard: [
-        { reward: ALL_REWARDS[0], weight: 30 },
-        { reward: ALL_REWARDS[1], weight: 30 },
-        { reward: ALL_REWARDS[2], weight: 25 },
-        { reward: ALL_REWARDS[3], weight: 20 },
-        { reward: ALL_REWARDS[4], weight: 8 },
-        { reward: ALL_REWARDS[5], weight: 5 },
-        { reward: ALL_REWARDS[6], weight: 3 },
-    ],
-    wooden: [
-        { reward: ALL_REWARDS[0], weight: 30 },
-        { reward: ALL_REWARDS[1], weight: 30 },
-        { reward: ALL_REWARDS[2], weight: 25 },
-        { reward: ALL_REWARDS[3], weight: 20 },
-        { reward: ALL_REWARDS[4], weight: 8 },
-        { reward: ALL_REWARDS[5], weight: 5 },
-        { reward: ALL_REWARDS[6], weight: 3 },
-    ],
-    bronze: [
-        { reward: ALL_REWARDS[0], weight: 26 },
-        { reward: ALL_REWARDS[1], weight: 22 },
-        { reward: ALL_REWARDS[5], weight: 18 },
-        { reward: ALL_REWARDS[15], weight: 14 },
-        { reward: ALL_REWARDS[16], weight: 12 },
-        { reward: ALL_REWARDS[17], weight: 8 },
-    ],
-    silver: [
-        { reward: ALL_REWARDS[0], weight: 30 },
-        { reward: ALL_REWARDS[1], weight: 30 },
-        { reward: ALL_REWARDS[2], weight: 25 },
-        { reward: ALL_REWARDS[3], weight: 20 },
-        { reward: ALL_REWARDS[4], weight: 8 },
-        { reward: ALL_REWARDS[5], weight: 5 },
-        { reward: ALL_REWARDS[6], weight: 3 },
-    ],
-    epic: [
-        { reward: ALL_REWARDS[4], weight: 25 },
-        { reward: ALL_REWARDS[5], weight: 25 },
-        { reward: ALL_REWARDS[6], weight: 20 },
-        { reward: ALL_REWARDS[7], weight: 18 },
-        { reward: ALL_REWARDS[8], weight: 15 },
-        { reward: ALL_REWARDS[9], weight: 12 },
-        { reward: ALL_REWARDS[10], weight: 5 },
-    ],
-    gold: [
-        { reward: ALL_REWARDS[4], weight: 25 },
-        { reward: ALL_REWARDS[5], weight: 25 },
-        { reward: ALL_REWARDS[6], weight: 20 },
-        { reward: ALL_REWARDS[7], weight: 18 },
-        { reward: ALL_REWARDS[8], weight: 15 },
-        { reward: ALL_REWARDS[9], weight: 12 },
-        { reward: ALL_REWARDS[10], weight: 5 },
-    ],
-    mythic: [
-        { reward: ALL_REWARDS[18], weight: 22 },
-        { reward: ALL_REWARDS[19], weight: 18 },
-        { reward: ALL_REWARDS[20], weight: 18 },
-        { reward: ALL_REWARDS[21], weight: 16 },
-        { reward: ALL_REWARDS[12], weight: 14 },
-        { reward: ALL_REWARDS[22], weight: 8 },
-        { reward: ALL_REWARDS[23], weight: 4 },
-    ],
-    legendary: [
-        { reward: ALL_REWARDS[6], weight: 15 },
-        { reward: ALL_REWARDS[9], weight: 15 },
-        { reward: ALL_REWARDS[10], weight: 22 },
-        { reward: ALL_REWARDS[11], weight: 18 },
-        { reward: ALL_REWARDS[12], weight: 14 },
-        { reward: ALL_REWARDS[13], weight: 11 },
-        { reward: ALL_REWARDS[14], weight: 5 },
-    ],
-    cosmic: [
-        { reward: ALL_REWARDS[6], weight: 15 },
-        { reward: ALL_REWARDS[9], weight: 15 },
-        { reward: ALL_REWARDS[10], weight: 22 },
-        { reward: ALL_REWARDS[11], weight: 18 },
-        { reward: ALL_REWARDS[12], weight: 14 },
-        { reward: ALL_REWARDS[13], weight: 11 },
-        { reward: ALL_REWARDS[14], weight: 5 },
-    ],
-};
+export const POOLS: Record<CrateTier, WeightedReward[]> = {} as any;
+
+for (const tier of Object.keys(REWARD_POOLS)) {
+    const t = tier as CrateTier;
+    POOLS[t] = REWARD_POOLS[t].map(entry => {
+        const reward = ALL_REWARDS.find(r => r.id === entry.itemId) || ALL_REWARDS[0];
+        return { reward, weight: entry.weight };
+    });
+}
 
 export function pickReward(tier: CrateTier): Reward {
     const pool = POOLS[tier];
+    if (!pool || pool.length === 0) return ALL_REWARDS[0];
     const total = pool.reduce((s, e) => s + e.weight, 0);
     let r = Math.random() * total;
     for (const entry of pool) { r -= entry.weight; if (r <= 0) return entry.reward; }
@@ -518,10 +449,12 @@ function RewardReveal({ reward, onDone }: { reward: Reward; onDone: () => void }
                                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
                                 style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 4 }}
                             >
-                                <span style={{ fontWeight: 900, color: '#fff', fontSize: 20 }}>+{reward.coinReward.toLocaleString()} BohoCoin</span>
+                                {reward.coinReward > 0 && (
+                                    <span style={{ fontWeight: 900, color: '#fff', fontSize: 20 }}>+{reward.coinReward.toLocaleString()} BohoCoin</span>
+                                )}
                                 {reward.shieldReward && (
                                     <>
-                                        <span style={{ color: '#4b5563' }}>·</span>
+                                        {reward.coinReward > 0 && <span style={{ color: '#4b5563' }}>·</span>}
                                         <span style={{ fontWeight: 900, color: '#fff', fontSize: 20 }}>+{reward.shieldReward} Kalkan</span>
                                     </>
                                 )}

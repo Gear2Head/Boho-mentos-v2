@@ -1,4 +1,7 @@
 import { StateCreator } from 'zustand';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { cleanForFirestore } from '../../utils/firebaseHelpers';
 import { EconomyEvent } from '../../types';
 import { UserInventory, CrateTier, CRATE_CONFIG, ShopItem, REWARD_POOLS, ALL_SHOP_ITEMS } from '../../types/economy';
 
@@ -47,7 +50,7 @@ export const createEconomySlice: StateCreator<
   purchasedItems: [],
 
   addBohoCoins: (amount, reason, eventKey) => {
-    const { bohoCoins, economyLedger } = get();
+    const { bohoCoins, economyLedger, authUser } = get();
     const resolvedKey = eventKey ?? `coin:${reason}:${amount}:${Date.now()}`;
     if (economyLedger.some(e => e.eventKey === resolvedKey)) return;
 
@@ -61,15 +64,21 @@ export const createEconomySlice: StateCreator<
       createdAt: now,
     };
 
-    set((state) => ({
-      bohoCoins: state.bohoCoins + amount,
-      economyLedger: [...state.economyLedger, event].slice(-300),
-      lastLocalUpdateAt: now
-    }));
+    set((state) => {
+      const nextState = {
+        bohoCoins: state.bohoCoins + amount,
+        economyLedger: [...state.economyLedger, event].slice(-300),
+        lastLocalUpdateAt: now
+      };
+      if (authUser?.uid) {
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ bohoCoins: nextState.bohoCoins, economyLedger: nextState.economyLedger }), { merge: true }).catch(console.error);
+      }
+      return nextState;
+    });
   },
 
   spendBohoCoins: (amount, reason, eventKey) => {
-    const { bohoCoins, economyLedger } = get();
+    const { bohoCoins, economyLedger, authUser } = get();
     if (bohoCoins < amount) return false;
 
     const resolvedKey = eventKey ?? `spend:${reason}:${amount}:${Date.now()}`;
@@ -85,16 +94,22 @@ export const createEconomySlice: StateCreator<
       createdAt: now,
     };
 
-    set((state) => ({
-      bohoCoins: state.bohoCoins - amount,
-      economyLedger: [...state.economyLedger, event].slice(-300),
-      lastLocalUpdateAt: now
-    }));
+    set((state) => {
+      const nextState = {
+        bohoCoins: state.bohoCoins - amount,
+        economyLedger: [...state.economyLedger, event].slice(-300),
+        lastLocalUpdateAt: now
+      };
+      if (authUser?.uid) {
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ bohoCoins: nextState.bohoCoins, economyLedger: nextState.economyLedger }), { merge: true }).catch(console.error);
+      }
+      return nextState;
+    });
     return true;
   },
 
   addElo: (amount, source = 'manual', eventKey) => {
-    const { eloScore, bohoCoins, economyLedger } = get();
+    const { eloScore, bohoCoins, economyLedger, authUser } = get();
     const resolvedKey = eventKey ?? `elo:${source}:${amount}:${Date.now()}`;
     if (economyLedger.some((e) => e.eventKey === resolvedKey)) return;
 
@@ -112,41 +127,53 @@ export const createEconomySlice: StateCreator<
       createdAt: now,
     };
 
-    const newLedger = [...economyLedger, event].slice(-300);
-    const newCoins = Math.max(0, bohoCoins + coinDelta);
-
-    set({ 
-      eloScore: newScore, 
-      bohoCoins: newCoins, 
-      economyLedger: newLedger, 
-      lastLocalUpdateAt: now 
+    set((state) => {
+      const nextLedger = [...state.economyLedger, event].slice(-300);
+      const nextCoins = Math.max(0, state.bohoCoins + coinDelta);
+      const nextState = { 
+        eloScore: newScore, 
+        bohoCoins: nextCoins, 
+        economyLedger: nextLedger, 
+        lastLocalUpdateAt: now 
+      };
+      
+      if (authUser?.uid) {
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newScore, bohoCoins: nextCoins, economyLedger: nextLedger }), { merge: true }).catch(console.error);
+      }
+      return nextState;
     });
   },
 
   addToInventory: (itemId) => {
-    set((state) => ({
-      inventory: {
-        ...state.inventory,
-        items: [...new Set([...state.inventory.items, itemId])],
-      },
-      lastLocalUpdateAt: new Date().toISOString(),
-    }));
+    set((state) => {
+      const nextItems = [...new Set([...state.inventory.items, itemId])];
+      const nextInventory = { ...state.inventory, items: nextItems };
+      const authUser = get().authUser;
+      if (authUser?.uid) {
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+      }
+      return {
+        inventory: nextInventory,
+        lastLocalUpdateAt: new Date().toISOString(),
+      };
+    });
   },
 
   useBoost: (boostType) => {
-    const { inventory } = get();
+    const { inventory, authUser } = get();
     if (inventory.boosts[boostType] <= 0) return false;
 
-    set((state) => ({
-      inventory: {
-        ...state.inventory,
-        boosts: {
-          ...state.inventory.boosts,
-          [boostType]: state.inventory.boosts[boostType] - 1,
-        },
-      },
-      lastLocalUpdateAt: new Date().toISOString(),
-    }));
+    set((state) => {
+      const nextBoosts = { ...state.inventory.boosts, [boostType]: state.inventory.boosts[boostType] - 1 };
+      const nextInventory = { ...state.inventory, boosts: nextBoosts };
+      if (authUser?.uid) {
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+      }
+      return {
+        inventory: nextInventory,
+        lastLocalUpdateAt: new Date().toISOString(),
+      };
+    });
     return true;
   },
 
@@ -180,7 +207,7 @@ export const createEconomySlice: StateCreator<
   },
 
   equipInventoryItem: (itemId) => {
-    const { inventory, profile, setProfile, setTheme } = get();
+    const { inventory, profile, setProfile, setTheme, authUser } = get();
     if (!inventory.items.includes(itemId)) return false;
 
     const item = ALL_SHOP_ITEMS.find((entry) => entry.id === itemId);
@@ -202,13 +229,17 @@ export const createEconomySlice: StateCreator<
     }
 
     set({ inventory: nextInventory, lastLocalUpdateAt: new Date().toISOString() });
+    
+    if (authUser?.uid) {
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+    }
+    
     return true;
   },
 
   buyShopItem: (item) => {
-    const { spendBohoCoins, addToInventory, inventory } = get();
+    const { spendBohoCoins, addToInventory, inventory, authUser } = get();
     
-    // Check if cosmetic is already owned
     if (item.category === 'cosmetic' || item.category === 'ai_persona') {
       if (inventory.items.includes(item.id)) return false;
     }
@@ -218,16 +249,17 @@ export const createEconomySlice: StateCreator<
         const boostKey = item.metadata?.boostKey as keyof UserInventory['boosts'];
         if (boostKey) {
           const amount = Number(item.metadata?.amount) || 1;
-          set((state) => ({
-            inventory: {
-              ...state.inventory,
-              boosts: {
-                ...state.inventory.boosts,
-                [boostKey]: (state.inventory.boosts[boostKey] || 0) + amount,
-              },
-            },
-            lastLocalUpdateAt: new Date().toISOString(),
-          }));
+          set((state) => {
+            const nextBoosts = { ...state.inventory.boosts, [boostKey]: (state.inventory.boosts[boostKey] || 0) + amount };
+            const nextInventory = { ...state.inventory, boosts: nextBoosts };
+            if (authUser?.uid) {
+              setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+            }
+            return {
+              inventory: nextInventory,
+              lastLocalUpdateAt: new Date().toISOString(),
+            };
+          });
         }
       } else {
         addToInventory(item.id);
@@ -239,7 +271,7 @@ export const createEconomySlice: StateCreator<
 
   openCrate: (tier) => {
     const config = CRATE_CONFIG[tier];
-    const { spendBohoCoins, addToInventory } = get();
+    const { spendBohoCoins, addToInventory, authUser } = get();
 
     if (!spendBohoCoins(config.price, `Open Crate: ${config.name}`)) {
       return { success: false, error: 'INSUFFICIENT_FUNDS' };
@@ -258,19 +290,22 @@ export const createEconomySlice: StateCreator<
       random -= item.weight;
     }
 
-    // Add to inventory or boosts
     const rewardItem = ALL_SHOP_ITEMS.find((item) => item.id === rewardId);
     if (rewardItem?.category === 'boost' && rewardItem.metadata?.boostKey) {
       const key = rewardItem.metadata.boostKey;
       const amount = Number(rewardItem.metadata.amount) || 1;
       if (key) {
-        set(s => ({
-          inventory: {
-            ...s.inventory,
-            boosts: { ...s.inventory.boosts, [key]: (s.inventory.boosts[key] || 0) + amount }
-          },
-          lastLocalUpdateAt: new Date().toISOString(),
-        }));
+        set((state) => {
+          const nextBoosts = { ...state.inventory.boosts, [key]: (state.inventory.boosts[key] || 0) + amount };
+          const nextInventory = { ...state.inventory, boosts: nextBoosts };
+          if (authUser?.uid) {
+            setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+          }
+          return {
+            inventory: nextInventory,
+            lastLocalUpdateAt: new Date().toISOString(),
+          };
+        });
       }
     } else {
       addToInventory(rewardId);

@@ -6,10 +6,11 @@ import { Crate } from '../../types/economy';
 interface CrateCardProps {
   crate: Crate;
   onBuy: (tier: string) => void;
+  onPreview: (crate: Crate) => void;
   disabled?: boolean;
 }
 
-export const CrateCard: React.FC<CrateCardProps> = ({ crate, onBuy, disabled = false }) => {
+export const CrateCard: React.FC<CrateCardProps> = ({ crate, onBuy, onPreview, disabled = false }) => {
   const getIcon = () => {
     switch (crate.tier) {
       case 'wooden': return <Archive size={34} />;
@@ -71,27 +72,40 @@ export const CrateCard: React.FC<CrateCardProps> = ({ crate, onBuy, disabled = f
         <p className="text-xs text-zinc-500 mt-2 leading-relaxed">{crate.description}</p>
       </div>
 
-      <button
-        onClick={(event) => {
-          event.stopPropagation();
-          if (!disabled) onBuy(crate.tier);
-        }}
-        disabled={disabled}
-        className={`mt-2 w-full py-3 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all flex items-center justify-center gap-2 border ${
-          disabled
-            ? 'bg-zinc-900 text-zinc-600 border-white/5 cursor-not-allowed'
-            : 'bg-white/5 text-zinc-100 border-white/10 hover:text-black active:scale-95'
-        }`}
-        onMouseEnter={(e) => {
-          if (!disabled) e.currentTarget.style.backgroundColor = crate.color;
-        }}
-        onMouseLeave={(e) => {
-          if (!disabled) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
-        }}
-      >
-        <Zap size={14} />
-        {disabled ? 'Yetersiz Coin' : `${crate.price} Coin`}
-      </button>
+      <div className="w-full mt-2 flex flex-col gap-2 relative z-10">
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onPreview(crate);
+          }}
+          className="w-full py-1.5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all flex items-center justify-center gap-1 border bg-transparent hover:bg-white/5"
+          style={{ color: crate.color, borderColor: `${crate.color}50` }}
+        >
+          Ödül Listesi
+        </button>
+
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!disabled) onBuy(crate.tier);
+          }}
+          disabled={disabled}
+          className={`w-full py-3 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all flex items-center justify-center gap-2 border ${
+            disabled
+              ? 'bg-zinc-900 text-zinc-600 border-white/5 cursor-not-allowed'
+              : 'bg-white/5 text-zinc-100 border-white/10 hover:text-black active:scale-95'
+          }`}
+          onMouseEnter={(e) => {
+            if (!disabled) e.currentTarget.style.backgroundColor = crate.color;
+          }}
+          onMouseLeave={(e) => {
+            if (!disabled) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+          }}
+        >
+          <Zap size={14} />
+          {disabled ? 'Yetersiz Coin' : `${crate.price} Coin`}
+        </button>
+      </div>
     </motion.div>
   );
 };

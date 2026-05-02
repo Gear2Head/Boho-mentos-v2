@@ -4,6 +4,7 @@ import { ACHIEVEMENTS } from '../data/achievementDefinitions';
 import { AchievementCard } from './ui/AchievementCard';
 import { AchievementCategory } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -32,6 +33,8 @@ export function AchievementsPanel() {
   const userAchievements = useAppStore(s => s.userAchievements || []);
   const storeState = useAppStore(); // Getting the whole state for progress calculation
   
+  const [isOpen, setIsOpen] = React.useState(false);
+
   // Group achievements by category
   const grouped = ACHIEVEMENTS.reduce((acc, ach) => {
     if (!acc[ach.category]) acc[ach.category] = [];
@@ -41,20 +44,28 @@ export function AchievementsPanel() {
 
   return (
     <section className="bg-surface rounded-3xl p-6 border border-app shadow-sm">
-      <div className="flex items-center justify-between mb-8 pb-4 border-b border-app">
-        <h3 className="font-display text-2xl uppercase tracking-tight text-accent font-black">Başarımlar & Kariyer</h3>
+      <div 
+        className="flex items-center justify-between mb-8 pb-4 border-b border-app cursor-pointer group"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-4">
+          <h3 className="font-display text-2xl uppercase tracking-tight text-accent font-black">Başarımlar & Kariyer</h3>
+          {isOpen ? <ChevronUp size={24} className="text-accent" /> : <ChevronDown size={24} className="text-zinc-500 group-hover:text-accent" />}
+        </div>
         <span className="text-xs uppercase tracking-widest text-ink-muted font-black bg-surface-2 px-4 py-2 rounded-xl">
           Açılan: {userAchievements.length} / {ACHIEVEMENTS.length}
         </span>
       </div>
 
-      <motion.div 
-        initial="hidden"
-        animate="show"
-        variants={containerVariants}
-        className="space-y-12"
-      >
-        {Object.entries(grouped).map(([category, achs]) => {
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden space-y-12"
+          >
+            {Object.entries(grouped).map(([category, achs]) => {
           // Sort achievements: Unlocked first, then by tier, then hidden last
           const sorted = [...achs].sort((a, b) => {
             const aUnlocked = userAchievements.find(ua => ua.id === a.id);
@@ -97,7 +108,9 @@ export function AchievementsPanel() {
             </motion.div>
           );
         })}
-      </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

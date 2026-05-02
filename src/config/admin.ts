@@ -11,7 +11,7 @@
  * Firebase custom claims (superAdmin: true) tek yetki kaynağıdır.
  * Bu sabit sadece legacy import'ları kırmamak için tutulmuştur.
  */
-export const SUPER_ADMIN_UID = '';
+export const SUPER_ADMIN_UID = 'gearheadd0@gmail.com';
 export const OWNER_EMAIL = 'senerkadiralper@gmail.com';
 
 export type UserRole = 'super_admin' | 'developer' | 'standard' | 'banned';

@@ -145,7 +145,7 @@ claude.md
 claude/
 Claude/
 skills/
-!skills/
+.agents/
 "Console logs/"
 
 # Archived Features

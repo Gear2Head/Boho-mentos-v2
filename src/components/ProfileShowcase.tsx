@@ -404,8 +404,43 @@ export function ProfileShowcase() {
       <div className="bg-surface border border-app rounded-3xl p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <Package size={24} className="text-amber-500" />
-          <h3 className="font-serif italic text-xl text-ink">Envanter</h3>
+          <h3 className="font-serif italic text-xl text-ink">Envanter & Aktif Takviyeler</h3>
         </div>
+
+        {/* ACTIVE BOOSTS */}
+        {profile?.coachMemory?.commitments?.some(c => c.includes('Multiplier')) && (
+           <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+               {profile.coachMemory.commitments.map((commitment, idx) => {
+                  if (commitment.startsWith('xpMultiplier:') || commitment.startsWith('coinMultiplier:')) {
+                     const [type, expiresAt] = commitment.split(':');
+                     const expiryDate = new Date(expiresAt);
+                     const isExpired = expiryDate < new Date();
+                     if (isExpired) return null;
+                     
+                     const timeLeftMs = expiryDate.getTime() - new Date().getTime();
+                     const minutesLeft = Math.ceil(timeLeftMs / (1000 * 60));
+                     
+                     return (
+                         <div key={`active-${idx}`} className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl flex items-center justify-between relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/20 blur-xl pointer-events-none" />
+                            <div className="flex items-center gap-4 relative z-10">
+                               <div className="p-3 bg-amber-500/20 rounded-xl">
+                                  <Timer className="text-amber-500 animate-pulse" size={20} />
+                               </div>
+                               <div>
+                                  <h4 className="font-bold text-amber-500 text-sm leading-tight">
+                                      {type === 'xpMultiplier' ? '2x Odak Çarpanı' : '2x Coin Çarpanı'}
+                                  </h4>
+                                  <p className="text-[10px] uppercase font-black text-amber-500/80 tracking-widest mt-1">Süre: {minutesLeft} dk</p>
+                               </div>
+                            </div>
+                         </div>
+                     )
+                  }
+                  return null;
+               })}
+           </div>
+        )}
         
         {(!inventory?.items?.length) && Object.values(inventory?.boosts || {}).every(v => v === 0) ? (
           <div className="text-center py-12 border-2 border-dashed border-app rounded-2xl">

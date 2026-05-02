@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Music, Play, Pause, SkipForward, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
+import { loginWithSpotify } from '../../services/spotifyService';
 
 export function CompactSpotify() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -41,7 +42,7 @@ export function CompactSpotify() {
 
   if (!spotifyToken) {
     return (
-      <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl group hover:bg-emerald-500/10 transition-all cursor-pointer">
+      <div onClick={loginWithSpotify} className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl group hover:bg-emerald-500/10 transition-all cursor-pointer">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[#1DB954] flex items-center justify-center text-black shadow-[0_0_15px_rgba(29,185,84,0.3)] group-hover:scale-110 transition-transform">
              <Music size={14} />

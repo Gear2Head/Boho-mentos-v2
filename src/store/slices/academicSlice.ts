@@ -174,10 +174,16 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     else if (eloScore >= 20000) K = 35;
     else if (eloScore >= 7000) K = 45;
 
-    const expectedNet = (log.questions || 1) * 0.60;
-    const actualNet = log.correct - (log.wrong * 0.25);
-    const netDiff = Math.max(-50, Math.min(50, actualNet - expectedNet)); 
-    const eloDelta = Math.round(K * netDiff);
+    let eloDelta = 0;
+    if (log.questions && log.questions > 0) {
+      const expectedNet = log.questions * 0.60;
+      const actualNet = log.correct - (log.wrong * 0.25);
+      const netDiff = Math.max(-50, Math.min(50, actualNet - expectedNet)); 
+      eloDelta = Math.round(K * netDiff);
+    } else {
+      // 0 soruluk bir konu çalışmasıysa, süreye göre ufak bir ELO puanı ver
+      eloDelta = Math.round(Math.min(log.avgTime || 0, 120) * 0.5);
+    }
     
     const newDailyDelta = (lastEloUpdateDate !== todayStr ? 0 : dailyEloDelta) + eloDelta;
 
@@ -384,9 +390,12 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     const validAchievementIdSet = new Set(validAchievementIds);
     const validUserAchievements = (userAchievements || []).filter((achievement) => validAchievementIdSet.has(achievement.id));
     const newElo = baseElo + sumAchievementRewards(validAchievementIds);
-
+    const oldElo = get().eloScore;
+    const eloDiff = newElo - oldElo;
+    
     // ELO -> BohoCoin Senkronizasyonu (1 ELO = 4 Coin)
-    const newCoins = Math.max(get().bohoCoins || 0, newElo * 4);
+    // Sadece artışları veya orantılı değişimleri yansıt, ama mevcut bakiyeyi sıfırlama
+    const newCoins = Math.max(0, (get().bohoCoins || 0) + (eloDiff * 4));
 
     set({
       eloScore: newElo,

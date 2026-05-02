@@ -7,33 +7,72 @@ import { useToast } from '../../contexts/ToastContext';
 import { CrateOpening } from '../ui/CrateOpening';
 import { CrateCard } from './CrateCard';
 import { SlotMachine } from './SlotMachine';
+import { X } from 'lucide-react';
+
+const RewardPreviewPopup = ({ crate, onClose }: { crate: typeof CRATE_CONFIG[keyof typeof CRATE_CONFIG]; onClose: () => void }) => {
+  const pool = require('../../types/economy').REWARD_POOLS[crate.tier] || [];
+  const allItems = require('../../types/economy').ALL_SHOP_ITEMS || [];
+  const totalWeight = pool.reduce((s: number, e: any) => s + e.weight, 0);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        className="w-full max-w-md bg-zinc-950 border rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+        style={{ borderColor: crate.color, boxShadow: `0 0 40px ${crate.color}30` }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-white/10 flex items-center justify-between" style={{ background: `linear-gradient(90deg, ${crate.color}20, transparent)` }}>
+          <div>
+            <p className="text-[10px] uppercase font-black tracking-widest" style={{ color: crate.color }}>Ödül Havuzu</p>
+            <h3 className="text-xl font-display italic font-black text-white">{crate.name}</h3>
+          </div>
+          <button onClick={onClose} className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-zinc-400 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4 max-h-[60vh] overflow-y-auto space-y-3 custom-scrollbar">
+          {pool.map((entry: any, i: number) => {
+            const itemDef = allItems.find((itm: any) => itm.id === entry.itemId);
+            if (!itemDef) return null;
+            const pct = Math.round((entry.weight / totalWeight) * 100);
+            return (
+              <div key={`${entry.itemId}-${i}`} className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-bold text-white truncate">{itemDef.name}</span>
+                    <span className="text-[8px] uppercase tracking-widest font-black px-2 py-0.5 rounded-full bg-white/10 text-zinc-400 shrink-0">
+                      {itemDef.rarity}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500 line-clamp-1">{itemDef.description}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-black" style={{ color: crate.color }}>{pct}%</div>
+                  <div className="w-10 h-1 mt-1 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: crate.color }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 type StoreTab = 'crates' | 'slots' | 'direct' | 'boosts';
-
-const VISUAL_REWARD_ID_BY_ECONOMY_REWARD: Record<string, string> = {
-  xp_2x_1h: 'coin_200',
-  rival_ticket: 'rocket_boost',
-  title_limit: 'trophy_cache',
-  freeze_1: 'shield_1',
-  freeze_3: 'freeze_3',
-  'coin_1.5x_1h': 'coin_450',
-  theme_cyber: 'star_cache',
-  theme_aurora: 'theme_aurora',
-  theme_obsidian: 'theme_obsidian',
-  persona_soldier: 'boho_crown',
-  persona_zen: 'spark_legend',
-  persona_analyst: 'persona_analyst',
-  frame_neon: 'diamond_core',
-  frame_fire: 'frame_fire',
-  frame_gold: 'jackpot',
-  title_focus: 'title_focus',
-  focus_badge: 'focus_badge',
-  cosmic_crown: 'cosmic_crown',
-};
 
 export const StorePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<StoreTab>('crates');
   const [openingCrate, setOpeningCrate] = useState<{ tier: CrateTier; rewardId?: string } | null>(null);
+  const [previewCrate, setPreviewCrate] = useState<typeof CRATE_CONFIG[keyof typeof CRATE_CONFIG] | null>(null);
   const bohoCoins = useAppStore((s) => s.bohoCoins);
   const buyShopItem = useAppStore((s) => s.buyShopItem);
   const openCrate = useAppStore((s) => s.openCrate);
@@ -46,7 +85,7 @@ export const StorePage: React.FC = () => {
     if (res.success) {
       setOpeningCrate({
         tier: tier as CrateTier,
-        rewardId: res.rewardId ? VISUAL_REWARD_ID_BY_ECONOMY_REWARD[res.rewardId] : undefined,
+        rewardId: res.rewardId,
       });
       return;
     }
@@ -70,6 +109,12 @@ export const StorePage: React.FC = () => {
             crateTier={openingCrate.tier}
             targetRewardId={openingCrate.rewardId}
             onComplete={() => setOpeningCrate(null)}
+          />
+        )}
+        {previewCrate && (
+          <RewardPreviewPopup
+            crate={previewCrate}
+            onClose={() => setPreviewCrate(null)}
           />
         )}
       </AnimatePresence>
@@ -128,6 +173,7 @@ export const StorePage: React.FC = () => {
                   key={crate.tier}
                   crate={crate}
                   onBuy={handleCrateBuy}
+                  onPreview={setPreviewCrate}
                   disabled={bohoCoins < crate.price}
                 />
               ))}

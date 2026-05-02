@@ -38,10 +38,16 @@ export function calculateBaseElo(
       else if (currentElo >= 20000) K = 35;
       else if (currentElo >= 7000) K = 45;
 
-      const expectedNet = (log.questions || 1) * 0.60;
-      const actualNet = log.correct - (log.wrong * 0.25);
-      const netDiff = Math.max(-50, Math.min(50, actualNet - expectedNet));
-      const eloDelta = Math.round(K * netDiff);
+      let eloDelta = 0;
+      if (log.questions && log.questions > 0) {
+        const expectedNet = log.questions * 0.60;
+        const actualNet = (log.correct || 0) - ((log.wrong || 0) * 0.25);
+        const netDiff = Math.max(-50, Math.min(50, actualNet - expectedNet));
+        eloDelta = Math.round(K * netDiff);
+      } else {
+        // 0 soruluk bir konu çalışmasıysa, süreye göre ufak bir ELO puanı ver (academicSlice logic alignment)
+        eloDelta = Math.round(Math.min(log.avgTime || 0, 120) * 0.5);
+      }
 
       currentElo = Math.max(0, currentElo + eloDelta);
     } else if (event.type === 'exam') {

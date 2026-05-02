@@ -8,6 +8,7 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/appStore';
 import { CrateOpening, POOLS, RARITY_CFG, ALL_REWARDS, type Reward, type CrateTier } from './ui/CrateOpening';
+import type { CrateTier as EconomyCrateTier } from '../types/economy';
 import { useToast } from '../contexts/ToastContext';
 
 // ─── Types & Data ─────────────────────────────────────────────────────────────
@@ -441,12 +442,11 @@ function MarketCard({ item, canAfford, isOwned, onBuy }: {
 
 export function CrateShop() {
     const {
-        bohoCoins, spendBohoCoins, addBohoCoins,
+        bohoCoins, openCrate,
         profile, setProfile, purchasedItems, purchaseItem
     } = useAppStore(useShallow((s) => ({
         bohoCoins: s.bohoCoins,
-        spendBohoCoins: s.spendBohoCoins,
-        addBohoCoins: s.addBohoCoins,
+        openCrate: s.openCrate,
         profile: s.profile,
         setProfile: s.setProfile,
         purchasedItems: s.purchasedItems || [],
@@ -454,14 +454,23 @@ export function CrateShop() {
     })));
 
     const [view, setView] = useState<'crates' | 'market'>('crates');
-    const [activeCrate, setActiveCrate] = useState<CrateTier | null>(null);
+    const [activeCrate, setActiveCrate] = useState<{ tier: CrateTier; rewardId?: string } | null>(null);
     const [previewCrate, setPreviewCrate] = useState<CrateInfo | null>(null);
     const { toast } = useToast();
 
     const buyCrate = (crate: CrateInfo) => {
-        if (bohoCoins < crate.cost) { toast.error('Yetersiz BohoCoin.'); return; }
-        if (!spendBohoCoins(crate.cost, `crate_${crate.tier}`)) return;
-        setActiveCrate(crate.tier);
+        let ecoTier: EconomyCrateTier = 'wooden';
+        if (crate.tier === 'standard') ecoTier = 'bronze';
+        else if (crate.tier === 'epic') ecoTier = 'silver';
+        else if (crate.tier === 'legendary') ecoTier = 'gold';
+        else ecoTier = crate.tier as EconomyCrateTier;
+
+        const res = openCrate(ecoTier);
+        if (!res.success) {
+            toast.error(res.error || 'Yetersiz BohoCoin.');
+            return;
+        }
+        setActiveCrate({ tier: crate.tier as CrateTier, rewardId: res.rewardId });
     };
 
     const handleMarketBuy = (item: MarketItem) => {
@@ -483,11 +492,7 @@ export function CrateShop() {
     };
 
     const handleCrateComplete = (reward: Reward) => {
-        addBohoCoins(reward.coinReward, 'crate_reward');
-        if (reward.shieldReward && profile) {
-            setProfile({ ...profile, streakShields: (profile.streakShields || 0) + reward.shieldReward });
-        }
-        toast.success(`${reward.name} kazandin! +${reward.coinReward.toLocaleString()} BohoCoin${reward.shieldReward ? ` & +${reward.shieldReward} Kalkan` : ''}`);
+        toast.success(`${reward.name} kazandın!`);
         setActiveCrate(null);
     };
 
@@ -572,9 +577,10 @@ export function CrateShop() {
             <AnimatePresence>
                 {activeCrate && (
                     <CrateOpening
-                        key={activeCrate}
+                        key={activeCrate.tier}
                         onComplete={handleCrateComplete}
-                        crateTier={activeCrate}
+                        crateTier={activeCrate.tier}
+                        targetRewardId={activeCrate.rewardId}
                     />
                 )}
             </AnimatePresence>
