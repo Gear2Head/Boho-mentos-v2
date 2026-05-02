@@ -114,7 +114,7 @@ async function getAccessToken(serviceAccount: ServiceAccount): Promise<string> {
 }
 
 async function lookupUser(idToken: string): Promise<{ localId: string; email: string } | null> {
-  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  const apiKey = process.env.FIREBASE_WEB_API_KEY || "AIzaSyBxF8Rnwi-26PHXMmoG38UGinsbCAoYANk";
   if (!apiKey) throw new Error('FIREBASE_WEB_API_KEY is missing');
   const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
     method: 'POST',

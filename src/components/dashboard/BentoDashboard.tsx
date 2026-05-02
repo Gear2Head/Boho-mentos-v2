@@ -122,7 +122,10 @@ export function BentoDashboard() {
 
   const wp = useMemo(() => calcWorkloadRemaining(tytSubjects, aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)), logs), [tytSubjects, aytSubjects, logs, profile?.track]);
   const todayStr = useMemo(() => toISODateOnly(), []);
-  const todayLogs = useMemo(() => logs.filter(l => toISODateOnly(parseFlexibleDate(l.date)) === todayStr), [logs, todayStr]);
+  const todayLogs = useMemo(() => logs.filter(l => {
+    const d = parseFlexibleDate(l.date);
+    return d ? toISODateOnly(d) === todayStr : false;
+  }), [logs, todayStr]);
   const todayHours = useMemo(() => (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1), [todayLogs]);
   const completedMastery = useMemo(() => tytSubjects.filter(s => s.status === 'mastered').length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject) && s.status === 'mastered').length, [tytSubjects, aytSubjects, profile?.track]);
   const totalMastery = useMemo(() => tytSubjects.length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)).length, [tytSubjects, aytSubjects, profile?.track]);
@@ -197,7 +200,7 @@ export function BentoDashboard() {
         <BentoStatCard title="Tamamlanan" value={completedMastery.toString()} total={totalMastery} icon={<CheckCircle2 className="text-[#C17767]" />} />
         <BentoStatCard title="Günlük Çalışma" value={todayHours} total={profile?.dailyGoalHours || 0} unit="Saat" icon={<Calendar className="text-blue-400" />} />
         <BentoStatCard title="Kritik Sorunlar" value={logs.filter(l => l.wrong > l.correct).length.toString()} unit="Sorunlu" icon={<AlertTriangle className="text-orange-500" />} />
-        <BentoStatCard title="En Verimli" value={calcSourceROI(logs)[0]?.sourceName.split(' ')[0] || 'YOK'} unit="Kaynak" icon={<BookOpen className="text-green-500" />} />
+        <BentoStatCard title="En Verimli" value={calcSourceROI(logs)[0]?.sourceName?.split(' ')[0] || 'YOK'} unit="Kaynak" icon={<BookOpen className="text-green-500" />} />
       </motion.div>
 
       {/* ── ROW 3: ELO Card ── */}
