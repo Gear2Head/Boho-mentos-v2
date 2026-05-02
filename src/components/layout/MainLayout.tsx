@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { isSuperAdminClaims } from '../../config/admin';
 import { confirmDialog } from '../../contexts/ToastContext';
+import { useAuth } from '../../hooks/useAuth';
 
 import { NavItem } from '../NavItem';
 import { NAV_ITEMS } from '../../config/navItems';
@@ -24,14 +25,23 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const activeTab = location.pathname === '/' ? 'dashboard' : location.pathname.substring(1);
 
   const { profile } = useAppStore(useShallow(s => ({ profile: s.profile })));
-  const { user, signOut } = useAppStore(useShallow(s => ({ user: s.authUser, signOut: s.signOut })));
+  const { user } = useAppStore(useShallow(s => ({ user: s.authUser })));
+  const { signOut } = useAuth();
+  const triggerManualSync = useAppStore(s => s.triggerManualSync);
   const { isSyncing, isZenMode, setZenMode } = useAppStore(useShallow(s => ({ isSyncing: s.isSyncing, isZenMode: s.isZenMode, setZenMode: s.setZenMode })));
   const { isPassiveMode } = useAppStore(useShallow(s => ({ isPassiveMode: s.isPassiveMode })));
   const notifications = useAppStore(s => s.notifications);
 
+  const syncStatus = 'synced' as string; 
+  const [lastSyncClick, setLastSyncClick] = useState(0);
+  const COOLDOWN = 30000;
 
-  const syncStatus = 'synced' as string; // Type-safe placeholder
-  const storeForceSync = () => undefined;
+  const storeForceSync = () => {
+    const now = Date.now();
+    if (now - lastSyncClick < COOLDOWN) return;
+    setLastSyncClick(now);
+    triggerManualSync();
+  };
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarPinned, setIsSidebarPinned] = useState(() => {
@@ -65,7 +75,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   }, [scrollDirection]);
 
   const isCurrentlySyncing = isSyncing;
-  const syncButtonTitle = syncStatus === 'offline' ? 'Çevrimdışı' : isCurrentlySyncing ? 'Eşitleniyor...' : 'Eşitlendi';
+  const syncButtonTitle = syncStatus === 'offline' 
+    ? 'Çevrimdışı' 
+    : isCurrentlySyncing 
+      ? 'Eşitleniyor...' 
+      : (Date.now() - lastSyncClick < COOLDOWN)
+        ? `${Math.ceil((COOLDOWN - (Date.now() - lastSyncClick)) / 1000)}sn bekleyin`
+        : 'Eşitlemeyi Tetikle';
+  
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isDMPanelOpen, setIsDMPanelOpen] = useState(false);
 

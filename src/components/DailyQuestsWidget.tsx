@@ -144,16 +144,16 @@ function computeQuestProgress(quest: Quest, logs: any[], todayStr: string): numb
 export function DailyQuestsWidget() {
   const profile = useAppStore(s => s.profile);
   const logs = useAppStore(s => s.logs);
-  const addElo = useAppStore(s => s.addElo);
-  const [claimed, setClaimed] = useState<Set<string>>(new Set());
+  const claimedQuests = useAppStore(s => s.claimedQuests);
+  const claimQuest = useAppStore(s => s.claimQuest);
 
   const todayStr = toISODateOnly();
+  const dayClaims = useMemo(() => new Set(claimedQuests[todayStr] || []), [claimedQuests, todayStr]);
+
   const quests = useMemo(() => generateDailyQuests(todayStr, profile, logs), [todayStr, profile]);
 
   const handleClaim = (quest: Quest) => {
-    if (claimed.has(quest.id)) return;
-    setClaimed(prev => new Set(prev).add(quest.id));
-    addElo(quest.xp);
+    claimQuest(todayStr, quest.id, quest.xp);
   };
 
   return (
@@ -178,7 +178,7 @@ export function DailyQuestsWidget() {
         {quests.map((quest) => {
           const progress = computeQuestProgress(quest, logs, todayStr);
           const isComplete = progress >= quest.target;
-          const isClaimed = claimed.has(quest.id);
+          const isClaimed = dayClaims.has(quest.id);
           const pct = Math.round((progress / quest.target) * 100);
 
           return (

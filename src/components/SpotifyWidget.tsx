@@ -66,15 +66,19 @@ export function SpotifyWidget() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // Load existing token immediately from localStorage
+  useEffect(() => {
+    const existing = localStorage.getItem('spotify_token');
+    if (existing) setToken(existing);
+  }, []);
+
+  // Handle OAuth callback code if present
   useEffect(() => {
     processSpotifyCallback().then((t) => {
       if (t) setToken(t);
-      else {
-        const existing = getSpotifyTokenFromUrl();
-        if (existing) setToken(existing);
-      }
     });
   }, []);
+
 
   useEffect(() => {
     if (!token) return;

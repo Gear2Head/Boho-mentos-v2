@@ -38,6 +38,7 @@ export interface StudentProfile {
   targetGoals?: AtlasProgram[];
   lastSyncAt?: string; // [SYNC-FIX]: Son başarılı eşitleme zamanı
   coachMemory?: CoachMemory; // [Faz 2 - Hafıza]
+
   streakShields?: number; // [Faz 2 - Streak Freeze]
   usedStreakShieldDates?: string[];
   activeDays?: string[]; // [FAZ-3]: Sistem girişine göre seri takibi
@@ -71,9 +72,11 @@ export type SubjectStatusType = 'not-started' | 'in-progress' | 'mastered';
 
 export interface SubjectStatus {
   subject: string;
-  name: string;
+  name?: string;
   status: SubjectStatusType;
-  notes: string;
+  notes?: string;
+  category?: string;
+  mastery?: number;
 }
 
 export interface DailyLog {

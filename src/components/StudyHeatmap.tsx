@@ -75,21 +75,33 @@ export function StudyHeatmap() {
 
   return (
     <div className="bg-surface border border-app rounded-[32px] p-8 shadow-xl overflow-hidden relative group">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-emerald-500/5 to-transparent rounded-bl-full pointer-events-none" />
+      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-emerald-500/5 to-transparent rounded-bl-full pointer-events-none" />
 
-      <header className="flex justify-between items-start mb-8">
+      <header className="flex flex-wrap justify-between items-start mb-8 gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Çalışma Yoğunluğu</h3>
           </div>
-          <p className="text-3xl font-display italic font-bold text-zinc-100">
+          <p className="text-4xl font-display italic font-bold text-zinc-100">
             {totalQuestions.toLocaleString()} <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest not-italic ml-1">Toplam Soru</span>
           </p>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-display italic font-bold text-emerald-400 leading-none">{activeDays}</div>
-          <div className="text-[8px] uppercase font-black text-zinc-500 tracking-widest mt-1">Aktif Gün</div>
+        <div className="flex gap-8">
+          <div className="text-right">
+            <div className="text-2xl font-display italic font-bold text-emerald-400 leading-none">{activeDays}</div>
+            <div className="text-[8px] uppercase font-black text-zinc-500 tracking-widest mt-1">Aktif Gün</div>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-display italic font-bold text-blue-400 leading-none">
+              {activeDays > 0 ? Math.round(totalQuestions / activeDays) : 0}
+            </div>
+            <div className="text-[8px] uppercase font-black text-zinc-500 tracking-widest mt-1">Ort. Günlük</div>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-display italic font-bold text-amber-400 leading-none">{maxQuestions}</div>
+            <div className="text-[8px] uppercase font-black text-zinc-500 tracking-widest mt-1">Rekor Gün</div>
+          </div>
         </div>
       </header>
 
@@ -102,7 +114,7 @@ export function StudyHeatmap() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: (wIdx * 0.005) }}
-                className={`w-[11px] h-[11px] rounded-[3px] border transition-all duration-300 hover:scale-150 hover:z-10 cursor-help ${levelColors[day.level]}`}
+                className={`w-[14px] h-[14px] rounded-[4px] border transition-all duration-300 hover:scale-150 hover:z-10 cursor-help ${levelColors[day.level]}`}
                 title={`${day.date}: ${day.count} soru`}
               />
             ))}

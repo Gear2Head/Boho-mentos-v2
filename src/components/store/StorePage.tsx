@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Coins, Dices, Package, ShoppingBag, Sparkles, Zap } from 'lucide-react';
+import { Coins, Dices, Package, ShoppingBag, Sparkles, Zap, X } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
-import { ALL_SHOP_ITEMS, CRATE_CONFIG, CrateTier } from '../../types/economy';
+import { ALL_SHOP_ITEMS, CRATE_CONFIG, CrateTier, REWARD_POOLS } from '../../types/economy';
 import { useToast } from '../../contexts/ToastContext';
 import { CrateOpening } from '../ui/CrateOpening';
 import { CrateCard } from './CrateCard';
 import { SlotMachine } from './SlotMachine';
-import { X } from 'lucide-react';
 
 const RewardPreviewPopup = ({ crate, onClose }: { crate: typeof CRATE_CONFIG[keyof typeof CRATE_CONFIG]; onClose: () => void }) => {
-  const pool = require('../../types/economy').REWARD_POOLS[crate.tier] || [];
-  const allItems = require('../../types/economy').ALL_SHOP_ITEMS || [];
+  const pool = REWARD_POOLS[crate.tier] || [];
+  const allItems = ALL_SHOP_ITEMS || [];
   const totalWeight = pool.reduce((s: number, e: any) => s + e.weight, 0);
 
   return (

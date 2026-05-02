@@ -38,6 +38,10 @@ export function useAuth() {
       if (user) {
         const tokenResult = await user.getIdTokenResult(true).catch(() => null);
         const mappedUser = { ...mapFirebaseUser(user), claims: tokenResult?.claims ?? {} };
+        
+        // ISOLATION: Clear any stale war room session from a previous user
+        useAppStore.setState({ warRoomSession: null, warRoomTimeLeft: 0 });
+        
         setAuthUser(mappedUser);
         
         if (user.email?.trim().toLowerCase() === OWNER_EMAIL) {
@@ -86,6 +90,7 @@ export function useAuth() {
     return () => unsubscribe();
   }, [setAuthUser]);
 
+
   useEffect(() => {
     if (!authUser?.uid) return;
     const userRef = doc(db, 'users', authUser.uid);
@@ -96,7 +101,16 @@ export function useAuth() {
          
          // Batch updates to avoid multiple re-renders and use deep equality for large arrays
          const updates: any = {};
-         
+         const remoteUpdateAt = data.updated_at || data.lastLocalUpdateAt || '0';
+         const localUpdateAt = store.lastLocalUpdateAt || '0';
+
+         // CONFLICT RESOLUTION: If remote data is older than our last local change, ignore it.
+         // This prevents "flickering" or data loss during sync races.
+         if (new Date(remoteUpdateAt).getTime() < new Date(localUpdateAt).getTime()) {
+           console.log('[Sync] Remote data is stale, keeping local version.');
+           return;
+         }
+
          const fields = [
            'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
            'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
@@ -107,7 +121,6 @@ export function useAuth() {
 
          fields.forEach(field => {
            if (data[field] !== undefined) {
-             // Basic equality check for arrays/objects to prevent noise
              const currentVal = (store as any)[field];
              let newVal = data[field];
 
@@ -138,7 +151,7 @@ export function useAuth() {
          });
 
          if (Object.keys(updates).length > 0) {
-           useAppStore.setState(updates);
+           useAppStore.setState({ ...updates, lastLocalUpdateAt: remoteUpdateAt });
          }
       }
     });
@@ -191,6 +204,45 @@ export function useAuth() {
       return false;
     }
   }, []);
+
+  const lastSyncRequestedAt = useAppStore((s) => s.lastSyncRequestedAt);
+
+  useEffect(() => {
+    if (!authUser?.uid || lastSyncRequestedAt === 0) return;
+    
+    const performManualSync = async () => {
+      console.log('[Sync] Manual sync triggered.');
+      const userRef = doc(db, 'users', authUser.uid);
+      const docSnap = await getDoc(userRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const store = useAppStore.getState();
+        const updates: any = {};
+        
+        const fields = [
+          'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
+          'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
+          'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
+          'coachMemory', 'exams', 'logs', 'failedQuestions', 'agendaEntries',
+          'focusSessions', 'flashcards', 'unlockedAchievementIds', 'userAchievements'
+        ];
+
+        fields.forEach(field => {
+          if (data[field] !== undefined) {
+            if (JSON.stringify((store as any)[field]) !== JSON.stringify(data[field])) {
+              updates[field] = data[field];
+            }
+          }
+        });
+
+        if (Object.keys(updates).length > 0) {
+          useAppStore.setState({ ...updates, lastLocalUpdateAt: data.updated_at || data.lastLocalUpdateAt || new Date().toISOString() });
+        }
+      }
+    };
+
+    performManualSync();
+  }, [lastSyncRequestedAt, authUser?.uid]);
 
   return {
     user: authUser,

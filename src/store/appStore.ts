@@ -22,6 +22,8 @@ export const COACH_SYSTEM_NAME = 'kübra_v2';
 
 export type AppState = AuthSlice & ProfileSlice & AcademicSlice & SocialSlice & WarRoomSlice & CoachSlice & UISlice & AchievementSlice & UiBehaviorSlice & EconomySlice & {
   lastLocalUpdateAt: string;
+  lastSyncRequestedAt: number;
+  triggerManualSync: () => void;
   hardReset: (scope?: 'full' | 'ui' | 'all-data') => void;
   addTargetGoal: (goal: import('../types').AtlasProgram) => void;
   removeTargetGoal: (id: string) => void;
@@ -102,84 +104,101 @@ export function detectHabitsFromLogs(logs: DailyLog[]): HabitAlert[] {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get, api) => ({
-      ...createAuthSlice(set, get, api),
-      ...createProfileSlice(set, get, api),
-      ...createAcademicSlice(set, get, api),
-      ...createSocialSlice(set, get, api),
-      ...createWarRoomSlice(set, get, api),
-      ...createCoachSlice(set, get, api),
-      ...createUISlice(set, get, api),
-      ...createAchievementSlice(set, get),
-      ...createUiBehaviorSlice(set, get, api),
-      ...createEconomySlice(set, get, api),
-
-      lastLocalUpdateAt: toISODateTime(),
-
-      hardReset: (scope = 'full') => {
-        if (scope === 'full') {
-          window.location.reload(); 
-        } else if (scope === 'all-data') {
-          set({
-            logs: [],
-            exams: [],
-            failedQuestions: [],
-            agendaEntries: [],
-            focusSessions: [],
-            chatHistory: [],
-            directiveHistory: [],
-            coachMemory: null,
-            lastCoachDirective: null,
-            bohoCoins: 0,
-            economyLedger: [],
-          });
+    (set, get, api) => {
+      // SAFE SET: Wraps zustand's set to always update the local timestamp
+      // unless specifically asked not to (e.g. during a remote sync update)
+      const safeSet: typeof set = (partial, replace) => {
+        const nextState = typeof partial === 'function' ? (partial as Function)(get()) : partial;
+        // If we are already setting a timestamp, don't override it (allows remote sync to set their timestamp)
+        if (nextState.lastLocalUpdateAt) {
+          set(nextState, replace);
+        } else {
+          set({ ...nextState, lastLocalUpdateAt: toISODateTime() }, replace);
         }
-      },
+      };
 
-      addTargetGoal: (goal) => {
-        const { profile, setProfile } = get();
-        if (!profile) return;
-        const newProfile = { ...profile, targetGoals: [...(profile.targetGoals || []), goal] };
-        setProfile(newProfile);
-      },
+      return {
+        ...createAuthSlice(safeSet, get, api),
+        ...createProfileSlice(safeSet, get, api),
+        ...createAcademicSlice(safeSet, get, api),
+        ...createSocialSlice(safeSet, get, api),
+        ...createWarRoomSlice(safeSet, get, api),
+        ...createCoachSlice(safeSet, get, api),
+        ...createUISlice(safeSet, get, api),
+        ...createAchievementSlice(safeSet, get),
+        ...createUiBehaviorSlice(safeSet, get, api),
+        ...createEconomySlice(safeSet, get, api),
 
-      removeTargetGoal: (id) => {
-        const { profile, setProfile } = get();
-        if (!profile) return;
-        const newProfile = { ...profile, targetGoals: (profile.targetGoals || []).filter(g => g.id !== id) };
-        setProfile(newProfile);
-      },
+        lastLocalUpdateAt: toISODateTime(),
+        lastSyncRequestedAt: 0,
+        triggerManualSync: () => set({ lastSyncRequestedAt: Date.now() }),
 
-      dismissAlert: (id) => set((s) => ({ activeAlerts: s.activeAlerts.filter(a => a.id !== id) })),
+        hardReset: (scope = 'full') => {
+          if (scope === 'full') {
+            window.location.reload(); 
+          } else if (scope === 'all-data') {
+            safeSet({
+              logs: [],
+              exams: [],
+              failedQuestions: [],
+              agendaEntries: [],
+              focusSessions: [],
+              chatHistory: [],
+              directiveHistory: [],
+              coachMemory: null,
+              lastCoachDirective: null,
+              bohoCoins: 0,
+              economyLedger: [],
+            });
+          }
+        },
 
-      detectAndSetHabits: () => {
-        const alerts = detectHabitsFromLogs(get().logs);
-        set({ activeAlerts: alerts });
-      },
+        addTargetGoal: (goal) => {
+          const { profile, setProfile } = get();
+          if (!profile) return;
+          const newProfile = { ...profile, targetGoals: [...(profile.targetGoals || []), goal] };
+          setProfile(newProfile);
+        },
 
-      analyzeUserData: () => {
-        const state = get();
-        const tytTarget = state.profile?.tytTarget || 0;
-        const aytTarget = state.profile?.aytTarget || 0;
-        const lastLogs = state.logs.slice(-10).map(l => `${l.subject}: %${Math.round((l.correct / (l.questions || 1)) * 100)}`).join(' | ');
-        return `HEDEF: ${state.profile?.targetUniversity}. TYT: ${tytTarget}, AYT: ${aytTarget}. ELO: ${state.eloScore}. LOGLAR: ${lastLogs}`;
-      },
+        removeTargetGoal: (id) => {
+          const { profile, setProfile } = get();
+          if (!profile) return;
+          const newProfile = { ...profile, targetGoals: (profile.targetGoals || []).filter(g => g.id !== id) };
+          setProfile(newProfile);
+        },
 
-      bulkMasterTytSubjectsByName: (names) => {
-        const { tytSubjects, updateTytSubject } = get();
-        tytSubjects.forEach((s, idx) => {
-          if (names.includes(s.subject)) updateTytSubject(idx, { status: 'mastered' });
-        });
-      },
+        dismissAlert: (id) => safeSet((s) => ({ activeAlerts: s.activeAlerts.filter(a => a.id !== id) })),
 
-      bulkMasterAytSubjectsByName: (names) => {
-        const { aytSubjects, updateAytSubject } = get();
-        aytSubjects.forEach((s, idx) => {
-          if (names.includes(s.subject)) updateAytSubject(idx, { status: 'mastered' });
-        });
-      },
-    }),
+        detectAndSetHabits: () => {
+          const alerts = detectHabitsFromLogs(get().logs);
+          safeSet({ activeAlerts: alerts });
+        },
+
+        analyzeUserData: () => {
+          const state = get();
+          const tytTarget = state.profile?.tytTarget || 0;
+          const aytTarget = state.profile?.aytTarget || 0;
+          const lastLogs = state.logs.slice(-10).map(l => `${l.subject}: %${Math.round((l.correct / (l.questions || 1)) * 100)}`).join(' | ');
+          return `HEDEF: ${state.profile?.targetUniversity}. TYT: ${tytTarget}, AYT: ${aytTarget}. ELO: ${state.eloScore}. LOGLAR: ${lastLogs}`;
+        },
+
+        bulkMasterTytSubjectsByName: (names) => {
+          const { tytSubjects, updateTytSubject } = get();
+          tytSubjects.forEach((s, idx) => {
+            if (names.includes(s.subject)) updateTytSubject(idx, { status: 'mastered' });
+          });
+        },
+
+        bulkMasterAytSubjectsByName: (names) => {
+          const { aytSubjects, updateAytSubject } = get();
+          aytSubjects.forEach((s, idx) => {
+            if (names.includes(s.subject)) updateAytSubject(idx, { status: 'mastered' });
+          });
+        },
+      };
+    },
     {
+
       name: 'yks_coach_storage_v2',
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => {

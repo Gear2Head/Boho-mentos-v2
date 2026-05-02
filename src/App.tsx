@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
+import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import {
   LayoutDashboard, UserCircle, BookOpen, MessageSquare,
@@ -94,6 +94,18 @@ import { YKS_TARGET_DATE_TYT, YKS_TARGET_DATE_AYT } from './config/examConfig';
 const YKS_2026_TYT_DATE = YKS_TARGET_DATE_TYT;
 const YKS_2026_AYT_DATE = YKS_TARGET_DATE_AYT;
 
+const ProfileVisitWrapper = () => {
+  const { uid } = useParams();
+  const scrollCls = "flex-1 overflow-y-auto custom-scrollbar";
+  return (
+    <div className={scrollCls}>
+      <motion.div key="profile-visit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-12">
+        <ProfileShowcase isPublic targetUid={uid} />
+      </motion.div>
+    </div>
+  );
+};
+
 const getAytSubjectsForTrack = (track: string) => {
   if (track === 'Sayısal') return ['Matematik', 'Fizik', 'Kimya', 'Biyoloji'];
   if (track === 'Eşit Ağırlık') return ['Matematik', 'Edebiyat', 'Tarih', 'Coğrafya'];
@@ -166,8 +178,13 @@ export default function App() {
   }, []);
 
   // --- CORE HOOKS ---
-  const { user, isLoading, signOut } = useAuth();
+  const { user, isLoading, signOut: authSignOut } = useAuth();
   const recordActivity = useAppStore((s) => s.recordActivity);
+
+  const signOut = async () => {
+    await authSignOut();
+    hardReset('full');
+  };
 
   useEffect(() => {
     if (user?.uid && hasHydrated) {
@@ -546,7 +563,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          {/* ── Coach: full-height, no scroll ── */}
           <Route path="/coach" element={
             <motion.div key="coach" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 overflow-hidden h-full">
               <CoachScreen
@@ -561,14 +577,12 @@ export default function App() {
             </motion.div>
           } />
 
-          {/* ── Admin Dashboard ── */}
           <Route path="/admin_dashboard" element={
             <React.Suspense fallback={<div className="fixed inset-0 bg-black z-[200] flex items-center justify-center"><div className="text-zinc-500">Yükleniyor...</div></div>}>
               <AdminDashboard onBack={() => navigate('/dashboard')} />
             </React.Suspense>
           } />
 
-          {/* ── Scrollable routes ── */}
           <Route path="/dashboard" element={
             <div className={scrollCls}>
               <motion.div key="dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }} className="h-full">
@@ -624,7 +638,7 @@ export default function App() {
                   <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Tüm seanslarının detaylı dökümü</p>
                   </div>
                   <button onClick={() => setIsLogWidgetOpen(true)} className="px-4 py-2 bg-[#C17767] text-white text-[10px] font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-[#C17767]/20 flex items-center gap-2 self-start sm:self-auto">
-                    <Plus size={14} /> Yeni KayÄ±t
+                    <Plus size={14} /> Yeni Kayıt
                   </button>
                 </header>
                 <LogHistory logs={logs} onLogClick={setSelectedLog} />
@@ -660,18 +674,6 @@ export default function App() {
             </div>
           } />
 
-          <Route path="/strategy" element={
-            <div className={scrollCls}>
-              <motion.div key="strategy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
-                <header>
-                  <h2 className="font-display italic text-3xl text-[#C17767]">Savaş Stratejisi</h2>
-                  <p className="text-xs opacity-50 uppercase tracking-widest mt-1">Hedefine giden en kısa yolu planla</p>
-                </header>
-                <StrategyAdvisor />
-              </motion.div>
-            </div>
-          } />
-
           <Route path="/archive" element={
             <div className={scrollCls}>
               <motion.div key="archive" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 md:p-8 space-y-6">
@@ -698,6 +700,10 @@ export default function App() {
                 </div>
               </motion.div>
             </div>
+          } />
+
+          <Route path="/profile/:uid" element={
+            <ProfileVisitWrapper />
           } />
 
           <Route path="/subjects" element={

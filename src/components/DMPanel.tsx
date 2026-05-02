@@ -120,13 +120,22 @@ export function DMPanel({ onClose, forceTargetUid }: { onClose: () => void, forc
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {(directMessages[selectedUser?.uid || ''] || []).map((msg, i) => {
                 const isMe = msg.senderId === authUser?.uid;
+                const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                
                 return (
-                  <div key={msg.id ?? `${msg.timestamp}-${i}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                      isMe ? 'bg-[#C17767] text-white rounded-br-sm' : 'bg-white/5 border border-white/10 text-zinc-200 rounded-bl-sm'
+                  <div key={msg.id ?? `${msg.timestamp}-${i}`} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                    <div className={`max-w-[85%] p-3.5 rounded-[22px] text-sm shadow-sm transition-all hover:brightness-110 ${
+                      isMe 
+                        ? 'bg-[#C17767] text-white rounded-br-none' 
+                        : 'bg-zinc-900 border border-white/5 text-zinc-100 rounded-bl-none'
                     }`}>
                       {msg.content}
                     </div>
+                    {time && (
+                      <span className="text-[9px] text-zinc-600 mt-1.5 px-1 font-bold uppercase tracking-wider">
+                        {time}
+                      </span>
+                    )}
                   </div>
                 );
               })}

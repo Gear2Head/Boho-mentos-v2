@@ -27,9 +27,9 @@ const RARITY_COLOR: Record<string, string> = {
   cosmic: '#8b5cf6',
 };
 
-export function ProfileShowcase() {
+export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; targetUid?: string }) {
   const navigate = useNavigate();
-  const { authUser, profile, eloScore, exams, streakDays, trophies, removeTargetGoal, recomputeFullElo, tytSubjects, aytSubjects } = useAppStore(useShallow(s => ({
+  const { authUser, profile: myProfile, eloScore: myElo, exams: myExams, streakDays: myStreak, trophies: myTrophies, tytSubjects: myTyt, aytSubjects: myAyt, removeTargetGoal, recomputeFullElo, inventory: myInventory } = useAppStore(useShallow(s => ({
     authUser: s.authUser,
     profile: s.profile,
     eloScore: s.eloScore,
@@ -39,17 +39,45 @@ export function ProfileShowcase() {
     streakDays: s.streakDays,
     trophies: s.trophies,
     removeTargetGoal: s.removeTargetGoal,
-    recomputeFullElo: s.recomputeFullElo
+    recomputeFullElo: s.recomputeFullElo,
+    inventory: s.inventory
   })));
+
+  const [publicData, setPublicData] = React.useState<any>(null);
+  const [isPublicLoading, setIsPublicLoading] = React.useState(isPublic);
+
+  React.useEffect(() => {
+    if (isPublic && targetUid) {
+      import('firebase/firestore').then(({ doc, getDoc }) => {
+        const { db } = require('../services/firebase');
+        getDoc(doc(db, 'users', targetUid)).then((snap: any) => {
+          if (snap.exists()) setPublicData(snap.data());
+          setIsPublicLoading(false);
+        });
+      });
+    }
+  }, [isPublic, targetUid]);
+
+  const profile = isPublic ? publicData?.profile : myProfile;
+  const eloScore = isPublic ? (publicData?.eloScore || 0) : myElo;
+  const exams = isPublic ? (publicData?.exams || []) : myExams;
+  const streakDays = isPublic ? (publicData?.streakDays || 0) : myStreak;
+  const trophies = isPublic ? (publicData?.trophies || []) : myTrophies;
+  const inventory = isPublic ? publicData?.inventory : myInventory;
+  const tytSubjects = isPublic ? (publicData?.tytSubjects || []) : myTyt;
+  const aytSubjects = isPublic ? (publicData?.aytSubjects || []) : myAyt;
 
   const [isExplorerOpen, setIsExplorerOpen] = React.useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = React.useState(false);
   const [achievementPanel, setAchievementPanel] = React.useState<'all' | 'unlocked' | 'locked'>('all');
-  const { inventory, equipInventoryItem, activateInventoryBoost } = useAppStore(useShallow(s => ({
-    inventory: s.inventory,
+  const { equipInventoryItem, activateInventoryBoost } = useAppStore(useShallow(s => ({
     equipInventoryItem: s.equipInventoryItem,
     activateInventoryBoost: s.activateInventoryBoost,
   })));
+
+  if (isPublicLoading) return <div className="p-20 text-center"><RefreshCw className="animate-spin mx-auto text-accent" /></div>;
+  if (!profile) return null;
+
   const rank = getRankDetails(eloScore);
   const RankIcon = ICON_MAP[rank.iconName] || Trophy;
   const canOpenAdmin = isOwnerEmail(authUser?.email) || (profile as any)?.role === 'super_admin';
@@ -57,8 +85,6 @@ export function ProfileShowcase() {
   const activeTitleDef = inventory?.activeTitle ? ALL_SHOP_ITEMS.find(i => i.id === inventory.activeTitle) : null;
   const activeFrameColor = activeFrameDef ? RARITY_COLOR[activeFrameDef.rarity] : undefined;
   const activeTitleColor = activeTitleDef ? RARITY_COLOR[activeTitleDef.rarity] : undefined;
-
-  if (!profile) return null;
 
   const tytMastered = tytSubjects.filter(s => s.status === 'mastered').length;
   const tytTotal = tytSubjects.length;
@@ -449,13 +475,13 @@ export function ProfileShowcase() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Boosts */}
-            {Object.entries(inventory?.boosts || {}).filter(([_, count]) => count > 0).map(([key, count]) => {
+            {Object.entries(inventory?.boosts || {}).filter(([_, count]) => (count as number) > 0).map(([key, count]) => {
               const itemDef = ALL_SHOP_ITEMS.find(i => i.metadata?.boostKey === key);
               const Icon = itemDef?.icon ? (ICON_MAP[itemDef.icon] || Zap) : Zap;
               return (
                 <div key={`boost-${key}`} className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 flex flex-col gap-4 relative overflow-hidden">
                   <div className="absolute top-0 right-0 bg-amber-500 text-black font-black text-[10px] px-2 rounded-bl-xl shadow-sm">
-                    {count} ADET
+                    {String(count)} ADET
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="p-3 bg-amber-500/20 text-amber-500 rounded-xl">

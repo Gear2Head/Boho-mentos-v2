@@ -25,6 +25,10 @@ export interface EconomySlice {
   // Compatibility
   purchasedItems: string[];
   purchaseItem: (itemId: string, cost: number) => boolean;
+  
+  // Daily Quests persistence
+  claimedQuests: Record<string, string[]>; // date -> [questId1, questId2]
+  claimQuest: (date: string, questId: string, xp: number) => void;
 }
 
 export const createEconomySlice: StateCreator<
@@ -271,13 +275,35 @@ export const createEconomySlice: StateCreator<
 
   openCrate: (tier) => {
     const config = CRATE_CONFIG[tier];
-    const { spendBohoCoins, addToInventory, authUser } = get();
+    const { spendBohoCoins, addToInventory, inventory, authUser, addBohoCoins } = get();
 
     if (!spendBohoCoins(config.price, `Open Crate: ${config.name}`)) {
       return { success: false, error: 'INSUFFICIENT_FUNDS' };
     }
 
-    const pool = REWARD_POOLS[tier];
+    // [V21 FIX]: Filter pool to remove already owned one-time items (cosmetics, personas)
+    let pool = REWARD_POOLS[tier].filter(reward => {
+      const shopItem = ALL_SHOP_ITEMS.find(i => i.id === reward.itemId);
+      if (!shopItem) return true;
+      if (shopItem.category === 'cosmetic' || shopItem.category === 'ai_persona') {
+        return !inventory.items.includes(shopItem.id);
+      }
+      return true;
+    });
+
+    // Fallback: If everything in the pool is owned, give a guaranteed common item or refund coins
+    if (pool.length === 0) {
+      const fallbackItemId = 'rival_ticket';
+      const fallbackItem = ALL_SHOP_ITEMS.find(i => i.id === fallbackItemId);
+      if (fallbackItem) {
+        addToInventory(fallbackItemId);
+        return { success: true, rewardId: fallbackItemId };
+      }
+      // Ultimate fallback: refund partial coins
+      addBohoCoins(Math.floor(config.price * 0.5), 'Crate Refund (Pool Empty)');
+      return { success: true, rewardId: 'refund' };
+    }
+
     const totalWeight = pool.reduce((acc, i) => acc + i.weight, 0);
     let random = Math.random() * totalWeight;
     let rewardId = pool[0].itemId;
@@ -322,5 +348,20 @@ export const createEconomySlice: StateCreator<
       return true;
     }
     return false;
+  },
+
+  claimedQuests: {},
+  claimQuest: (date, questId, xp) => {
+    const { claimedQuests, addElo, authUser } = get();
+    const dayClaims = claimedQuests[date] || [];
+    if (dayClaims.includes(questId)) return;
+
+    const nextClaims = { ...claimedQuests, [date]: [...dayClaims, questId] };
+    set({ claimedQuests: nextClaims, lastLocalUpdateAt: new Date().toISOString() });
+    addElo(xp, `Quest: ${questId}`);
+
+    if (authUser?.uid) {
+      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ claimedQuests: nextClaims }), { merge: true }).catch(console.error);
+    }
   },
 });

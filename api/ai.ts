@@ -12,6 +12,10 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
+export const config = {
+  runtime: 'edge',
+};
+
 type CoachIntent =
   | 'daily_plan' | 'log_analysis' | 'exam_analysis' | 'exam_debrief'
   | 'topic_explain' | 'intervention' | 'qa_mode' | 'free_chat'

@@ -8,6 +8,33 @@ import { cleanForFirestore } from "../../utils/firebaseHelpers";
 import { computeHealthScore, HealthScore } from "../../utils/healthScore";
 import { detectHabitsFromLogs } from "../appStore";
 import { computeStudyStreak } from '../../utils/streak';
+import { TYT_SUBJECTS, AYT_SUBJECTS } from '../../constants';
+
+// Build flat subject lists from the nested constants
+function buildTytSubjects() {
+  return Object.entries(TYT_SUBJECTS).flatMap(([subject, topics]) =>
+    topics.map(topic => ({ subject, name: topic, status: 'not-started' as const, notes: '' }))
+  );
+}
+
+function buildAytSubjectsForTrack(track: string) {
+  const trackMap: Record<string, string[]> = {
+    'Sayısal': ['Matematik', 'Fizik', 'Kimya', 'Biyoloji'],
+    'Eşit Ağırlık': ['Matematik', 'Edebiyat', 'Tarih', 'Coğrafya'],
+    'Sözel': ['Edebiyat', 'Tarih', 'Coğrafya', 'Felsefe Grubu'],
+    'Dil': ['Yabancı Dil'],
+    'EA': ['Matematik', 'Edebiyat', 'Tarih', 'Coğrafya'],
+    'SÖZ': ['Edebiyat', 'Tarih', 'Coğrafya', 'Felsefe Grubu'],
+    'DİL': ['Yabancı Dil'],
+  };
+  const allowed = trackMap[track] ?? trackMap['Sayısal'];
+  return Object.entries(AYT_SUBJECTS)
+    .filter(([subject]) => allowed.includes(subject))
+    .flatMap(([subject, topics]) =>
+      topics.map(topic => ({ subject, name: topic, status: 'not-started' as const, notes: '' }))
+    );
+}
+
 
 export interface ProfileSlice {
   profile: StudentProfile | null;
@@ -40,16 +67,34 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
   activeAlerts: [],
 
   setProfile: (profile) => {
-    const { authUser } = get();
+    const { authUser, tytSubjects, aytSubjects } = get();
     if (profile && profile.motivationQuote === undefined) {
       profile.motivationQuote = null;
     }
-    set({ profile });
+
+    // AUTO-INIT: Initialize subjects for new accounts when profile is first set
+    const stateUpdates: any = { profile };
+    if (profile && tytSubjects.length === 0) {
+      stateUpdates.tytSubjects = buildTytSubjects();
+    }
+    if (profile && aytSubjects.length === 0 && profile.track) {
+      stateUpdates.aytSubjects = buildAytSubjectsForTrack(profile.track);
+    }
+
+    set(stateUpdates);
     if (authUser?.uid && profile) {
       setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ profile }), { merge: true }).catch(console.error);
+      // Also persist initialized subjects if they were just created
+      if (stateUpdates.tytSubjects) {
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: stateUpdates.tytSubjects }), { merge: true }).catch(console.error);
+      }
+      if (stateUpdates.aytSubjects) {
+        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: stateUpdates.aytSubjects }), { merge: true }).catch(console.error);
+      }
     }
     get().updateHealthScore();
   },
+
 
   setTheme: (theme) => {
     const { authUser } = get();

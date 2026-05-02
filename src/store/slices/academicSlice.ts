@@ -383,34 +383,40 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
   recomputeFullElo: () => {
     const {
       logs, exams, profile, authUser, tytSubjects, aytSubjects,
-      evaluateAllAchievements, unlockedAchievementIds, userAchievements
+      evaluateAllAchievements, unlockedAchievementIds, userAchievements,
+      eloScore: currentElo, bohoCoins
     } = get();
-    const baseElo = calculateBaseElo(logs, exams, (profile as any), tytSubjects, aytSubjects);
-    const validAchievementIds = filterInvalidEloAchievementIds(unlockedAchievementIds || [], baseElo);
+
+    const newBaseElo = calculateBaseElo(logs, exams, (profile as any), tytSubjects, aytSubjects);
+    // SAFE: Only add achievement rewards on top of base — never strip them unless admin-forced
+    const validAchievementIds = filterInvalidEloAchievementIds(unlockedAchievementIds || [], newBaseElo);
     const validAchievementIdSet = new Set(validAchievementIds);
-    const validUserAchievements = (userAchievements || []).filter((achievement) => validAchievementIdSet.has(achievement.id));
-    const newElo = baseElo + sumAchievementRewards(validAchievementIds);
-    const oldElo = get().eloScore;
-    const eloDiff = newElo - oldElo;
-    
-    // ELO -> BohoCoin Senkronizasyonu (1 ELO = 4 Coin)
-    // Sadece artışları veya orantılı değişimleri yansıt, ama mevcut bakiyeyi sıfırlama
-    const newCoins = Math.max(0, (get().bohoCoins || 0) + (eloDiff * 4));
+    const validUserAchievements = (userAchievements || []).filter((a) => validAchievementIdSet.has(a.id));
+    const achievementBonus = sumAchievementRewards(validAchievementIds);
+    const newElo = newBaseElo + achievementBonus;
+
+    // PROTECT: Never catastrophically drop ELO — allow max -20% drop per recompute
+    // This guards against buggy recomputation wiping real earned ELO
+    const minAllowedElo = Math.floor(currentElo * 0.80);
+    const safeNewElo = Math.max(minAllowedElo, newElo);
+
+    // BohoCoin delta: only apply the difference, never reset balance
+    const eloDiff = safeNewElo - currentElo;
+    const newCoins = Math.max(0, (bohoCoins || 0) + (eloDiff * 4));
 
     set({
-      eloScore: newElo,
+      eloScore: safeNewElo,
       bohoCoins: newCoins,
       unlockedAchievementIds: validAchievementIds,
       userAchievements: validUserAchievements,
       lastLocalUpdateAt: new Date().toISOString()
     });
     
-    // Check achievements after recomputing ELO
     evaluateAllAchievements();
 
     if (authUser?.uid) {
       setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({
-        eloScore: newElo,
+        eloScore: safeNewElo,
         bohoCoins: newCoins,
         unlockedAchievementIds: validAchievementIds,
         userAchievements: validUserAchievements

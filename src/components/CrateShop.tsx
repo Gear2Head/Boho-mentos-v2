@@ -149,8 +149,23 @@ const MARKET_ITEMS: MarketItem[] = [
 // ─── Components ─────────────────────────────────────────────────────────────
 
 function RewardPreviewPopup({ crate, onClose }: { crate: CrateInfo; onClose: () => void; key?: React.Key }) {
-    const pool = POOLS[crate.tier];
-    const total = pool.reduce((s, e) => s + e.weight, 0);
+    const pool = POOLS[crate.tier] ?? [];
+    const total = pool.reduce((s, e) => s + e.weight, 0) || 1;
+    if (pool.length === 0) {
+        return (
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
+                onClick={onClose}
+            >
+                <div style={{ color: '#fff', textAlign: 'center', padding: 32 }}>
+                    <p style={{ fontSize: 14, color: '#71717a' }}>Bu kasa için ödül havuzu yüklenemedi.</p>
+                    <button onClick={onClose} style={{ marginTop: 16, padding: '8px 24px', background: '#C17767', border: 'none', borderRadius: 12, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Kapat</button>
+                </div>
+            </motion.div>
+        );
+    }
+
 
     return (
         <motion.div

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, MessageCircle, UserPlus, UserCheck, Shield, Award, Flame, Zap, Trophy, User } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
@@ -19,6 +20,7 @@ interface WarriorProfile {
 }
 
 export function SocialPage() {
+  const navigate = useNavigate();
   const authUser = useAppStore(s => s.authUser);
   const [searchTerm, setSearchTerm] = useState('');
   const [warriors, setWarriors] = useState<WarriorProfile[]>([]);
@@ -170,15 +172,26 @@ export function SocialPage() {
                   </div>
                </div>
 
-               <div className="flex gap-4">
+               <div className="flex flex-col gap-3">
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => { setActiveChatUid(selectedWarrior.uid); setSelectedWarrior(null); }}
+                      className="flex-1 py-4 bg-[#C17767] text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-[#C17767]/20 flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle size={16} /> MESAJ GÖNDER
+                    </button>
+                    <button 
+                      onClick={() => navigate(`/profile/${selectedWarrior.uid}`)}
+                      className="px-6 py-4 bg-zinc-800 text-zinc-400 rounded-2xl hover:text-white transition-colors flex items-center gap-2"
+                    >
+                       <User size={18} />
+                    </button>
+                  </div>
                   <button 
-                    onClick={() => { setActiveChatUid(selectedWarrior.uid); setSelectedWarrior(null); }}
-                    className="flex-1 py-4 bg-[#C17767] text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-[#C17767]/20 flex items-center justify-center gap-2"
+                    onClick={() => navigate(`/profile/${selectedWarrior.uid}`)}
+                    className="w-full py-4 border border-white/10 text-zinc-400 rounded-2xl hover:text-white transition-all text-[10px] font-black uppercase tracking-widest"
                   >
-                    <MessageCircle size={16} /> MESAJ GÖNDER
-                  </button>
-                  <button className="px-6 py-4 bg-zinc-800 text-zinc-400 rounded-2xl hover:text-white transition-colors">
-                     <UserPlus size={18} />
+                     PROFİLİ AYRINTILI İNCELE
                   </button>
                </div>
             </motion.div>

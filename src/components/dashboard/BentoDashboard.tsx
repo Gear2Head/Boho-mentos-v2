@@ -8,15 +8,22 @@ import { MiniFlapClock } from '../FlapClock';
 import { triggerConfetti } from '../../utils/confetti';
 import ReactMarkdown from 'react-markdown';
 import { EloRankCard } from '../EloRankCard';
-import { AchievementsPanel } from '../AchievementsPanel';
 import { StudyHeatmap } from '../StudyHeatmap';
 import { DailyQuestsWidget } from '../DailyQuestsWidget';
 import { GlobalLeaderboard } from '../GlobalLeaderboard';
 import { MilestoneCelebration } from '../MilestoneCelebration';
-import { HabitAudit } from '../HabitAudit';
-import { CrateShop } from '../CrateShop';
 
 import { YKS_TARGET_DATE_MAIN } from '../../config/examConfig';
+
+import { GhostRivalWidget } from './GhostRivalWidget';
+import { MemoryDecayWidget } from './MemoryDecayWidget';
+import { WeakLinkWidget } from './WeakLinkWidget';
+import { StudyProgressRing } from './StudyProgressRing';
+import { DailyMotivationWidget } from './DailyMotivationWidget';
+import { StreakHistoryWidget } from './StreakHistoryWidget';
+import { BurnoutGauge } from './BurnoutGauge';
+import { EloTrendGraph } from './EloTrendGraph';
+import { SubjectMasterySunburst } from './SubjectMasterySunburst';
 
 const YKS_DATE = YKS_TARGET_DATE_MAIN;
 
@@ -52,16 +59,6 @@ const BentoStatCard = ({ title, value, total, unit, icon }: any) => (
   </motion.div>
 );
 
-import { GhostRivalWidget } from './GhostRivalWidget';
-import { MemoryDecayWidget } from './MemoryDecayWidget';
-import { WeakLinkWidget } from './WeakLinkWidget';
-import { StudyProgressRing } from './StudyProgressRing';
-import { DailyMotivationWidget } from './DailyMotivationWidget';
-import { StreakHistoryWidget } from './StreakHistoryWidget';
-import { BurnoutGauge } from './BurnoutGauge';
-import { EloTrendGraph } from './EloTrendGraph';
-import { SubjectMasterySunburst } from './SubjectMasterySunburst';
-
 // ─── ANA BİLEŞEN ─────────────────────────────────────────────────────────────
 
 export function BentoDashboard() {
@@ -71,14 +68,12 @@ export function BentoDashboard() {
   const aytSubjects = useAppStore(s => s.aytSubjects);
   const logs = useAppStore(s => s.logs);
   const lastCoachDirective = useAppStore(s => s.lastCoachDirective);
-  const chatHistory = useAppStore(s => s.chatHistory);
 
   const [selectedTaskForLog, setSelectedTaskForLog] = useState<{ id: string, index: number, task: any } | null>(null);
   const [taskLogData, setTaskLogData] = useState({ correct: 0, wrong: 0, empty: 0, duration: 30 });
   const [celebrationStreak, setCelebrationStreak] = useState<number | null>(null);
   const streakDays = useAppStore(s => s.streakDays);
 
-  // Task 11: listen for milestone in store (lastMilestoneStreak set by academicSlice)
   const lastMilestoneStreak = useAppStore(s => (s as any).lastMilestoneStreak as number | undefined);
   useEffect(() => {
     if (lastMilestoneStreak && lastMilestoneStreak !== celebrationStreak) {
@@ -125,12 +120,10 @@ export function BentoDashboard() {
     triggerConfetti();
   };
 
-  // Perf: memoize expensive computations
   const wp = useMemo(() => calcWorkloadRemaining(tytSubjects, aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)), logs), [tytSubjects, aytSubjects, logs, profile?.track]);
   const todayStr = useMemo(() => toISODateOnly(), []);
   const todayLogs = useMemo(() => logs.filter(l => toISODateOnly(parseFlexibleDate(l.date)) === todayStr), [logs, todayStr]);
   const todayHours = useMemo(() => (todayLogs.reduce((acc, log) => acc + log.avgTime, 0) / 60).toFixed(1), [todayLogs]);
-  const activeHabitAlerts = useMemo(() => detectHabitAlerts(logs), [logs]);
   const completedMastery = useMemo(() => tytSubjects.filter(s => s.status === 'mastered').length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject) && s.status === 'mastered').length, [tytSubjects, aytSubjects, profile?.track]);
   const totalMastery = useMemo(() => tytSubjects.length + aytSubjects.filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)).length, [tytSubjects, aytSubjects, profile?.track]);
 
@@ -147,7 +140,7 @@ export function BentoDashboard() {
       }}
       className="p-4 md:p-8 max-w-7xl mx-auto"
     >
-      {/* Header Row */}
+      {/* ── ROW 1: Hero + Countdown ── */}
       <motion.div 
         variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
         className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6"
@@ -157,7 +150,7 @@ export function BentoDashboard() {
           
           <div className="absolute top-6 right-6 flex items-center gap-3 bg-black/40 backdrop-blur-md rounded-full pr-5 pl-1.5 py-1.5 border border-white/10 z-20">
             <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.3)]">
-              <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
+              <div className="absolute inset-0 z-20" />
               <img src="/assets/coach/kubra_main.jpg" alt="Kübra" className="w-full h-full object-cover scale-110 img-protected" draggable={false} onDragStart={(e) => e.preventDefault()} />
             </div>
             <div className="flex flex-col">
@@ -167,7 +160,6 @@ export function BentoDashboard() {
               </span>
             </div>
           </div>
-
 
           <h2 className="font-display italic text-5xl text-zinc-100 mb-6 z-10">Hoş geldin, <span className={`${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}>{profile?.name}</span></h2>
           <div className="flex flex-col md:flex-row gap-6 text-sm font-medium z-10">
@@ -197,7 +189,7 @@ export function BentoDashboard() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* ── ROW 2: Stats ── */}
       <motion.div 
         variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
         className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6"
@@ -208,128 +200,121 @@ export function BentoDashboard() {
         <BentoStatCard title="En Verimli" value={calcSourceROI(logs)[0]?.sourceName.split(' ')[0] || 'YOK'} unit="Kaynak" icon={<BookOpen className="text-green-500" />} />
       </motion.div>
 
-      <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}>
+      {/* ── ROW 3: ELO Card ── */}
+      <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }} className="mb-6">
         <EloRankCard />
       </motion.div>
 
-      <div className="mt-6 mb-6">
-        <CrateShop />
-      </div>
-
-      {/* Main Action & Coach */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
-        <motion.div 
-          variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
-          whileHover={{ y: -8, scale: 1.01, boxShadow: '0 20px 50px rgba(193,119,103,0.15)', borderColor: 'rgba(193,119,103,0.4)' }}
-          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-          onClick={() => useAppStore.getState().setFocusSidePanelOpen(true)}
-          className="md:col-span-4 glass-card transition-all rounded-3xl p-8 bg-gradient-to-br from-[#C17767]/20 to-transparent border-[#C17767]/20 flex flex-col justify-between cursor-pointer group"
-        >
-          <div>
-            <Activity className="text-[#C17767] mb-6 group-hover:rotate-12 transition-transform" size={32} />
-            <h3 className="font-display italic text-3xl mb-2 text-zinc-100">Focus Tüneli</h3>
-            <p className="text-zinc-400 text-xs uppercase tracking-widest">Seferberlik Modu</p>
-          </div>
-          <div className="mt-8">
-            <div className="flex justify-between mb-2">
-              <span className="text-[10px] font-black tracking-widest text-[#C17767] uppercase">Müfredat Yükü</span>
-              <span className="text-lg font-mono font-bold text-zinc-100">%{wp.completedPercent}</span>
+      {/* ── ROW 4: Direktif ── */}
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className={`glass-card rounded-3xl p-8 mb-6 relative overflow-hidden transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 bg-amber-950/5' : ''}`}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h3 className={`font-display italic text-2xl uppercase tracking-tight flex items-center gap-2 ${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}><Activity size={20} /> {profile?.coachPersonality === 'hardcore' ? 'TOKSİK DİREKTİF' : 'Günün Direktifi'}</h3>
+          {lastCoachDirective && (
+            <div className="px-3 py-1 bg-white/5 rounded-full border border-white/5 text-[9px] font-black tracking-widest text-zinc-500 uppercase">
+              {lastCoachDirective.tasks.filter(t => t.status === 'completed').length}/{lastCoachDirective.tasks.length} Tamamlandı
             </div>
-            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full bg-[#C17767]" style={{ width: `${wp.completedPercent}%` }} />
-            </div>
-          </div>
-        </motion.div>
+          )}
+        </div>
 
-        <motion.div 
-          variants={{ hidden: { opacity: 0, x: 20 }, show: { opacity: 1, x: 0 } }}
-          className={`md:col-span-8 glass-card rounded-3xl p-8 relative overflow-hidden transition-all duration-500 ${profile?.coachPersonality === 'hardcore' ? 'border-amber-500/40 bg-amber-950/5' : ''}`}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className={`font-display italic text-2xl uppercase tracking-tight flex items-center gap-2 ${profile?.coachPersonality === 'hardcore' ? 'text-amber-500' : 'text-[#C17767]'}`}><Activity size={20} /> {profile?.coachPersonality === 'hardcore' ? 'TOKSİK DİREKTİF' : 'Günün Direktifi'}</h3>
-            {lastCoachDirective && (
-              <div className="px-3 py-1 bg-white/5 rounded-full border border-white/5 text-[9px] font-black tracking-widest text-zinc-500 uppercase">
-                {lastCoachDirective.tasks.filter(t => t.status === 'completed').length}/{lastCoachDirective.tasks.length} Tamamlandı
-              </div>
-            )}
-          </div>
-
-          <div className="prose prose-invert max-w-none text-zinc-300">
-            {lastCoachDirective ? (
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-white font-bold text-xl leading-snug">{lastCoachDirective.headline}</h4>
-                  <div className="text-zinc-400 text-sm mt-2 leading-relaxed">
-                    <ReactMarkdown>{lastCoachDirective.summary.replace(/<br\s*\/?>/gi, '\n')}</ReactMarkdown>
-                  </div>
+        <div className="prose prose-invert max-w-none text-zinc-300">
+          {lastCoachDirective ? (
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-white font-bold text-xl leading-snug">{lastCoachDirective.headline}</h4>
+                <div className="text-zinc-400 text-sm mt-2 leading-relaxed">
+                  <ReactMarkdown>{lastCoachDirective.summary.replace(/<br\s*\/?>/gi, '\n')}</ReactMarkdown>
                 </div>
-                <div className="space-y-3">
-                  {lastCoachDirective.tasks.map((task, idx) => {
-                    const isCompleted = task.status === 'completed';
-                    return (
-                      <div key={idx} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isCompleted ? 'bg-green-500/5 border-green-500/20' : 'bg-white/[0.02] border-white/5 hover:border-white/10'}`}>
-                        <div className="flex items-start gap-4">
-                          <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isCompleted ? 'bg-green-500' : 'bg-[#C17767]'}`} />
-                          <div>
-                            <p className={`text-sm font-bold leading-tight ${isCompleted ? 'text-green-200/50 line-through' : 'text-zinc-200'}`}>{task.action}</p>
-                            <span className="text-[9px] uppercase tracking-widest font-black text-zinc-500">{task.subject || 'Genel'}</span>
-                          </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {lastCoachDirective.tasks.map((task, idx) => {
+                  const isCompleted = task.status === 'completed';
+                  return (
+                    <div key={idx} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isCompleted ? 'bg-green-500/5 border-green-500/20' : 'bg-white/[0.02] border-white/5 hover:border-white/10'}`}>
+                      <div className="flex items-start gap-4">
+                        <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isCompleted ? 'bg-green-500' : 'bg-[#C17767]'}`} />
+                        <div>
+                          <p className={`text-sm font-bold leading-tight ${isCompleted ? 'text-green-200/50 line-through' : 'text-zinc-200'}`}>{task.action}</p>
+                          <span className="text-[9px] uppercase tracking-widest font-black text-zinc-500">{task.subject || 'Genel'}</span>
                         </div>
-                        {!isCompleted && (
-                          <button 
-                            onClick={() => setSelectedTaskForLog({ id: lastCoachDirective.headline, index: idx, task })}
-                            className="p-2 rounded-xl bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white transition-all shadow-lg shadow-green-500/10"
-                          >
-                            <CheckCircle2 size={16} />
-                          </button>
-                        )}
-                        {isCompleted && <CheckCircle2 size={20} className="text-green-500/30" />}
                       </div>
-                    );
-                  })}
-                </div>
+                      {!isCompleted && (
+                        <button 
+                          onClick={() => setSelectedTaskForLog({ id: lastCoachDirective.headline, index: idx, task })}
+                          className="p-2 rounded-xl bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white transition-all shadow-lg shadow-green-500/10"
+                        >
+                          <CheckCircle2 size={16} />
+                        </button>
+                      )}
+                      {isCompleted && <CheckCircle2 size={20} className="text-green-500/30" />}
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
-              <div className="text-center py-12 opacity-30 text-zinc-500 italic">Akış bekleniyor...</div>
-            )}
-          </div>
-        </motion.div>
-      </div>
+            </div>
+          ) : (
+            <div className="text-center py-12 opacity-30 text-zinc-500 italic">Akış bekleniyor...</div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* ── ROW 5: Symmetric 2-col widgets ── */}
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"
+      >
+        <StudyProgressRing dailyGoalQuestions={profile?.minDailyQuestions ?? 200} />
+        <BurnoutGauge />
+      </motion.div>
 
       <motion.div 
         variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
         className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"
       >
-        <div className="space-y-6">
-          <StudyProgressRing dailyGoalQuestions={profile?.minDailyQuestions ?? 200} />
-          <DailyMotivationWidget />
-          <HabitAudit />
-          <SubjectMasterySunburst />
-          <GhostRivalWidget />
-          <WeakLinkWidget logs={logs} />
-        </div>
-        <div className="space-y-6">
-          <BurnoutGauge />
-          <EloTrendGraph />
-          <StreakHistoryWidget />
-          <MemoryDecayWidget logs={logs} />
-          <StudyHeatmap />
-        </div>
+        <EloTrendGraph />
+        <StreakHistoryWidget />
       </motion.div>
 
+      {/* ── ROW 6: Müfredat Hakimiyeti (TYT + AYT) ── */}
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="mb-6"
+      >
+        <SubjectMasterySunburst />
+      </motion.div>
 
+      {/* ── ROW 7: Motivasyon + WeakLink ── */}
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"
+      >
+        <DailyMotivationWidget />
+        <WeakLinkWidget logs={logs} />
+      </motion.div>
 
-      <div className="mb-6">
-        <AchievementsPanel />
-      </div>
+      {/* ── ROW 8: Ghost + Memory Decay ── */}
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6"
+      >
+        <GhostRivalWidget />
+        <MemoryDecayWidget logs={logs} />
+      </motion.div>
 
-      {/* Task 9 & 12: Daily Quests + Global Leaderboard */}
+      {/* ── ROW 9: Study Heatmap (full width) ── */}
+      <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }} className="mb-6">
+        <StudyHeatmap />
+      </motion.div>
+
+      {/* ── ROW 10: Daily Quests + Leaderboard ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <DailyQuestsWidget />
         <GlobalLeaderboard />
       </div>
 
-      {/* Task 11: Milestone Celebration Overlay */}
+      {/* Milestone Celebration */}
       <AnimatePresence>
         {celebrationStreak && (
           <MilestoneCelebration
@@ -339,7 +324,7 @@ export function BentoDashboard() {
         )}
       </AnimatePresence>
 
-      {/* MODAL */}
+      {/* Task complete modal */}
       <AnimatePresence>
         {selectedTaskForLog && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
