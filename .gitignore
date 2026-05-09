@@ -1,0 +1,226 @@
+# ==============================================================================
+# 🦉 BOHO MENTOS V2 - THE ULTIMATE SECURITY-HARDENED .GITIGNORE
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. SECURITY & CREDENTIALS (CRITICAL - DO NOT TOUCH)
+# ------------------------------------------------------------------------------
+# Never commit secrets, API keys, or environment variables.
+.env
+.env.local
+.env.*.local
+*.env
+*.env.*
+!.env.example
+
+# Firebase & Google Cloud Platform
+firebase-service-account.json
+service-account-file.json
+credentials.json
+google-services.json
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+firebaserc-backup
+
+# Crypto & Keys
+*.pem
+*.key
+*.p12
+*.pub
+*.cert
+*.crt
+id_rsa*
+id_ed25519*
+secrets.json
+
+# ------------------------------------------------------------------------------
+# 2. DEPENDENCIES & PACKAGE MANAGERS
+# ------------------------------------------------------------------------------
+node_modules/
+jspm_packages/
+.pnpm-store/
+.npm/
+.yarn/
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+yarn-error.log
+package-lock.json.resolved
+pnpm-lock.yaml.resolved
+
+# ------------------------------------------------------------------------------
+# 3. BUILD & OUTPUT (REGENERATABLE ASSETS)
+# ------------------------------------------------------------------------------
+dist/
+dist-ssr/
+build/
+out/
+target/
+bin/
+obj/
+.vite/
+.next/
+.nuxt/
+.output/
+.svelte-kit/
+.docusaurus/
+*.tsbuildinfo
+
+# ------------------------------------------------------------------------------
+# 4. LOGS, CACHE & TEMPORARY FILES
+# ------------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.cache/
+.eslintcache
+.stylelintcache
+.prettiercache
+.parcel-cache
+.turbo/
+.vercel/
+.netlify/
+tmp/
+temp/
+*.tmp
+*.temp
+b64_temp.txt
+*.swp
+*.swo
+
+# ------------------------------------------------------------------------------
+# 5. IDEs, EDITORS & OS SPECIFIC
+# ------------------------------------------------------------------------------
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# JetBrains (WebStorm, IntelliJ, etc.)
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Other Editors
+.zed/
+.fleet/
+.project
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS Specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------------------------
+# 6. DATABASES & LOCAL STORAGE
+# ------------------------------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+.dump
+*.localstorage
+*.localstorage-journal
+
+# ------------------------------------------------------------------------------
+# 7. AI AGENTS & WORKFLOW (AGENTS & CONTEXT)
+# ------------------------------------------------------------------------------
+.cursor/
+.cline/
+.windsurfrules
+.ai-context/
+.ai_context/
+.ai context/
+.ai/
+.agents/
+.gemini/
+.antigravity/
+claude.md
+claude/
+Claude/
+skills/
+scratch/
+todo.md
+*.md
+*.resolved
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!docs/
+!docs/*.md
+
+# ------------------------------------------------------------------------------
+# 8. TEST REPORTS & SNAPSHOTS
+# ------------------------------------------------------------------------------
+coverage/
+.nyc_output/
+__snapshots__/
+.cypress/
+playwright-report/
+test-results/
+.vitest-cache/
+
+# ------------------------------------------------------------------------------
+# 9. ANDROID & CAPACITOR (MOBILE)
+# ------------------------------------------------------------------------------
+android/local.properties
+android/app/build/
+android/build/
+android/captures/
+android/.gradle/
+.gradle/
+.gradle-cache/
+android/app/google-services.json
+android/app/src/main/assets/public
+android/app/src/main/res/drawable
+android/app/src/main/res/mipmap-*
+capacitor.config.json.resolved
+
+# Gradle specific
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# Build artifacts
+*.apk
+*.aar
+*.js.map
+*.map
+
+# ------------------------------------------------------------------------------
+# 10. PROJECT SPECIFIC & MISC
+# ------------------------------------------------------------------------------
+bohoohoh.json
+src/config/owner.ts
+!src/config/owner.example.ts
+"Console logs/"
+Console\ logs/
+src/archived/
+task/
+task
+scripts/
+!scripts/autofix.cjs
+assets/
+mobile/
+# Temporary build assets
+public/build/
+public/assets/
+# End of Ultimate .gitignore

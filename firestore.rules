@@ -1,0 +1,179 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.superAdmin == true ||
+        request.auth.token.email == 'senerkadiralper@gmail.com'
+      );
+    }
+
+    function isValidImage() {
+      return !('url' in request.resource.data) ||
+        (request.resource.data.url is string &&
+         request.resource.data.url.matches('https://firebasestorage.googleapis.com/.*'));
+    }
+
+    function ownerSafeUserUpdate() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role',
+        'claims',
+        'superAdmin',
+        'admin',
+        'uid',
+        'email',
+        'created_at',
+        'fcmToken',
+        'fcm_tokens'
+      ]);
+    }
+
+    function isChatParticipant(chatRoomId) {
+      return isAuthenticated() &&
+        request.auth.uid in get(/databases/$(database)/documents/global_chats/$(chatRoomId)).data.participants;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isSuperAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isSuperAdmin() || (isOwner(userId) && ownerSafeUserUpdate());
+      allow delete: if isSuperAdmin();
+
+      match /logs/{logId} {
+        allow read, delete: if isOwner(userId) || isSuperAdmin();
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
+          request.resource.data.keys().hasAll(['id', 'date', 'subject']);
+      }
+
+      match /exams/{examId} {
+        allow read, delete: if isOwner(userId) || isSuperAdmin();
+        allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
+          request.resource.data.keys().hasAll(['id', 'date', 'type', 'totalNet', 'scores']);
+      }
+
+      match /chatHistory/{document=**}      { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /conversations/{document=**}    { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /agendaEntries/{document=**}    { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /focusSessions/{document=**}    { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /failedQuestions/{document=**}  { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /directiveHistory/{document=**} { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /flashcards/{document=**}       { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+      match /pushTokens/{document=**}       { allow read, write: if isOwner(userId) || isSuperAdmin(); }
+
+      match /wall/{entryId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() &&
+          request.resource.data.keys().hasAll(['from', 'emoji', 'note', 'dayKey', 'createdAt']) &&
+          request.resource.data.from == request.auth.uid &&
+          request.resource.data.note is string &&
+          request.resource.data.note.size() <= 200;
+        allow delete: if isOwner(userId) || isSuperAdmin();
+        allow update: if false;
+      }
+
+      match /wallDaily/{quotaId} {
+        allow read: if isOwner(userId) || isSuperAdmin() ||
+          (isAuthenticated() && resource.data.from == request.auth.uid);
+        allow create: if isAuthenticated() &&
+          request.resource.data.from == request.auth.uid &&
+          request.resource.data.count == 1 &&
+          request.resource.data.dayKey is string;
+        allow update: if isAuthenticated() &&
+          resource.data.from == request.auth.uid &&
+          request.resource.data.from == resource.data.from &&
+          request.resource.data.dayKey == resource.data.dayKey &&
+          request.resource.data.count == resource.data.count + 1 &&
+          request.resource.data.count <= 3;
+        allow delete: if isOwner(userId) || isSuperAdmin();
+      }
+
+      match /certificates/{certId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isOwner(userId) || isSuperAdmin();
+        allow delete: if isSuperAdmin();
+      }
+    }
+
+    match /publicProfiles/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
+        request.resource.data.uid == userId &&
+        !request.resource.data.keys().hasAny(['email', 'role', 'claims', 'admin', 'superAdmin', 'fcmToken']);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /system_config/{document=**} {
+      allow read: if isSuperAdmin() || (isAuthenticated() && document != 'apiKeys');
+      allow write: if isSuperAdmin();
+    }
+
+    match /communityGoals/{goalId} {
+      allow read: if isAuthenticated();
+      allow create: if isSuperAdmin();
+      allow update: if isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current', 'updatedAt']) &&
+        request.resource.data.current >= resource.data.current;
+      allow delete: if isSuperAdmin();
+
+      match /participants/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId) || isSuperAdmin();
+      }
+    }
+
+    match /publicCertificates/{certId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.uid == request.auth.uid;
+      allow delete: if resource.data.uid == request.auth.uid || isSuperAdmin();
+      allow update: if false;
+    }
+
+    match /failed_questions/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isSuperAdmin();
+      allow write: if isOwner(userId) && isValidImage();
+    }
+
+    match /admin_logs/{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    match /global_chats/{chatRoomId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      allow create: if isAuthenticated() &&
+        request.resource.data.participants is list &&
+        request.resource.data.participants.size() == 2 &&
+        request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants[0] < request.resource.data.participants[1] &&
+        chatRoomId == request.resource.data.participants[0] + '_' + request.resource.data.participants[1];
+      allow update: if isAuthenticated() &&
+        request.auth.uid in resource.data.participants &&
+        request.resource.data.participants == resource.data.participants;
+      allow delete: if isSuperAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isChatParticipant(chatRoomId);
+        allow create: if isChatParticipant(chatRoomId) &&
+          request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp']) &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() <= 2000;
+        allow update, delete: if false;
+      }
+
+      match /typing/{userId} {
+        allow read: if isChatParticipant(chatRoomId);
+        allow write: if isChatParticipant(chatRoomId) && userId == request.auth.uid;
+      }
+    }
+  }
+}
