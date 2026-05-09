@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../store/appStore';
 import { Lock, AlertTriangle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function GlobalLockOverlay() {
   const { uiLockState } = useAppStore();
