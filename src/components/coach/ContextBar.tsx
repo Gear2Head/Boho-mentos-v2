@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Flame, Zap, TrendingUp, TrendingDown, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Flame, Zap, TrendingUp, TrendingDown, AlertTriangle, ChevronRight, BrainCircuit, BookX, Star, Activity } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAppStore } from '../../store/appStore';
 import { useAppSelectors } from '../../store/selectors';
@@ -29,6 +29,7 @@ export function ContextBar({ onQuickAction }: ContextBarProps) {
   const streakDays = useAppStore((s) => s.streakDays);
   const exams = useAppStore((s) => s.exams);
   const activeAlerts = useAppStore((s) => s.activeAlerts);
+  const coachMemory = useAppStore((s) => s.coachMemory);
   const { isTtsEnabled, setTtsEnabled } = useAppSelectors();
 
   const lastTyt = [...exams].reverse().find((e) => e.type === 'TYT')?.totalNet ?? null;
@@ -148,6 +149,78 @@ export function ContextBar({ onQuickAction }: ContextBarProps) {
             ))}
           </div>
         </div>
+
+      {/* Coach Memory Panel */}
+      {coachMemory && (
+        <div className="p-4 border-b border-app">
+          <div className="text-[9px] uppercase tracking-[0.2em] text-[#C17767] font-black mb-3 flex items-center gap-1.5">
+            <BrainCircuit size={12} />
+            Koç Hafızası
+          </div>
+
+          {/* Net Trend */}
+          <div className="flex items-center gap-2 mb-3 p-2.5 bg-surface rounded-xl border border-app">
+            <Activity size={12} className={coachMemory.netTrend === 'rising' ? 'text-emerald-400' : coachMemory.netTrend === 'falling' ? 'text-rose-400' : 'text-zinc-500'} />
+            <span className="text-[9px] font-black uppercase tracking-widest text-ink-muted">Trend:</span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${
+              coachMemory.netTrend === 'rising' ? 'text-emerald-400' :
+              coachMemory.netTrend === 'falling' ? 'text-rose-400' :
+              coachMemory.netTrend === 'stable' ? 'text-amber-400' : 'text-zinc-500'
+            }`}>
+              {coachMemory.netTrend === 'rising' ? '▲ Yükseliyor' :
+               coachMemory.netTrend === 'falling' ? '▼ Düşüyor' :
+               coachMemory.netTrend === 'stable' ? '━ Stabil' : '? Bilinmiyor'}
+            </span>
+          </div>
+
+          {/* Weak Topics */}
+          {coachMemory.recurringWeakTopics?.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[8px] uppercase tracking-widest font-black text-rose-400/70 mb-1.5 flex items-center gap-1">
+                <BookX size={10} /> Zayıf Konular
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {coachMemory.recurringWeakTopics.slice(0, 5).map((topic, i) => (
+                  <span key={i} className="text-[8px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-400 border border-rose-500/15 px-2 py-1 rounded-lg">
+                    {topic}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Strong Subjects */}
+          {coachMemory.strongSubjects?.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[8px] uppercase tracking-widest font-black text-emerald-400/70 mb-1.5 flex items-center gap-1">
+                <Star size={10} /> Güçlü Alanlar
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {coachMemory.strongSubjects.slice(0, 4).map((subj, i) => (
+                  <span key={i} className="text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 px-2 py-1 rounded-lg">
+                    {subj}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Intervention Effectiveness */}
+          {coachMemory.interventionEffectiveness && coachMemory.interventionEffectiveness !== 'unknown' && (
+            <div className="flex items-center gap-2 p-2.5 bg-surface rounded-xl border border-app">
+              <Zap size={12} className={coachMemory.interventionEffectiveness === 'effective' ? 'text-emerald-400' : coachMemory.interventionEffectiveness === 'partial' ? 'text-amber-400' : 'text-rose-400'} />
+              <span className="text-[8px] font-black uppercase tracking-widest text-ink-muted">Müdahale:</span>
+              <span className={`text-[9px] font-black uppercase tracking-widest ${
+                coachMemory.interventionEffectiveness === 'effective' ? 'text-emerald-400' :
+                coachMemory.interventionEffectiveness === 'partial' ? 'text-amber-400' : 'text-rose-400'
+              }`}>
+                {coachMemory.interventionEffectiveness === 'effective' ? 'Etkili' :
+                 coachMemory.interventionEffectiveness === 'partial' ? 'Kısmen' : 'Etkisiz'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick actions */}
       <div className="p-4">

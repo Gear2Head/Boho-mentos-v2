@@ -17,7 +17,7 @@ import type {
   CoachSystemContext,
 } from '../types/coach';
 import { useAppStore } from '../store/appStore';
-import { isCacheableCoachIntent, shouldForceJson, shouldRequestDirective } from './coachContract';
+import { resolveCoachDecision } from './coachContract';
 
 
 // ─── Semantic Cache ─────────────────────────────────────────────────────────
@@ -131,6 +131,22 @@ export async function getCoachResponse(
 
   // intent: varsayılan free_chat — "coach" artık gönderilmiyor (BUILD-001)
   const intent: CoachIntent = options.intent ?? 'free_chat';
+  const decision = resolveCoachDecision(intent, {
+    message: userMessage,
+    explicitDirective: options.wantDirective,
+    userState: options.userState,
+  });
+  const dataFreshness = {
+    contextHash: await hashPayload({
+      context,
+      lastLogs: options.userState?.lastLogs ?? [],
+      lastExams: options.userState?.lastExams ?? [],
+      lastDirectiveStatus: options.userState?.lastDirectiveStatus,
+      planComplianceScore: options.userState?.planComplianceScore,
+    }),
+    generatedAt: new Date().toISOString(),
+    requiresFreshData: !decision.cacheable,
+  };
 
   const payload: CoachApiRequest & { imageBase64?: string, imageMediaType?: string } = {
     intent,
@@ -138,10 +154,12 @@ export async function getCoachResponse(
     context,
     chatHistory: chatHistory.slice(-8),
     coachPersonality: options.coachPersonality,
-    forceJson: shouldForceJson(intent, shouldRequestDirective(intent, options.wantDirective)),
+    forceJson: decision.forceJson,
     maxTokens: options.maxTokens,
     userState: options.userState ?? _defaultUserState(),
-    wantDirective: shouldRequestDirective(intent, options.wantDirective),
+    wantDirective: decision.shouldAttachDirective,
+    decision,
+    dataFreshness,
     imageBase64: options.imageBase64,
     imageMediaType: options.imageMediaType,
   };
@@ -150,7 +168,7 @@ export async function getCoachResponse(
     const cacheKey = await hashPayload(payload);
     const cachedResponse = getCache(cacheKey);
     // Cache hit — free_chat ve inverse_coaching hariç cache kontrol ediyoruz
-    if (cachedResponse && isCacheableCoachIntent(intent)) {
+    if (cachedResponse && decision.cacheable) {
       if (import.meta.env.DEV) console.log('[SemanticCache] Hit: ' + intent);
       // ASSUME: Cache'den dönen yanıtlar daily limit'i tüketmez
       return cachedResponse;
@@ -185,7 +203,7 @@ export async function getCoachResponse(
     }
 
     const finalResponse = data.text ?? 'Yanıt oluşturulamadı. Tekrar dene.';
-    if (data.text && isCacheableCoachIntent(intent)) {
+    if (data.text && decision.cacheable) {
       setCache(cacheKey, finalResponse, intent);
     }
     useAppStore.getState().incrementAiRequest();

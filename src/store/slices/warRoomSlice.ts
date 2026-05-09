@@ -1,9 +1,10 @@
 import { StateCreator } from 'zustand';
 import { AppState } from '../appStore';
 import { WarRoomMode, WarRoomSession } from '../../types';
-import { doc, setDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
+import { setDocWithOfflineQueue } from "../../services/firestoreWriteQueue";
 
 export interface WarRoomSlice {
   warRoomMode: WarRoomMode;
@@ -43,7 +44,7 @@ export const createWarRoomSlice: StateCreator<AppState, [], [], WarRoomSlice> = 
     const { authUser } = get();
     set({ lastWarRoomSummary: summary });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ lastWarRoomSummary: summary }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ lastWarRoomSummary: summary }), { merge: true }).catch(console.error);
     }
   },
 

@@ -1,9 +1,10 @@
 import { StateCreator } from 'zustand';
 import { AppState } from '../appStore';
 import { Conversation, ChatMessage, AppNotification } from '../../types';
-import { doc, setDoc, deleteDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
+import { setDocWithOfflineQueue, deleteDocWithOfflineQueue } from "../../services/firestoreWriteQueue";
 
 export interface SocialSlice {
   conversations: Conversation[];
@@ -125,7 +126,7 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     set({ conversations: newConvs, activeConversationId: nextActive });
 
     if (authUser?.uid) {
-      deleteDoc(doc(db, 'users', authUser.uid, 'chatHistory', id)).catch(console.error);
+      deleteDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'chatHistory', id)).catch(console.error);
     }
   },
 
@@ -165,8 +166,8 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     }));
 
     if (authUser?.uid && targetId) {
-      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId, 'messages', newMessage.id), cleanForFirestore(newMessage)).catch(console.error);
-      setDoc(doc(db, 'users', authUser.uid, 'chatHistory', targetId), cleanForFirestore({
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'chatHistory', targetId, 'messages', newMessage.id), cleanForFirestore(newMessage)).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'chatHistory', targetId), cleanForFirestore({
         id: targetId,
         updatedAt: new Date().toISOString(),
         lastMessage: message.content.slice(0, 50)
@@ -203,7 +204,7 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     const newCount = lastAiRequestDate === today ? dailyAiRequests + 1 : 1;
     set({ dailyAiRequests: newCount, lastAiRequestDate: today });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ dailyAiRequests: newCount, lastAiRequestDate: today }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ dailyAiRequests: newCount, lastAiRequestDate: today }), { merge: true }).catch(console.error);
     }
   },
 
@@ -228,12 +229,15 @@ export const createSocialSlice: StateCreator<AppState, [], [], SocialSlice> = (s
     // Firestore sync
     const participants = [authUser.uid, toUid].sort();
     const chatRoomId = participants.join('_');
-    setDoc(doc(db, 'global_chats', chatRoomId), {
+    setDocWithOfflineQueue(doc(db, 'global_chats', chatRoomId), cleanForFirestore({
       participants,
       lastMessage: content,
       updatedAt: new Date().toISOString()
-    }, { merge: true })
-      .then(() => setDoc(doc(db, 'global_chats', chatRoomId, 'messages', newMessage.id), cleanForFirestore(newMessage)))
+    }), { merge: true })
+      .then(() => setDocWithOfflineQueue(doc(db, 'global_chats', chatRoomId, 'messages', newMessage.id), cleanForFirestore(newMessage)))
       .catch(console.error);
   },
 });
+
+
+

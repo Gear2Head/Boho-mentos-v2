@@ -1,7 +1,8 @@
 import { StateCreator } from 'zustand';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { cleanForFirestore } from '../../utils/firebaseHelpers';
+import { setDocWithOfflineQueue } from '../../services/firestoreWriteQueue';
 import { EconomyEvent } from '../../types';
 import { UserInventory, CrateTier, CRATE_CONFIG, ShopItem, REWARD_POOLS, ALL_SHOP_ITEMS } from '../../types/economy';
 
@@ -75,7 +76,7 @@ export const createEconomySlice: StateCreator<
         lastLocalUpdateAt: now
       };
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ bohoCoins: nextState.bohoCoins, economyLedger: nextState.economyLedger }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ bohoCoins: nextState.bohoCoins, economyLedger: nextState.economyLedger }), { merge: true }).catch(console.error);
       }
       return nextState;
     });
@@ -105,7 +106,7 @@ export const createEconomySlice: StateCreator<
         lastLocalUpdateAt: now
       };
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ bohoCoins: nextState.bohoCoins, economyLedger: nextState.economyLedger }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ bohoCoins: nextState.bohoCoins, economyLedger: nextState.economyLedger }), { merge: true }).catch(console.error);
       }
       return nextState;
     });
@@ -142,7 +143,7 @@ export const createEconomySlice: StateCreator<
       };
       
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newScore, bohoCoins: nextCoins, economyLedger: nextLedger }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ eloScore: newScore, bohoCoins: nextCoins, economyLedger: nextLedger }), { merge: true }).catch(console.error);
       }
       return nextState;
     });
@@ -154,7 +155,7 @@ export const createEconomySlice: StateCreator<
       const nextInventory = { ...state.inventory, items: nextItems };
       const authUser = get().authUser;
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
       }
       return {
         inventory: nextInventory,
@@ -171,7 +172,7 @@ export const createEconomySlice: StateCreator<
       const nextBoosts = { ...state.inventory.boosts, [boostType]: state.inventory.boosts[boostType] - 1 };
       const nextInventory = { ...state.inventory, boosts: nextBoosts };
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
       }
       return {
         inventory: nextInventory,
@@ -235,7 +236,7 @@ export const createEconomySlice: StateCreator<
     set({ inventory: nextInventory, lastLocalUpdateAt: new Date().toISOString() });
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
     }
     
     return true;
@@ -257,7 +258,7 @@ export const createEconomySlice: StateCreator<
             const nextBoosts = { ...state.inventory.boosts, [boostKey]: (state.inventory.boosts[boostKey] || 0) + amount };
             const nextInventory = { ...state.inventory, boosts: nextBoosts };
             if (authUser?.uid) {
-              setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+              setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
             }
             return {
               inventory: nextInventory,
@@ -325,7 +326,7 @@ export const createEconomySlice: StateCreator<
           const nextBoosts = { ...state.inventory.boosts, [key]: (state.inventory.boosts[key] || 0) + amount };
           const nextInventory = { ...state.inventory, boosts: nextBoosts };
           if (authUser?.uid) {
-            setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
+            setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ inventory: nextInventory }), { merge: true }).catch(console.error);
           }
           return {
             inventory: nextInventory,
@@ -361,7 +362,7 @@ export const createEconomySlice: StateCreator<
     addElo(xp, `Quest: ${questId}`);
 
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ claimedQuests: nextClaims }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ claimedQuests: nextClaims }), { merge: true }).catch(console.error);
     }
   },
 });

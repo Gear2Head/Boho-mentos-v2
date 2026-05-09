@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 export function NetworkBanner() {
-  const { isOnline, pendingCount, replayQueue } = useNetworkStatus();
-  const showBanner = !isOnline || pendingCount > 0;
+  const { isOnline, pendingCount, failedCount, replayQueue } = useNetworkStatus();
+  const showBanner = !isOnline || pendingCount > 0 || failedCount > 0;
 
   return (
     <AnimatePresence>
@@ -19,7 +19,9 @@ export function NetworkBanner() {
           <span>
             {!isOnline
               ? `Ag baglantisi kesildi. ${pendingCount} islem kuyrukta.`
-              : `${pendingCount} offline islem esitleme bekliyor.`}
+              : failedCount > 0 && pendingCount === 0
+                ? `${failedCount} offline islem esitleme hatasina dustu.`
+                : `${pendingCount} offline islem esitleme bekliyor.${failedCount > 0 ? ` ${failedCount} hata var.` : ''}`}
           </span>
           {isOnline && pendingCount > 0 && (
             <button

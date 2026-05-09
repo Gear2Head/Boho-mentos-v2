@@ -24,6 +24,7 @@ import { StreakHistoryWidget } from './StreakHistoryWidget';
 import { BurnoutGauge } from './BurnoutGauge';
 import { EloTrendGraph } from './EloTrendGraph';
 import { SubjectMasterySunburst } from './SubjectMasterySunburst';
+import { NetProjectionWidget } from './NetProjectionWidget';
 
 const YKS_DATE = YKS_TARGET_DATE_MAIN;
 
@@ -67,6 +68,7 @@ export function BentoDashboard() {
   const tytSubjects = useAppStore(s => s.tytSubjects);
   const aytSubjects = useAppStore(s => s.aytSubjects);
   const logs = useAppStore(s => s.logs);
+  const exams = useAppStore(s => s.exams);
   const lastCoachDirective = useAppStore(s => s.lastCoachDirective);
 
   const [selectedTaskForLog, setSelectedTaskForLog] = useState<{ id: string, index: number, task: any } | null>(null);
@@ -130,6 +132,18 @@ export function BentoDashboard() {
   const completedMastery = useMemo(() => (tytSubjects || []).filter(s => s.status === 'mastered').length + (aytSubjects || []).filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject) && s.status === 'mastered').length, [tytSubjects, aytSubjects, profile?.track]);
   const totalMastery = useMemo(() => (tytSubjects || []).length + (aytSubjects || []).filter(s => getAytSubjectsForTrack(profile?.track || 'SAY').includes(s.subject)).length, [tytSubjects, aytSubjects, profile?.track]);
 
+  // REAL PROGRESS: Compute TYT/AYT progress from actual exam data
+  const latestTytNet = useMemo(() => {
+    const tytExams = (exams || []).filter(e => e.type === 'TYT');
+    return tytExams.length > 0 ? tytExams[tytExams.length - 1].totalNet : 0;
+  }, [exams]);
+  const latestAytNet = useMemo(() => {
+    const aytExams = (exams || []).filter(e => e.type === 'AYT');
+    return aytExams.length > 0 ? aytExams[aytExams.length - 1].totalNet : 0;
+  }, [exams]);
+  const tytProgressPct = useMemo(() => Math.min(100, Math.round((latestTytNet / (profile?.tytTarget || 120)) * 100)), [latestTytNet, profile?.tytTarget]);
+  const aytProgressPct = useMemo(() => Math.min(100, Math.round((latestAytNet / (profile?.aytTarget || 80)) * 100)), [latestAytNet, profile?.aytTarget]);
+
   return (
     <motion.div
       initial="hidden"
@@ -169,19 +183,19 @@ export function BentoDashboard() {
             <div className="flex-1">
               <div className="flex justify-between mb-2 text-zinc-400 font-mono tracking-wider">
                 <span>TYT Hedefi</span>
-                <span className="text-zinc-200">{profile?.tytTarget}</span>
+                <span className="text-zinc-200">{latestTytNet.toFixed(1)} / {profile?.tytTarget}</span>
               </div>
               <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                <div className="h-full bg-emerald-500" style={{ width: `70%` }} />
+                <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${tytProgressPct}%` }} />
               </div>
             </div>
             <div className="flex-1">
               <div className="flex justify-between mb-2 text-zinc-400 font-mono tracking-wider">
                 <span>AYT Hedefi</span>
-                <span className="text-zinc-200">{profile?.aytTarget}</span>
+                <span className="text-zinc-200">{latestAytNet.toFixed(1)} / {profile?.aytTarget}</span>
               </div>
               <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                <div className="h-full bg-amber-500" style={{ width: `45%` }} />
+                <div className="h-full bg-amber-500 transition-all duration-1000" style={{ width: `${aytProgressPct}%` }} />
               </div>
             </div>
           </div>
@@ -304,6 +318,14 @@ export function BentoDashboard() {
       >
         <GhostRivalWidget />
         <MemoryDecayWidget logs={logs || []} />
+      </motion.div>
+
+      {/* ── ROW 8.5: Net Projeksiyonu ── */}
+      <motion.div 
+        variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+        className="mb-6"
+      >
+        <NetProjectionWidget />
       </motion.div>
 
       {/* ── ROW 9: Study Heatmap (full width) ── */}

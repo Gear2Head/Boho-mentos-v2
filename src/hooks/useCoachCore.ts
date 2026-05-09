@@ -186,26 +186,9 @@ export function useCoachCore(): UseCoachCoreReturn {
           });
           setLastCoachDirective(directive);
 
-          // [AI-004] NLP Log Extraction: Yakalanan logları otomatik kaydet
+          // [AI-004] NLP Log Extraction: detected logs must be confirmed in the UI before persistence.
           if (directive.detectedLogs && directive.detectedLogs.length > 0) {
             console.info('[CoachCore] detectedLogs require user confirmation before persisting', directive.detectedLogs);
-            if (false) {
-            const addLog = useAppStore.getState().addLog;
-            directive.detectedLogs.forEach(dl => {
-              addLog({
-                date: new Date().toISOString(),
-                subject: dl.subject,
-                topic: dl.topic,
-                questions: dl.questions || 0,
-                correct: Math.floor((dl.questions || 0) * 0.8), // Varsayılan %80 başarı
-                wrong: Math.floor((dl.questions || 0) * 0.2),
-                empty: 0,
-                avgTime: dl.questions ? Math.round(dl.duration / dl.questions) : dl.duration,
-                fatigue: 3,
-                notes: '🤖 Kübra: Sohbetten otomatik yakalanan çalışma kaydı.'
-              });
-            });
-            }
           }
 
           // [ST-003] Client Actions

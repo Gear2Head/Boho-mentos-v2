@@ -56,12 +56,6 @@ export function getResourcesForSubject(subject: string): ResourceItem[] {
 
   // Manual catalog rule: never invent search links when no approved source exists.
   return [];
-  
-  // Return generic resources if no exact match found
-  return [
-    { id: 'fallback-1', type: 'video', title: `${subject} Konu Anlatımı Serisi`, url: `https://www.youtube.com/results?search_query=${encodeURIComponent(subject + ' konu anlatımı')}`, provider: 'YouTube' },
-    { id: 'fallback-2', type: 'pdf', title: `${subject} Çıkmış Sorular / MEB Kazanım Testleri`, url: `https://www.google.com/search?q=${encodeURIComponent(subject + ' Meb kazanım testi pdf')}`, provider: 'Google Link' }
-  ];
 }
 
 export function getApprovedResourceTopics(): string[] {

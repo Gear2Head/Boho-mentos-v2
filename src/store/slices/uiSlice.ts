@@ -1,9 +1,10 @@
 import { StateCreator } from 'zustand';
 import { AppState } from '../appStore';
 import { QASession } from '../../types';
-import { doc, setDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
+import { setDocWithOfflineQueue } from "../../services/firestoreWriteQueue";
 
 export interface UISlice {
   isPassiveMode: boolean;
@@ -100,7 +101,7 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   setPassiveMode: (isPassive) => {
     set({ isPassiveMode: isPassive });
     if (get().authUser?.uid) {
-      setDoc(doc(db, 'users', get().authUser!.uid), cleanForFirestore({ isPassiveMode: isPassive }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', get().authUser!.uid), cleanForFirestore({ isPassiveMode: isPassive }), { merge: true }).catch(console.error);
     }
   },
 
@@ -109,13 +110,13 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
   setLofiEnabled: (enabled) => {
     const { authUser } = get();
     set({ isLofiEnabled: enabled });
-    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ isLofiEnabled: enabled }), { merge: true }).catch(console.error);
+    if (authUser?.uid) setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ isLofiEnabled: enabled }), { merge: true }).catch(console.error);
   },
 
   setMorningBlockerEnabled: (enabled) => {
     const { authUser } = get();
     set({ isMorningBlockerEnabled: enabled });
-    if (authUser?.uid) setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ isMorningBlockerEnabled: enabled }), { merge: true }).catch(console.error);
+    if (authUser?.uid) setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ isMorningBlockerEnabled: enabled }), { merge: true }).catch(console.error);
   },
 
   setMorningUnlockedDate: (date) => set({ morningUnlockedDate: date }),

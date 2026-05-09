@@ -1,10 +1,11 @@
 import { StateCreator } from 'zustand';
 import { AppState } from '../appStore';
 import { CoachDirective, DirectiveRecord, CoachMemory } from '../../types/coach';
-import { doc, setDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { triggerConfetti } from '../../utils/confetti';
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
+import { setDocWithOfflineQueue } from "../../services/firestoreWriteQueue";
 import { triggerHaptic } from '../../services/mobileCapabilities';
 
 export interface CoachSlice {
@@ -78,8 +79,8 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       addElo(bonus, 'coach_task_complete', `coach_task:${recordId}:${index}:complete`);
 
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },
@@ -96,8 +97,8 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       set({ directiveHistory: newHistory, coachMemory: newMemory });
       addElo(-5, 'coach_task_defer', `coach_task:${recordId}:${index}:defer`);
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },
@@ -115,8 +116,8 @@ export const createCoachSlice: StateCreator<AppState, [], [], CoachSlice> = (set
       void triggerHaptic('warning');
       addElo(-15, 'coach_task_fail', `coach_task:${recordId}:${index}:fail`);
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'directiveHistory', nr.id), cleanForFirestore(nr)).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ coachMemory: newMemory }), { merge: true }).catch(console.error);
       }
     });
   },

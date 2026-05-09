@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Search, Plus, MapPin, GraduationCap, X, Loader2, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, MapPin, GraduationCap, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { atlasService, AtlasProgram } from '../services/atlasService';
 import { useAppStore } from '../store/appStore';
@@ -13,11 +13,34 @@ interface AtlasExplorerProps {
   onClose: () => void;
 }
 
+function DataSourceBadge({ results }: { results: AtlasProgram[] }) {
+  if (results.length > 0 && results.some(r => r.isSnapshot)) {
+    return (
+      <p className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5 text-amber-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+        Snapshot Veri
+      </p>
+    );
+  }
+  if (results.length > 0) {
+    return (
+      <p className="text-[10px] uppercase tracking-widest font-bold flex items-center gap-1.5 text-emerald-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        Canlı YÖK Verisi
+      </p>
+    );
+  }
+  return (
+    <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">YÖK Atlas Verileri</p>
+  );
+}
+
 export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
   const [results, setResults] = useState<AtlasProgram[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const profile = useAppStore(s => s.profile);
   const addTargetGoal = useAppStore(s => s.addTargetGoal);
 
@@ -26,11 +49,13 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
     if (!query.trim() && !activeFilter) return;
 
     setIsLoading(true);
+    setSearchError(null);
     try {
       const data = await atlasService.search(query, activeFilter);
       setResults(data);
     } catch (err) {
       console.error('Search failed:', err);
+      setSearchError('Arama sırasında bir hata oluştu. Lütfen tekrar deneyin.');
     } finally {
       setIsLoading(false);
     }
@@ -60,13 +85,13 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
             </div>
             <div>
               <h2 className="font-serif italic text-xl text-zinc-200">Atlas Explorer</h2>
-              <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Gerçek YÖK Atlas Verileri</p>
+              <DataSourceBadge results={results} />
             </div>
           </div>
           <button 
             onClick={onClose}
             className="p-2 hover:bg-zinc-800 rounded-full transition-colors text-zinc-500"
-            aria-label="Modalı Kapat"
+            aria-label="Kapat"
           >
             <X size={20} />
           </button>
@@ -103,10 +128,13 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
                   setActiveFilter(newFilter);
                   if (query.trim() || newFilter) {
                     setIsLoading(true);
+                    setSearchError(null);
                     try {
                       const data = await atlasService.search(query, newFilter);
                       setResults(data);
-                    } catch (err) {} finally {
+                    } catch (err) {
+                      setSearchError('Filtre uygulanırken hata oluştu.');
+                    } finally {
                       setIsLoading(false);
                     }
                   } else {
@@ -129,6 +157,19 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
             <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-50">
               <Loader2 size={40} className="animate-spin text-[#C17767]" />
               <p className="text-zinc-500 text-sm italic tracking-wide">YÖK Atlas taranıyor...</p>
+            </div>
+          ) : searchError ? (
+            <div className="h-full flex flex-col items-center justify-center space-y-4 text-center">
+              <div className="p-3 bg-rose-500/10 rounded-2xl">
+                <AlertTriangle size={32} className="text-rose-400" />
+              </div>
+              <p className="text-sm font-bold text-rose-300">{searchError}</p>
+              <button
+                onClick={() => { setSearchError(null); setResults([]); }}
+                className="text-[10px] uppercase tracking-widest font-black text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Tekrar Dene
+              </button>
             </div>
           ) : results.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -154,7 +195,7 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
                       onClick={() => !isAlreadyAdded(program.id) && addTargetGoal(program)}
                       disabled={isAlreadyAdded(program.id)}
                       className={`p-2 rounded-xl transition-all ${isAlreadyAdded(program.id) ? 'bg-green-500/10 text-green-500' : 'bg-white/5 text-zinc-400 hover:bg-[#C17767] hover:text-white'}`}
-                      aria-label={`${program.universityName} Programını Hedeflere Ekle`}
+                      aria-label={`${program.universityName} Hedeflere Ekle`}
                     >
                       {isAlreadyAdded(program.id) ? <CheckCircle2 size={20} /> : <Plus size={20} />}
                     </button>
@@ -163,15 +204,15 @@ export function AtlasExplorer({ onClose }: AtlasExplorerProps) {
                   <div className="grid grid-cols-3 gap-3 pt-3 border-t border-zinc-800/50">
                     <div>
                       <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold block">Sıralama</span>
-                      <span className="text-xs font-mono text-zinc-300">#{program.successRank?.toLocaleString() || '—'}</span>
+                      <span className="text-xs font-mono text-zinc-300">#{program.successRank?.toLocaleString() || '\u2014'}</span>
                     </div>
                     <div>
                       <span className="text-[9px] uppercase tracking-widest text-green-500/70 font-bold block">TYT NET</span>
-                      <span className="text-xs font-mono text-green-400">{program.tytNet || '—'}</span>
+                      <span className="text-xs font-mono text-green-400">{program.tytNet || '\u2014'}</span>
                     </div>
                     <div>
                       <span className="text-[9px] uppercase tracking-widest text-blue-500/70 font-bold block">AYT NET</span>
-                      <span className="text-xs font-mono text-blue-400">{program.aytNet || '—'}</span>
+                      <span className="text-xs font-mono text-blue-400">{program.aytNet || '\u2014'}</span>
                     </div>
                   </div>
                 </div>

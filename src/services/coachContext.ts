@@ -10,6 +10,7 @@ import type { CoachSystemContext, CoachIntent, CoachDirective } from '../types/c
 import type { StudentProfile, DailyLog, ExamResult, HabitAlert } from '../types';
 import { toISODateOnly, toDateMs, parseFlexibleDate } from '../utils/date';
 import { getApprovedResourceTopics } from '../utils/resourceEngine';
+import { getExamPhase } from './coachContract';
 // STUB: anomalyDetection and churnPredictor deleted (dead code). Inline replacements provided.
 function detectAnomalies(_logs: DailyLog[]): Array<{type: string; message: string}> { return []; }
 function predictChurn(_logs: DailyLog[], _streak: number): {riskLevel: 'low'|'medium'|'high'; riskScore: number} { return { riskLevel: 'low', riskScore: 0 }; }
@@ -161,6 +162,7 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
   const forgettingCurve = getForgettingCurveStatus(logs);
   
   const actualDaysToExam = daysToExam ?? calculateDaysToExam();
+  const examPhase = getExamPhase(actualDaysToExam);
 
   // [SMART PERSONALITY]: Net trend hesabı
   let netTrend: 'rising' | 'falling' | 'stable' | 'unknown' = 'unknown';
@@ -171,6 +173,34 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     else if (diff < -2) netTrend = 'falling';
     else netTrend = 'stable';
   }
+
+  const planComplianceScore = calculatePlanComplianceScore(lastDirective);
+  const likelyMistakeTypes = inferLikelyMistakeTypes(logs);
+  const sourceEvidence = buildSourceEvidence({
+    weakTopics,
+    subjectRanking,
+    lastTytNet,
+    lastAytNet,
+    tytGap,
+    aytGap,
+    weeklyAccuracy,
+    daysWorkedThisWeek,
+    netTrend,
+    last3Exams,
+  });
+  const coachMemorySummary = buildCoachMemorySummary({
+    profile,
+    weakTopics,
+    subjectRanking,
+    lastDirectiveStatus,
+    planComplianceScore,
+    likelyMistakeTypes,
+    netTrend,
+  });
+  const approvedResourceTopics = getApprovedResourceTopics();
+  const resourceDirective = approvedResourceTopics.length > 0
+    ? `Sadece su onayli kaynak konu anahtarlarina dayan: ${approvedResourceTopics.join(', ')}. Bu liste disinda link veya kaynak uydurma.`
+    : 'Onayli kaynak katalogunda eslesme yoksa kaynak yok de; link veya kitap uydurma.';
 
   // ─── UserState nesnesi ────────────────────────────────────────────────────
   const userState: CoachSystemContext = {
@@ -201,8 +231,14 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     lastWarRoomScore,
     eloTrend,
     netTrend,
+    examPhase,
+    planComplianceScore,
+    coachMemorySummary,
+    likelyMistakeTypes,
+    sourceEvidence,
+    resourceDirective,
     memoryControls: buildMemoryControls(profile, weakTopics, subjectRanking.map(s => s.subject)),
-    approvedResourceTopics: getApprovedResourceTopics(),
+    approvedResourceTopics,
   };
 
   // ─── Context string (compact — sadece veri varsa yaz) ─────────────────────
@@ -215,6 +251,22 @@ export function buildCoachContext(input: ContextInput): BuiltContext {
     `ELO: ${eloScore} | Seri: ${streakDays}G | Müfredat: TYT %${tytPct} / AYT %${aytPct}`,
     `Çalışma: ${daysWorkedThisWeek}/7 gün | ${dailyQuestionAvg} soru/gün | Haftalık Başarı: %${weeklyAccuracy}`,
   ];
+
+  lines.push(`Sinav Fazi: ${examPhase} | Plan Tutarliligi: %${planComplianceScore}`);
+
+  if (sourceEvidence.length > 0) {
+    lines.push(``, `[KANIT SATIRLARI]`, sourceEvidence.join(' | '));
+  }
+
+  if (coachMemorySummary.length > 0) {
+    lines.push(``, `[KOC HAFIZASI]`, coachMemorySummary.join(' | '));
+  }
+
+  if (likelyMistakeTypes.length > 0) {
+    lines.push(``, `[OLASI HATA TIPLERI]`, likelyMistakeTypes.join(' | '));
+  }
+
+  lines.push(``, `[KAYNAK KURALI]`, resourceDirective);
 
   // ASSUME: Unutma eğrisi sadece alert varsa gönderilir
   if (forgettingCurve.length > 0) {
@@ -317,6 +369,89 @@ function buildMemoryControls(
   }
 
   return controls;
+}
+
+function calculatePlanComplianceScore(lastDirective?: CoachDirective | null): number {
+  if (!lastDirective || lastDirective.tasks.length === 0) return 100;
+  const completed = lastDirective.tasks.filter((task) => task.status === 'completed').length;
+  const resolved = lastDirective.tasks.filter((task) =>
+    task.status === 'completed' ||
+    task.status === 'deferred' ||
+    task.status === 'failed' ||
+    task.status === 'cancelled'
+  ).length;
+  if (resolved === 0) return 0;
+  return Math.round((completed / lastDirective.tasks.length) * 100);
+}
+
+function inferLikelyMistakeTypes(logs: DailyLog[]): string[] {
+  const recent = logs.slice(-20).filter((log) => log.questions > 0);
+  if (recent.length === 0) return [];
+
+  const signals = new Set<string>();
+  const lowAccuracy = recent.filter((log) => log.correct / log.questions < 0.55).length;
+  const highWrong = recent.filter((log) => log.wrong > log.correct).length;
+  const slowSessions = recent.filter((log) => (log.avgTime || 0) > 4).length;
+  const fatigueSessions = recent.filter((log) => (log.fatigue || 0) >= 4).length;
+
+  if (lowAccuracy >= 2) signals.add('konsept eksikligi');
+  if (highWrong >= 2) signals.add('yanlis strateji veya islem hatasi');
+  if (slowSessions >= 2) signals.add('sure baskisi');
+  if (fatigueSessions >= 2) signals.add('yorgunluk kaynakli dikkatsizlik');
+  return [...signals].slice(0, 4);
+}
+
+function buildSourceEvidence(params: {
+  weakTopics: string[];
+  subjectRanking: Array<{ subject: string; accuracy: number; total: number }>;
+  lastTytNet: number;
+  lastAytNet: number;
+  tytGap: number;
+  aytGap: number;
+  weeklyAccuracy: number;
+  daysWorkedThisWeek: number;
+  netTrend: CoachSystemContext['netTrend'];
+  last3Exams: string[];
+}): string[] {
+  const evidence: string[] = [];
+  if (params.weakTopics.length > 0) evidence.push(`Zayif konular: ${params.weakTopics.join(', ')}`);
+  if (params.subjectRanking.length > 0) {
+    const lowest = params.subjectRanking[0];
+    evidence.push(`En dusuk dogruluk: ${lowest.subject} %${lowest.accuracy} (${lowest.total} soru)`);
+  }
+  if (params.tytGap > 0) evidence.push(`TYT hedef farki: -${params.tytGap.toFixed(1)} net`);
+  if (params.aytGap > 0) evidence.push(`AYT hedef farki: -${params.aytGap.toFixed(1)} net`);
+  if (params.weeklyAccuracy > 0) evidence.push(`Haftalik dogruluk: %${params.weeklyAccuracy}`);
+  evidence.push(`Bu hafta calisilan gun: ${params.daysWorkedThisWeek}/7`);
+  if (params.netTrend && params.netTrend !== 'unknown') evidence.push(`Net trendi: ${params.netTrend}`);
+  if (params.last3Exams.length > 0) evidence.push(`Son denemeler: ${params.last3Exams.join(' | ')}`);
+  return evidence.slice(0, 8);
+}
+
+function buildCoachMemorySummary(params: {
+  profile: StudentProfile;
+  weakTopics: string[];
+  subjectRanking: Array<{ subject: string; accuracy: number; total: number }>;
+  lastDirectiveStatus: CoachSystemContext['lastDirectiveStatus'];
+  planComplianceScore: number;
+  likelyMistakeTypes: string[];
+  netTrend: CoachSystemContext['netTrend'];
+}): string[] {
+  const summary: string[] = [];
+  if (params.weakTopics.length > 0) summary.push(`Tekrar eden zayif nokta: ${params.weakTopics.join(', ')}`);
+  if (params.subjectRanking.length > 0) summary.push(`Dikkat isteyen ders: ${params.subjectRanking[0].subject}`);
+  if (params.lastDirectiveStatus && params.lastDirectiveStatus !== 'none') summary.push(`Son plan durumu: ${params.lastDirectiveStatus}`);
+  summary.push(`Plan tutarliligi: %${params.planComplianceScore}`);
+  if (params.likelyMistakeTypes.length > 0) summary.push(`Muhtemel hata tipi: ${params.likelyMistakeTypes.join(', ')}`);
+  if (params.netTrend && params.netTrend !== 'unknown') summary.push(`Net trendi: ${params.netTrend}`);
+  const rawMemory = params.profile.coachMemory as unknown as Record<string, unknown> | undefined;
+  const staleAdvicePatterns = Array.isArray(rawMemory?.staleAdvicePatterns)
+    ? (rawMemory.staleAdvicePatterns as string[])
+    : [];
+  if (staleAdvicePatterns.length) {
+    summary.push(`Tekrar etme: ${staleAdvicePatterns.slice(0, 3).join(', ')}`);
+  }
+  return summary.slice(0, 8);
 }
 
 export function calculateDaysToExam(): number {

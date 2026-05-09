@@ -15,13 +15,15 @@ function splitDocumentPath(ref: DocumentReference): { collectionPath: string; do
 async function enqueueFromRef(
   ref: DocumentReference,
   operation: 'set' | 'update' | 'delete',
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
+  merge = false
 ): Promise<void> {
   const { collectionPath, docId } = splitDocumentPath(ref);
   await enqueueOperation({
     collection: collectionPath,
     docId,
     operation,
+    merge,
     data: cleanForFirestore(data),
   });
 }
@@ -40,6 +42,23 @@ function isOffline(): boolean {
   return typeof navigator !== 'undefined' && !navigator.onLine;
 }
 
+function shouldQueueWriteError(error: unknown): boolean {
+  const code = typeof error === 'object' && error && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : '';
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+  return [
+    'unavailable',
+    'deadline-exceeded',
+    'resource-exhausted',
+    'internal',
+  ].some((retryableCode) => code.includes(retryableCode))
+    || message.includes('offline')
+    || message.includes('network')
+    || message.includes('failed to fetch');
+}
+
 export async function setDocWithOfflineQueue(
   ref: DocumentReference,
   data: Record<string, unknown>,
@@ -48,10 +67,18 @@ export async function setDocWithOfflineQueue(
   const payload = cleanForFirestore(data);
   const shouldMerge = Boolean((options as { merge?: boolean } | undefined)?.merge);
   if (isOffline() && canQueue(payload)) {
-    await enqueueFromRef(ref, shouldMerge ? 'update' : 'set', payload);
+    await enqueueFromRef(ref, 'set', payload, shouldMerge);
     return;
   }
-  await setDoc(ref, payload, options as SetOptions);
+  try {
+    await setDoc(ref, payload, options as SetOptions);
+  } catch (error) {
+    if (canQueue(payload) && shouldQueueWriteError(error)) {
+      await enqueueFromRef(ref, 'set', payload, shouldMerge);
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function updateDocWithOfflineQueue(
@@ -63,7 +90,15 @@ export async function updateDocWithOfflineQueue(
     await enqueueFromRef(ref, 'update', payload);
     return;
   }
-  await updateDoc(ref, payload);
+  try {
+    await updateDoc(ref, payload);
+  } catch (error) {
+    if (canQueue(payload) && shouldQueueWriteError(error)) {
+      await enqueueFromRef(ref, 'update', payload);
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function deleteDocWithOfflineQueue(ref: DocumentReference): Promise<void> {
@@ -71,7 +106,15 @@ export async function deleteDocWithOfflineQueue(ref: DocumentReference): Promise
     await enqueueFromRef(ref, 'delete');
     return;
   }
-  await deleteDoc(ref);
+  try {
+    await deleteDoc(ref);
+  } catch (error) {
+    if (shouldQueueWriteError(error)) {
+      await enqueueFromRef(ref, 'delete');
+      return;
+    }
+    throw error;
+  }
 }
 
 export function userEntityDoc(uid: string, collectionPath: string, id: string): DocumentReference {

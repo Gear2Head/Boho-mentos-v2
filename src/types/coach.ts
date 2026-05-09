@@ -55,6 +55,54 @@ export interface CoachMemoryControl {
   updatedAt: string;
 }
 
+export type CoachResponseDepth = 'quick' | 'standard' | 'deep' | 'operational';
+
+export type CoachDecisionKind =
+  | 'natural_chat'
+  | 'teach_concept'
+  | 'analyze_performance'
+  | 'generate_plan'
+  | 'critical_intervention'
+  | 'resource_guidance'
+  | 'log_confirmation';
+
+export interface CoachIntentPolicy {
+  intent: CoachIntent;
+  decisionKind: CoachDecisionKind;
+  allowDirective: boolean;
+  forceJson: boolean;
+  cacheable: boolean;
+  responseDepth: CoachResponseDepth;
+  requiresFreshData: boolean;
+}
+
+export interface CoachDecision {
+  intent: CoachIntent;
+  decisionKind: CoachDecisionKind;
+  shouldAttachDirective: boolean;
+  forceJson: boolean;
+  cacheable: boolean;
+  responseDepth: CoachResponseDepth;
+  reason: string;
+}
+
+export interface CoachQualityIssue {
+  code:
+    | 'JSON_IN_NATURAL_RESPONSE'
+    | 'DIRECTIVE_MISSING_REQUIRED_FIELD'
+    | 'TASK_MISSING_EVIDENCE'
+    | 'TASK_TOO_GENERIC'
+    | 'RESOURCE_HALLUCINATION_RISK';
+  message: string;
+  severity: 'warning' | 'error';
+}
+
+export interface CoachQualityResult {
+  ok: boolean;
+  issues: CoachQualityIssue[];
+  repairedText?: string;
+}
+
 // ─── Task (Görev Nesnesi) ────────────────────────────────────────────────────
 
 /** COACH-CORE-002: Tam görev yaşam döngüsü — pending → completed/failed/cancelled/deferred/blocked */
@@ -128,6 +176,10 @@ export interface CoachTask {
   linkedExamIds?: string[];
   /** Bu göreve yol açan kanıt özeti (KOÇ context'i için) */
   sourceEvidence?: string;
+  /** Basarisiz olursa uygulanacak kisa telafi aksiyonu */
+  recoveryAction?: string;
+  /** Gorevin dayandigi kanitin gucu */
+  evidenceLevel?: 'low' | 'medium' | 'high';
   /** Oluşturulma tarihi */
   createdAt?: string;
   /** Son güncellenme tarihi */
@@ -286,6 +338,18 @@ export interface CoachSystemContext {
   memoryControls?: CoachMemoryControl[];
   /** Manuel katalogda onayli kaynak bulunan konu/ders anahtarlari. */
   approvedResourceTopics?: string[];
+  /** Son direktiflerde gorev tamamlama tutarliligi */
+  planComplianceScore?: number;
+  /** Prompt'a girecek kisa ve kontrollu hafiza ozeti */
+  coachMemorySummary?: string[];
+  /** Dusuk dogruluk ve loglardan cikarilan olasi hata tipleri */
+  likelyMistakeTypes?: string[];
+  /** Gorev uretirken kullanilacak kanit satirlari */
+  sourceEvidence?: string[];
+  /** Kaynak onerme siniri */
+  resourceDirective?: string;
+  /** Sinava kalan gunlere gore strateji fazi */
+  examPhase?: 'foundation' | 'balanced' | 'quick_gains' | 'risk_reduction';
   
   // v2 AI Prompts Fields (Aikocpromt.md Section 5)
   failedQuestions?: number;
@@ -318,6 +382,12 @@ export interface CoachApiRequest {
   maxTokens?: number;
   userState?: Partial<CoachSystemContext>;
   wantDirective?: boolean;
+  decision?: CoachDecision;
+  dataFreshness?: {
+    contextHash?: string;
+    generatedAt: string;
+    requiresFreshData: boolean;
+  };
   // TODO-010: Vision support
   imageBase64?: string;
   imageMediaType?: string;

@@ -3,7 +3,7 @@ import { AppState } from '../appStore';
 import { DailyLog, ExamResult, FailedQuestion, SubjectStatus, AgendaEntry, FocusSessionRecord } from '../../types';
 import { Flashcard } from '../../types/coach';
 import { toISODateOnly } from '../../utils/date';
-import { doc, setDoc, increment } from "firebase/firestore";
+import { doc, increment } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
 import { deleteDocWithOfflineQueue, setDocWithOfflineQueue } from "../../services/firestoreWriteQueue";
@@ -93,7 +93,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (eloDelta !== 0) addElo(eloDelta, 'tyt_subject_status', `tyt:${index}:${oldStatus}->${updates.status}:${todayStr}`);
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs, trophies: newTrophies }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs, trophies: newTrophies }), { merge: true }).catch(console.error);
     }
   },
 
@@ -132,7 +132,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     if (eloDelta !== 0) addElo(eloDelta, 'ayt_subject_status', `ayt:${originalIndex}:${oldStatus}->${updates.status}:${todayStr}`);
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs, trophies: newTrophies }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs, trophies: newTrophies }), { merge: true }).catch(console.error);
     }
   },
 
@@ -144,7 +144,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     });
     set({ tytSubjects: newSubs, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: newSubs }), { merge: true }).catch(console.error);
     }
   },
 
@@ -156,7 +156,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     });
     set({ aytSubjects: newSubs, lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: newSubs }), { merge: true }).catch(console.error);
     }
   },
 
@@ -209,10 +209,10 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
       const startOfYear = new Date(now.getFullYear(), 0, 1);
       const week = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
       const weekId = `${now.getFullYear()}-W${week}`;
-      setDoc(doc(db, 'communityGoals', weekId), {
+      setDocWithOfflineQueue(doc(db, 'communityGoals', weekId), cleanForFirestore({
         current: increment(log.questions || 1),
         updatedAt: new Date().toISOString(),
-      }, { merge: true }).catch(console.error);
+      }), { merge: true }).catch(console.error);
     }
   },
 
@@ -426,7 +426,7 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     evaluateAllAchievements();
 
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({
         eloScore: safeNewElo,
         bohoCoins: newCoins,
         unlockedAchievementIds: validAchievementIds,

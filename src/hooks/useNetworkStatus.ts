@@ -1,19 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { cleanForFirestore } from '../utils/firebaseHelpers';
-import { getAllQueued, removeFromQueue, incrementRetry, type QueuedOperation } from '../services/offlineQueue';
+import { getAllQueued, getQueueStats, removeFromQueue, incrementRetry, type QueuedOperation } from '../services/offlineQueue';
 
 const MAX_RETRIES = 5;
 
 export function useNetworkStatus() {
   const [isOnline, setIsOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
   const isReplaying = useRef(false);
 
   const refreshPendingCount = useCallback(async () => {
-    const queued = await getAllQueued();
-    setPendingCount(queued.length);
+    const stats = await getQueueStats();
+    setPendingCount(stats.pending);
+    setFailedCount(stats.failed);
   }, []);
 
   const replayQueue = useCallback(async () => {
@@ -25,16 +27,11 @@ export function useNetworkStatus() {
       setPendingCount(queued.length);
 
       for (const op of queued) {
-        if (op.retries >= MAX_RETRIES) {
-          await removeFromQueue(op.id);
-          continue;
-        }
-
         try {
           await executeOperation(op);
           await removeFromQueue(op.id);
-        } catch {
-          await incrementRetry(op.id);
+        } catch (error) {
+          await incrementRetry(op.id, error, MAX_RETRIES);
         }
       }
 
@@ -65,7 +62,7 @@ export function useNetworkStatus() {
     refreshPendingCount().catch(() => {});
   }, [refreshPendingCount]);
 
-  return { isOnline, pendingCount, replayQueue, refreshPendingCount };
+  return { isOnline, pendingCount, failedCount, replayQueue, refreshPendingCount };
 }
 
 async function executeOperation(op: QueuedOperation): Promise<void> {
@@ -73,8 +70,14 @@ async function executeOperation(op: QueuedOperation): Promise<void> {
 
   switch (op.operation) {
     case 'set':
+      if (op.merge) {
+        await setDoc(ref, cleanForFirestore(op.data), { merge: true });
+      } else {
+        await setDoc(ref, cleanForFirestore(op.data));
+      }
+      break;
     case 'update':
-      await setDoc(ref, cleanForFirestore(op.data), { merge: true });
+      await updateDoc(ref, cleanForFirestore(op.data));
       break;
     case 'delete':
       await deleteDoc(ref);

@@ -18,6 +18,23 @@ import { publishPublicProfileProjection } from '../services/publicProfile';
 
 type AuthMode = 'login' | 'register';
 
+const USER_SUBCOLLECTIONS = [
+  'logs',
+  'exams',
+  'failedQuestions',
+  'agendaEntries',
+  'focusSessions',
+  'flashcards',
+  'directiveHistory',
+] as const;
+
+const ROOT_SYNC_FIELDS = [
+  'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins',
+  'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
+  'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
+  'coachMemory', 'unlockedAchievementIds', 'userAchievements',
+] as const;
+
 function mapFirebaseUser(user: FirebaseUser) {
   return {
     uid: user.uid,
@@ -25,6 +42,56 @@ function mapFirebaseUser(user: FirebaseUser) {
     displayName: user.displayName ?? null,
     photoURL: user.photoURL ?? null,
   };
+}
+
+async function fetchUserSubcollections(uid: string): Promise<Record<string, unknown[]>> {
+  const mergedData: Record<string, unknown[]> = {};
+
+  for (const col of USER_SUBCOLLECTIONS) {
+    const snap = await getDocs(collection(db, 'users', uid, col));
+    if (!snap.empty) {
+      mergedData[col] = snap.docs.map(d => d.data());
+    }
+  }
+
+  return mergedData;
+}
+
+function applyRootUserDocument(data: Record<string, any>, store: ReturnType<typeof useAppStore.getState>) {
+  const updates: Record<string, any> = {};
+
+  ROOT_SYNC_FIELDS.forEach(field => {
+    if (data[field] !== undefined) {
+      const currentVal = (store as any)[field];
+      let newVal = data[field];
+
+      if (field === 'streakDays') {
+        const remoteStreak = typeof newVal === 'number' ? newVal : 0;
+        const localStreak = typeof currentVal === 'number' ? currentVal : 0;
+        if (remoteStreak < localStreak && remoteStreak !== 0) return;
+      }
+
+      if (field === 'profile' && currentVal && newVal) {
+        const localActiveDays = Array.isArray(currentVal.activeDays) ? currentVal.activeDays : [];
+        const remoteActiveDays = Array.isArray(newVal.activeDays) ? newVal.activeDays : [];
+        newVal = {
+          ...currentVal,
+          ...newVal,
+          activeDays: Array.from(new Set([...localActiveDays, ...remoteActiveDays])).slice(-365),
+          usedStreakShieldDates: Array.from(new Set([
+            ...(Array.isArray(currentVal.usedStreakShieldDates) ? currentVal.usedStreakShieldDates : []),
+            ...(Array.isArray(newVal.usedStreakShieldDates) ? newVal.usedStreakShieldDates : []),
+          ])).slice(-365),
+        };
+      }
+
+      if (JSON.stringify(currentVal) !== JSON.stringify(newVal)) {
+        updates[field] = newVal;
+      }
+    }
+  });
+
+  return updates;
 }
 
 export function useAuth() {
@@ -81,18 +148,8 @@ export function useAuth() {
     // Subcollection hydration
     const fetchSubcollections = async () => {
       try {
-        const collectionsToFetch = ['logs', 'exams', 'failedQuestions', 'agendaEntries', 'focusSessions', 'flashcards'];
-        const store = useAppStore.getState();
-        const mergedData: any = {};
-        let hasData = false;
-
-        for (const col of collectionsToFetch) {
-          const snap = await getDocs(collection(db, 'users', authUser.uid, col));
-          if (!snap.empty) {
-            mergedData[col] = snap.docs.map(d => d.data());
-            hasData = true;
-          }
-        }
+        const mergedData = await fetchUserSubcollections(authUser.uid);
+        const hasData = Object.keys(mergedData).length > 0;
 
         if (hasData) {
           useAppStore.setState(mergedData);
@@ -165,46 +222,7 @@ export function useAuth() {
            return;
          }
 
-         const fields = [
-           'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
-           'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
-           'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
-           'coachMemory', 'unlockedAchievementIds', 'userAchievements',
-           'logs', 'exams', 'failedQuestions', 'agendaEntries', 'focusSessions',
-           'flashcards', 'chatHistory', 'directiveHistory'
-         ];
-
-         fields.forEach(field => {
-           if (data[field] !== undefined) {
-             const currentVal = (store as any)[field];
-             let newVal = data[field];
-
-             if (field === 'streakDays') {
-               const remoteStreak = typeof newVal === 'number' ? newVal : 0;
-               const localStreak = typeof currentVal === 'number' ? currentVal : 0;
-               // Never pull down a higher local streak unless it's a legitimate break (0)
-               if (remoteStreak < localStreak && remoteStreak !== 0) return;
-             }
-
-             if (field === 'profile' && currentVal && newVal) {
-               const localActiveDays = Array.isArray(currentVal.activeDays) ? currentVal.activeDays : [];
-               const remoteActiveDays = Array.isArray(newVal.activeDays) ? newVal.activeDays : [];
-               newVal = {
-                 ...currentVal,
-                 ...newVal,
-                 activeDays: Array.from(new Set([...localActiveDays, ...remoteActiveDays])).slice(-365),
-                 usedStreakShieldDates: Array.from(new Set([
-                   ...(Array.isArray(currentVal.usedStreakShieldDates) ? currentVal.usedStreakShieldDates : []),
-                   ...(Array.isArray(newVal.usedStreakShieldDates) ? newVal.usedStreakShieldDates : []),
-                 ])).slice(-365),
-               };
-             }
-             
-             if (JSON.stringify(currentVal) !== JSON.stringify(newVal)) {
-               updates[field] = newVal;
-             }
-           }
-         });
+         Object.assign(updates, applyRootUserDocument(data, store));
 
          if (Object.keys(updates).length > 0) {
            useAppStore.setState({ ...updates, lastLocalUpdateAt: remoteUpdateAt });
@@ -279,31 +297,24 @@ export function useAuth() {
       console.log('[Sync] Manual sync triggered.');
       const userRef = doc(db, 'users', authUser.uid);
       const docSnap = await getDoc(userRef);
+      const store = useAppStore.getState();
+      const updates: any = {};
+
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const store = useAppStore.getState();
-        const updates: any = {};
-        
-        const fields = [
-          'profile', 'theme', 'eloScore', 'streakDays', 'bohoCoins', 
-          'economyLedger', 'inventory', 'trophies', 'activeAlerts', 'isPassiveMode',
-          'tytSubjects', 'aytSubjects', 'dailyAiRequests', 'lastCoachDirective',
-          'coachMemory', 'unlockedAchievementIds', 'userAchievements',
-          'logs', 'exams', 'failedQuestions', 'agendaEntries', 'focusSessions',
-          'flashcards', 'chatHistory', 'directiveHistory'
-        ];
+        Object.assign(updates, applyRootUserDocument(data, store));
+      }
 
-        fields.forEach(field => {
-          if (data[field] !== undefined) {
-            if (JSON.stringify((store as any)[field]) !== JSON.stringify(data[field])) {
-              updates[field] = data[field];
-            }
-          }
-        });
-
-        if (Object.keys(updates).length > 0) {
-          useAppStore.setState({ ...updates, lastLocalUpdateAt: data.updated_at || data.lastLocalUpdateAt || new Date().toISOString() });
+      const subcollectionUpdates = await fetchUserSubcollections(authUser.uid);
+      Object.entries(subcollectionUpdates).forEach(([field, value]) => {
+        if (JSON.stringify((store as any)[field]) !== JSON.stringify(value)) {
+          updates[field] = value;
         }
+      });
+
+      if (Object.keys(updates).length > 0) {
+        const data = docSnap.exists() ? docSnap.data() : {};
+        useAppStore.setState({ ...updates, lastLocalUpdateAt: data.updated_at || data.lastLocalUpdateAt || new Date().toISOString() });
       }
     };
 

@@ -14,14 +14,18 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  Info,
   Link as LinkIcon,
   Play,
   Target,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 
 import { getResourcesForSubject } from '../../utils/resourceEngine';
 import { CoachParser } from './CoachParser';
 import { FlashcardBubble } from './FlashcardBubble';
+import { DetectedLogCard } from './DetectedLogCard';
 import type { FlashcardBubbleData } from './FlashcardBubble';
 import type { ChatMessage as ChatMessageType } from '../../types';
 import { useAppStore } from '../../store/appStore';
@@ -182,6 +186,15 @@ export const ChatMessage = memo(function ChatMessage({
             {message.directive && (
               <DirectivePreview directive={message.directive} />
             )}
+
+            {message.directive?.detectedLogs && message.directive.detectedLogs.length > 0 && (
+              <div className="mt-3">
+                <DetectedLogCard
+                  detectedLogs={message.directive.detectedLogs}
+                  onDismiss={() => {/* Card hides itself when all confirmed */}}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -296,6 +309,24 @@ function DirectivePreview({
                               {task.targetMinutes ? ` • ${task.targetMinutes}dk` : ''}
                             </div>
                           )}
+
+                          {/* Source Evidence — neden bu görev verildi */}
+                          {task.sourceEvidence && !isDone && (
+                            <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-blue-500/10 bg-blue-500/5 px-3 py-2">
+                              <Info size={11} className="text-blue-400 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <span className="text-[8px] uppercase tracking-widest font-black text-blue-400/70 block mb-0.5">Kanıt</span>
+                                <span className="text-[10px] text-blue-300/80 leading-relaxed">{task.sourceEvidence}</span>
+                              </div>
+                              {task.evidenceLevel && (
+                                <span className={`shrink-0 text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${
+                                  task.evidenceLevel === 'high' ? 'bg-emerald-500/15 text-emerald-400' :
+                                  task.evidenceLevel === 'medium' ? 'bg-amber-500/15 text-amber-400' :
+                                  'bg-zinc-500/15 text-zinc-400'
+                                }`}>{task.evidenceLevel}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -344,6 +375,31 @@ function DirectivePreview({
                 );
               })}
             </div>
+
+            {/* Warnings Section */}
+            {directive.warnings && directive.warnings.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <div className="text-[8px] uppercase tracking-widest font-black text-rose-400/70 flex items-center gap-1.5">
+                  <ShieldAlert size={10} />
+                  Uyarılar
+                </div>
+                {directive.warnings.map((warning, wIdx) => (
+                  <div
+                    key={`warning-${wIdx}`}
+                    className={`flex items-start gap-2 rounded-lg border p-2.5 text-[10px] leading-relaxed ${
+                      warning.severity === 'critical' || warning.severity === 'high'
+                        ? 'border-rose-500/20 bg-rose-500/5 text-rose-300'
+                        : warning.severity === 'warning' || warning.severity === 'medium'
+                          ? 'border-amber-500/20 bg-amber-500/5 text-amber-300'
+                          : 'border-blue-500/20 bg-blue-500/5 text-blue-300'
+                    }`}
+                  >
+                    <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                    <span>{warning.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

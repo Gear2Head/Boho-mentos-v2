@@ -2,9 +2,10 @@ import { StateCreator } from 'zustand';
 import { AppState } from '../appStore';
 import { EconomyEvent, StudentProfile, Trophy, HabitAlert } from '../../types';
 import { toISODateOnly } from '../../utils/date';
-import { doc, setDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { cleanForFirestore } from "../../utils/firebaseHelpers";
+import { setDocWithOfflineQueue } from "../../services/firestoreWriteQueue";
 import { publishPublicProfileProjection } from "../../services/publicProfile";
 import { computeHealthScore, HealthScore } from "../../utils/healthScore";
 import { detectHabitsFromLogs } from "../appStore";
@@ -84,7 +85,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
 
     set(stateUpdates);
     if (authUser?.uid && profile) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ profile }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ profile }), { merge: true }).catch(console.error);
       publishPublicProfileProjection({
         uid: authUser.uid,
         email: authUser.email,
@@ -101,10 +102,10 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
       }).catch(console.error);
       // Also persist initialized subjects if they were just created
       if (stateUpdates.tytSubjects) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: stateUpdates.tytSubjects }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ tytSubjects: stateUpdates.tytSubjects }), { merge: true }).catch(console.error);
       }
       if (stateUpdates.aytSubjects) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: stateUpdates.aytSubjects }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ aytSubjects: stateUpdates.aytSubjects }), { merge: true }).catch(console.error);
       }
     }
     get().updateHealthScore();
@@ -115,7 +116,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     const { authUser } = get();
     set({ theme });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ theme }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ theme }), { merge: true }).catch(console.error);
     }
   },
 
@@ -123,7 +124,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     const { authUser } = get();
     set({ subjectViewMode: mode });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ subjectViewMode: mode }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ subjectViewMode: mode }), { merge: true }).catch(console.error);
     }
   },
 
@@ -137,7 +138,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
       newTrophies[idx] = { ...newTrophies[idx], unlockedAt: new Date().toISOString() };
       set({ trophies: newTrophies });
       if (authUser?.uid) {
-        setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ trophies: newTrophies }), { merge: true }).catch(console.error);
+        setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ trophies: newTrophies }), { merge: true }).catch(console.error);
       }
       addElo(50);
     }
@@ -163,7 +164,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     const nextStreakDays = computed.streakDays;
     set({ streakDays: nextStreakDays, ...(nextProfile ? { profile: nextProfile } : {}), lastLocalUpdateAt: new Date().toISOString() });
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({
         streakDays: nextStreakDays,
         ...(nextProfile ? { profile: nextProfile } : {})
       }), { merge: true }).catch(console.error);
@@ -197,7 +198,7 @@ export const createProfileSlice: StateCreator<AppState, [], [], ProfileSlice> = 
     set({ profile: nextProfile });
     
     if (authUser?.uid) {
-      setDoc(doc(db, 'users', authUser.uid), cleanForFirestore({ profile: nextProfile }), { merge: true }).catch(console.error);
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid), cleanForFirestore({ profile: nextProfile }), { merge: true }).catch(console.error);
       publishPublicProfileProjection({
         uid: authUser.uid,
         email: authUser.email,

@@ -151,6 +151,8 @@ export function generateRecoveryTasks(history: DirectiveRecord[]): CoachTask[] {
           status: 'pending',
           priority: 'high', // Telafi görevleri her zaman yüksek önceliklidir
           rationale: `Bu görev daha önce yapılamadığı için telafi listesine alındı.`,
+          recoveryAction: buildRecoveryAction(task),
+          evidenceLevel: task.sourceEvidence ? 'high' : 'medium',
           originSurface: 'strategy',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -357,4 +359,60 @@ export function calcComplianceRate(history: DirectiveRecord[]): number {
   }
   if (total === 0) return 0;
   return Math.round((completed / total) * 100);
+}
+
+export function calcPlanConsistencyScore(history: DirectiveRecord[]): number {
+  const recent = history.slice(0, 10);
+  if (recent.length === 0) return 100;
+
+  let totalTasks = 0;
+  let weightedScore = 0;
+
+  for (const record of recent) {
+    for (const task of record.directive.tasks) {
+      totalTasks += 1;
+      if (task.status === 'completed') weightedScore += 1;
+      else if (task.status === 'in_progress') weightedScore += 0.6;
+      else if (task.status === 'deferred') weightedScore += 0.25;
+      else if (task.status === 'failed' || task.status === 'cancelled') weightedScore += 0;
+      else weightedScore += 0.15;
+    }
+  }
+
+  if (totalTasks === 0) return 100;
+  return Math.round((weightedScore / totalTasks) * 100);
+}
+
+export function buildDirectiveMemorySummary(history: DirectiveRecord[]): string[] {
+  const recent = history.slice(0, 10);
+  if (recent.length === 0) return [];
+
+  const consistency = calcPlanConsistencyScore(recent);
+  const abandoned = recent.filter((record) => record.completedTaskCount === 0 && !record.isResolved).length;
+  const failedReasons = recent
+    .flatMap((record) => record.directive.tasks)
+    .filter((task) => task.status === 'failed' || task.status === 'deferred')
+    .map((task) => `${task.subject ?? 'Genel'}:${task.failureReason ?? 'unknown'}`)
+    .slice(0, 5);
+
+  return [
+    `Plan tutarlilik skoru: %${consistency}`,
+    abandoned > 0 ? `Tam baslanmayan plan sayisi: ${abandoned}` : '',
+    failedReasons.length > 0 ? `Tekrar eden aksama nedenleri: ${[...new Set(failedReasons)].join(', ')}` : '',
+  ].filter(Boolean);
+}
+
+function buildRecoveryAction(task: CoachTask): string {
+  if (task.failureReason === 'time_shortage') {
+    return 'Gorevi ikiye bol: once 15 dakikalik mini tekrar, sonra 10 soru.';
+  }
+  if (task.failureReason === 'topic_too_hard') {
+    return 'Zorlugu dusur: once temel ornek coz, sonra ayni konudan kolay seviye 8 soru.';
+  }
+  if (task.failureReason === 'low_motivation') {
+    return 'Baslangici kucult: sadece 10 dakikalik zaman blokuyla basla.';
+  }
+  return task.targetQuestions && task.targetQuestions > 20
+    ? 'Hedefi kucult: ayni konudan yarim soru setiyle yeniden basla.'
+    : 'Ayni gorevi daha kisa sure ve net basari kriteriyle tekrar dene.';
 }

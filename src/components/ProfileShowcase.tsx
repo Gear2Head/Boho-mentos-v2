@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useState as useReactState } from 'react';
 import { Trophy, Star, Target, Crown, Zap, Flame, Award, BookOpen, Hexagon, X, Shield, Settings, RefreshCw, ChevronDown, ChevronUp, Package, Coins, BarChart3, BrainCircuit, Palette, Gem, Timer, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Tooltip as RechartsTooltip } from 'recharts';
 import { useAppStore } from '../store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getRankDetails } from './EloRankCard';
-import { isOwnerEmail } from '../config/owner';
 import type { Trophy as TrophyType, ExamResult, AtlasProgram } from '../types';
+
+const OWNER_EMAIL = (import.meta.env.VITE_OWNER_EMAIL ?? 'senerkadiralper@gmail.com').trim().toLowerCase();
+const isOwnerEmail = (email?: string | null) => Boolean(OWNER_EMAIL && email && email.trim().toLowerCase() === OWNER_EMAIL);
+
 import { AtlasExplorer } from './AtlasExplorer';
 import { HabitAuditPanel } from './HabitAuditPanel';
 import { GlobalHeatmap } from './GlobalHeatmap';
@@ -16,6 +19,8 @@ import type { BoostKey } from '../types/economy';
 import { ProfileWall } from './ProfileWall';
 import { CommunityGoalBanner } from './CommunityGoalBanner';
 import { InventorySummaryCard } from './ActiveBoostStrip';
+import { triggerConfetti } from '../utils/confetti';
+import { triggerHaptic } from '../services/mobileCapabilities';
 
 const ICON_MAP: Record<string, React.FC<any>> = {
   Trophy, Star, Crown, Zap, Flame, Award, Target, BookOpen, Hexagon, Shield, Package, Coins, BarChart3, BrainCircuit, Palette, Gem, Timer, Sparkles
@@ -77,6 +82,29 @@ export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; t
     equipInventoryItem: s.equipInventoryItem,
     activateInventoryBoost: s.activateInventoryBoost,
   })));
+
+  // Economy V2: Equip feedback state
+  const [lastEquippedId, setLastEquippedId] = useReactState<string | null>(null);
+  const [boostToast, setBoostToast] = useReactState<string | null>(null);
+
+  const handleEquip = useCallback((itemId: string) => {
+    const ok = equipInventoryItem(itemId);
+    if (ok) {
+      setLastEquippedId(itemId);
+      triggerConfetti();
+      void triggerHaptic('success');
+      setTimeout(() => setLastEquippedId(null), 2000);
+    }
+  }, [equipInventoryItem]);
+
+  const handleBoostActivate = useCallback((boostType: string) => {
+    const ok = activateInventoryBoost(boostType as any);
+    if (ok) {
+      void triggerHaptic('success');
+      setBoostToast(`${boostType === 'xpMultiplier' ? '2x ELO' : boostType === 'coinMultiplier' ? '2x Coin' : boostType} takviyesi aktif!`);
+      setTimeout(() => setBoostToast(null), 3000);
+    }
+  }, [activateInventoryBoost]);
 
   const tytMastered = tytSubjects.filter(s => s.status === 'mastered').length;
   const tytTotal = tytSubjects.length;
@@ -519,7 +547,7 @@ export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; t
                         </div>
                         {!isPublic && (
                           <button
-                            onClick={() => activateInventoryBoost(key as any)}
+                            onClick={() => handleBoostActivate(key as any)}
                             className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5"
                           >
                             <Zap size={12} />
@@ -582,7 +610,7 @@ export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; t
                         {!isPublic && (
                           <button
                             disabled={isEquipped}
-                            onClick={() => equipInventoryItem(itemId)}
+                            onClick={() => handleEquip(itemId)}
                             className="relative z-10 mt-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all w-full"
                             style={isEquipped
                               ? { background: rarityColor + '22', color: rarityColor, cursor: 'not-allowed' }
@@ -601,6 +629,21 @@ export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; t
           </div>
         )}
       </div>
+
+      {/* Boost Activation Toast */}
+      <AnimatePresence>
+        {boostToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-black px-6 py-3 rounded-2xl shadow-xl shadow-amber-500/30 text-sm font-black uppercase tracking-widest flex items-center gap-2"
+          >
+            <Zap size={16} />
+            {boostToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="mt-8 mb-8">
         <GlobalHeatmap />

@@ -32,6 +32,19 @@ interface CoachApiRequest {
   maxTokens?: number;
   userState?: Record<string, unknown>;
   wantDirective?: boolean;
+  decision?: {
+    shouldAttachDirective?: boolean;
+    forceJson?: boolean;
+    cacheable?: boolean;
+    decisionKind?: string;
+    responseDepth?: string;
+    reason?: string;
+  };
+  dataFreshness?: {
+    contextHash?: string;
+    generatedAt?: string;
+    requiresFreshData?: boolean;
+  };
   imageBase64?: string;
   imageMediaType?: string;
 }
@@ -71,6 +84,34 @@ function shouldAttachDirective(intent: CoachIntent, wantsDirective: boolean): bo
 
 function shouldForceJson(intent: CoachIntent, wantsDirective: boolean): boolean {
   return JSON_ONLY_INTENTS.has(intent) || shouldAttachDirective(intent, wantsDirective);
+}
+
+function resolveServerCoachDecision(body: AiRequestBody) {
+  const intent = body.intent || 'free_chat';
+  const userAskedForPlan = userExplicitlyAskedForPlan(body.userMessage || '');
+  const clientDecision = body.decision;
+  const shouldAttach = Boolean(clientDecision?.shouldAttachDirective) ||
+    (shouldAttachDirective(intent, Boolean(body.forceJson || body.wantDirective)) &&
+      (userAskedForPlan || intent === 'daily_plan' || intent === 'daily_quest' || intent === 'generate_weekly_strategy'));
+
+  return {
+    decisionKind: clientDecision?.decisionKind || inferDecisionKind(intent, body.userMessage || ''),
+    shouldAttachDirective: shouldAttach,
+    forceJson: Boolean(clientDecision?.forceJson) || shouldForceJson(intent, shouldAttach),
+    cacheable: Boolean(clientDecision?.cacheable),
+    responseDepth: clientDecision?.responseDepth || (shouldAttach ? 'operational' : 'standard'),
+    reason: clientDecision?.reason || `serverDecision intent=${intent}; directive=${shouldAttach ? 'on' : 'off'}`,
+  };
+}
+
+function inferDecisionKind(intent: CoachIntent, message: string): string {
+  if (intent === 'topic_explain' || intent === 'qa_mode' || intent === 'socratic_force') return 'teach_concept';
+  if (intent === 'intervention') return 'critical_intervention';
+  if (intent === 'daily_plan' || intent === 'daily_quest' || intent === 'generate_weekly_strategy') return 'generate_plan';
+  if (intent.includes('analysis') || intent === 'exam_debrief' || intent === 'weekly_review' || intent === 'war_room_analysis') return 'analyze_performance';
+  if (/\d/.test(message) && /(çözdüm|cozdum|çalıştım|calistim|soru|doğru|dogru)/i.test(message)) return 'log_confirmation';
+  if (/(kaynak|kitap|video|pdf|meb|eba|soru bankası|soru bankasi)/i.test(message)) return 'resource_guidance';
+  return 'natural_chat';
 }
 
 type ChatHistoryItem = { role: 'user' | 'coach' | 'system'; content: string };
@@ -349,6 +390,75 @@ function safeParseDirective(raw: string): any {
   }
 }
 
+function validateCoachOutput(raw: string, opts: {
+  attachDirective: boolean;
+  approvedResourceTopics?: unknown;
+}) {
+  const issues: Array<{ code: string; message: string; severity: 'warning' | 'error' }> = [];
+  let repairedText = raw;
+
+  if (!opts.attachDirective && /^\s*[{[]/.test(raw)) {
+    issues.push({
+      code: 'JSON_IN_NATURAL_RESPONSE',
+      message: 'Natural response returned raw JSON; stripping code fences/object wrapper for user safety.',
+      severity: 'error',
+    });
+    const parsed = safeParseDirective(raw);
+    repairedText = parsed?.summary || parsed?.text || 'Bunu doğal cevap formatında yeniden istemem gerekiyor. Kısa cevap: plan istiyorsan bunu ölçülebilir görevlere çevirebilirim.';
+  }
+
+  if (opts.attachDirective) {
+    const parsed = safeParseDirective(raw);
+    if (!parsed?.headline || !parsed?.summary || !Array.isArray(parsed?.tasks) || parsed.tasks.length === 0) {
+      issues.push({
+        code: 'DIRECTIVE_MISSING_REQUIRED_FIELD',
+        message: 'Directive missing headline, summary, or tasks.',
+        severity: 'error',
+      });
+    } else {
+      parsed.tasks.forEach((task: any, index: number) => {
+        if (!task.subject || !task.topic || !task.action) {
+          issues.push({
+            code: 'DIRECTIVE_MISSING_REQUIRED_FIELD',
+            message: `Task ${index + 1} missing subject, topic, or action.`,
+            severity: 'error',
+          });
+        }
+        const joined = `${task.title || ''} ${task.action || ''}`.toLocaleLowerCase('tr-TR');
+        if (/(çalış|calis|tekrar et|gözden geçir|gozden gecir)$/.test(joined.trim())) {
+          issues.push({
+            code: 'TASK_TOO_GENERIC',
+            message: `Task ${index + 1} is too generic.`,
+            severity: 'warning',
+          });
+        }
+        if (!task.rationale && !task.sourceEvidence) {
+          issues.push({
+            code: 'TASK_MISSING_EVIDENCE',
+            message: `Task ${index + 1} has no evidence/rationale.`,
+            severity: 'warning',
+          });
+        }
+      });
+    }
+  }
+
+  const approved = Array.isArray(opts.approvedResourceTopics) ? opts.approvedResourceTopics : [];
+  if (approved.length === 0 && /https?:\/\/|kaynak|kitap|video|pdf/i.test(raw)) {
+    issues.push({
+      code: 'RESOURCE_HALLUCINATION_RISK',
+      message: 'Response may suggest resources while no approved resource catalog entry exists.',
+      severity: 'warning',
+    });
+  }
+
+  return {
+    ok: issues.every((issue) => issue.severity !== 'error'),
+    issues,
+    repairedText,
+  };
+}
+
 async function lookupUser(idToken: string): Promise<any> {
   const apiKey = process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY;
   if (!apiKey) throw new ProviderError(503, 'FIREBASE_WEB_API_KEY_MISSING', 'Firebase web API key is missing');
@@ -441,8 +551,8 @@ function wantsNaturalAnswerOnly(intent: CoachIntent, message = ''): boolean {
 
 function buildPrompt(body: AiRequestBody): string {
   const intent = body.intent || 'free_chat';
-  const userAskedForPlan = userExplicitlyAskedForPlan(body.userMessage || '');
-  const attachDirective = shouldAttachDirective(intent, Boolean(body.wantDirective)) && userAskedForPlan;
+  const decision = resolveServerCoachDecision(body);
+  const attachDirective = decision.shouldAttachDirective;
   const naturalOnly = wantsNaturalAnswerOnly(intent, body.userMessage || '');
 
   const userStateObj = (body.userState || {}) as any;
@@ -474,10 +584,22 @@ function buildPrompt(body: AiRequestBody): string {
     us.lastLogs?.length ? `Son Loglar: ${(us.lastLogs as string[]).join(' | ')}` : '',
     us.lastExams?.length ? `Son Denemeler: ${(us.lastExams as string[]).join(' | ')}` : '',
     us.daysToExam ? `Sınava Kalan: ${us.daysToExam} gün` : '',
+    us.examPhase ? `Sınav Fazı: ${us.examPhase}` : '',
     us.lastDirectiveStatus ? `Son Plan Durumu: ${us.lastDirectiveStatus}` : '',
+    typeof us.planComplianceScore === 'number' ? `Plan Tutarlılık Skoru: %${us.planComplianceScore}` : '',
+    Array.isArray(us.sourceEvidence) && us.sourceEvidence.length
+      ? `KANIT SATIRLARI: ${us.sourceEvidence.join(' | ')}`
+      : '',
+    Array.isArray(us.coachMemorySummary) && us.coachMemorySummary.length
+      ? `KOÇ HAFIZASI: ${us.coachMemorySummary.join(' | ')}`
+      : '',
+    Array.isArray(us.likelyMistakeTypes) && us.likelyMistakeTypes.length
+      ? `OLASI HATA TIPLERI: ${us.likelyMistakeTypes.join(' | ')}`
+      : '',
     Array.isArray(us.memoryControls) && us.memoryControls.length
       ? `Kontrollu Hafiza: ${us.memoryControls.filter((m: any) => m.visibility !== 'hidden').map((m: any) => `${m.label}: ${m.value}`).join(' | ')}`
       : '',
+    us.resourceDirective ? `KAYNAK KURALI: ${us.resourceDirective}` : '',
     Array.isArray(us.approvedResourceTopics) && us.approvedResourceTopics.length
       ? `ONAYLI KAYNAK KATALOGU: ${us.approvedResourceTopics.join(', ')}. Bu liste disinda kaynak veya link uydurma.`
       : 'ONAYLI KAYNAK KATALOGU: uygun kaynak yoksa kaynak yok de; link uydurma.',
@@ -490,6 +612,7 @@ function buildPrompt(body: AiRequestBody): string {
     CLAUDE_STYLE_GUIDANCE,
     TABLE_OUTPUT_INSTRUCTION,
     PERSONALITY_MODES[personalityMode] || '',
+    `KOÇ KARARI: ${decision.decisionKind} | Derinlik: ${decision.responseDepth} | ${decision.reason}`,
     `GÖREV: ${intentGuide}`,
     dataContext ? `ÖĞRENCİ VERİSİ (Direktif görevleri bu veriye dayalı olmalı):\n${dataContext}` : '',
     body.context ? `TAM BAĞLAM:\n${body.context}` : '',
@@ -798,21 +921,26 @@ export default async function handler(req: any, res: any) {
     const fullPrompt = buildPrompt(body);
     const messages = buildGroqMessages(fullPrompt, body);
     const intent = body.intent || 'free_chat';
-    const userAskedForPlan = userExplicitlyAskedForPlan(body.userMessage || '');
-    const attachDirective =
-      shouldAttachDirective(intent, Boolean(body.forceJson || body.wantDirective)) &&
-      userAskedForPlan;
+    const decision = resolveServerCoachDecision(body);
+    const attachDirective = decision.shouldAttachDirective;
 
     const result = await callCoachProvider(messages, {
       image: Boolean(body.imageBase64),
       maxTokens: body.maxTokens,
-      forceJson: shouldForceJson(intent, attachDirective),
+      forceJson: decision.forceJson,
       intent,
     });
+    const quality = validateCoachOutput(result.text, {
+      attachDirective,
+      approvedResourceTopics: body.userState?.approvedResourceTopics,
+    });
+    const responseText = quality.repairedText || result.text;
 
     return jsonResponse(res, 200, {
-      text: result.text,
-      directive: attachDirective ? safeParseDirective(result.text) : null,
+      text: responseText,
+      directive: attachDirective ? safeParseDirective(responseText) : null,
+      decision,
+      quality,
       provider: result.provider,
       model: result.model,
       providerMeta: { provider: result.provider, model: result.model },
