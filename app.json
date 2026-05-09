@@ -9,6 +9,11 @@
     "owner": "gear_head",
     "android": {
       "package": "com.bohomentos.app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fb9616e7-56dd-46d2-a29e-30c477ccde04"
+      }
     }
   }
 }
