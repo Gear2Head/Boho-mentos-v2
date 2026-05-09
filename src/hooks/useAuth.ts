@@ -248,7 +248,7 @@ export function useAuth() {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      setAuthError(parseAuthError(error.message));
+      setAuthError(parseAuthError(error.code || error.message));
     }
   }, []);
 
@@ -267,7 +267,7 @@ export function useAuth() {
           await signInWithEmailAndPassword(auth, email, password);
         }
       } catch (error: any) {
-        setAuthError(parseAuthError(error.message));
+        setAuthError(parseAuthError(error.code || error.message));
       } finally {
         setIsAuthLoading(false);
       }
