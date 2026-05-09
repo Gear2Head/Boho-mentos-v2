@@ -40,7 +40,11 @@ export function CompactSpotify() {
 
   if (!spotifyToken) {
     return (
-      <div onClick={loginWithSpotify} className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl group hover:bg-emerald-500/10 transition-all cursor-pointer">
+      <button
+        onClick={loginWithSpotify}
+        className="w-full text-left p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl group hover:bg-emerald-500/10 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1DB954]"
+        aria-label="Spotify'a Bağlan"
+      >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[#1DB954] flex items-center justify-center text-black shadow-[0_0_15px_rgba(29,185,84,0.3)] group-hover:scale-110 transition-transform">
              <Music size={14} />
@@ -50,7 +54,7 @@ export function CompactSpotify() {
              <p className="text-[9px] text-zinc-500 font-bold truncate mt-1">Bağlan ve odaklan</p>
           </div>
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -74,7 +78,9 @@ export function CompactSpotify() {
           )}
           <button 
             onClick={() => setIsPlaying(!isPlaying)}
-            className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl"
+            className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1DB954]"
+            aria-label={isPlaying ? "Şarkıyı Duraklat" : "Şarkıyı Oynat"}
+            title={isPlaying ? "Duraklat" : "Oynat"}
           >
             {isPlaying ? <Pause size={16} className="text-white" fill="currentColor" /> : <Play size={16} className="text-white ml-0.5" fill="currentColor" />}
           </button>
@@ -104,11 +110,19 @@ export function CompactSpotify() {
            </p>
         </div>
 
-        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-           <button className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-colors">
+        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+           <button
+             className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1DB954]"
+             aria-label="Sonraki Şarkı"
+             title="Sonraki Şarkı"
+           >
               <SkipForward size={14} />
            </button>
-           <button className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-colors">
+           <button
+             className="p-1.5 hover:bg-white/5 rounded-lg text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1DB954]"
+             aria-label="Spotify'da Aç"
+             title="Spotify'da Aç"
+           >
               <ExternalLink size={14} />
            </button>
         </div>
