@@ -13,6 +13,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../store/appStore';
 import { getCoachResponse } from '../services/gemini';
+import { exportToICal, exportToPDF } from './warroom/ExportModule';
 import { YOK_ATLAS_DATA, type YokAtlasProgram } from '../data/yokAtlasData';
 import { calcSourceROI, predictTYTAndAYT, calculatePredictedNet, calculateBurnoutRisk } from '../utils/statistics';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, AreaChart, Area } from 'recharts';
@@ -429,17 +430,44 @@ Son denemeler: ${recentExams || 'Yok'}`;
           { title: 'Günlük Sprint', plan: sprintPlan, loading: isLoadingSprint, fn: handleSprintPlan, icon: <Zap size={18} />, color: 'amber-500' },
           { title: 'Savaş Planı', plan: warRoomPlan, loading: isLoadingWarRoom, fn: handleWarRoom, icon: <AlertTriangle size={18} />, color: 'red-500' }
         ].map(panel => (
-          <div key={panel.title} className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden flex flex-col">
+          <div key={panel.title} className="bg-surface-2 border border-app-subtle rounded-3xl overflow-hidden flex flex-col" id={`panel-${panel.title.replace(/\s+/g, '')}`}>
             <div className="p-5 border-b border-app-subtle flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`p-2 bg-${panel.color}/10 rounded-xl text-${panel.color}`}>{panel.icon}</div>
                 <h3 className="font-serif italic text-lg text-ink">{panel.title}</h3>
               </div>
-              <button onClick={panel.fn} className="p-2 hover:bg-surface rounded-xl transition-all">
-                <RefreshCw size={14} className={panel.loading ? 'animate-spin' : ''} />
-              </button>
+              <div className="flex items-center gap-2">
+                {panel.plan && !panel.loading && (
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => exportToPDF(`content-${panel.title.replace(/\s+/g, '')}`, panel.title)}
+                      className="p-2 hover:bg-surface rounded-xl transition-all text-ink-muted hover:text-accent"
+                      title="PDF İndir"
+                    >
+                      <Hourglass size={14} className="rotate-90" />
+                    </button>
+                    {panel.title === 'Haftalık Plan' && (
+                      <button 
+                        onClick={() => {
+                           // iCal için basit bir parse logic: markdown satırlarını göreve çevir
+                           const lines = panel.plan.split('\n').filter(l => l.includes('|'));
+                           const mockTasks = lines.map(l => ({ action: l.trim() }));
+                           exportToICal(mockTasks, 'Haftalık Çalışma');
+                        }}
+                        className="p-2 hover:bg-surface rounded-xl transition-all text-ink-muted hover:text-emerald-500"
+                        title="Takvime Ekle (iCal)"
+                      >
+                        <RefreshCw size={14} className="rotate-45" />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button onClick={panel.fn} className="p-2 hover:bg-surface rounded-xl transition-all">
+                  <RefreshCw size={14} className={panel.loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
-            <div className="p-6 flex-1 min-h-[150px] max-h-[300px] overflow-y-auto custom-scrollbar">
+            <div className="p-6 flex-1 min-h-[150px] max-h-[300px] overflow-y-auto custom-scrollbar" id={`content-${panel.title.replace(/\s+/g, '')}`}>
               {panel.loading ? (
                 <div className="h-full flex items-center justify-center opacity-30 text-[10px] uppercase font-bold tracking-widest">Analiz Ediliyor...</div>
               ) : panel.plan ? (

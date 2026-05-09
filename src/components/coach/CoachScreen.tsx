@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { useAppStore } from '../../store/appStore';
 import { ChatMessage } from './ChatMessage';
@@ -123,8 +124,20 @@ export function CoachScreen({
     };
   }, [sortedMessages]);
 
+  const virtualizer = useVirtualizer({
+    count: sortedMessages.length,
+    getScrollElement: () => scrollAreaRef.current,
+    estimateSize: () => 100,
+    overscan: 5,
+  });
+
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    chatEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTo({
+        top: scrollAreaRef.current.scrollHeight,
+        behavior,
+      });
+    }
     setNewMsgCount(0);
     setShowScrollBtn(false);
   }, []);
@@ -330,23 +343,34 @@ export function CoachScreen({
                   <div className="h-px flex-1 bg-zinc-800/70" />
                 </div>
 
-                <AnimatePresence initial={false}>
-                  {sortedMessages.map((msg, i) => {
-                    const prev = sortedMessages[i - 1];
+                <div
+                  className="relative w-full"
+                  style={{ height: `${virtualizer.getTotalSize()}px` }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualItem) => {
+                    const msg = sortedMessages[virtualItem.index];
+                    const prev = sortedMessages[virtualItem.index - 1];
                     const isGrouped = Boolean(prev && prev.role === msg.role);
 
                     return (
-                      <ChatMessage
-                        key={`${msg.timestamp}-${i}`}
-                        message={msg}
-                        index={i}
-                        profileName={profile?.name ?? 'Sen'}
-                        coachPersonality={profile?.coachPersonality}
-                        isGrouped={isGrouped}
-                      />
+                      <div
+                        key={virtualItem.key}
+                        data-index={virtualItem.index}
+                        ref={virtualizer.measureElement}
+                        className="absolute left-0 top-0 w-full"
+                        style={{ transform: `translateY(${virtualItem.start}px)` }}
+                      >
+                        <ChatMessage
+                          message={msg}
+                          index={virtualItem.index}
+                          profileName={profile?.name ?? 'Sen'}
+                          coachPersonality={profile?.coachPersonality}
+                          isGrouped={isGrouped}
+                        />
+                      </div>
                     );
                   })}
-                </AnimatePresence>
+                </div>
 
                 <AnimatePresence>
                   {isTyping && (

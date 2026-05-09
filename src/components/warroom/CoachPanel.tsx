@@ -5,8 +5,9 @@
 
 import React from 'react';
 import { useAppStore } from '../../store/appStore';
-import { Brain, Star, Target, MessageSquare } from 'lucide-react';
+import { Brain, Star, Target, MessageSquare, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { exportToPDF } from './ExportModule';
 
 export function CoachPanel() {
   const chatHistory = useAppStore(s => s.chatHistory);
@@ -16,15 +17,27 @@ export function CoachPanel() {
 
   return (
     <div className="flex flex-col h-full bg-[#FAFAFA] dark:bg-black/30 backdrop-blur-xl border-l border-border p-6 space-y-8 animate-in slide-in-from-right-4 duration-500">
-      <header className="space-y-1">
-        <h3 className="font-display italic text-2xl text-accent flex items-center gap-3">
-          <Brain size={24} /> <span>Savaş Planı</span>
-        </h3>
-        <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Kübra. Analiz Merkezi</p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className="font-display italic text-2xl text-accent flex items-center gap-3">
+            <Brain size={24} /> <span>Savaş Planı</span>
+          </h3>
+          <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Kübra. Analiz Merkezi</p>
+        </div>
+        
+        {coachMessages.length > 0 && (
+          <button 
+            onClick={() => exportToPDF('warroom-strategy-content', 'Boho Mentos Savaş Planı')}
+            className="p-2.5 bg-accent/10 text-accent hover:bg-accent hover:text-white rounded-xl transition-all shadow-sm"
+            title="Stratejiyi Export Et"
+          >
+            <Download size={18} />
+          </button>
+        )}
       </header>
 
       {/* AI Strateji Tavsiyeleri */}
-      <div className="space-y-4">
+      <div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 pr-2" id="warroom-strategy-content">
         {coachMessages.length === 0 ? (
           <div className="p-8 text-center bg-white/50 dark:bg-zinc-950/50 rounded-2xl border border-dashed border-border">
             <MessageSquare size={24} className="mx-auto mb-4 opacity-20" />

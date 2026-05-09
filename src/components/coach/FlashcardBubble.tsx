@@ -25,7 +25,9 @@ const DIFF_STYLES = {
 function FlipCard({ card, index }: { card: FlashcardBubbleData; index: number; key?: React.Key }) {
   const [flipped, setFlipped] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
   const addFlashcard = useAppStore(s => s.addFlashcard);
+  const reviewFlashcard = useAppStore(s => s.reviewFlashcard);
 
   const style = DIFF_STYLES[card.difficulty];
 
@@ -45,6 +47,26 @@ function FlipCard({ card, index }: { card: FlashcardBubbleData; index: number; k
     };
     if (addFlashcard) addFlashcard(fullCard);
     setSaved(true);
+  };
+
+  const handleReview = (quality: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Not: Gerçek bir review akışı için card.id olması lazım. 
+    // Chat bubble içindeki kartlar henüz kaydedilmemiş olabilir.
+    // Eğer kaydedilmediyse önce kaydet, sonra review et diyebiliriz ama
+    // UX açısından direkt "Öğrendim" butonu kaydı da tetiklemeli.
+    
+    const cardId = `fc_${Date.now()}_${index}`;
+    if (!saved) {
+      handleSave(e);
+    }
+    
+    if (reviewFlashcard) {
+      // quality: 0 (forgot), 1 (hard), 2 (medium), 3 (easy)
+      reviewFlashcard(cardId, quality);
+    }
+    setReviewed(true);
+    setTimeout(() => setFlipped(false), 600);
   };
 
   return (
@@ -90,10 +112,30 @@ function FlipCard({ card, index }: { card: FlashcardBubbleData; index: number; k
 
         {/* Back */}
         <div
-          className="absolute inset-0 p-3 bg-zinc-900/80 flex flex-col justify-center"
+          className="absolute inset-0 p-3 bg-zinc-900/90 flex flex-col"
           style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
         >
-          <p className="text-sm text-zinc-200 leading-relaxed">{card.back}</p>
+          <div className="flex-1 overflow-y-auto custom-scrollbar mb-2">
+            <p className="text-sm text-zinc-200 leading-relaxed">{card.back}</p>
+          </div>
+          
+          <div className="flex items-center gap-1 shrink-0">
+            {[
+              { q: 0, label: 'Unuttum', color: 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white' },
+              { q: 1, label: 'Zor',     color: 'bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white' },
+              { q: 2, label: 'İyi',     color: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white' },
+              { q: 3, label: 'Kolay',   color: 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white' },
+            ].map(btn => (
+              <button
+                key={btn.q}
+                disabled={reviewed}
+                onClick={(e) => handleReview(btn.q, e)}
+                className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-tighter transition-all disabled:opacity-30 ${btn.color}`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

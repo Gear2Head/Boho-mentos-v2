@@ -45,6 +45,7 @@ export interface AcademicSlice {
   addFlashcard: (card: Flashcard) => void;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   removeFlashcard: (id: string) => void;
+  reviewFlashcard: (id: string, quality: number) => void;
   recomputeFullElo: () => void;
 }
 
@@ -388,6 +389,51 @@ export const createAcademicSlice: StateCreator<AppState, [], [], AcademicSlice> 
     set({ flashcards: newList });
     if (authUser?.uid) {
       deleteDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'flashcards', id)).catch(console.error);
+    }
+  },
+
+  reviewFlashcard: (id, quality) => {
+    const { authUser, flashcards, addElo } = get();
+    const card = flashcards.find(c => c.id === id);
+    if (!card) return;
+
+    // Spaced Repetition Logic (Simplified SM-2)
+    // quality: 0 (forgot), 1 (hard), 2 (medium), 3 (easy)
+    let { interval = 1, easeFactor = 2.5, reviewCount = 0 } = card;
+
+    if (quality >= 2) { // Correct
+      if (reviewCount === 0) interval = 1;
+      else if (reviewCount === 1) interval = 3; // Accelerated for v2
+      else interval = Math.round(interval * easeFactor);
+      
+      reviewCount++;
+      easeFactor = Math.max(1.3, easeFactor + (0.1 - (3 - quality) * (0.08 + (3 - quality) * 0.02)));
+    } else { // Incorrect
+      reviewCount = 0;
+      interval = 1;
+      easeFactor = Math.max(1.3, easeFactor - 0.2);
+    }
+
+    const nextReview = new Date();
+    nextReview.setDate(nextReview.getDate() + interval);
+
+    const updates: Partial<Flashcard> = {
+      interval,
+      easeFactor,
+      reviewCount,
+      lastCorrect: quality >= 2,
+      nextReviewAt: nextReview.toISOString()
+    };
+
+    const newList = flashcards.map(c => c.id === id ? { ...c, ...updates } : c);
+    set({ flashcards: newList });
+    
+    // Reward for review
+    const reward = quality === 3 ? 15 : quality === 2 ? 10 : quality === 1 ? 5 : 2;
+    addElo(reward, 'flashcard_review', `fc:${id}:${quality}`);
+
+    if (authUser?.uid) {
+      setDocWithOfflineQueue(doc(db, 'users', authUser.uid, 'flashcards', id), cleanForFirestore({ ...card, ...updates })).catch(console.error);
     }
   },
 

@@ -430,6 +430,9 @@ export interface Flashcard {
   nextReviewAt: string;
   reviewCount: number;
   lastCorrect: boolean | null;
+  /** Spaced Repetition Fields */
+  interval?: number;
+  easeFactor?: number;
 }
 
 export interface GeneratedFlashcard {
