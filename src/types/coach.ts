@@ -42,7 +42,6 @@ export type CoachProviderId = 'groq' | 'openrouter' | 'gemini';
 export interface CoachProviderMeta {
   provider: CoachProviderId;
   model: string;
-  keyIndex?: number;
 }
 
 export type CoachMemoryVisibility = 'private' | 'visible' | 'hidden';

@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import {
-  LayoutDashboard, UserCircle, BookOpen, MessageSquare,
-  Settings, CheckCircle2, AlertTriangle, Send, Loader2,
-  Calendar, List, Archive, Plus, X, BrainCircuit, ShieldAlert, Trash2, Target, Map as MapIcon, LayoutList, Clock, PenTool, Menu, ChevronRight, MousePointer2, LogOut,
-  Bell, RefreshCcw, CloudOff, Pin, Trophy
+  Loader2, Plus, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Analytics } from "@vercel/analytics/react";
@@ -15,9 +12,8 @@ import { StrategyAdvisor } from './components/coaching/StrategyAdvisor';
 
 
 import { uploadImageFile } from './services/storageService';
-import MobileMenuModal from './components/layout/MobileMenuModal';
 import { MainLayout } from './components/layout/MainLayout';
-import { SkeletonScreen } from './components/layout/SkeletonScreen';
+import { AppLoadingScreen } from './components/layout/AppLoadingScreen';
 import { buildCoachContext, summarizeLogsForPrompt, summarizeExamsForPrompt } from './services/coachContext';
 import { useCoachCore } from './hooks/useCoachCore';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
@@ -29,13 +25,7 @@ import type {
   StudentProfile, DailyLog, ExamResult, FailedQuestion
 } from './types';
 
-import { NotificationCenter } from './components/NotificationCenter';
-import { NetworkBanner } from './components/NetworkBanner';
-import { SpotifyWidget } from './components/SpotifyWidget';
-
 import { DataIntegrationPanel } from './components/admin/DataIntegrationPanel';
-import { EloRankCard } from './components/EloRankCard';
-import { ThemeToggle } from './components/ThemeToggle';
 import { MobileGuard } from './components/MobileGuard';
 // [DEPRECATED] MorningBlocker archived — no longer gates login flow
 
@@ -73,8 +63,7 @@ import { FlapClock, MiniFlapClock } from './components/FlapClock';
 const AdminPanelModal = React.lazy(() => import('./components/admin/AdminPanelModal').then(m => ({ default: m.AdminPanelModal })));
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 import { LogDetailModal } from './components/LogDetailModal';
-import { NAV_ITEMS, ActiveTab } from './config/navItems';
-import { NavItem } from './components/NavItem';
+
 import { isSuperAdmin } from './config/admin';
 import { AuthGate } from './components/AuthGate';
 import { useAuth } from './hooks/useAuth';
@@ -84,14 +73,13 @@ import { useScrollDirection } from './hooks/useScrollDirection';
 import { useToast } from './contexts/ToastContext';
 import { subscribeToSystemConfig, SystemConfig } from './services/systemService';
 import { MaintenanceBlocker } from './components/MaintenanceBlocker';
-import { ToastProvider, toast, confirmDialog } from './contexts/ToastContext';
-import { isSameLocalDay, parseFlexibleDate, toISODateOnly } from './utils/date';
+import { confirmDialog } from './contexts/ToastContext';
+import { isSameLocalDay, parseFlexibleDate } from './utils/date';
 import { ThemeStudio } from './components/ThemeStudio';
 import { useAchievementMonitor } from './hooks/useAchievementMonitor';
 import { DailySpinWheel } from './components/DailySpinWheel';
 import { YKSSimulator } from './components/YKSSimulator';
-import { CommunityGoalBanner } from './components/CommunityGoalBanner';
-import { ActiveBoostStrip } from './components/ActiveBoostStrip';
+
 
 // --- Helper ---
 
@@ -534,16 +522,11 @@ export default function App() {
   // 1. Durum: Auth kontrolü veya Yerel Kayıt Yüklemesi yapılıyor
   if (isLoading || !hasHydrated) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#FDFBF7] dark:bg-[#0A0A0A]">
-        <div className="relative mb-8">
-          <div className="w-16 h-16 border-4 border-[#C17767]/20 border-t-[#C17767] rounded-full animate-spin" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 bg-[#C17767] rounded-lg animate-pulse" />
-          </div>
-        </div>
-        <h1 className="font-display italic text-2xl text-[#C17767] animate-pulse">Boho Mentosluk</h1>
-        <p className="text-[10px] uppercase tracking-[0.3em] opacity-40 mt-4 font-bold">Veriler Senkronize Ediliyor...</p>
-      </div>
+      <AppLoadingScreen
+        variant="boot"
+        message="Boho Mentosluk"
+        subMessage={isLoading ? 'Oturum doğrulanıyor' : 'Veriler senkronize ediliyor'}
+      />
     );
   }
 
@@ -576,7 +559,15 @@ export default function App() {
       />
 
       <MainLayout>
-        <Suspense fallback={<SkeletonScreen />}>
+        <Suspense
+          fallback={
+            <AppLoadingScreen
+              variant="route"
+              message="Sayfa hazırlanıyor"
+              subMessage="Modül yükleniyor"
+            />
+          }
+        >
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
@@ -595,7 +586,15 @@ export default function App() {
           } />
 
           <Route path="/admin_dashboard" element={
-            <React.Suspense fallback={<div className="fixed inset-0 bg-black z-[200] flex items-center justify-center"><div className="text-zinc-500">Yükleniyor...</div></div>}>
+            <React.Suspense
+              fallback={
+                <AppLoadingScreen
+                  variant="route"
+                  message="Admin panel"
+                  subMessage="Yetkili modül hazırlanıyor"
+                />
+              }
+            >
               <AdminDashboard onBack={() => navigate('/dashboard')} />
             </React.Suspense>
           } />
@@ -640,11 +639,11 @@ export default function App() {
           } />
 
           <Route path="/simulator" element={<ExamSimulator />} />
-          <Route path="/war_room" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><MebiWarRoom /></Suspense></div>} />
-          <Route path="/questions" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><QuizEngine /></Suspense></div>} />
-          <Route path="/explain" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><TopicExplain /></Suspense></div>} />
-          <Route path="/agenda" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><AgendaPage /></Suspense></div>} />
-          <Route path="/strategy" element={<div className={scrollCls}><Suspense fallback={<SkeletonScreen />}><StrategyHub /></Suspense></div>} />
+          <Route path="/war_room" element={<div className={scrollCls}><Suspense fallback={<AppLoadingScreen variant="route" message="War Room" subMessage="Modül yükleniyor" />}><MebiWarRoom /></Suspense></div>} />
+          <Route path="/questions" element={<div className={scrollCls}><Suspense fallback={<AppLoadingScreen variant="route" message="Sorular" subMessage="Modül yükleniyor" />}><QuizEngine /></Suspense></div>} />
+          <Route path="/explain" element={<div className={scrollCls}><Suspense fallback={<AppLoadingScreen variant="route" message="Anlatım" subMessage="Modül yükleniyor" />}><TopicExplain /></Suspense></div>} />
+          <Route path="/agenda" element={<div className={scrollCls}><Suspense fallback={<AppLoadingScreen variant="route" message="Ajanda" subMessage="Modül yükleniyor" />}><AgendaPage /></Suspense></div>} />
+          <Route path="/strategy" element={<div className={scrollCls}><Suspense fallback={<AppLoadingScreen variant="route" message="Strateji" subMessage="Modül yükleniyor" />}><StrategyHub /></Suspense></div>} />
 
           <Route path="/logs" element={
             <div className={scrollCls}>
@@ -685,7 +684,7 @@ export default function App() {
           <Route path="/social" element={
             <div className={scrollCls}>
               <motion.div key="social" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full">
-                <Suspense fallback={<SkeletonScreen />}>
+                <Suspense fallback={<AppLoadingScreen variant="route" message="Sosyal" subMessage="Modül yükleniyor" />}>
                   <SocialPage />
                 </Suspense>
               </motion.div>

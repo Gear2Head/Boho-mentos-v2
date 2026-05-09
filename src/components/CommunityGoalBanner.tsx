@@ -82,7 +82,7 @@ export function CommunityGoalBanner() {
         ) : (
           <div className="flex items-center gap-1 text-zinc-500 text-[10px] font-mono font-bold">
             <Users size={11} />
-            {goal.current.toLocaleString('tr-TR')}/{goal.target.toLocaleString('tr-TR')}
+            {(goal.current || 0).toLocaleString('tr-TR')}/{(goal.target || 0).toLocaleString('tr-TR')}
           </div>
         )}
       </div>
@@ -106,7 +106,7 @@ export function CommunityGoalBanner() {
         <span className="text-[9px] text-zinc-600 font-bold">
           {isCompleted
             ? `Herkes +${goal.bonusElo || 25} ELO kazandı! 🎉`
-            : `${remaining.toLocaleString('tr-TR')} kaldı · %${percent} tamamlandı`
+            : `${(remaining || 0).toLocaleString('tr-TR')} kaldı · %${percent} tamamlandı`
           }
         </span>
         {goal.bonusElo && !isCompleted && (

@@ -1,13 +1,24 @@
 /**
- * AMAÇ: Premium chat mesaj baloonu — kullanıcı ve koç mesajları.
- * MANTIK: Sol şerit rengi (mesaj tipi), koç avatarı, timestamp, markdown render.
- * UX-TODO §2: Koç header briefing şeridi, mesaj tipi badge, animasyonlu slide-in.
+ * AMAÇ: Sakin, doğal, okunabilir chat mesaj balonu.
+ * V2:
+ * - Toxic/sert badge kaldırıldı
+ * - Koç cevabı daha az yapay görünüyor
+ * - Direktif kartları varsayılan kapalı geliyor
+ * - Mesaj genişliği ve tipografi daha doğal
  */
 
-import React, { memo, useMemo } from 'react';
-import { motion } from 'motion/react';
-import { Target, Play, FileText, Link as LinkIcon, Bot, Skull, Flame, BarChart3, CheckCircle2 } from 'lucide-react';
-import { classifyMessage } from '../../utils/classifyMessage';
+import React, { memo, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Link as LinkIcon,
+  Play,
+  Target,
+} from 'lucide-react';
+
 import { getResourcesForSubject } from '../../utils/resourceEngine';
 import { CoachParser } from './CoachParser';
 import { FlashcardBubble } from './FlashcardBubble';
@@ -15,297 +26,161 @@ import type { FlashcardBubbleData } from './FlashcardBubble';
 import type { ChatMessage as ChatMessageType } from '../../types';
 import { useAppStore } from '../../store/appStore';
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-
 interface ChatMessageProps {
   message: ChatMessageType;
   index: number;
   profileName: string;
   coachPersonality?: string;
-  isGrouped?: boolean; // Aynı kişiden ardışık mesaj mı?
+  isGrouped?: boolean;
 }
 
-// ─── Coach Avatar ──────────────────────────────────────────────────────────────
+const COACH_AVATAR_SRC = '/assets/coach/kubra_main.jpg';
 
-const COACH_AVATAR: Record<string, { icon: React.ReactNode; color: string; name: string }> = {
-  hardcore:     { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected" />, color: 'bg-amber-900/10 border-amber-500/20', name: 'Koç Kübra' },
-  enforcer:     { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected contrast-125" />, color: 'bg-red-900/10 border-red-500/20', name: 'Koç Kübra' },
-  analyst:      { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected grayscale" />, color: 'bg-blue-900/10 border-blue-500/20', name: 'Koç Kübra' },
-  oracle:       { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected brightness-75 hue-rotate-90" />, color: 'bg-purple-900/10 border-purple-500/20', name: 'Koç Kübra' },
-  harsh:        { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected grayscale sepia" />, color: 'bg-red-900/10 border-red-500/20', name: 'Koç Kübra' },
-  motivational: { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected brightness-110" />, color: 'bg-orange-900/10 border-orange-500/20', name: 'Koç Kübra' },
-  analytical:   { icon: <img src="/assets/coach/kubra_main.jpg" alt="Koç Kübra" className="w-full h-full object-cover rounded-xl img-protected grayscale" />, color: 'bg-blue-900/10 border-blue-500/20', name: 'Koç Kübra' },
-};
-
-const DEFAULT_AVATAR = { icon: <img src="/assets/coach/kubra_main.jpg" alt="BOHO" className="w-full h-full object-cover rounded-xl img-protected" draggable={false} onDragStart={(e) => e.preventDefault()} />, color: 'bg-surface-2 border-app-subtle', name: 'BOHO.' };
-
-// ─── Component ─────────────────────────────────────────────────────────────────
+function formatTime(timestamp: string) {
+  return new Date(timestamp).toLocaleTimeString('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
 
 export const ChatMessage = memo(function ChatMessage({
   message,
   index,
   profileName,
-  coachPersonality,
   isGrouped = false,
 }: ChatMessageProps) {
   const isUser = message.role === 'user';
-  const time = new Date(message.timestamp).toLocaleTimeString('tr-TR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
+  const time = formatTime(message.timestamp);
 
   const flashcardNode = useMemo(() => {
     try {
       const match = message.content.match(/`(?:json)?\s*([\s\S]*?)`/);
-      if (match) {
-        const parsed = JSON.parse(match[1]);
-        const cards: FlashcardBubbleData[] = Array.isArray(parsed?.flashcards) ? parsed.flashcards
-          : Array.isArray(parsed) ? parsed : [];
-        if (cards.length > 0 && cards[0].front && cards[0].back) {
-          return <FlashcardBubble cards={cards} />;
-        }
+      if (!match) return null;
+
+      const parsed = JSON.parse(match[1]);
+      const cards: FlashcardBubbleData[] = Array.isArray(parsed?.flashcards)
+        ? parsed.flashcards
+        : Array.isArray(parsed)
+          ? parsed
+          : [];
+
+      if (cards.length > 0 && cards[0].front && cards[0].back) {
+        return <FlashcardBubble cards={cards} />;
       }
-    } catch { /* not flashcard json */ }
+    } catch {
+      return null;
+    }
+
     return null;
   }, [message.content]);
-  const userAvatarUrl = useAppStore(s => s.profile?.avatar) || `https://api.dicebear.com/7.x/notionists/svg?seed=${profileName}`;
+
+  const userAvatarUrl =
+    useAppStore((s) => s.profile?.avatar) ||
+    `https://api.dicebear.com/7.x/notionists/svg?seed=${profileName}`;
+
   if (isUser) {
     return (
       <motion.div
         className="flex justify-end items-end gap-3"
-        initial={{ opacity: 0, x: 20, y: 4 }}
-        animate={{ opacity: 1, x: 0, y: 0 }}
-        transition={{ duration: 0.25, delay: index * 0.02 }}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.18, delay: Math.min(index * 0.01, 0.08) }}
       >
-        <div
-          className="max-w-[70%] md:max-w-[60%]"
-        >
-          {/* Name + time */}
-          <div className="flex justify-end items-center gap-2 mb-1.5">
-            <span className="text-[9px] text-ink-muted italic font-medium">{time}</span>
-            <span className="text-[9px] uppercase tracking-widest text-accent font-black">
-              {profileName}
-            </span>
-          </div>
-
-          {/* Bubble */}
-          <div
-            className="px-5 py-4 text-sm font-black leading-relaxed text-ink shadow-sm relative overflow-hidden bg-surface-2 border border-app rounded-2xl rounded-br-sm"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent pointer-events-none" />
-            <div className="relative z-10">
-              {message.imageUrl && (
-                <div className="mb-3 rounded-lg overflow-hidden border border-app relative">
-                  <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
-                  <img src={message.imageUrl} alt="User attachment" className="w-full max-w-sm h-auto img-protected pointer-events-none" draggable={false} onDragStart={(e) => e.preventDefault()} />
-                </div>
-              )}
-              {message.content}
+        <div className="max-w-[82%] md:max-w-[62%]">
+          {!isGrouped && (
+            <div className="flex justify-end items-center gap-2 mb-1.5">
+              <span className="text-[10px] text-zinc-600 font-medium">{time}</span>
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-black">
+                {profileName}
+              </span>
             </div>
+          )}
+
+          <div className="relative overflow-hidden rounded-2xl rounded-br-md border border-zinc-800 bg-[#1B1B20] px-5 py-4 text-sm leading-relaxed text-zinc-100 shadow-sm">
+            {message.imageUrl && (
+              <div className="mb-3 rounded-xl overflow-hidden border border-zinc-800 relative">
+                <div className="absolute inset-0 z-20" />
+                <img
+                  src={message.imageUrl}
+                  alt="User attachment"
+                  className="w-full max-w-sm h-auto img-protected pointer-events-none"
+                  draggable={false}
+                  onDragStart={(event) => event.preventDefault()}
+                />
+              </div>
+            )}
+
+            <div className="whitespace-pre-wrap">{message.content}</div>
           </div>
         </div>
-        
-        {/* User Avatar */}
+
         {!isGrouped ? (
-          <div className="w-9 h-9 shrink-0 rounded-xl overflow-hidden border border-app shadow-sm mb-1 relative">
-            <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
-            <img src={userAvatarUrl} alt={profileName} className="w-full h-full object-cover img-protected" draggable={false} onDragStart={(e) => e.preventDefault()} />
+          <div className="w-8 h-8 shrink-0 rounded-xl overflow-hidden border border-zinc-800 shadow-sm mb-1 relative">
+            <div className="absolute inset-0 z-20" />
+            <img
+              src={userAvatarUrl}
+              alt={profileName}
+              className="w-full h-full object-cover img-protected"
+              draggable={false}
+              onDragStart={(event) => event.preventDefault()}
+            />
           </div>
         ) : (
-          <div className="w-9 shrink-0" />
+          <div className="w-8 shrink-0" />
         )}
       </motion.div>
     );
   }
 
-  // ── COACH MESSAGE ──────────────────────────────────────────────────────────
-  const classification = classifyMessage(message.content);
-  const avatar = coachPersonality
-    ? (COACH_AVATAR[coachPersonality] ?? DEFAULT_AVATAR)
-    : DEFAULT_AVATAR;
-
-  const isHardcore = coachPersonality === 'hardcore';
-
   return (
     <motion.div
       className="flex items-end gap-3"
-      initial={{ opacity: 0, x: -20, y: 4 }}
-      animate={{ 
-        opacity: 1, 
-        x: 0, 
-        y: 0,
-        ...(isHardcore ? {
-          rotate: [0, -1, 1, -1, 0],
-        } : {})
-      }}
-      transition={{ 
-        duration: 0.3, 
-        delay: index * 0.02,
-        ...(isHardcore ? {
-          rotate: {
-            repeat: Infinity,
-            duration: 0.2,
-            repeatDelay: 2
-          }
-        } : {})
-      }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: Math.min(index * 0.01, 0.08) }}
     >
-      {/* Avatar (gizle grouped mesajda) */}
       {!isGrouped ? (
         <div
-          className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 mb-1 ${avatar.color} ${isHardcore ? 'shadow-[0_0_15px_rgba(245,158,11,0.4)] animate-pulse' : ''} relative`}
+          className="w-8 h-8 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden shrink-0 mb-1 relative"
           aria-hidden="true"
         >
-          <div className="absolute inset-0 z-20" /> {/* Anti-theft overlay */}
-          {avatar.icon}
+          <div className="absolute inset-0 z-20" />
+          <img
+            src={COACH_AVATAR_SRC}
+            alt="Koç Kübra"
+            className="w-full h-full object-cover img-protected"
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+          />
         </div>
       ) : (
-        <div className="w-9 shrink-0" />
+        <div className="w-8 shrink-0" />
       )}
 
-      {/* Bubble */}
-      <div className="max-w-[75%] md:max-w-[65%]">
-        {/* Coach header */}
+      <div className="max-w-[86%] md:max-w-[68%]">
         {!isGrouped && (
-          <div className="flex items-center gap-2 mb-2">
-            <span className={`text-[10px] font-mono font-black uppercase tracking-[0.2em] ${isHardcore ? 'text-amber-500' : 'text-ink-muted'}`}>
-              {avatar.name}
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C17767]">
+              Kübra
             </span>
-            {/* Online dot */}
-            <span className={`w-1.5 h-1.5 rounded-full ${isHardcore ? 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]' : 'bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.8)]'}`} />
-            {/* Badge */}
-            <span
-              className="text-[9px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full border shadow-sm"
-              style={{
-                color: isHardcore ? '#F59E0B' : classification.type === 'directive' ? 'var(--color-accent)'
-                  : classification.type === 'analysis' ? '#3b82f6'
-                    : classification.type === 'explanation' ? '#a855f7'
-                      : classification.type === 'praise' ? '#10b981'
-                        : classification.type === 'warning' ? '#f59e0b'
-                          : 'var(--color-ink-muted)',
-                borderColor: 'currentColor',
-                opacity: 0.9,
-              }}
-            >
-              {isHardcore ? '☣️ TOXIC' : `${classification.emoji} ${classification.badge}`}
-            </span>
-            
-            <span className="text-[9px] text-ink-muted/40 font-mono font-black ml-auto">{time}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.55)]" />
+            <span className="text-[10px] text-zinc-600 font-medium">{time}</span>
           </div>
         )}
 
-        {/* Message box */}
-        <div
-          className={`relative rounded-2xl rounded-bl-sm overflow-hidden border shadow-sm transition-all duration-300 ${isHardcore ? 'border-amber-500/40 bg-amber-950/10 shadow-[0_8px_32px_rgba(245,158,11,0.1)] animate-shake' : 'border-app bg-surface'}`}
-        >
-          {/* Left accent stripe */}
-          <div
-            className={`absolute left-0 top-0 bottom-0 w-[3px] ${isHardcore ? 'bg-amber-500' : (classification.type === 'directive' ? 'bg-rose-500'
-              : classification.type === 'analysis' ? 'bg-blue-500'
-                : classification.type === 'explanation' ? 'bg-purple-500'
-                  : classification.type === 'praise' ? 'bg-emerald-500'
-                    : classification.type === 'warning' ? 'bg-amber-500'
-                      : 'bg-ink-muted')
-              }`}
-          />
+        <div className="relative overflow-hidden rounded-2xl rounded-bl-md border border-zinc-800 bg-[#111114] shadow-sm">
+          <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#C17767]/70" />
 
-          <div className="pl-6 pr-5 py-5">
-            <div className={`text-sm leading-relaxed font-medium ${isHardcore ? 'text-amber-100/90 glitch-text' : 'text-ink'}`}>
+          <div className="pl-5 pr-5 py-4">
+            <div className="text-sm leading-[1.75] text-zinc-200 font-medium">
               <CoachParser content={message.content} />
             </div>
 
-            {/* Flashcard detection */}
-            {flashcardNode}
+            {flashcardNode && <div className="mt-4">{flashcardNode}</div>}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-            {/* Inline Directive */}
             {message.directive && (
-              <div className="mt-6 pt-6 border-t border-app">
-                <div className="flex items-center gap-2 mb-3">
-                  <Target size={14} className="text-accent" />
-                  <span className="text-[10px] uppercase font-black tracking-[0.2em] text-accent">DİREKTİF OLUŞTURULDU</span>
-                </div>
-                <h4 className="text-base font-serif italic font-black text-ink mb-1.5 leading-tight">{message.directive.headline}</h4>
-                <p className="text-xs text-ink-muted mb-6 leading-relaxed font-medium">{message.directive.summary}</p>
-
-                <div className="space-y-3">
-                  {message.directive.tasks.map((task, idx) => {
-                    const resc = task.subject ? getResourcesForSubject(task.subject) : [];
-                    // Find matching record in history to get status and handle completion
-                    const history = useAppStore.getState().directiveHistory;
-                    const record = history.find(r => 
-                      r.directive.headline === message.directive?.headline && 
-                      r.directive.createdAt === message.directive?.createdAt
-                    );
-                    const taskStatus = record?.directive.tasks[idx]?.status ?? 'pending';
-                    const isDone = taskStatus === 'completed';
-
-                    return (
-                      <div key={idx} className={`flex flex-col gap-3 p-4 bg-surface-2 border rounded-2xl shadow-sm group/task transition-all ${isDone ? 'opacity-60 border-emerald-500/30' : 'border-app hover:border-accent/30'}`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 shadow-lg ${isDone ? 'bg-emerald-500 shadow-emerald-500/20' : task.priority === 'high' ? 'bg-rose-500 shadow-rose-500/20' : task.priority === 'medium' ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                            <span className={`text-sm font-black tracking-tight ${isDone ? 'line-through text-ink-muted' : 'text-ink'}`}>{task.action}</span>
-                          </div>
-                          
-                          {record && !isDone && (
-                            <div className="flex gap-1">
-                              <button 
-                                onClick={() => useAppStore.getState().completeCoachTask(record.id, idx)}
-                                className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                                title="Tamamla"
-                              >
-                                <CheckCircle2 size={14} />
-                              </button>
-                            </div>
-                          )}
-                          {isDone && <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />}
-                        </div>
-                        
-                        {!isDone && task.subject && (
-                          <div className="pl-5 flex items-center">
-                            <div className="text-[9px] uppercase tracking-[0.2em] text-accent font-black py-1 px-3 bg-accent/5 rounded-full border border-accent/10">
-                              {task.subject} {task.targetMinutes ? `• ${task.targetMinutes}DK` : ''}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {resc.length > 0 && !isDone && (
-                          <div className="pl-5 mt-1 flex flex-wrap gap-2">
-                            {resc.map(r => (
-                              <a href={r.url} target="_blank" rel="noopener noreferrer" key={r.id} className="flex items-center gap-2 px-3 py-1.5 bg-surface hover:bg-accent/5 border border-app hover:border-accent/30 transition-all rounded-xl text-[9px] font-black uppercase tracking-widest text-ink-muted hover:text-accent group/res shadow-sm">
-                                {r.type === 'video' || r.type === 'playlist' ? <Play size={10} className="text-rose-500 group-hover/res:scale-110 transition-transform" /> : r.type === 'pdf' ? <FileText size={10} className="text-orange-500 group-hover/res:scale-110 transition-transform" /> : <LinkIcon size={10} className="text-blue-400" />}
-                                <span>{r.provider}: {r.title}</span>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                        {resc.length === 0 && task.subject && !isDone && (
-                          <div className="pl-5 mt-1 text-[9px] uppercase tracking-[0.18em] text-ink-muted">
-                            Onayli kaynak katalogunda bu konu icin eslesme yok.
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-[9px] text-ink-muted/40 font-mono font-black uppercase tracking-widest">GÜNCEL DURUM ANA PANELE YANSITILDI</p>
-                </div>
-              </div>
+              <DirectivePreview directive={message.directive} />
             )}
           </div>
         </div>
@@ -313,3 +188,165 @@ export const ChatMessage = memo(function ChatMessage({
     </motion.div>
   );
 });
+
+function DirectivePreview({
+  directive,
+}: {
+  directive: NonNullable<ChatMessageType['directive']>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const completedCount = directive.tasks.filter((task) => task.status === 'completed').length;
+  const taskCount = directive.tasks.length;
+
+  return (
+    <div className="mt-4 border-t border-zinc-800 pt-4">
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-left hover:border-[#C17767]/35 transition-all"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-[#C17767]/10 text-[#C17767] flex items-center justify-center shrink-0">
+            <Target size={15} />
+          </div>
+
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.18em] font-black text-zinc-500">
+              Aksiyon notu
+            </div>
+            <div className="truncate text-sm font-bold text-zinc-200">
+              {directive.headline || 'Önerilen çalışma adımı'}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] font-black text-zinc-500">
+            {completedCount}/{taskCount}
+          </span>
+          {open ? (
+            <ChevronDown size={16} className="text-zinc-500" />
+          ) : (
+            <ChevronRight size={16} className="text-zinc-500" />
+          )}
+        </div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -4 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -4 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            {directive.summary && (
+              <p className="mt-3 text-xs leading-relaxed text-zinc-500">
+                {directive.summary}
+              </p>
+            )}
+
+            <div className="mt-3 space-y-2">
+              {directive.tasks.map((task, idx) => {
+                const resc = task.subject ? getResourcesForSubject(task.subject) : [];
+                const history = useAppStore.getState().directiveHistory;
+
+                const record = history.find(
+                  (r) =>
+                    r.directive.headline === directive.headline &&
+                    r.directive.createdAt === directive.createdAt,
+                );
+
+                const taskStatus = record?.directive.tasks[idx]?.status ?? 'pending';
+                const isDone = taskStatus === 'completed';
+
+                return (
+                  <div
+                    key={`${task.action}-${idx}`}
+                    className={`rounded-xl border p-3 transition-all ${isDone
+                        ? 'border-emerald-500/20 bg-emerald-500/5 opacity-70'
+                        : 'border-zinc-800 bg-zinc-950/40'
+                      }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <span
+                          className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isDone
+                              ? 'bg-emerald-500'
+                              : task.priority === 'high'
+                                ? 'bg-rose-500'
+                                : task.priority === 'medium'
+                                  ? 'bg-amber-500'
+                                  : 'bg-blue-500'
+                            }`}
+                        />
+
+                        <div className="min-w-0">
+                          <div
+                            className={`text-sm font-semibold leading-relaxed ${isDone ? 'line-through text-zinc-500' : 'text-zinc-200'
+                              }`}
+                          >
+                            {task.action}
+                          </div>
+
+                          {task.subject && !isDone && (
+                            <div className="mt-2 inline-flex items-center rounded-full border border-[#C17767]/15 bg-[#C17767]/5 px-3 py-1 text-[9px] uppercase tracking-[0.16em] font-black text-[#C17767]">
+                              {task.subject}
+                              {task.targetMinutes ? ` • ${task.targetMinutes}dk` : ''}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {record && !isDone && (
+                        <button
+                          onClick={() =>
+                            useAppStore.getState().completeCoachTask(record.id, idx)
+                          }
+                          className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all"
+                          title="Tamamla"
+                        >
+                          <CheckCircle2 size={14} />
+                        </button>
+                      )}
+
+                      {isDone && (
+                        <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                      )}
+                    </div>
+
+                    {resc.length > 0 && !isDone && (
+                      <div className="mt-3 flex flex-wrap gap-2 pl-5">
+                        {resc.map((r) => (
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            key={r.id}
+                            className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-[9px] uppercase tracking-widest font-black text-zinc-500 hover:border-[#C17767]/30 hover:text-[#C17767] transition-all"
+                          >
+                            {r.type === 'video' || r.type === 'playlist' ? (
+                              <Play size={10} className="text-rose-400" />
+                            ) : r.type === 'pdf' ? (
+                              <FileText size={10} className="text-orange-400" />
+                            ) : (
+                              <LinkIcon size={10} className="text-blue-400" />
+                            )}
+                            <span>
+                              {r.provider}: {r.title}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

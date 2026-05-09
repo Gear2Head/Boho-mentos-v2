@@ -6,7 +6,7 @@
  */
 
 import React, { startTransition, useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Plus, X, Paperclip, ScanLine, ClipboardList, BarChart3, CalendarDays, BookOpen, ArrowUp } from 'lucide-react';
+import { Plus, X, Paperclip, ScanLine, ClipboardList, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { CoachIntent } from '../../types/coach';
 import { imageFileToBase64 } from '../../utils/imageToBase64';
@@ -26,32 +26,30 @@ interface InputZoneProps {
 // ─── Slash Commands ─────────────────────────────────────────────────────────────
 
 const SLASH_COMMANDS: Array<{ cmd: string; label: string; desc: string; intent: CoachIntent }> = [
-  { cmd: '/plan',      label: 'Günlük Plan',    desc: 'Bugünkü çalışma planını oluştur',  intent: 'daily_plan' },
-  { cmd: '/analiz',   label: 'Analiz Et',      desc: 'Son logları analiz et',            intent: 'log_analysis' },
-  { cmd: '/haftalik', label: 'Haftalık Rapor', desc: 'Haftalık performans özeti',        intent: 'weekly_review' },
-  { cmd: '/anla',     label: 'Konu Anlat',     desc: 'Bir konuyu derinlemesine anlat',  intent: 'topic_explain' },
-  { cmd: '/savaş',   label: 'Savaş Analizi',  desc: 'War Room sonrası analiz',          intent: 'war_room_analysis' },
-  { cmd: '/flashcard',label: 'Flashcard Üret', desc: 'PDF/Metinden soru kartları üret', intent: 'flashcard_generation' },
+  { cmd: '/plan', label: 'Günlük Plan', desc: 'Bugünkü çalışma planını oluştur', intent: 'daily_plan' },
+  { cmd: '/analiz', label: 'Analiz Et', desc: 'Son logları analiz et', intent: 'log_analysis' },
+  { cmd: '/haftalik', label: 'Haftalık Rapor', desc: 'Haftalık performans özeti', intent: 'weekly_review' },
+  { cmd: '/anla', label: 'Konu Anlat', desc: 'Bir konuyu derinlemesine anlat', intent: 'topic_explain' },
+  { cmd: '/savaş', label: 'Savaş Analizi', desc: 'War Room sonrası analiz', intent: 'war_room_analysis' },
+  { cmd: '/flashcard', label: 'Flashcard Üret', desc: 'PDF/Metinden soru kartları üret', intent: 'flashcard_generation' },
 ];
 
-// ─── Quick Pills ────────────────────────────────────────────────────────────────
+const MAX_CHARS = 2000;
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 
-const QUICK_REPLIES: Array<{ label: string; icon: React.ReactNode; value: string; intent: CoachIntent }> = [
-  { label: '🎯 Hedefe ne kadar uzağım?', icon: <BarChart3 size={12} />, value: 'Hedeflerime kalan net ihtiyacım ve durumum nedir?', intent: 'log_analysis' },
-  { label: '🔥 Zayıf konularım?', icon: <ClipboardList size={12} />, value: 'Son netlere göre en çok hata yaptığım konular hangileri?', intent: 'log_analysis' },
-  { label: '📅 Bugünün programı', icon: <CalendarDays size={12} />, value: 'Bana bugünün çalışma programını oluşturur musun?', intent: 'daily_plan' },
-  { label: '💡 Hızlı deneme özeti', icon: <BookOpen size={12} />, value: 'Girdiğim son denemelerin kısa bir de-briefing (özet) analizini yapar mısın?', intent: 'exam_debrief' },
+const QUICK_REPLIES = [
+  { label: 'Bugün Ne Çalışayım?', icon: '🎯', cmd: 'Bugün ne çalışmalıyım? Mevcut hedeflerime göre bir plan çıkar.', intent: 'daily_plan' as CoachIntent },
+  { label: 'Son Durumum', icon: '📊', cmd: 'Son denemelerime ve loglarıma göre analiz yapar mısın?', intent: 'log_analysis' as CoachIntent },
+  { label: 'Soru Anlat', icon: '🧠', cmd: 'Şu an takıldığım bir soru var, bana mantığını anlatır mısın?', intent: 'topic_explain' as CoachIntent }
 ];
 
-const MAX_CHARS = 10000;
-const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onExamClick }: InputZoneProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const ocrInputRef  = useRef<HTMLInputElement>(null);
+  const ocrInputRef = useRef<HTMLInputElement>(null);
 
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashFilter, setSlashFilter] = useState('');
@@ -68,6 +66,10 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'warning' = 'success') => {
     toastAPI[type](msg);
   }, []);
+
+  const handlePill = useCallback((pill: typeof QUICK_REPLIES[0]) => {
+    onSubmit(pill.cmd, pill.intent);
+  }, [onSubmit]);
 
   const commitChange = useCallback((nextValue: string) => {
     latestDraftRef.current = nextValue;
@@ -144,19 +146,19 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOpen) {
       if (e.key === 'ArrowDown' && filteredSlash.length > 0) { e.preventDefault(); setSelectedSlash(p => (p + 1) % filteredSlash.length); return; }
-      if (e.key === 'ArrowUp' && filteredSlash.length > 0)   { e.preventDefault(); setSelectedSlash(p => (p - 1 + filteredSlash.length) % filteredSlash.length); return; }
+      if (e.key === 'ArrowUp' && filteredSlash.length > 0) { e.preventDefault(); setSelectedSlash(p => (p - 1 + filteredSlash.length) % filteredSlash.length); return; }
       if (e.key === 'Enter' && filteredSlash[selectedSlash]) { e.preventDefault(); applySlashCommand(filteredSlash[selectedSlash]); return; }
       if (e.key === 'Escape') { setSlashOpen(false); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     if (e.key === 'Escape') { setDraftValue(''); commitChange(''); textareaRef.current?.blur(); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slashOpen, slashFilter, selectedSlash, filteredSlash, draftValue]);
 
   const handleSend = useCallback(async () => {
     if (isEmpty || isTyping) return;
     setIsSending(true);
-    
+
     import('../../utils/audioEngine').then(({ AudioEngine }) => {
       AudioEngine.playSend();
     });
@@ -169,10 +171,6 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
     await new Promise(r => setTimeout(r, 300));
     setIsSending(false);
   }, [isEmpty, isTyping, draftValue, selectedIntent, attachment, onSubmit, commitChange]);
-
-  const handlePill = useCallback((pill: typeof QUICK_REPLIES[0]) => {
-    onSubmit(pill.value, pill.intent);
-  }, [onSubmit]);
 
   // ─── File Attachment ──────────────────────────────────────────────────────
 
@@ -238,9 +236,8 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
                   <button
                     key={cmd.cmd}
                     onClick={() => applySlashCommand(cmd)}
-                    className={`w-full flex flex-col items-start px-3 py-2.5 rounded-lg text-left transition-all ${
-                      idx === selectedSlash ? 'bg-[#C17767]/10 border border-[#C17767]/20' : 'hover:bg-white/5 border border-transparent'
-                    }`}
+                    className={`w-full flex flex-col items-start px-3 py-2.5 rounded-lg text-left transition-all ${idx === selectedSlash ? 'bg-[#C17767]/10 border border-[#C17767]/20' : 'hover:bg-white/5 border border-transparent'
+                      }`}
                   >
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-[11px] text-[#C17767] font-bold">{cmd.cmd}</span>
@@ -321,11 +318,10 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
             <button
               onClick={handleSend}
               disabled={isSending || isEmpty}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                !isEmpty && !isSending
-                  ? 'bg-[#C17767] text-white hover:scale-105 shadow-lg shadow-[#C17767]/20'
-                  : 'bg-surface text-ink-muted cursor-not-allowed opacity-40'
-              }`}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${!isEmpty && !isSending
+                ? 'bg-[#C17767] text-white hover:scale-105 shadow-lg shadow-[#C17767]/20'
+                : 'bg-surface text-ink-muted cursor-not-allowed opacity-40'
+                }`}
               title="Gönder (Enter)"
             >
               {isSending ? (

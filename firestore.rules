@@ -107,7 +107,7 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create, update: if (isOwner(userId) || isSuperAdmin()) &&
         request.resource.data.uid == userId &&
-        !request.resource.data.keys().hasAny(['email', 'role', 'claims', 'admin', 'superAdmin', 'fcmToken']);
+        !request.resource.data.keys().hasAny(['email', 'role', 'claims', 'admin', 'superAdmin', 'fcmToken', 'fcm_tokens']);
       allow delete: if isSuperAdmin();
     }
 

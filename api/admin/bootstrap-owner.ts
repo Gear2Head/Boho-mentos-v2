@@ -25,6 +25,7 @@ interface ServiceAccount {
 function json(res: VercelRes, status: number, body: Record<string, unknown>) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify(body));
 }
 
@@ -197,7 +198,6 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
       return;
     }
     
-    // Bypassing secret checks for owner explicitly:
     if (user.email.toLowerCase() !== 'senerkadiralper@gmail.com') {
       json(res, 403, { error: 'FORBIDDEN_EMAIL' });
       return;
@@ -205,23 +205,13 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
 
     const serviceAccount = getServiceAccount();
     if (!serviceAccount) {
-      json(res, 200, {
-        eligible: true,
-        superAdmin: true,
-        claimsApplied: false,
-        warning: 'SERVICE_ACCOUNT_NOT_CONFIGURED',
-      });
+      json(res, 503, { error: 'SERVICE_ACCOUNT_NOT_CONFIGURED' });
       return;
     }
 
     const projectId = process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id;
     if (!projectId) {
-      json(res, 200, {
-        eligible: true,
-        superAdmin: true,
-        claimsApplied: false,
-        warning: 'FIREBASE_PROJECT_ID_MISSING',
-      });
+      json(res, 503, { error: 'FIREBASE_PROJECT_ID_MISSING' });
       return;
     }
 
@@ -231,12 +221,6 @@ export default async function handler(req: VercelReq, res: VercelRes): Promise<v
     json(res, 200, { eligible: true, superAdmin: true, claimsApplied: true });
   } catch (error) {
     console.error('[bootstrap-owner]', error);
-    json(res, 200, {
-      eligible: true,
-      superAdmin: true,
-      claimsApplied: false,
-      warning: 'OWNER_BOOTSTRAP_DEGRADED',
-      details: error instanceof Error ? error.message : String(error),
-    });
+    json(res, 500, { error: 'OWNER_BOOTSTRAP_FAILED' });
   }
 }

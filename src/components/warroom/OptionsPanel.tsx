@@ -21,7 +21,7 @@ const LaTeXRenderer = ({ text }: { text: string }) => {
             if (p.startsWith('$') && p.endsWith('$')) return <InlineMath key={i}>{p.slice(1, -1)}</InlineMath>;
             if (p.startsWith('\\(') && p.endsWith('\\)')) return <InlineMath key={i}>{p.slice(2, -2)}</InlineMath>;
             if (p.startsWith('\\[') && p.endsWith('\\]')) return <BlockMath key={i}>{p.slice(2, -2)}</BlockMath>;
-            return <span key={i} dangerouslySetInnerHTML={{ __html: p }} />;
+            return <span key={i}>{p}</span>;
           } catch (err) {
             console.error('[LaTeX Error]', err, p);
             return <span key={i} className="text-red-500 line-through" title="LaTeX Parse Hatası">{p}</span>;

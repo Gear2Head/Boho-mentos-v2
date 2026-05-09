@@ -62,9 +62,10 @@ export function GlobalLeaderboard() {
 
   const sortedEntries = useMemo(() => {
     const sorted = [...entries];
-    if (activeFilter === 'streak') return sorted.sort((a, b) => b.streakDays - a.streakDays);
-    if (activeFilter === 'focus')  return sorted.sort((a, b) => (b.totalFocusMinutes ?? 0) - (a.totalFocusMinutes ?? 0));
-    return sorted.sort((a, b) => b.eloScore - a.eloScore);
+    if (activeFilter === 'streak') sorted.sort((a, b) => b.streakDays - a.streakDays);
+    else if (activeFilter === 'focus') sorted.sort((a, b) => (b.totalFocusMinutes ?? 0) - (a.totalFocusMinutes ?? 0));
+    else sorted.sort((a, b) => b.eloScore - a.eloScore);
+    return sorted.slice(0, 50); // PERFORMANCE OPTIMIZATION: Only render top 50 to prevent forced reflows
   }, [entries, activeFilter]);
 
   const RANK_COLORS = ['text-amber-400', 'text-zinc-300', 'text-amber-700'];
@@ -137,7 +138,7 @@ export function GlobalLeaderboard() {
                 key={entry.uid}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.04 }}
+                transition={{ delay: Math.min(idx, 10) * 0.04 }}
                 className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
                   isMe
                     ? 'bg-[#C17767]/10 border-[#C17767]/30 shadow-[0_0_12px_rgba(193,119,103,0.1)]'

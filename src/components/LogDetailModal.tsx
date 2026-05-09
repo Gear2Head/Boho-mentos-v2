@@ -130,7 +130,7 @@ export function LogDetailModal({ log, isOpen, onClose, isAdmin }: LogDetailModal
 
         <div className="bg-[#121212] border border-[#2A2A2A] rounded-2xl p-6 mb-8">
           <h3 className="font-serif italic text-zinc-400 mb-4 border-b border-[#2A2A2A] pb-2 text-sm flex items-center gap-2">
-            <BookOpen size={14} className="opacity-50" /> KayÄ±t Bilgisi
+            <BookOpen size={14} className="opacity-50" /> Kayıt Bilgisi
           </h3>
           {!isEditing ? (
             <div className="space-y-3 text-sm text-zinc-300">

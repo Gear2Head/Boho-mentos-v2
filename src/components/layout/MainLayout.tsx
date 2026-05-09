@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BrainCircuit, Calendar, Map as MapIcon, Target, BookOpen, PenTool, List, LayoutList, Archive, Clock, Settings, Eye, EyeOff, CloudOff, RefreshCcw, Pin, Trophy, AlertTriangle, Menu, LogOut, MessageCircle, Zap } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  CloudOff,
+  RefreshCcw,
+  Pin,
+  Trophy,
+  Menu,
+  LogOut,
+  MessageCircle,
+  Zap,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { useAppStore } from '../../store/appStore';
@@ -32,7 +43,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const { isSyncing, isZenMode, setZenMode } = useAppStore(useShallow(s => ({ isSyncing: s.isSyncing, isZenMode: s.isZenMode, setZenMode: s.setZenMode })));
   const { isPassiveMode } = useAppStore(useShallow(s => ({ isPassiveMode: s.isPassiveMode })));
   const notifications = useAppStore(s => s.notifications);
-  const activeBoost = useAppStore(s => 
+  const activeBoost = useAppStore(s =>
     s.profile?.coachMemory?.commitments?.some(c =>
       (c.startsWith('xpMultiplier:') || c.startsWith('coinMultiplier:')) &&
       new Date(c.split(':')[1]) > new Date()
@@ -95,37 +106,42 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   }, [scrollDirection]);
 
   const isCurrentlySyncing = isSyncing;
-  const syncButtonTitle = syncStatus === 'offline' 
-    ? 'Çevrimdışı' 
-    : isCurrentlySyncing 
-      ? 'Eşitleniyor...' 
+  const syncButtonTitle = syncStatus === 'offline'
+    ? 'Çevrimdışı'
+    : isCurrentlySyncing
+      ? 'Eşitleniyor...'
       : (Date.now() - lastSyncClick < COOLDOWN)
         ? `${Math.ceil((COOLDOWN - (Date.now() - lastSyncClick)) / 1000)}sn bekleyin`
         : 'Eşitlemeyi Tetikle';
-  
+
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isDMPanelOpen, setIsDMPanelOpen] = useState(false);
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] bg-app text-ink font-sans selection:bg-zinc-700 selection:text-zinc-100 overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+    <div
+      className="flex h-[100dvh] flex-col overflow-hidden bg-app text-ink selection:bg-zinc-700 selection:text-zinc-100 md:flex-row"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
       {isSyncing && <div className="sync-progress-bar" aria-label="Senkronize ediliyor" />}
 
-      <header className="md:hidden sticky top-0 left-0 right-0 h-14 border-b border-app glass-header z-[100] flex items-center justify-between px-4 shrink-0 shadow-sm">
+      <header className="md:hidden sticky top-0 left-0 right-0 z-[100] flex h-14 shrink-0 items-center justify-between border-b border-app bg-zinc-950/78 px-4 shadow-sm backdrop-blur-2xl">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg overflow-hidden shadow-lg shadow-black/20 bg-[#1F2A36] border border-white/10">
             <img src="/logo.png" alt="Boho Mentosluk" className="w-full h-full object-cover" />
           </div>
-          <h2 className="font-display italic text-sm font-bold tracking-tight text-ink truncate max-w-[120px]">Boho Mentosluk</h2>
+          <h2 className="max-w-[42vw] truncate font-display text-sm font-bold italic tracking-tight text-ink">
+            Boho Mentosluk
+          </h2>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setIsDMPanelOpen(true)} className="p-2 text-zinc-500">
             <MessageCircle size={18} />
           </button>
-          <button 
-            onClick={() => storeForceSync()} 
-            disabled={isCurrentlySyncing || cooldownRemaining > 0} 
+          <button
+            onClick={() => storeForceSync()}
+            disabled={isCurrentlySyncing || cooldownRemaining > 0}
             className={`relative p-2 rounded-xl transition-all ${cooldownRemaining > 0 ? 'text-zinc-700' : 'text-zinc-500 hover:bg-white/5'}`}
-            title={cooldownRemaining > 0 ? `Bekle: ${Math.ceil(cooldownRemaining/1000)}s` : 'Senkronize Et'}
+            title={cooldownRemaining > 0 ? `Bekle: ${Math.ceil(cooldownRemaining / 1000)}s` : 'Senkronize Et'}
           >
             {syncStatus === 'offline' ? <CloudOff size={18} /> : <RefreshCcw size={18} className={isCurrentlySyncing ? 'animate-spin' : ''} />}
             {cooldownRemaining > 0 && !isCurrentlySyncing && (
@@ -159,12 +175,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <motion.nav
         initial={false}
         animate={{
-          width: isZenMode ? 0 : (isSidebarExpanded ? 256 : 72),
+          width: isZenMode ? 0 : isSidebarExpanded ? 256 : 72,
           x: isZenMode ? -300 : 0,
-          opacity: isZenMode ? 0 : 1
+          opacity: isZenMode ? 0 : 1,
         }}
         transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 1 }}
-        className={`fixed bottom-3 left-3 right-3 md:bottom-auto md:left-auto md:right-auto md:relative border border-white/10 md:border-t-0 md:border-x-0 md:border-b-0 glass-nav bg-zinc-950/80 md:bg-transparent backdrop-blur-2xl md:backdrop-blur-none flex flex-row md:flex-col z-[90] px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:p-0 md:h-[100dvh] rounded-[28px] md:rounded-none shadow-2xl md:shadow-none transition-transform duration-300 ${scrollDirection === 'down' ? 'translate-y-[calc(100%+1rem)] md:translate-y-0' : 'translate-y-0'} ${isZenMode ? 'pointer-events-none' : ''}`}
+        className={`hidden md:relative md:z-[90] md:flex md:h-[100dvh] md:flex-col md:border-r md:border-app md:bg-transparent ${
+          isZenMode ? 'pointer-events-none' : ''
+        }`}
         onMouseEnter={() => !isZenMode && setIsNavHovered(true)}
         onMouseLeave={() => setIsNavHovered(false)}
       >
@@ -237,22 +255,20 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-
-
-        <div className="flex-1 flex flex-row md:flex-col py-1 md:py-3 px-1 md:px-3 md:space-y-1 justify-around md:justify-start overflow-x-auto md:overflow-y-auto no-scrollbar gap-1 md:gap-0">
-          {NAV_ITEMS.map((item) => (
-            <div key={item.id} className={`${item.mobileVisible ? 'block' : 'hidden'} md:${item.desktopVisible ? 'block' : 'hidden'} w-full`}>
-              <NavItem
-                icon={item.icon}
-                label={item.label}
-                active={activeTab === item.id}
-                onClick={() => navigate(`/${item.id}`)}
-                collapsed={!isSidebarExpanded}
-              />
-            </div>
-          ))}
-          <div className="md:hidden block w-full px-1">
-            <NavItem icon={<Menu size={18} />} label="Menü" active={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen(true)} />
+        <div className="flex-1 overflow-y-auto px-3 py-3 no-scrollbar">
+          <div className="space-y-1">
+            {NAV_ITEMS.filter((item) => item.desktopVisible).map((item) => (
+              <div key={item.id} className="w-full">
+                <NavItem
+                  icon={item.icon}
+                  label={item.label}
+                  active={activeTab === item.id}
+                  onClick={() => navigate(`/${item.id}`)}
+                  collapsed={!isSidebarExpanded}
+                  variant="sidebar"
+                />
+              </div>
+            ))}
           </div>
         </div>
 
@@ -306,7 +322,42 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </div>
       </motion.nav>
 
-      <main className={`flex-1 overflow-hidden relative flex flex-col bg-app pb-28 md:pb-0 pt-0 transition-all duration-700 ${isZenMode ? 'p-0' : ''}`}>
+      <motion.nav
+        initial={false}
+        animate={{
+          y: isZenMode || scrollDirection === 'down' ? '120%' : 0,
+          opacity: isZenMode ? 0 : 1,
+        }}
+        transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+        className="fixed bottom-3 left-3 right-3 z-[95] md:hidden"
+      >
+        <div className="mx-auto flex max-w-[520px] items-center gap-1 rounded-[1.55rem] border border-white/10 bg-zinc-950/88 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.45rem)] pt-2 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+          {NAV_ITEMS.filter((item) => item.mobileVisible).slice(0, 4).map((item) => (
+            <NavItem
+              key={item.id}
+              icon={item.icon}
+              label={item.label}
+              active={activeTab === item.id}
+              onClick={() => navigate(`/${item.id}`)}
+              variant="bottom"
+            />
+          ))}
+
+          <NavItem
+            icon={<Menu size={18} />}
+            label="Menü"
+            active={isMobileMenuOpen}
+            onClick={() => setIsMobileMenuOpen(true)}
+            variant="bottom"
+          />
+        </div>
+      </motion.nav>
+
+      <main
+        className={`relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-app pt-0 transition-all duration-700 pb-[calc(88px+env(safe-area-inset-bottom,0px))] md:pb-0 ${
+          isZenMode ? 'p-0' : ''
+        }`}
+      >
         {isZenMode && (
           <motion.button
             initial={{ opacity: 0, scale: 0.8 }}

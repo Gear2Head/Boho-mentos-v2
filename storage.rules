@@ -24,7 +24,7 @@ service firebase.storage {
     }
 
     match /users/{userId}/{allPaths=**} {
-      allow read: if isAuthenticated();
+      allow read: if isOwner(userId) || isSuperAdmin();
       allow create, update: if isOwner(userId) && isValidImage();
       allow delete: if isOwner(userId);
     }

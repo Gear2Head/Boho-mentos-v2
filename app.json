@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Boho Mentosluk",
+    "slug": "gear2head",
+    "version": "2.1.0",
+    "orientation": "portrait",
+    "icon": "./public/icon.png",
+    "userInterfaceStyle": "dark",
+    "owner": "gear_head",
+    "android": {
+      "package": "com.bohomentos.app"
+    }
+  }
+}

@@ -11,6 +11,7 @@
     "android:open": "npx cap open android",
     "android:build": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "android:build:local-gradle": "npm run android:sync && cd android && set GRADLE_USER_HOME=..\\.gradle-cache&& gradlew.bat assembleDebug",
+    "android:eas-build": "npm run android:sync && npx eas-cli build --platform android --profile production",
     "preview": "vite preview",
     "clean": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});\"",
     "lint": "tsc --noEmit"
@@ -21,6 +22,7 @@
     "@capacitor/cli": "^8.3.1",
     "@capacitor/core": "^8.3.1",
     "@capacitor/haptics": "^8.0.2",
+    "@capacitor/push-notifications": "^8.0.4",
     "@capacitor/share": "^8.0.1",
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",

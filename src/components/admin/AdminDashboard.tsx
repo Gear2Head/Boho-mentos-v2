@@ -81,20 +81,20 @@ export function AdminDashboard({ onBack }: Props) {
   const handleBootstrap = async () => {
     setIsBootstrapping(true);
     try {
+      if (!import.meta.env.DEV) {
+        throw new Error('Owner bootstrap production icin server-side CLI/API ile calistirilmalidir.');
+      }
       const idToken = await auth.currentUser?.getIdToken(true);
       if (!idToken) throw new Error('ID Token bulunamadı. Lütfen tekrar giriş yapın.');
       
-      const bootstrapSecret = import.meta.env.VITE_OWNER_BOOTSTRAP_SECRET;
-      if (!bootstrapSecret) throw new Error('Owner bootstrap secret is not configured.');
-
       const response = await fetch('/api/admin/bootstrap-owner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-bootstrap-secret': bootstrapSecret },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken })
       });
       
       const data = await response.json();
-      if (data.eligible && data.superAdmin) {
+      if (response.ok && data.claimsApplied === true) {
         showToast('success', 'Admin yetkisi başarıyla tanımlandı! Sayfayı yenileyin.');
         setTimeout(() => window.location.reload(), 2000);
       } else {
@@ -694,7 +694,9 @@ function AuditPanel() {
                   <span className="text-[10px] font-black uppercase tracking-widest text-zinc-300">{l.action}</span>
                   <span className="text-[9px] font-mono text-zinc-600">{l.timestamp}</span>
                 </div>
-                <p className="text-xs text-zinc-500 mt-1 truncate">{l.details}</p>
+                <p className="text-xs text-zinc-500 mt-1 truncate">
+                  {typeof l.details === 'object' && l.details !== null ? JSON.stringify(l.details) : l.details}
+                </p>
                 <div className="text-[8px] text-zinc-700 mt-1 uppercase font-bold tracking-tighter">Aktör: {l.actorEmail || l.actorUid}</div>
               </div>
             </div>

@@ -96,24 +96,27 @@ export function useAuth() {
 
         if (hasData) {
           useAppStore.setState(mergedData);
-          useAppStore.getState().recomputeFullElo();
-          useAppStore.getState().recomputeStreak(false);
-          
           const current = useAppStore.getState();
-          publishPublicProfileProjection({
-            uid: authUser.uid,
-            email: authUser.email,
-            displayName: authUser.displayName,
-            photoURL: authUser.photoURL,
-            profile: current.profile,
-            eloScore: current.eloScore,
-            streakDays: current.streakDays,
-            focusSessions: current.focusSessions,
-            trophies: current.trophies,
-            tytSubjects: current.tytSubjects,
-            aytSubjects: current.aytSubjects,
-            inventory: current.inventory,
-          }).catch(console.error);
+          
+          if (current.profile) {
+            current.recomputeFullElo();
+            current.recomputeStreak(false);
+            
+            publishPublicProfileProjection({
+              uid: authUser.uid,
+              email: authUser.email,
+              displayName: authUser.displayName,
+              photoURL: authUser.photoURL,
+              profile: current.profile,
+              eloScore: current.eloScore,
+              streakDays: current.streakDays,
+              focusSessions: current.focusSessions,
+              trophies: current.trophies,
+              tytSubjects: current.tytSubjects,
+              aytSubjects: current.aytSubjects,
+              inventory: current.inventory,
+            }).catch(console.error);
+          }
         }
       } catch (e) {
         console.warn('[Sync] Failed to fetch subcollections:', e);
@@ -205,6 +208,14 @@ export function useAuth() {
 
          if (Object.keys(updates).length > 0) {
            useAppStore.setState({ ...updates, lastLocalUpdateAt: remoteUpdateAt });
+           
+           // If we just received the profile from remote AND we already fetched subcollections (logs exist),
+           // we should trigger a recompute so the projection gets published with the correct profile.
+           if (updates.profile && (store.logs?.length > 0 || store.exams?.length > 0)) {
+             const current = useAppStore.getState();
+             current.recomputeFullElo();
+             current.recomputeStreak(false);
+           }
          }
       }
       setIsProfileLoading(false);

@@ -39,8 +39,38 @@ interface CoachApiRequest {
 // ─── Inlined from src/services/coachContract.ts ───
 const JSON_ONLY_INTENTS = new Set<CoachIntent>(['flashcard_generation', 'quiz_generation']);
 
+const DIRECTIVE_ALLOWED_INTENTS = new Set<CoachIntent>([
+  'daily_plan',
+  'daily_quest',
+  'generate_weekly_strategy',
+  'weekly_review',
+  'exam_analysis',
+  'exam_debrief',
+  'log_analysis',
+  'war_room_analysis',
+  'intervention',
+]);
+
+const NATURAL_ONLY_INTENTS = new Set<CoachIntent>([
+  'free_chat',
+  'qa_mode',
+  'topic_explain',
+  'inverse_coaching',
+  'micro_feedback',
+  'vision_archive_parse',
+  'socratic_force',
+]);
+
+function isDirectiveAllowed(intent: CoachIntent): boolean {
+  return DIRECTIVE_ALLOWED_INTENTS.has(intent);
+}
+
+function shouldAttachDirective(intent: CoachIntent, wantsDirective: boolean): boolean {
+  return wantsDirective && isDirectiveAllowed(intent);
+}
+
 function shouldForceJson(intent: CoachIntent, wantsDirective: boolean): boolean {
-  return wantsDirective || JSON_ONLY_INTENTS.has(intent);
+  return JSON_ONLY_INTENTS.has(intent) || shouldAttachDirective(intent, wantsDirective);
 }
 
 type ChatHistoryItem = { role: 'user' | 'coach' | 'system'; content: string };
@@ -64,29 +94,61 @@ type AiRequestBody = Partial<Omit<CoachApiRequest, 'chatHistory' | 'imageMediaTy
 class ProviderError extends Error {
   status: number;
   code: string;
-  debug?: unknown;
+  // SECURITY: Debug info is NOT stored on the error object.
+  // It is only logged server-side via console.error at the catch boundary.
 
-  constructor(status: number, code: string, message: string, debug?: unknown) {
+  constructor(status: number, code: string, message: string, _debug?: unknown) {
     super(message);
     this.status = status;
     this.code = code;
-    this.debug = debug;
+    // Log debug info server-side only, never expose to client
+    if (_debug) console.error(`[ProviderError:${code}]`, _debug);
   }
 }
 
 // ─── Persona Core ─────────────────────────────────────────────────────────────
 
-const PERSONALITY_CORE = `Sen Kübra'sın — Türkiye'nin en gelişmiş, veriye dayalı YKS mentörü.
+const PERSONALITY_CORE = `Sen Kübra'sın — Boho Mentos v2 içindeki veriye dayalı YKS mentörü.
 
-FELSEFE: Mazeretlerin istatistiksel değeri yoktur. Boş motivasyon ve "yaparsın" edebiyatı YASAKTIR.
-DİL: Soğuk, cerrahi, analitik. Gerektiğinde sarkastik dürüstlük.
-KURAL #1: "Genel" görevler KESİNLİKLE YASAK. Her görev bir konuya, soru sayısına ve süreye bağlı olmalı.
-  ❌ KÖTÜ: "Konuyu gözden geçir ve soru çöz"
-  ✅ İYİ: "TYT Matematik - Türev: 25 soru (Hedef: %75 doğruluk, 35 dakika) [GAP: -12.3 net]"
-KURAL #2: Görevler BAĞLAMSAL olmalı. Öğrencinin ELO, deneme netleri, zayıf konu verileri KULLANILMALI.
-KURAL #3: Hiçbir görevin title'ı önceki görevle aynı olamaz. Tekrar eden görevler YASAK.
-GÖRSEL: Tablo, kıyaslama, rapor sorularında Markdown TABLO kullan. TYT ve AYT verilerini aynı satırda karıştırma.
-Chatbot DEĞİLSİN. Ham JSON asla kullanıcıya gösterilmez; JSON yalnızca parse edilebilir blok olarak üretilir.`;
+ANA KİMLİK:
+- Chatbot değilsin; öğrencinin çalışma hafızasını, deneme verilerini ve hedeflerini yorumlayan stratejik mentorsun.
+- Varsayılan tonun sakin, net, insan gibi ve ölçülü olmalı.
+- Gereksiz sertlik, aşağılama, "toxic" tavır, boş motivasyon ve rol yapma yasak.
+- Öğrenci senden özellikle sertlik istemedikçe agresifleşme.
+
+CEVAP FELSEFESİ:
+- Önce kullanıcının gerçek niyetini anla.
+- Her mesajı otomatik plana veya göreve çevirme.
+- Kullanıcı sadece soru soruyorsa soru cevapla.
+- Kullanıcı açıklama istiyorsa öğret.
+- Kullanıcı sohbet ediyorsa doğal konuş.
+- Kullanıcı plan, analiz, görev veya aksiyon istiyorsa ölçülebilir öneri ver.
+
+DİREKTİF KURALI:
+Direktif yalnızca şu durumlarda üretilir:
+1. Kullanıcı açıkça plan isterse.
+2. Kullanıcı "bugün ne çalışayım", "program yap", "görev ver" derse.
+3. Kullanıcı deneme/log verisi verip aksiyon isterse.
+4. Intent daily_plan, daily_quest, generate_weekly_strategy veya intervention ise.
+
+Direktif üretilmemesi gereken durumlar:
+- Serbest sohbet
+- Genel soru
+- Konu anlatımı
+- Kısa açıklama
+- Basit netleştirme
+- Kullanıcının "durumum ne" gibi analiz istediği ama görev istemediği durumlar
+
+GÖREV KALİTESİ:
+Görev verilecekse asla genel olmasın.
+❌ "Matematik çalış"
+❌ "Konuyu tekrar et"
+✅ "AYT Matematik / Diziler: 25 soru, 40 dk, hedef %75 doğruluk"
+
+GÖRSEL FORMAT:
+- Tablo, kıyaslama, net analizi ve rapor sorularında Markdown tablo kullan.
+- TYT ve AYT verilerini aynı satırda karıştırma.
+- Ham JSON asla kullanıcıya gösterilmez; JSON yalnızca API parse amacıyla üretilir.`;
 
 const CLAUDE_STYLE_GUIDANCE = `
 [CLAUDE-BENZERI DAVRANIS]
@@ -97,84 +159,123 @@ const CLAUDE_STYLE_GUIDANCE = `
 - Gereksiz sertlik, bos motivasyon ve ham JSON gosterimi yasak.`;
 
 const PERSONALITY_MODES: Record<string, string> = {
-  enforcer: 'ENFORCER: Net ve kararlı. Görevler somut, ölçülebilir.',
-  hardcore: 'HARDCORE: Bahanelere sıfır tolerans. Acı gerçeği söyle, empati yok.',
-  analyst: 'ANALYST: Rakamlar konuşur. Kanıt, trend, korelasyon kullan.',
-  oracle: 'ORACLE: Tahmin ve projeksiyon yap. Belirsizliği sayısal olarak ifade et.',
+  enforcer:
+    'ENFORCER: Net, kısa ve kararlı. Gereksiz sertlik yok; aksiyon istenirse ölçülebilir görev ver.',
+  hardcore:
+    'HARDCORE: Daha doğrudan ve tavizsiz konuş; ama hakaret, aşağılama ve yapay toxic dil kullanma.',
+  analyst:
+    'ANALYST: Rakam, trend ve kanıt kullan. Belirsizliği açık belirt. Görev üretmek zorunda değilsin.',
+  oracle:
+    'ORACLE: Tahmin ve projeksiyon yap. Olasılık ve belirsizlikleri sayısal ifade et.',
+  motivational:
+    'MOTIVATIONAL: Sakin destek ver; boş motivasyon değil, küçük uygulanabilir hamle öner.',
+  default:
+    'DEFAULT: Doğal, sakin, net ve bağlama duyarlı konuş.',
 };
 
 // ─── Intent Instructions ───────────────────────────────────────────────────────
 
 const INTENT_INSTRUCTIONS: Record<string, string> = {
-  daily_plan: `ÖĞRENCİNİN BAĞLAMINI KULLAN (ELO, son denemeler, zayıf konular, haftalık çalışma hızı).
-Bugün için 3-5 SOMUT görev üret. Her görev: hangi ders, hangi konu, kaç soru, kaç dakika, neden (%gap veya %risk).
-Tablo formatı: | Ders | Konu | Soru | Süre | Öncelik | Gerekçe |
-"Çalış" veya "Gözden geçir" deme; ölçülebilir eylem ver.
-[[OPEN:log_study]]`,
+  daily_plan: `Kullanıcı plan istiyor.
+Bugün için 3-5 somut görev üret.
+Her görev: ders, konu, soru sayısı, süre, öncelik ve gerekçe içermeli.
+Markdown tablo kullan:
+| Ders | Konu | Soru | Süre | Öncelik | Gerekçe |
+Genel görev yasak. "Çalış", "tekrar et", "gözden geçir" gibi boş fiiller kullanma.
+Cevabın sonunda kısa bir uygulama sırası ver.`,
 
-  exam_debrief: `Son deneme savaş raporu. BAĞLAMDAN gelen gerçek ders netlerini KULLAN.
+  exam_debrief: `Kullanıcı deneme değerlendirmesi istiyor.
+Önce doğal dille kısa özet ver.
+Sonra tablo kullan:
+| Alan | Mevcut | Hedef | Fark | Yorum |
+Sadece gerçekten gerekli ise 1-3 aksiyon öner. Otomatik görev kartı dili kullanma.
+Kullanıcı açıkça plan istemediyse direktif üretme.`,
+
+  exam_analysis: `Deneme netlerini hedeflerle karşılaştır.
+TYT ve AYT'yi ayrı değerlendir.
+Önce kısa teşhis, sonra tablo, sonra en fazla 3 öncelik öner.
+Kullanıcı görev istemediyse direktif tonuna geçme.`,
+
+  log_analysis: `Çalışma loglarını analiz et.
 Format:
-1. Net Özeti TABLO: Ders | Mevcut Net | Hedef Net | Fark | Risk
-2. En riskli 2 ders ve neden (yanlış tipi, süre sorunu, konu boşluğu)
-3. Korunacak 1 güçlü alan
-4. 48 saatlik telafi planı (spesifik konular, soru sayıları)
-Generic "30 soru çöz" YASAK — hangi konudan, hangi hedefle belirt.`,
+1. Kısa teşhis
+2. Veri tablosu
+3. Tek kritik örüntü
+4. İsteğe bağlı küçük öneri
+Kullanıcı "plan yap" demediyse görev listesi üretme.`,
 
-  exam_analysis: `Deneme netlerini hedef ile TABLO ile karşılaştır. Ders bazlı fark (gap) hesapla.
-Güçlü/zayıf konuları tespit et. Eksik alanlara öncelik sırası ver.
-Bir sonraki adım olarak spesifik 3 görev üret — konu ve soru sayısı içermeli.`,
+  micro_feedback: `Kısa geri bildirim ver.
+En fazla 3 cümle.
+1. Veriyi söyle.
+2. Tek anomaliyi söyle.
+3. Küçük düzeltme öner.
+Direktif JSON üretme.`,
 
-  log_analysis: `Log verisini analiz et: doğruluk oranı, hız, yorgunluk, alışkanlık örüntüsü.
-Format: [Veri TABLO] → [Tek Kritik Anomali] → [Acil Eylem].
-Acil eylem: bugün yatmadan yapılacak tek şey, konusu ve soru sayısıyla belirt.`,
+  war_room_analysis: `War Room sonrası analiz yap.
+Hataların ortak paydasını çıkar.
+Tablo kullan.
+En fazla 3 aksiyon öner; kullanıcı istemediyse görev kartı üretme.`,
 
-  micro_feedback: `KESİN FORMAT — 3 cümle, fazlası yasak:
-1. [VERİ]: {soru sayısı} soru, %{acc} doğruluk, {hız}dk/soru — müfredat ortalamasına göre durum.
-2. [ANOMALİ]: Bu seansın tek kritik metodolojik hatası veya risk sinyali.
-3. [EMİR]: Bugün yatmadan {konu} konusundan {N} soru çöz.`,
+  weekly_review: `Haftalık retrospektif yap.
+Veri varsa tablo kullan.
+Ne oldu → neden oldu → gelecek hafta ne değişmeli yapısında cevap ver.
+Görev üretmek yalnızca kullanıcı açıkça haftalık plan isterse uygundur.`,
 
-  war_room_analysis: `War Room simülasyonu bitti. Gerçek soru verilerini kullan:
-TABLO: Konu | D | Y | Hata Tipi | Risk
-Hatalı soruların ortak paydası nedir? Hangi konu/tip tuzak?
-3 somut aksiyon: spesifik konu, soru sayısı ve hedef doğruluk.`,
+  free_chat: `Serbest sohbet modu.
+Doğal konuş. Kullanıcının sorusunu doğrudan cevapla.
+Her cevapta tablo kullanma.
+Her cevapta görev verme.
+Her cevapta direktif üretme.
+Gerekirse en sonda tek cümlelik öneri ver: "İstersen bunu plana çevirebilirim."`,
 
-  weekly_review: `Haftalık retrospektif — verilerden konuş, tahmin değil gözlem:
-TABLO: Ders | Toplam Soru | Başarı % | ELO Değişimi
-Ne oldu (veri) → Neden oldu (örüntü) → Gelecek hafta 3 somut karar.`,
+  topic_explain: `Konu anlatımı modu.
+Konuyu sade, adım adım ve YKS odaklı açıkla.
+Örnek ver.
+Gerekirse mini kontrol sorusu sor.
+Direktif veya görev üretme. Kullanıcı isterse ayrıca çalışma planı çıkar.`,
 
-  free_chat: `Öğrenci seninle serbest konuşuyor. Mevcut durum özetini TABLO ile en başta sun:
-| Metrik | Değer | Hedef | Durum |
-Sonra YKS hedefleriyle ilişkilendirerek cevap ver. Mesajın sonunda 1 somut eylem öner.`,
+  intervention: `Acil müdahale modu.
+Kısa, net ve kontrollü konuş.
+Durumun riskini söyle.
+Sonra uygulanabilir küçük plan ver.
+Sert ol ama aşağılayıcı olma.`,
 
-  topic_explain: `Konuyu sade ve net açıkla. Önemli formüller/kavramlar TABLO ile kıyasla.
-YKS'ye özgü ipuçları ve yaygın tuzaklar ver. Sokratik sorularla anlama derin.`,
-
-  intervention: `ACİL MÜDAHALE. Durum vs Olması Gereken TABLO. Empati değil, eylem.
-Mevcut performans neden tehlikeli? 1 kritik değişim kararı ve uygulama planı.`,
-
-  inverse_coaching: `Öğrenci rolünü oynuyorsun. Kullanıcı konuyu anlat, sen meraklı ama kavramsal boşlukları yakalayan öğrenci gibi sor.
-Anlatım bitince: 3 maddeli güçlü/zayıf özet ve 1 gerçek tespit ettiğin hata.`,
+  inverse_coaching: `Öğrenci rolünü oynuyorsun.
+Kullanıcı konuyu anlatsın; sen kavramsal boşlukları yakalayan meraklı öğrenci gibi soru sor.
+Sonunda kısa güçlü/zayıf özet ver.`,
 
   flashcard_generation: `Konuşma geçmişinden veya verilen konudan 5 adet çalışma kartı üret. SADECE JSON dizi:
 [{"front":"...","back":"...","difficulty":"easy|medium|hard","subject":"..."}]`,
 
-  forgetting_curve_reminder: `Ebbinghaus eğrisine göre tekrar zamanı gelen konular TABLO (Konu | Son Çalışma | Gün | Tekrar Görevi).
-Her konu için 10 dakikalık mini tekrar görevi ver; somut ol.`,
+  forgetting_curve_reminder: `Tekrar zamanı gelen konuları çıkar.
+Tablo kullan:
+| Konu | Son Çalışma | Gün | Mini Tekrar |
+Her konu için 10 dakikalık net tekrar öner.`,
 
-  daily_quest: `Öğrencinin gün verilerine bakarak 3 YÜKSEK ÖNCELİKLİ görev üret. Structured JSON directive formatında.
-Her görev: spesifik konu, kaç soru, hangi kaynak, 60-120 dk. Generic görev YASAK.`,
+  daily_quest: `Günün yüksek öncelikli görevlerini üret.
+Sadece JSON directive formatında yanıt ver.
+Görevler spesifik konu, soru sayısı, süre ve başarı kriteri içermeli.`,
 
-  vision_archive_parse: `Vizyon notlarını analiz et. Mevcut disiplin vs Vizyon uyumu TABLO ile kıyasla.
-3 maddelik stratejik düzeltme önerisi: ölçülebilir ve bağlamsal.`,
+  vision_archive_parse: `Görsel veya not içeriğini analiz et.
+Önce gördüğünü özetle.
+Sonra kullanıcının hedefine göre yorumla.
+Görev üretme; kullanıcı isterse plana çevirebileceğini söyle.`,
 
-  generate_weekly_strategy: `Son 7 günlük veri (loglar, denemeler, ELO) ile haftalık yol haritası çıkar. TABLO ile sun.
-3 ana konu (neden bu?), 2 kritik risk (sayısal kanıt), 1 büyük hedef.`,
+  generate_weekly_strategy: `Son 7 günlük veriyle haftalık yol haritası çıkar.
+Tablo kullan.
+3 ana odak, 2 risk, 1 büyük hedef ver.
+Eğer directive istenmişse JSON directive üretilebilir.`,
 
   quiz_generation: `YKS tipinde analitik sorular üret. Çeldiriciler kullan. SADECE JSON liste döndür.`,
 
-  qa_mode: `YKS Asistanı modu. Kısa, teknik, net cevap. Gereksiz motivasyon yasak.`,
+  qa_mode: `Soru-cevap modu.
+Kısa, teknik ve net cevap ver.
+Kullanıcı sormadan plan, direktif veya görev üretme.`,
 
-  socratic_force: `SOCRATIC: Direkt cevap verme. Önce yönlendirici soru sor, adım adım düşündür.`,
+  socratic_force: `Sokratik mod.
+Direkt cevabı hemen verme.
+Önce yönlendirici soru sor, sonra adım adım düşündür.
+Görev üretme.`,
 
   forgetting_curve_reminder_2: '',
 };
@@ -249,7 +350,7 @@ function safeParseDirective(raw: string): any {
 }
 
 async function lookupUser(idToken: string): Promise<any> {
-  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  const apiKey = process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY;
   if (!apiKey) throw new ProviderError(503, 'FIREBASE_WEB_API_KEY_MISSING', 'Firebase web API key is missing');
 
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
@@ -315,14 +416,47 @@ function getOpenRouterKeys(): string[] {
 
 // ─── Prompt Builder (v20) ─────────────────────────────────────────────────────
 
+function userExplicitlyAskedForPlan(message = ''): boolean {
+  const m = message.toLocaleLowerCase('tr-TR');
+  return [
+    'plan',
+    'program',
+    'görev',
+    'ne çalış',
+    'bugün ne',
+    'çalışma listesi',
+    'todo',
+    'yol haritası',
+    'aksiyon çıkar',
+    'bana görev ver',
+  ].some((token) => m.includes(token));
+}
+
+function wantsNaturalAnswerOnly(intent: CoachIntent, message = ''): boolean {
+  if (NATURAL_ONLY_INTENTS.has(intent)) return true;
+  if (intent === 'free_chat') return !userExplicitlyAskedForPlan(message);
+  if (intent === 'topic_explain' || intent === 'qa_mode') return true;
+  return false;
+}
+
 function buildPrompt(body: AiRequestBody): string {
   const intent = body.intent || 'free_chat';
+  const userAskedForPlan = userExplicitlyAskedForPlan(body.userMessage || '');
+  const attachDirective = shouldAttachDirective(intent, Boolean(body.wantDirective)) && userAskedForPlan;
+  const naturalOnly = wantsNaturalAnswerOnly(intent, body.userMessage || '');
+
   const userStateObj = (body.userState || {}) as any;
   const isCriticalAvoidance = userStateObj.avoidanceLevel >= 3;
-  const shouldEscalate = userStateObj.eloScore < 800 || userStateObj.frustrationIndex > 70 || isCriticalAvoidance;
+  const shouldEscalate =
+    intent === 'intervention' &&
+    (userStateObj.eloScore < 800 ||
+      userStateObj.frustrationIndex > 70 ||
+      isCriticalAvoidance);
   const personalityMode = shouldEscalate
-    ? (isCriticalAvoidance ? 'oracle' : 'hardcore')
-    : (body.coachPersonality || 'enforcer');
+    ? isCriticalAvoidance
+      ? 'oracle'
+      : 'enforcer'
+    : body.coachPersonality || 'default';
 
   const history = (body.chatHistory || [])
     .slice(-6)
@@ -361,7 +495,10 @@ function buildPrompt(body: AiRequestBody): string {
     body.context ? `TAM BAĞLAM:\n${body.context}` : '',
     history ? `SON KONUŞMA:\n${history}` : '',
     `KULLANICI MESAJI:\n${body.userMessage || ''}`,
-    body.wantDirective ? STRUCTURED_JSON_INSTRUCTION : '',
+    naturalOnly
+      ? `CEVAP MODU: Doğal cevap ver. Direktif, görev kartı veya JSON üretme. Kullanıcı açıkça plan istemediyse aksiyon listesi dayatma.`
+      : '',
+    attachDirective ? STRUCTURED_JSON_INSTRUCTION : '',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -408,7 +545,11 @@ async function callGemini(
         body: JSON.stringify({
           contents: geminiMessages,
           generationConfig: {
-            temperature: opts.intent && HIGH_QUALITY_INTENTS.has(opts.intent) ? 0.72 : 0.6,
+            temperature: opts.forceJson
+              ? 0.35
+              : opts.intent && HIGH_QUALITY_INTENTS.has(opts.intent)
+                ? 0.58
+                : 0.45,
             maxOutputTokens: opts.maxTokens ?? 2048,
             responseMimeType: opts.forceJson ? 'application/json' : 'text/plain',
           }
@@ -472,7 +613,11 @@ async function callGroq(
   let lastError: unknown = null;
 
   // Higher temperature for plan-generating intents → more specific, less repetitive tasks
-  const temperature = opts.intent && HIGH_QUALITY_INTENTS.has(opts.intent) ? 0.72 : 0.6;
+  const temperature = opts.forceJson
+    ? 0.35
+    : opts.intent && HIGH_QUALITY_INTENTS.has(opts.intent)
+      ? 0.58
+      : 0.45;
 
   for (let attempt = 0; attempt < keys.length; attempt += 1) {
     const keyIndex = (start + attempt) % keys.length;
@@ -646,27 +791,31 @@ export default async function handler(req: any, res: any) {
         data: safeParseDirective(result.text) || { text: result.text },
         provider: result.provider,
         model: result.model,
-        providerMeta: { provider: result.provider, model: result.model, keyIndex: result.keyIndex + 1 },
+        providerMeta: { provider: result.provider, model: result.model },
       });
     }
 
     const fullPrompt = buildPrompt(body);
     const messages = buildGroqMessages(fullPrompt, body);
     const intent = body.intent || 'free_chat';
+    const userAskedForPlan = userExplicitlyAskedForPlan(body.userMessage || '');
+    const attachDirective =
+      shouldAttachDirective(intent, Boolean(body.forceJson || body.wantDirective)) &&
+      userAskedForPlan;
+
     const result = await callCoachProvider(messages, {
       image: Boolean(body.imageBase64),
       maxTokens: body.maxTokens,
-      forceJson: shouldForceJson(intent, Boolean(body.forceJson || body.wantDirective)),
+      forceJson: shouldForceJson(intent, attachDirective),
       intent,
     });
 
     return jsonResponse(res, 200, {
       text: result.text,
-      directive: body.wantDirective ? safeParseDirective(result.text) : null,
+      directive: attachDirective ? safeParseDirective(result.text) : null,
       provider: result.provider,
       model: result.model,
-      keyIndex: result.keyIndex + 1,
-      providerMeta: { provider: result.provider, model: result.model, keyIndex: result.keyIndex + 1 },
+      providerMeta: { provider: result.provider, model: result.model },
     });
   } catch (err: any) {
     const status = err instanceof ProviderError ? err.status : 500;
