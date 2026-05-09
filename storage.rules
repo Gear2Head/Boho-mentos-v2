@@ -1,0 +1,37 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.superAdmin == true ||
+        request.auth.token.email == 'senerkadiralper@gmail.com'
+      );
+    }
+    
+    function isValidImage() {
+      // Dosya tipi resim olmalı ve max 5 MB olmalı
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 5 * 1024 * 1024;
+    }
+
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId) && isValidImage();
+      allow delete: if isOwner(userId);
+    }
+    
+    match /failed_questions/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isSuperAdmin();
+      allow write: if isOwner(userId) && isValidImage();
+    }
+  }
+}

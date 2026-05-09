@@ -1,0 +1,181 @@
+# ===================================================
+# 🦉 BOHO MENTOS V2 - ULTIMATE .GITIGNORE
+# ===================================================
+
+# ---------------------------------------------------
+# 1. GÜVENLİK & KİMLİK BİLGİLERİ (CRITICAL SECURITY)
+# ---------------------------------------------------
+# Çevre değişkenleri ve gizli anahtarlar asla commit edilmemelidir.
+.env
+.env.*
+*.local
+!.env.example
+
+# Firebase & Google Cloud Servis Hesapları
+firebase-service-account.json
+service-account-file.json
+credentials.json
+google-services.json
+*.pem
+*.key
+*.p12
+
+# ---------------------------------------------------
+# 2. BAĞIMLILIKLAR & PAKET YÖNETİCİLERİ
+# ---------------------------------------------------
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+yarn-error.log
+package-lock.json.resolved
+
+# ---------------------------------------------------
+# 3. DERLEME & ÇIKTI DOSYALARI (BUILD & OUTPUT)
+# ---------------------------------------------------
+dist/
+dist-ssr/
+build/
+out/
+.vite/
+.next/
+*.tsbuildinfo
+
+# ---------------------------------------------------
+# 4. LOGLAR & GEÇİCİ DOSYALAR
+# ---------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.cache/
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# ---------------------------------------------------
+# 5. GELİŞTİRİCİ ARAÇLARI & IDE (IDEs & EDITORS)
+# ---------------------------------------------------
+.idea/
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.zed/
+.fleet/
+*.swp
+*.swo
+.project
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# ---------------------------------------------------
+# 6. İŞLETİM SİSTEMİ KALINTILARI (OS SPECIFIC)
+# ---------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------
+# 7. AI AJANLARI & WORKFLOW (AGENTS & CONTEXT)
+# ---------------------------------------------------
+.cursor/
+.cline/
+.windsurfrules
+.ai-context/
+.ai_context/
+.ai context/
+.ai/
+.agents/
+.gemini/
+.antigravity/
+# Scratch scripts/data
+scratch/
+todo.md
+*.md
+*.resolved
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!docs/
+!docs/*.md
+
+# ---------------------------------------------------
+# 8. TEST RAPORLARI & SNAPSHOTS
+# ---------------------------------------------------
+coverage/
+.nyc_output/
+__snapshots__/
+.cypress/
+playwright-report/
+test-results/
+
+# ---------------------------------------------------
+# 9. ÖZEL İSTİSNALAR & DOKÜMANTASYON (EXCEPTIONS)
+# ---------------------------------------------------
+# Markdown dosyaları genellikle yoksayılır ancak önemli olanlar hariç tutulur.
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!docs/
+!docs/*.md
+
+# ---------------------------------------------------
+# 10. PROJE ÖZEL (PROJECT SPECIFIC)
+# ---------------------------------------------------
+b64_temp.txt
+bohoohoh.json
+src/config/owner.ts
+# Owner configi localde kalmalı ancak şablon paylaşılabilir.
+!src/config/owner.example.ts
+
+
+claude.md
+claude/
+Claude/
+skills/
+.agents/
+"Console logs/"
+
+# Archived Features
+src/archived/
+task/
+task
+
+# ---------------------------------------------------
+# 11. ANDROID & CAPACITOR (MOBILE)
+# ---------------------------------------------------
+android/local.properties
+android/app/build/
+android/build/
+android/captures/
+android/.gradle/
+.gradle/
+.gradle-cache/
+/android/app/src/main/assets/public
+/android/app/src/main/res/drawable
+/android/app/src/main/res/mipmap-*
+# Capacitor web assets should be ignored if they are generated
+!android/app/src/main/assets/public/index.html
+!android/app/src/main/assets/public/sw.js
+
+# Gradle specific
+.gradle
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# Build artifacts
+*.apk
+*.aar
+*.js.map

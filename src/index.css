@@ -1,0 +1,283 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@500;800&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --font-serif: "Outfit", ui-sans-serif, system-ui, sans-serif;
+
+  /* Safe Area Insets (Native Mobile App Support) */
+  --sat: env(safe-area-inset-top);
+  --sab: env(safe-area-inset-bottom);
+}
+
+/* === DARK THEME (Boho Ink) === */
+:root {
+  --color-bg: #0A0A0C;
+  --color-surface: #141417;
+  --color-surface-2: #1C1C21;
+  --color-ink: #F3F1EC;
+  --color-ink-muted: #9E9C99;
+  --color-border: #2A2A32;
+  --color-border-subtle: #1C1C21;
+  --color-accent: #C17767;
+  --color-accent-warm: #E2A193;
+  --color-sage: #9BA493;
+  --color-card: rgba(20, 20, 23, 0.7);
+  --color-glass: rgba(255, 255, 255, 0.02);
+  --color-nav-bg: rgba(10, 10, 12, 0.95);
+  --color-header-bg: rgba(10, 10, 12, 0.85);
+}
+
+/* === LIGHT THEME (Boho Sand) === */
+:root.light {
+  --color-bg: #FDFBF7;
+  --color-surface: #F5F2EB;
+  --color-surface-2: #EAE6DF;
+  --color-ink: #2C2A28;
+  --color-ink-muted: #7A7571;
+  --color-border: #DBCFBE;
+  --color-border-subtle: #EAE6DF;
+  --color-accent: #C17767;
+  --color-accent-warm: #A56253;
+  --color-sage: #828C7A;
+  --color-card: rgba(245, 242, 235, 0.8);
+  --color-glass: rgba(44, 42, 40, 0.02);
+  --color-nav-bg: rgba(253, 251, 247, 0.95);
+  --color-header-bg: rgba(253, 251, 247, 0.85);
+}
+
+@layer base {
+  html, body {
+    height: 100%;
+    min-height: 100dvh;
+    @apply overflow-x-hidden;
+  }
+}
+
+body {
+  background-color: var(--color-bg);
+  background-image: radial-gradient(circle at 40% 10%, rgba(193, 119, 103, 0.06) 0%, transparent 60%), radial-gradient(circle at 80% 90%, rgba(155, 164, 147, 0.03) 0%, transparent 50%);
+  background-attachment: fixed;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  letter-spacing: -0.011em;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+/* === SEMANTIC UTILITY CLASSES === */
+.bg-app { background-color: var(--color-bg); }
+.bg-surface { background-color: var(--color-surface); }
+.bg-surface-2 { background-color: var(--color-surface-2); }
+.text-ink { color: var(--color-ink); }
+.text-ink-muted { color: var(--color-ink-muted); }
+.border-app { border-color: var(--color-border); }
+.border-app-subtle { border-color: var(--color-border-subtle); }
+.bg-nav { background-color: var(--color-nav-bg); }
+.bg-header { background-color: var(--color-header-bg); }
+
+/* === ANTI-THEFT / VISUAL PROTECTION === */
+img {
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-drag: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  pointer-events: auto; /* Ensure clicks work */
+}
+
+.img-protected {
+  pointer-events: none; /* Full protection for static images */
+}
+.img-protected-strict {
+  pointer-events: none;
+}
+
+/* === CARD STYLES === */
+.dark-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+}
+
+/* === ELITE GLASSMORPHISM === */
+.glass-card {
+  background: var(--color-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+.dark .glass-card {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* === VIBRANT ACCENTS === */
+.text-gradient {
+  background: linear-gradient(135deg, #C17767 0%, #E2A193 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glow-rose {
+  box-shadow: 0 0 20px rgba(193, 119, 103, 0.15);
+}
+
+/* === Custom Scrollbar (Global & Mobile Optimized) === */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+
+/* === NATIVE APP FEEL === */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* === TRANSITION: smooth theme switch === */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 0.5s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Override for things that shouldn't transition */
+.no-transition, .no-transition * {
+  transition: none !important;
+}
+
+/* === SPOTIFY: Equalizer bars animation === */
+@keyframes equalizer {
+  0%, 100% { transform: scaleY(0.4); }
+  50%       { transform: scaleY(1); }
+}
+
+/* === UTILITIES === */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; 
+  scrollbar-width: none;
+}
+
+/* === ENHANCED GLASSMORPHISM === */
+.glass-nav {
+  background: var(--color-nav-bg);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-header {
+  background: var(--color-header-bg);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+:root.light .glass-nav {
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+:root.light .glass-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* === SYNC PROGRESS BAR === */
+@keyframes sync-progress {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+
+.sync-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-accent), var(--color-accent-warm), transparent);
+  animation: sync-progress 1.4s ease-in-out infinite;
+  z-index: 9999;
+}
+
+/* === SKELETON SHIMMER === */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 0%,
+    var(--color-surface-2) 40%,
+    var(--color-surface) 80%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+/* === GLITCH TEXT === */
+@keyframes glitch-anim {
+  0% { transform: translate(0) }
+  20% { transform: translate(-2px, 1px) }
+  40% { transform: translate(-1px, -1px) }
+  60% { transform: translate(2px, 1px) }
+  80% { transform: translate(1px, -1px) }
+  100% { transform: translate(0) }
+}
+
+.glitch-text {
+  position: relative;
+  display: inline-block;
+}
+.glitch-text:hover {
+  animation: glitch-anim 0.2s cubic-bezier(.25, .46, .45, .94) both infinite;
+  color: #F59E0B;
+}
+
+/* === TOXIC PULSE SHAKE === */
+@keyframes toxic-pulse {
+  0%, 90%, 100% { transform: translateX(0) scale(1); filter: brightness(1); }
+  92% { transform: translateX(-2px) scale(1.01); filter: brightness(1.2) contrast(1.1); }
+  95% { transform: translateX(2px) scale(1.01); filter: brightness(1.2) contrast(1.1); }
+  97% { transform: translateX(-1px) scale(1.01); filter: brightness(1.1); }
+}
+
+.animate-shake {
+  animation: toxic-pulse 3s cubic-bezier(.36,.07,.19,.97) infinite;
+  transform-origin: center center;
+}
+
+/* Global Image Protection */
+img {
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-select: none !important;
+  pointer-events: auto;
+  pointer-events: none; /* This will block all clicks, maybe too much. I will use JS for context menu instead */
+}
