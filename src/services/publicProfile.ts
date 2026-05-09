@@ -39,7 +39,7 @@ export function buildPublicProfileProjection(state: {
   inventory?: unknown;
 }): PublicProfileProjection {
   const profile = state.profile ?? null;
-  const totalFocusMinutes = (state.focusSessions ?? []).reduce((sum, session) => {
+  const totalFocusMinutes = (state.focusSessions ?? []).reduce<number>((sum, session) => {
     const record = session as { durationMinutes?: number; duration?: number; minutes?: number };
     return sum + (Number(record.durationMinutes ?? record.duration ?? record.minutes ?? 0) || 0);
   }, 0);

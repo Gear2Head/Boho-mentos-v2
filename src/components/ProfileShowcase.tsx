@@ -5,7 +5,7 @@ import { PieChart, Pie, Tooltip as RechartsTooltip } from 'recharts';
 import { useAppStore } from '../store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getRankDetails } from './EloRankCard';
-import { isOwnerEmail } from '../config/owner';
+import { isSuperAdmin } from '../config/admin';
 import type { Trophy as TrophyType, ExamResult, AtlasProgram } from '../types';
 import { AtlasExplorer } from './AtlasExplorer';
 import { HabitAuditPanel } from './HabitAuditPanel';
@@ -108,7 +108,7 @@ export function ProfileShowcase({ isPublic, targetUid }: { isPublic?: boolean; t
 
   const rank = getRankDetails(eloScore);
   const RankIcon = ICON_MAP[rank.iconName] || Trophy;
-  const canOpenAdmin = isOwnerEmail(authUser?.email) || (profile as any)?.role === 'super_admin';
+  const canOpenAdmin = isSuperAdmin(authUser?.uid, authUser?.email) || (profile as any)?.role === 'super_admin';
   const activeFrameDef = inventory?.activeFrame ? ALL_SHOP_ITEMS.find(i => i.id === inventory.activeFrame) : null;
   const activeTitleDef = inventory?.activeTitle ? ALL_SHOP_ITEMS.find(i => i.id === inventory.activeTitle) : null;
   const activeFrameColor = activeFrameDef ? RARITY_COLOR[activeFrameDef.rarity] : undefined;
