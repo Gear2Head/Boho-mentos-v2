@@ -79,6 +79,9 @@ export function AdminDashboard({ onBack }: Props) {
   };
 
   const handleBootstrap = async () => {
+    const secret = prompt('Lütfen Owner Bootstrap Secret değerini girin (.env dosyasındaki OWNER_BOOTSTRAP_SECRET):');
+    if (!secret) return;
+
     setIsBootstrapping(true);
     try {
       if (!import.meta.env.DEV) {
@@ -89,7 +92,10 @@ export function AdminDashboard({ onBack }: Props) {
       
       const response = await fetch('/api/admin/bootstrap-owner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-bootstrap-secret': secret 
+        },
         body: JSON.stringify({ idToken })
       });
       
@@ -98,7 +104,7 @@ export function AdminDashboard({ onBack }: Props) {
         showToast('success', 'Admin yetkisi başarıyla tanımlandı! Sayfayı yenileyin.');
         setTimeout(() => window.location.reload(), 2000);
       } else {
-        showToast('error', 'Bu hesap yetkilendirme için uygun değil.');
+        showToast('error', data.error || 'Bu hesap yetkilendirme için uygun değil.');
       }
     } catch (err: any) {
       showToast('error', err.message || 'Bootstrap hatası');
