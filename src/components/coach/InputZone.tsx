@@ -206,16 +206,16 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
   }, [onSubmit, showToast]);
 
   return (
-    <div className="bg-app flex flex-col p-3 w-full">
-      <div className="relative max-w-4xl mx-auto w-full flex flex-col gap-2">
+    <div className="flex w-full flex-col bg-app p-1.5">
+      <div className="relative mx-auto flex w-full max-w-4xl flex-col gap-1.5">
 
         {/* Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {QUICK_REPLIES.map(chip => (
             <button
               key={chip.label}
               onClick={() => handlePill(chip)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-2 border border-app rounded-full text-[11px] font-medium text-ink-muted hover:border-[#C17767]/40 hover:bg-[#C17767]/5 hover:text-[#C17767] transition-all whitespace-nowrap shadow-sm"
+              className="flex items-center gap-1.5 rounded-full border border-app bg-surface-2 px-2.5 py-1 text-[10px] font-medium text-ink-muted shadow-sm transition-all hover:border-[#C17767]/40 hover:bg-[#C17767]/5 hover:text-[#C17767] whitespace-nowrap"
             >
               <span className="opacity-70">{chip.icon}</span> {chip.label}
             </button>
@@ -265,7 +265,7 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
         )}
 
         {/* Input field */}
-        <div className="relative flex items-end bg-surface-2 border border-app rounded-2xl shadow-inner focus-within:border-[#C17767]/30 transition-all p-1.5">
+        <div className="relative flex items-end rounded-xl border border-app bg-surface-2 p-1 shadow-inner transition-all focus-within:border-[#C17767]/30">
 
           {/* Left buttons */}
           <div className="flex items-center shrink-0 self-end mb-1 ml-1 gap-0.5">
@@ -299,8 +299,8 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
             onKeyDown={handleKeyDown}
             placeholder={isOCRLoading ? 'OCR taranıyor...' : 'Mesaj yaz veya / ile araçları kullan...'}
             rows={1}
-            className="flex-1 bg-transparent text-ink px-2 py-3 text-sm resize-none focus:outline-none placeholder:text-ink-muted no-scrollbar self-center"
-            style={{ minHeight: '44px', maxHeight: '160px' }}
+            className="flex-1 resize-none self-center bg-transparent px-2 py-2.5 text-[13px] text-ink placeholder:text-ink-muted focus:outline-none no-scrollbar"
+            style={{ minHeight: '38px', maxHeight: '132px' }}
           />
 
           {/* Clear */}
@@ -318,7 +318,7 @@ export function InputZone({ value, onChange, onSubmit, isTyping, onLogClick, onE
             <button
               onClick={handleSend}
               disabled={isSending || isEmpty}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${!isEmpty && !isSending
+              className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${!isEmpty && !isSending
                 ? 'bg-[#C17767] text-white hover:scale-105 shadow-lg shadow-[#C17767]/20'
                 : 'bg-surface text-ink-muted cursor-not-allowed opacity-40'
                 }`}

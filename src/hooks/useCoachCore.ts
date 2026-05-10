@@ -64,6 +64,34 @@ function detectBackdatedLogPrompt(message: string): string | null {
   return toLocalISODateOnly(candidate);
 }
 
+function buildDirectiveChatText(directive: CoachDirective, fallback: string): string {
+  const summary = directive.summary?.trim();
+  const tasks = Array.isArray(directive.tasks) ? directive.tasks.slice(0, 3) : [];
+
+  if (tasks.length === 0) {
+    return summary || fallback;
+  }
+
+  const taskLines = tasks.map((task, index) => {
+    const scope = [task.subject, task.topic].filter(Boolean).join(' / ');
+    const target = [
+      task.targetQuestions ? `${task.targetQuestions} soru` : null,
+      task.targetMinutes ? `${task.targetMinutes} dk` : null,
+    ].filter(Boolean).join(', ');
+    const detail = target ? `${scope ? `${scope}: ` : ''}${target}` : task.action;
+    const evidence = task.sourceEvidence || task.rationale;
+    return `${index + 1}. ${detail}${evidence ? ` — ${evidence}` : ''}`;
+  });
+
+  const successLine = tasks[0]?.successCriteria
+    ? `Başarı ölçütü: ${tasks[0].successCriteria}`
+    : '';
+
+  return [summary, 'Bugünkü net hamleler:', taskLines.join('\n'), successLine]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export function useCoachCore(): UseCoachCoreReturn {
   const [isTyping, setIsTyping] = useState(false);
 
@@ -166,7 +194,7 @@ export function useCoachCore(): UseCoachCoreReturn {
           
           // Eğer AI sadece raw JSON döndürdüyse veya temizlik sonrası metin boşsa summary'yi kullan
           if (tempText.startsWith('{') || tempText.startsWith('[') || !tempText) {
-            tempText = directive.summary;
+            tempText = buildDirectiveChatText(directive, rawText ?? '');
           }
           cleanText = tempText;
 

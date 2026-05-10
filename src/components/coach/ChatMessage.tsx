@@ -86,12 +86,12 @@ export const ChatMessage = memo(function ChatMessage({
   if (isUser) {
     return (
       <motion.div
-        className="flex justify-end items-end gap-3"
+        className="flex items-end justify-end gap-2.5 py-1"
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.18, delay: Math.min(index * 0.01, 0.08) }}
       >
-        <div className="max-w-[82%] md:max-w-[62%]">
+        <div className="max-w-[88%] md:max-w-[58%]">
           {!isGrouped && (
             <div className="flex justify-end items-center gap-2 mb-1.5">
               <span className="text-[10px] text-zinc-600 font-medium">{time}</span>
@@ -101,7 +101,7 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           )}
 
-          <div className="relative overflow-hidden rounded-2xl rounded-br-md border border-zinc-800 bg-[#1B1B20] px-5 py-4 text-sm leading-relaxed text-zinc-100 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl rounded-br-md border border-zinc-800 bg-[#1B1B20] px-3.5 py-2.5 text-[13px] leading-relaxed text-zinc-100 shadow-sm">
             {message.imageUrl && (
               <div className="mb-3 rounded-xl overflow-hidden border border-zinc-800 relative">
                 <div className="absolute inset-0 z-20" />
@@ -120,7 +120,7 @@ export const ChatMessage = memo(function ChatMessage({
         </div>
 
         {!isGrouped ? (
-          <div className="w-8 h-8 shrink-0 rounded-xl overflow-hidden border border-zinc-800 shadow-sm mb-1 relative">
+          <div className="mb-1 h-7 w-7 shrink-0 overflow-hidden rounded-lg border border-zinc-800 shadow-sm relative">
             <div className="absolute inset-0 z-20" />
             <img
               src={userAvatarUrl}
@@ -131,7 +131,7 @@ export const ChatMessage = memo(function ChatMessage({
             />
           </div>
         ) : (
-          <div className="w-8 shrink-0" />
+          <div className="w-7 shrink-0" />
         )}
       </motion.div>
     );
@@ -139,14 +139,14 @@ export const ChatMessage = memo(function ChatMessage({
 
   return (
     <motion.div
-      className="flex items-end gap-3"
+      className="flex items-end gap-2.5 py-1"
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: Math.min(index * 0.01, 0.08) }}
     >
       {!isGrouped ? (
         <div
-          className="w-8 h-8 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden shrink-0 mb-1 relative"
+          className="mb-1 h-7 w-7 shrink-0 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 relative"
           aria-hidden="true"
         >
           <div className="absolute inset-0 z-20" />
@@ -159,10 +159,10 @@ export const ChatMessage = memo(function ChatMessage({
           />
         </div>
       ) : (
-        <div className="w-8 shrink-0" />
+        <div className="w-7 shrink-0" />
       )}
 
-      <div className="max-w-[86%] md:max-w-[68%]">
+      <div className="max-w-[90%] md:max-w-[64%]">
         {!isGrouped && (
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C17767]">
@@ -173,11 +173,11 @@ export const ChatMessage = memo(function ChatMessage({
           </div>
         )}
 
-        <div className="relative overflow-hidden rounded-2xl rounded-bl-md border border-zinc-800 bg-[#111114] shadow-sm">
+        <div className="relative overflow-hidden rounded-xl rounded-bl-md border border-zinc-800 bg-[#111114] shadow-sm">
           <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#C17767]/70" />
 
-          <div className="pl-5 pr-5 py-4">
-            <div className="text-sm leading-[1.75] text-zinc-200 font-medium">
+          <div className="py-3 pl-4 pr-4">
+            <div className="text-[13px] font-medium leading-[1.65] text-zinc-200">
               <CoachParser content={message.content} />
             </div>
 
@@ -211,29 +211,30 @@ function DirectivePreview({
 
   const completedCount = directive.tasks.filter((task) => task.status === 'completed').length;
   const taskCount = directive.tasks.length;
+  const previewTasks = directive.tasks.slice(0, 3);
 
   return (
-    <div className="mt-4 border-t border-zinc-800 pt-4">
+    <div className="mt-3 border-t border-zinc-800/80 pt-3">
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-left hover:border-[#C17767]/35 transition-all"
+        className="flex w-full items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2.5 text-left transition-all hover:border-[#C17767]/35"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-[#C17767]/10 text-[#C17767] flex items-center justify-center shrink-0">
-            <Target size={15} />
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#C17767]/10 text-[#C17767]">
+            <Target size={13} />
           </div>
 
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.18em] font-black text-zinc-500">
-              Aksiyon notu
+            <div className="text-[8px] font-black uppercase tracking-[0.18em] text-zinc-500">
+              Plan
             </div>
-            <div className="truncate text-sm font-bold text-zinc-200">
+            <div className="truncate text-[13px] font-bold text-zinc-200">
               {directive.headline || 'Önerilen çalışma adımı'}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <span className="text-[10px] font-black text-zinc-500">
             {completedCount}/{taskCount}
           </span>
@@ -244,6 +245,37 @@ function DirectivePreview({
           )}
         </div>
       </button>
+
+      {previewTasks.length > 0 && (
+        <div className="mt-2 grid gap-1.5">
+          {previewTasks.map((task, idx) => (
+            <div
+              key={`preview-${task.id || task.action}-${idx}`}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-zinc-800/70 bg-zinc-950/35 px-2.5 py-2"
+            >
+              <span
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                  task.priority === 'high'
+                    ? 'bg-rose-500'
+                    : task.priority === 'medium'
+                      ? 'bg-amber-500'
+                      : 'bg-blue-500'
+                }`}
+              />
+              <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-zinc-300">
+                {task.subject ? `${task.subject}${task.topic ? ` / ${task.topic}` : ''}: ` : ''}
+                {task.targetQuestions ? `${task.targetQuestions} soru ` : ''}
+                {task.targetMinutes ? `${task.targetMinutes} dk` : task.action}
+              </span>
+              {task.successCriteria && (
+                <span className="hidden shrink-0 rounded-md border border-emerald-500/15 bg-emerald-500/5 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-400 sm:inline">
+                  hedef
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <AnimatePresence initial={false}>
         {open && (
@@ -277,7 +309,7 @@ function DirectivePreview({
                 return (
                   <div
                     key={`${task.action}-${idx}`}
-                    className={`rounded-xl border p-3 transition-all ${isDone
+                    className={`rounded-lg border p-2.5 transition-all ${isDone
                         ? 'border-emerald-500/20 bg-emerald-500/5 opacity-70'
                         : 'border-zinc-800 bg-zinc-950/40'
                       }`}
@@ -297,7 +329,7 @@ function DirectivePreview({
 
                         <div className="min-w-0">
                           <div
-                            className={`text-sm font-semibold leading-relaxed ${isDone ? 'line-through text-zinc-500' : 'text-zinc-200'
+                            className={`text-[12px] font-semibold leading-relaxed ${isDone ? 'line-through text-zinc-500' : 'text-zinc-200'
                               }`}
                           >
                             {task.action}

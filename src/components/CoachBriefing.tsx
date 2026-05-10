@@ -20,7 +20,6 @@ import {
   Target,
   Flame,
   ChevronRight,
-  ChevronRight,
   Loader2,
   Activity,
   BrainCircuit,

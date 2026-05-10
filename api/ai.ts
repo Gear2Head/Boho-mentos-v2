@@ -90,8 +90,10 @@ function resolveServerCoachDecision(body: AiRequestBody) {
   const intent = body.intent || 'free_chat';
   const userAskedForPlan = userExplicitlyAskedForPlan(body.userMessage || '');
   const clientDecision = body.decision;
+  const allowDirective = isDirectiveAllowed(intent) || (intent === 'free_chat' && userAskedForPlan);
+  const directiveRequested = Boolean(body.forceJson || body.wantDirective) || userAskedForPlan;
   const shouldAttach = Boolean(clientDecision?.shouldAttachDirective) ||
-    (shouldAttachDirective(intent, Boolean(body.forceJson || body.wantDirective)) &&
+    (allowDirective && directiveRequested &&
       (userAskedForPlan || intent === 'daily_plan' || intent === 'daily_quest' || intent === 'generate_weekly_strategy'));
 
   return {
@@ -198,6 +200,15 @@ const CLAUDE_STYLE_GUIDANCE = `
 - Operasyonel intentlerde dogal metin + olculebilir aksiyon ayrimini koru.
 - Kaynak onerisinde sadece onayli katalog kaynaklarina dayan; kaynak yoksa bunu acikca soyle.
 - Gereksiz sertlik, bos motivasyon ve ham JSON gosterimi yasak.`;
+
+const COMPACT_COACH_OUTPUT_RULES = `
+[KOMPAKT AMA DOLU YANIT KURALI]
+- Aynı TYT/AYT hedef farkı cümlesini tekrarlayıp bırakma; her yanıtta yeni teşhis veya yeni hamle üret.
+- Plan isteniyorsa 2-3 görev yeterli. Her görev ders/konu/soru/süre/başarı ölçütü içermeli.
+- Analiz isteniyorsa önce 2 cümle teşhis, sonra küçük tablo, sonra en fazla 3 öncelik ver.
+- Veri yetersizse uydurma görev verme; eksik veriyi tek net soruyla iste.
+- "Hızlı Kazançlar", "Hedefe Odaklanma" gibi genel başlıklar tek başına yasak; başlık konu ve ölçü içermeli.
+- Her operasyonel cevapta kullanıcının mesajına özel bir fark olmalı: konu, risk, süre, hedef veya telafi aksiyonu.`;
 
 const PERSONALITY_MODES: Record<string, string> = {
   enforcer:
@@ -341,6 +352,9 @@ ZORUNLU DİREKTİF JSON ŞEMASI — Markdown kod bloğu KULLANMA, sadece ham JSO
       "dueWindow": "today|tomorrow|this_week",
       "rationale": "Neden bu görev? Öğrencinin verisine dayalı gerekçe (Örn: 'Son 3 denemede Fizik neti -8.2, momentum hataları kritik')",
       "successCriteria": "Başarı kriteri (Örn: '25 sorudan 19+ doğru, yanlış kalıpları not defterine')",
+      "sourceEvidence": "Bu gorevin hangi log, deneme, hedef farki veya zayif konu satirina dayandigi",
+      "recoveryAction": "Gorev yapilamazsa 15-20 dakikalik telafi aksiyonu",
+      "evidenceLevel": "high|medium|low",
       "originSurface": "coach"
     }
   ],
@@ -392,12 +406,13 @@ function safeParseDirective(raw: string): any {
 
 function validateCoachOutput(raw: string, opts: {
   attachDirective: boolean;
+  forceJson?: boolean;
   approvedResourceTopics?: unknown;
 }) {
   const issues: Array<{ code: string; message: string; severity: 'warning' | 'error' }> = [];
   let repairedText = raw;
 
-  if (!opts.attachDirective && /^\s*[{[]/.test(raw)) {
+  if (!opts.attachDirective && !opts.forceJson && /^\s*[{[]/.test(raw)) {
     issues.push({
       code: 'JSON_IN_NATURAL_RESPONSE',
       message: 'Natural response returned raw JSON; stripping code fences/object wrapper for user safety.',
@@ -436,6 +451,13 @@ function validateCoachOutput(raw: string, opts: {
           issues.push({
             code: 'TASK_MISSING_EVIDENCE',
             message: `Task ${index + 1} has no evidence/rationale.`,
+            severity: 'warning',
+          });
+        }
+        if (!task.successCriteria || !task.recoveryAction) {
+          issues.push({
+            code: 'TASK_TOO_GENERIC',
+            message: `Task ${index + 1} missing success criteria or recovery action.`,
             severity: 'warning',
           });
         }
@@ -610,6 +632,7 @@ function buildPrompt(body: AiRequestBody): string {
   return [
     PERSONALITY_CORE,
     CLAUDE_STYLE_GUIDANCE,
+    COMPACT_COACH_OUTPUT_RULES,
     TABLE_OUTPUT_INSTRUCTION,
     PERSONALITY_MODES[personalityMode] || '',
     `KOÇ KARARI: ${decision.decisionKind} | Derinlik: ${decision.responseDepth} | ${decision.reason}`,
@@ -620,6 +643,15 @@ function buildPrompt(body: AiRequestBody): string {
     `KULLANICI MESAJI:\n${body.userMessage || ''}`,
     naturalOnly
       ? `CEVAP MODU: Doğal cevap ver. Direktif, görev kartı veya JSON üretme. Kullanıcı açıkça plan istemediyse aksiyon listesi dayatma.`
+      : '',
+    attachDirective
+      ? `DIREKTIF KALITE KILIDI:
+- En az 2, en fazla 3 gorev uret.
+- Her gorev farkli konuya veya farkli calisma turune dayansin; ayni hedef farkini tekrar etme.
+- Her task.sourceEvidence veya task.rationale gercek veri satirina dayansin.
+- Her task.successCriteria olculebilir olsun.
+- Her task.recoveryAction dolu olsun: gorev tutmazsa 15-20 dakikalik telafi hamlesi.
+- Veri yoksa rastgele konu secme; once eksik veriyi soran kisa bir cevap uret.`
       : '',
     attachDirective ? STRUCTURED_JSON_INSTRUCTION : '',
   ].filter(Boolean).join('\n\n');
@@ -932,6 +964,7 @@ export default async function handler(req: any, res: any) {
     });
     const quality = validateCoachOutput(result.text, {
       attachDirective,
+      forceJson: decision.forceJson,
       approvedResourceTopics: body.userState?.approvedResourceTopics,
     });
     const responseText = quality.repairedText || result.text;

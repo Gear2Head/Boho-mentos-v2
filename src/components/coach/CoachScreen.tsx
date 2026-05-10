@@ -236,8 +236,8 @@ export function CoachScreen({
       <motion.aside
         initial={false}
         animate={{
-          x: isSidebarOpen ? 0 : -320,
-          width: isSidebarOpen ? 280 : 0,
+          x: isSidebarOpen ? 0 : -300,
+          width: isSidebarOpen ? 248 : 0,
         }}
         transition={{ type: 'spring', stiffness: 260, damping: 30 }}
         className="fixed left-0 top-0 z-[101] h-full overflow-hidden border-r border-zinc-800 bg-[#0B0B0D] md:relative md:z-10 md:block"
@@ -249,12 +249,12 @@ export function CoachScreen({
       </motion.aside>
 
       <section className="relative z-10 flex min-w-0 flex-1 flex-col border-x border-zinc-900/80 bg-[#09090B]/70">
-        <header className="shrink-0 border-b border-zinc-800/90 bg-[#0B0B0D]/92 px-3 py-3 backdrop-blur-2xl md:px-6">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
+        <header className="shrink-0 border-b border-zinc-800/90 bg-[#0B0B0D]/92 px-3 py-2 backdrop-blur-2xl md:px-5">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
               <button
                 onClick={() => setSidebarOpen((prev) => !prev)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-zinc-400 transition-all hover:border-[#C17767]/40 hover:text-[#C17767]"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400 transition-all hover:border-[#C17767]/40 hover:text-[#C17767]"
                 title={isSidebarOpen ? 'Geçmişi gizle' : 'Geçmişi göster'}
                 aria-label={isSidebarOpen ? 'Geçmişi gizle' : 'Geçmişi göster'}
               >
@@ -265,15 +265,15 @@ export function CoachScreen({
                 )}
               </button>
 
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#C17767]/20 bg-[#C17767]/10 text-[#C17767]">
-                <BrainCircuit size={18} />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[#C17767]/20 bg-[#C17767]/10 text-[#C17767]">
+                <BrainCircuit size={16} />
               </div>
 
               <div className="min-w-0">
                 <div className="truncate text-[10px] font-black uppercase tracking-[0.24em] text-[#C17767]">
                   {activeTitle}
                 </div>
-                <p className="truncate text-xs text-zinc-500">
+                <p className="truncate text-[11px] text-zinc-500">
                   Sakin muhakeme, net aksiyon, kontrollü hafıza.
                 </p>
               </div>
@@ -290,8 +290,8 @@ export function CoachScreen({
           </div>
         </header>
 
-        <div className="shrink-0 border-b border-zinc-900 bg-[#09090B]/80 px-3 py-3 backdrop-blur-xl md:px-6">
-          <div className="mx-auto flex max-w-5xl items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="shrink-0 border-b border-zinc-900 bg-[#09090B]/80 px-3 py-2 backdrop-blur-xl md:px-5">
+          <div className="mx-auto flex max-w-4xl items-center gap-2 overflow-x-auto no-scrollbar">
             <QuickChip
               icon={<Sparkles size={13} />}
               label="Hedefe ne kadar uzağım?"
@@ -324,14 +324,14 @@ export function CoachScreen({
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#09090B] to-transparent" />
 
-          <div className="mx-auto w-full max-w-5xl px-4 py-6 pb-8 md:px-8 md:py-8">
+          <div className="mx-auto w-full max-w-4xl px-3 py-4 pb-6 md:px-5 md:py-5">
             {isEmpty ? (
               <div className="mx-auto max-w-3xl">
                 <CoachBriefing onSendMessage={onSendMessage} isTyping={isTyping} />
               </div>
             ) : (
               <>
-                <div className="mb-7 flex items-center gap-3">
+                <div className="mb-4 flex items-center gap-3">
                   <div className="h-px flex-1 bg-zinc-800/70" />
                   <span className="rounded-full border border-zinc-800 bg-zinc-950 px-4 py-1.5 text-[9px] font-black uppercase tracking-[0.28em] text-[#C17767] shadow-sm">
                     {new Date().toLocaleDateString('tr-TR', {
@@ -378,7 +378,7 @@ export function CoachScreen({
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
-                      className="mt-4"
+                    className="mt-3"
                     >
                       <TypingIndicator coachPersonality={profile?.coachPersonality} />
                     </motion.div>
@@ -406,8 +406,8 @@ export function CoachScreen({
           )}
         </AnimatePresence>
 
-        <div className="shrink-0 border-t border-zinc-800/90 bg-[#0B0B0D]/95 px-3 py-3 backdrop-blur-2xl md:px-6">
-          <div className="mx-auto max-w-5xl">
+        <div className="shrink-0 border-t border-zinc-800/90 bg-[#0B0B0D]/95 px-3 py-2 backdrop-blur-2xl md:px-5">
+          <div className="mx-auto max-w-4xl">
             <InputZone
               value={inputMessage}
               onChange={setInputMessage}
@@ -420,7 +420,7 @@ export function CoachScreen({
         </div>
       </section>
 
-      <aside className="relative z-10 hidden min-w-[300px] max-w-[340px] border-l border-zinc-800 bg-[#0B0B0D]/92 xl:block">
+      <aside className="relative z-10 hidden min-w-[260px] max-w-[280px] border-l border-zinc-800 bg-[#0B0B0D]/92 2xl:block">
         <ContextBar onQuickAction={onSendMessage} />
       </aside>
     </div>
@@ -461,7 +461,7 @@ function QuickChip({
   return (
     <button
       onClick={onClick}
-      className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-950/80 px-3 py-2 text-[11px] font-bold text-zinc-400 transition-all hover:border-[#C17767]/40 hover:bg-[#C17767]/10 hover:text-[#C17767] active:scale-[0.98]"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-950/80 px-2.5 py-1.5 text-[10px] font-bold text-zinc-400 transition-all hover:border-[#C17767]/40 hover:bg-[#C17767]/10 hover:text-[#C17767] active:scale-[0.98]"
     >
       <span className="text-[#C17767]">{icon}</span>
       {label}

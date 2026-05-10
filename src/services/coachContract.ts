@@ -164,8 +164,9 @@ export function resolveCoachDecision(
   if (logCandidate && intent === 'free_chat') decisionKind = 'log_confirmation';
   if (planRequested && intent === 'free_chat') decisionKind = 'generate_plan';
 
+  const allowDirective = base.allowDirective || (intent === 'free_chat' && planRequested);
   const shouldAttachDirective =
-    base.allowDirective &&
+    allowDirective &&
     (explicitDirective || planRequested || intent === 'daily_plan' || intent === 'daily_quest' || intent === 'generate_weekly_strategy');
 
   const forceJson = base.forceJson || shouldAttachDirective;
