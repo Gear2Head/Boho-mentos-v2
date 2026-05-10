@@ -23,7 +23,18 @@ function canUseVibration(): boolean {
   return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 }
 
+function isNativePlatform(): boolean {
+  try {
+    // ASSUME: Capacitor.isNativePlatform() is the reliable check for native vs web
+    const cap = (window as any).Capacitor;
+    return cap?.isNativePlatform?.() === true;
+  } catch {
+    return false;
+  }
+}
+
 async function loadCapacitorHaptics(): Promise<CapacitorHapticsModule | null> {
+  if (!isNativePlatform()) return null;
   try {
     const mod = await import(/* @vite-ignore */ '@capacitor/haptics');
     return mod.Haptics as CapacitorHapticsModule;

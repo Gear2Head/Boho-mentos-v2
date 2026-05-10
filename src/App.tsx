@@ -253,7 +253,7 @@ export default function App() {
 
   useEffect(() => {
     if (user && hasHydrated && !profile) {
-      console.warn('[App] Profile missing after hydration, attempting recovery...');
+      console.debug('[App] Profile missing after hydration — awaiting Firestore sync.');
     }
   }, [user, hasHydrated, profile]);
 

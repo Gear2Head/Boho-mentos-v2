@@ -3,7 +3,7 @@
  * MANTIK: HTML5 Canvas + useCanvasSync hook ile resize sorununu giderir.
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasSync } from '../../hooks/useCanvasSync';
 import { useAppStore } from '../../store/appStore';
 
@@ -45,8 +45,7 @@ export function CanvasLayer() {
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing || drawingMode === 'pointer') return;
-    // Önleyen scroll sadece mobilde ve çiziyorsa
-    e.preventDefault();
+    // NOTE: preventDefault for touch is handled via native listener below (passive: false)
     const { offsetX, offsetY } = getCoordinates(e);
     if (!ctxRef.current) return;
     
@@ -62,6 +61,25 @@ export function CanvasLayer() {
     ctxRef.current.lineTo(offsetX, offsetY);
     ctxRef.current.stroke();
   };
+
+  // Native touchmove listener with {passive: false} to allow preventDefault
+  // React synthetic events register as passive, making e.preventDefault() throw
+  const isDrawingRef = useRef(false);
+  isDrawingRef.current = isDrawing;
+  const drawingModeRef = useRef(drawingMode);
+  drawingModeRef.current = drawingMode;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handler = (e: TouchEvent) => {
+      if (isDrawingRef.current && drawingModeRef.current !== 'pointer') {
+        e.preventDefault();
+      }
+    };
+    canvas.addEventListener('touchmove', handler, { passive: false });
+    return () => canvas.removeEventListener('touchmove', handler);
+  }, [canvasRef, dims]);
 
   const stopDrawing = () => {
     ctxRef.current?.closePath();

@@ -217,7 +217,12 @@ export function useAuth() {
          }
 
          if (!shouldBypassStaleCheck && store.profile && new Date(remoteUpdateAt).getTime() < new Date(localUpdateAt).getTime()) {
-           console.log('[Sync] Remote data is stale, keeping local version.');
+           // PERF: Throttle stale-sync log to once per 30s to prevent console flood
+           const now = Date.now();
+           if (!((window as any).__lastStaleLog) || now - (window as any).__lastStaleLog > 30000) {
+             (window as any).__lastStaleLog = now;
+             console.log('[Sync] Remote data is stale, keeping local version.');
+           }
            setIsProfileLoading(false);
            return;
          }
